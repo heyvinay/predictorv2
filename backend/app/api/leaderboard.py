@@ -10,16 +10,22 @@ import uuid
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.dependencies import CurrentUser, DbSession, OptionalUser
 from app.models.entry import PredictionEntry
-from app.models.user import User  # noqa: F401 — kept for selectinload type clarity
+from app.models.user import User
 from app.schemas.leaderboard import LeaderboardResponse, PointBreakdown
+from app.services.entries import (
+    EntryAccessDeniedError,
+    EntryNotFoundError,
+    get_entry_for_view,
+)
 from app.services.leaderboard import calculate_leaderboard, invalidate_cache
+from app.services.locking import is_phase1_locked
 from app.services.scoring import (
     SCORING_STRATEGIES,
     calculate_entry_points,
@@ -106,7 +112,7 @@ async def get_scoring_rules() -> ScoringConfigResponse:
 @router.get("/", response_model=LeaderboardResponse)
 async def get_leaderboard(
     session: DbSession,
-    _user: OptionalUser,
+    user: OptionalUser,
     refresh: bool = Query(False, description="Force cache refresh"),
     phase: str | None = Query(None, description="Filter by phase: 'phase_1', 'phase_2', or null for overall"),
 ) -> LeaderboardResponse:
@@ -121,11 +127,30 @@ async def get_leaderboard(
     - `phase_2`: Phase 2 points only
 
     Position rankings are recalculated based on the selected phase's points.
+
+    **Visibility:** before Phase 1 deadline passes, the response only
+    includes rows the requester owns (so users can't peek at others'
+    progress while predictions are still open). `total_participants`
+    stays unfiltered so the user sees the true field size. Admins always
+    see everyone.
     """
     if phase is not None and phase not in ("phase_1", "phase_2"):
         phase = None
 
-    return await calculate_leaderboard(session, force_refresh=refresh, phase=phase)
+    response = await calculate_leaderboard(session, force_refresh=refresh, phase=phase)
+
+    # Pre-lock blind-pool filter. Post-lock returns full standings.
+    if user is None or not user.is_admin:
+        locked = await is_phase1_locked(session)
+        if not locked:
+            if user is None:
+                response.entries = []
+            else:
+                response.entries = [
+                    e for e in response.entries if e.user_id == user.id
+                ]
+
+    return response
 
 
 @router.post("/invalidate")
@@ -140,9 +165,23 @@ async def invalidate_leaderboard_cache() -> dict[str, str]:
 
 @router.get("/breakdown/{entry_id}")
 async def get_entry_breakdown(
-    entry_id: uuid.UUID, session: DbSession, _user: OptionalUser
+    entry_id: uuid.UUID, session: DbSession, user: OptionalUser
 ) -> PointBreakdown:
-    """Get detailed point breakdown for a single prediction entry."""
+    """Get detailed point breakdown for a single prediction entry.
+
+    Visibility: owner / admin always; other viewers only after Phase 1
+    deadline passes and the entry is eligible. Returns 403 otherwise.
+    """
+    try:
+        await get_entry_for_view(session, entry_id=entry_id, viewer=user)
+    except EntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except EntryAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     return await calculate_entry_points(session, entry_id)
 
 
@@ -218,18 +257,32 @@ async def get_my_trajectory(
 async def get_entry_trajectory_route(
     entry_id: uuid.UUID,
     session: DbSession,
-    _user: CurrentUser,
+    user: CurrentUser,
     days: int = Query(7, ge=2, le=90),
 ) -> RankTrajectoryResponse:
     """Rank trajectory for any entry — powers the leaderboard's per-row
-    sparkline column and the public profile."""
+    sparkline column and the public profile.
+
+    Visibility: owner / admin always; other viewers only after Phase 1
+    deadline passes and the entry is eligible.
+    """
+    try:
+        await get_entry_for_view(session, entry_id=entry_id, viewer=user)
+    except EntryNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except EntryAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     return await _build_trajectory(session, entry_id, days)
 
 
 @router.get("/climbers", response_model=SteepestClimbersResponse)
 async def get_climbers(
     session: DbSession,
-    _user: CurrentUser,
+    user: CurrentUser,
     days: int = Query(7, ge=2, le=90),
     # Cap raised from 20 → 100 so the Dashboard can request the full field
     # (it asks for 32 to cover any plausible competition size). 422'd
@@ -274,4 +327,10 @@ async def get_climbers(
                 previous_position=c["previous_position"],
             )
         )
+
+    # Pre-lock: filter to the viewer's own entries (blind pool). Admins
+    # see everyone. Post-lock returns the full list.
+    if not user.is_admin and not await is_phase1_locked(session):
+        entries = [e for e in entries if e.user_id == user.id]
+
     return SteepestClimbersResponse(days=days, entries=entries)

@@ -174,13 +174,17 @@ class TestEntriesHappyPath:
 # Cross-user access — 403 even with another auth'd user
 # ---------------------------------------------------------------------------
 class TestCrossUserAccess:
-    async def test_other_user_cannot_get_alices_entry(
+    async def test_other_user_cannot_get_alices_entry_pre_lock(
         self,
         db_session: AsyncSession,
         competition: Competition,
         alice: User,
         bob: User,
     ):
+        """Before the Phase 1 deadline passes, non-owners must get 403 —
+        the blind-pool rule. Without `phase1_deadline` set, `is_phase1_locked`
+        returns False, so this also exercises the "no deadline configured"
+        case (treated as pre-lock for safety)."""
         async def override_session():
             yield db_session
 
@@ -198,6 +202,103 @@ class TestCrossUserAccess:
             r = await ac.get(f"/api/entries/{entry_id}")
         app.dependency_overrides.clear()
         assert r.status_code == 403
+
+    async def test_other_user_can_get_alices_entry_post_lock(
+        self,
+        db_session: AsyncSession,
+        competition: Competition,
+        alice: User,
+        bob: User,
+    ):
+        """After the Phase 1 deadline, non-owners may read eligible
+        entries — the blind pool is over and standings are public."""
+        async def override_session():
+            yield db_session
+
+        app.dependency_overrides[get_session] = override_session
+        app.dependency_overrides[get_current_user] = lambda: alice
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.post("/api/entries", json={"display_name": "Alice's"})
+            entry_id = r.json()["id"]
+
+        # Advance the competition past Phase 1 lock.
+        competition.phase1_deadline = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        db_session.add(competition)
+        await db_session.commit()
+
+        app.dependency_overrides[get_current_user] = lambda: bob
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.get(f"/api/entries/{entry_id}")
+        app.dependency_overrides.clear()
+        assert r.status_code == 200
+        assert r.json()["display_name"] == "Alice's"
+
+    async def test_withdrawn_entry_hidden_from_others_post_lock(
+        self,
+        db_session: AsyncSession,
+        competition: Competition,
+        alice: User,
+        bob: User,
+    ):
+        """Post-lock, withdrawn/disabled entries are still hidden from
+        non-owners — only eligible entries become publicly visible."""
+        from app.models.entry import PredictionEntry as PE
+        from app.models._datetime import utc_now
+
+        async def override_session():
+            yield db_session
+
+        app.dependency_overrides[get_session] = override_session
+        app.dependency_overrides[get_current_user] = lambda: alice
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.post("/api/entries", json={"display_name": "Alice's"})
+            entry_id = uuid.UUID(r.json()["id"])
+
+        # Withdraw the entry directly + move past Phase 1 lock.
+        entry = await db_session.get(PE, entry_id)
+        entry.withdrawn_at = utc_now()
+        competition.phase1_deadline = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        db_session.add_all([entry, competition])
+        await db_session.commit()
+
+        app.dependency_overrides[get_current_user] = lambda: bob
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.get(f"/api/entries/{entry_id}")
+        app.dependency_overrides.clear()
+        # Withdrawn → still hidden from non-owners even post-lock.
+        assert r.status_code == 403
+
+    async def test_owner_can_always_read_own_withdrawn_entry(
+        self,
+        db_session: AsyncSession,
+        competition: Competition,
+        alice: User,
+    ):
+        """Owner viewing their own withdrawn/disabled entry is fine."""
+        from app.models.entry import PredictionEntry as PE
+        from app.models._datetime import utc_now
+
+        async def override_session():
+            yield db_session
+
+        app.dependency_overrides[get_session] = override_session
+        app.dependency_overrides[get_current_user] = lambda: alice
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.post("/api/entries", json={"display_name": "Alice's"})
+            entry_id = uuid.UUID(r.json()["id"])
+
+        entry = await db_session.get(PE, entry_id)
+        entry.withdrawn_at = utc_now()
+        db_session.add(entry)
+        await db_session.commit()
+
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            r = await ac.get(f"/api/entries/{entry_id}")
+        app.dependency_overrides.clear()
+        assert r.status_code == 200
 
 
 # ---------------------------------------------------------------------------

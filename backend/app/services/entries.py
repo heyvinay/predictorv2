@@ -208,6 +208,64 @@ async def _ensure_owner(
     )
 
 
+async def check_entry_visibility(
+    session: AsyncSession,
+    *,
+    entry: PredictionEntry,
+    viewer: User | None,
+) -> None:
+    """Raise `EntryAccessDeniedError` if `viewer` may not READ `entry`.
+
+    Less strict than :func:`_ensure_owner`. Read-only callers (the public
+    leaderboard breakdown, profile views, trajectory) use this so the
+    "blind pool" rule is enforced consistently:
+
+    - Admins: always allowed.
+    - Owner: always allowed (even for own withdrawn/disabled entries).
+    - Non-owner / unauthenticated: allowed iff the competition's Phase 1
+      deadline has passed AND the entry is eligible (not disabled, not
+      withdrawn).
+
+    The lock signal is :func:`app.services.locking.is_phase1_locked`. Once
+    that passes, all prediction contents are public knowledge and rank
+    standings can be shared without compromising the blind pool.
+    """
+    if viewer is not None:
+        if viewer.is_admin:
+            return
+        if entry.user_id == viewer.id:
+            return
+    if entry.is_disabled or entry.withdrawn_at is not None:
+        raise EntryAccessDeniedError(
+            f"Entry {entry.id} is not publicly visible"
+        )
+    # Local import to keep the locking <-> entries dependency direction
+    # clear (locking knows nothing about entries; entries depends on locking).
+    from app.services.locking import is_phase1_locked
+
+    if not await is_phase1_locked(session):
+        raise EntryAccessDeniedError(
+            f"Entry {entry.id} is not yet publicly visible"
+        )
+
+
+async def get_entry_for_view(
+    session: AsyncSession,
+    *,
+    entry_id: uuid.UUID,
+    viewer: User | None,
+) -> PredictionEntry:
+    """Load `entry_id` and enforce read-only visibility rules.
+
+    Use this for endpoints that DISPLAY an entry but don't mutate it
+    (entry detail, breakdown, trajectory, profile view). For mutating
+    endpoints, use :func:`get_entry` which insists on ownership.
+    """
+    entry = await _load_entry_with_phases(session, entry_id)
+    await check_entry_visibility(session, entry=entry, viewer=viewer)
+    return entry
+
+
 def _phase_record(
     entry: PredictionEntry, phase: PredictionPhase
 ) -> PredictionEntryPhase:

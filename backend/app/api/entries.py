@@ -161,11 +161,15 @@ async def get_user_entry_settings(
 async def get_entry(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser
 ) -> EntryRead:
+    """Read a single entry.
+
+    Visibility: owner + admin always; other users only after the
+    competition's Phase 1 deadline has passed and the entry is eligible.
+    Disabled and withdrawn entries are never visible to outsiders.
+    """
     try:
-        entry = await entries_service.get_entry(
-            session,
-            entry_id=entry_id,
-            requesting_user=current_user,
+        entry = await entries_service.get_entry_for_view(
+            session, entry_id=entry_id, viewer=current_user
         )
     except Exception as exc:
         _raise_for(exc)
