@@ -20,6 +20,8 @@
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
 	import PnSparkline from '$components/panini/PnSparkline.svelte';
 	import { stubRankTrajectory } from '$lib/stubs/panini';
+	import { loadEntries, entrySettings } from '$stores/entries';
+	import { isYouRow, shouldShowReference } from '$lib/utils/leaderboard';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -28,6 +30,12 @@
 	onMount(() => {
 		if ($isAuthenticated) {
 			startPolling(60000);
+			// Pull entry settings so the conditional reference column can
+			// resolve. Safe to call even if entries are already hydrated
+			// (the store dedupes via its hydration context).
+			if ($user?.competition_id) {
+				void loadEntries($user.id, $user.competition_id);
+			}
 		}
 	});
 
@@ -202,15 +210,20 @@
 						</thead>
 						<tbody>
 							{#each $leaderboard as r (r.entry_id)}
-								{@const isYou = r.user_id === $user?.id}
+								{@const isYou = isYouRow(r, $user?.id)}
+								{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
 								{@const traj = stubRankTrajectory(r.entry_id, r.position, $totalParticipants || $leaderboard.length || 32)}
 								{@const isOpen = expanded.has(r.entry_id)}
 								<tr class:you={isYou} class:open={isOpen} on:click={() => toggle(r.entry_id)} style="cursor: pointer;">
 									<td class="pos" class:gold={r.position <= 3}>{r.position}</td>
 									<td class="nm-cell">
 										<a href="/profile/{r.user_id}" style="color: inherit; text-decoration: none;" on:click|stopPropagation>
-											{r.entry_name}
-											<span class="h">{r.user_name}{isYou ? ' · YOU' : ''}</span>
+											<span class="nm-line">
+												{r.entry_name}
+												{#if isYou}<span class="pn-lb-you">YOU</span>{/if}
+												{#if showRef}<span class="pn-lb-ref">{r.entry_reference}</span>{/if}
+											</span>
+											<span class="h">{r.user_name}</span>
 										</a>
 									</td>
 									<td class="c exact">{exactPts(r.breakdown, $leaderboardPhase)}</td>
@@ -299,7 +312,8 @@
 
 			<div class="pn-m-lb-rows">
 				{#each $leaderboard as r (r.entry_id)}
-					{@const isYou = r.user_id === $user?.id}
+					{@const isYou = isYouRow(r, $user?.id)}
+					{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
 					{@const isOpen = expanded.has(r.entry_id)}
 					<div
 						class="pn-m-lb-row"
@@ -313,7 +327,11 @@
 					>
 						<div class="pos">{r.position}</div>
 						<div>
-							<div class="nm">{r.entry_name}</div>
+							<div class="nm">
+								{r.entry_name}
+								{#if isYou}<span class="pn-lb-you">YOU</span>{/if}
+								{#if showRef}<span class="pn-lb-ref">{r.entry_reference}</span>{/if}
+							</div>
 							<div class="h">{r.user_name} · {r.exact_scores} ex · {r.correct_outcomes} outc · <span class="chev">▾</span></div>
 						</div>
 						<div class="pts">{r.total_points}</div>

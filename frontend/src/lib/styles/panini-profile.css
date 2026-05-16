@@ -326,3 +326,94 @@
 	.pn .pn-pf-hero .rank-block .v { font-size: 36px; }
 	.pn .pn-pf-hero .rank-block .of { display: inline; }
 }
+
+/* ===== F.3: Entries list on profile ===================================== */
+.pn .pn-pf-entries {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.pn .pn-pf-entry {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 14px;
+	align-items: center;
+	padding: 10px 14px;
+	background: var(--paper-2);
+	border: 2px solid var(--ink);
+	font-family: var(--body);
+	color: var(--ink);
+	text-align: left;
+	cursor: pointer;
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.pn .pn-pf-entry:hover {
+	transform: translate(-1px, -1px);
+	box-shadow: 3px 3px 0 var(--ink);
+}
+.pn .pn-pf-entry.active {
+	border-left: 6px solid var(--gold);
+	background: var(--paper);
+}
+.pn .pn-pf-entry.disabled {
+	opacity: 0.55;
+	border-left: 6px solid var(--red);
+}
+.pn .pn-pf-entry.withdrawn {
+	opacity: 0.45;
+	border-left: 6px solid var(--ink-3);
+}
+.pn .pn-pf-entry .who .nm {
+	font-family: var(--display2);
+	font-weight: 700;
+	font-size: 14px;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.pn .pn-pf-entry .who .em {
+	font-family: var(--mono);
+	font-size: 10.5px;
+	color: var(--ink-3);
+	letter-spacing: 0.06em;
+	margin-top: 2px;
+}
+.pn .pn-pf-entry .badges {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+.pn .pn-pf-entry .stat {
+	text-align: right;
+	min-width: 70px;
+}
+.pn .pn-pf-entry .stat .pts {
+	font-family: var(--display);
+	font-size: 22px;
+	line-height: 1;
+	color: var(--ink);
+}
+.pn .pn-pf-entry .stat .lbl {
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink-3);
+	margin-top: 2px;
+}
+@media (max-width: 700px) {
+	.pn .pn-pf-entry {
+		grid-template-columns: 1fr auto;
+	}
+	.pn .pn-pf-entry .stat {
+		grid-column: 1 / -1;
+		text-align: left;
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin-top: 4px;
+	}
+	.pn .pn-pf-entry .stat .pts { font-size: 18px; }
+}

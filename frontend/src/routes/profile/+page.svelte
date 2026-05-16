@@ -3,7 +3,15 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user, logout } from '$stores/auth';
 	import { getUserStats, changePassword } from '$api/auth';
-	import { loadEntries, activeEntryId, activeEntry } from '$stores/entries';
+	import {
+		loadEntries,
+		activeEntryId,
+		activeEntry,
+		entries,
+		setActiveEntry
+	} from '$stores/entries';
+	import { fetchLeaderboard, myLeaderboardRows } from '$stores/leaderboard';
+	import { computeDisplayStatus, type Entry, type EntryStatus } from '$lib/types/entry';
 	import type { UserStats } from '$types';
 	import { get } from 'svelte/store';
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
@@ -26,12 +34,55 @@
 			// Resolve the active entry before pulling stats — they're scoped
 			// to one entry now. The backend falls back to the user's primary
 			// eligible entry if we pass null, so this is best-effort.
+			const tasks: Promise<unknown>[] = [];
 			if ($user.competition_id) {
-				await loadEntries($user.id, $user.competition_id);
+				tasks.push(loadEntries($user.id, $user.competition_id));
 			}
+			// Fetch the leaderboard so the entries-list can show per-entry
+			// total_points without N+1 breakdown calls. Pre-lock returns
+			// only the user's own rows, which is exactly what we want here.
+			tasks.push(fetchLeaderboard());
+			await Promise.all(tasks);
 			await loadStats();
 		}
 	});
+
+	function entryDisplayStatus(e: Entry): EntryStatus {
+		// Phase 1 is the default lens for profile cards — admin still gets
+		// the disabled/withdrawn precedence baked into computeDisplayStatus.
+		return computeDisplayStatus(e, 'phase_1');
+	}
+
+	function statusChipClass(s: EntryStatus): string {
+		switch (s) {
+			case 'submitted':
+			case 'locked':
+				return 'pn-tag got';
+			case 'ready':
+				return 'pn-tag gold';
+			case 'disabled':
+				return 'pn-tag red';
+			case 'withdrawn':
+				return 'pn-tag';
+			default:
+				return 'pn-tag';
+		}
+	}
+
+	function pointsForEntry(entryId: string): number | null {
+		const row = $myLeaderboardRows.find((r) => r.entry_id === entryId);
+		return row ? row.total_points : null;
+	}
+
+	function positionForEntry(entryId: string): number | null {
+		const row = $myLeaderboardRows.find((r) => r.entry_id === entryId);
+		return row ? row.position : null;
+	}
+
+	function handleSelectEntry(entry: Entry) {
+		if (entry.id === $activeEntryId) return;
+		setActiveEntry(entry.id);
+	}
 
 	// Re-load stats whenever the active entry changes (e.g. user switched
 	// from another route). Skip the very-first run when activeEntryId is
@@ -165,6 +216,56 @@
 				<div class="pn-pf-stat">
 					<div class="l">Bonus haul</div>
 					<div class="v bonus">{stats.breakdown.hybrid_bonus_points}</div>
+				</div>
+			</section>
+		{/if}
+
+		<!-- F.3: All entries for this user -->
+		{#if $entries.length > 0}
+			<section class="pn-pf-section">
+				<div class="h">
+					<span>Your entries</span>
+					<span class="right">{$entries.length} of {$entries.length > 0 ? $entries.length : 0}</span>
+				</div>
+				<div class="body">
+					<div class="pn-pf-entries">
+						{#each $entries as e (e.id)}
+							{@const status = entryDisplayStatus(e)}
+							{@const pts = pointsForEntry(e.id)}
+							{@const pos = positionForEntry(e.id)}
+							{@const isActive = e.id === $activeEntryId}
+							<button
+								type="button"
+								class="pn-pf-entry"
+								class:active={isActive}
+								class:disabled={e.is_disabled}
+								class:withdrawn={!!e.withdrawn_at}
+								on:click={() => handleSelectEntry(e)}
+								title={isActive ? 'Active entry' : 'Set as active entry'}
+							>
+								<div class="who">
+									<div class="nm">
+										{e.display_name}
+										{#if isActive}<span class="pn-tag gold">Active</span>{/if}
+									</div>
+									<div class="em">{e.reference}</div>
+								</div>
+								<div class="badges">
+									<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
+									{#if e.paid}<span class="pn-tag got">Paid</span>{:else}<span class="pn-tag">Unpaid</span>{/if}
+								</div>
+								<div class="stat">
+									{#if pts !== null}
+										<div class="pts">{pts}</div>
+										<div class="lbl">pts{#if pos !== null} · #{pos}{/if}</div>
+									{:else}
+										<div class="pts">—</div>
+										<div class="lbl">not ranked</div>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
 				</div>
 			</section>
 		{/if}

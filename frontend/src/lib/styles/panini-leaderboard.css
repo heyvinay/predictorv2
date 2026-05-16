@@ -454,3 +454,55 @@
 .pn .pn-m-lb-row .mv .up { color: var(--green); font-weight: 600; }
 .pn .pn-m-lb-row .mv .dn { color: var(--red); font-weight: 600; }
 .pn .pn-m-lb-row .mv .eq { color: var(--ink-3); }
+
+/* ===== F.3: YOU badge + conditional entry-reference inline chip =========
+ * Both render inside the .nm cell next to the entry display name. The YOU
+ * badge always shows for own rows; the reference shows when the viewer
+ * owns the row OR the competition has show_entry_reference_publicly on
+ * (or the viewer is admin). Both small enough to fit on the row even
+ * when the entry name is long. */
+.pn .pn-lb-table .nm-cell .nm-line {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.pn .pn-lb-you {
+	display: inline-block;
+	padding: 1px 6px;
+	background: var(--red);
+	color: var(--paper);
+	font-family: var(--display);
+	font-size: 9.5px;
+	letter-spacing: 0.10em;
+	line-height: 1.4;
+	border: 1.5px solid var(--ink);
+	vertical-align: middle;
+}
+.pn .pn-lb-ref {
+	display: inline-block;
+	padding: 1px 6px;
+	background: var(--paper-2);
+	color: var(--ink-3);
+	font-family: var(--mono);
+	font-size: 10px;
+	letter-spacing: 0.06em;
+	border: 1px solid var(--paper-3);
+	vertical-align: middle;
+}
+
+/* Mobile rows: same chips, slightly tighter spacing. */
+.pn .pn-m-lb-row .nm {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+.pn .pn-m-lb-row .nm .pn-lb-you {
+	font-size: 9px;
+	padding: 0 5px;
+}
+.pn .pn-m-lb-row .nm .pn-lb-ref {
+	font-size: 9.5px;
+	padding: 0 5px;
+}
