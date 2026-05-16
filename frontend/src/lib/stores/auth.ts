@@ -8,6 +8,7 @@ import { goto } from '$app/navigation';
 import { api } from '$api/client';
 import * as authApi from '$api/auth';
 import { clearAllForUser } from '$stores/unsavedPersistence';
+import { resetEntries } from '$stores/entries';
 import type { User, UserCreate, UserLogin } from '$types';
 
 const TOKEN_KEY = 'predictor_token';
@@ -95,6 +96,7 @@ export async function fetchUser(): Promise<User | null> {
 		// on the same browser.
 		const prevId = get(user)?.id;
 		if (prevId) clearAllForUser(prevId);
+		resetEntries();
 		token.set(null);
 		user.set(null);
 		return null;
@@ -104,6 +106,7 @@ export async function fetchUser(): Promise<User | null> {
 export function logout() {
 	const prevId = get(user)?.id;
 	if (prevId) clearAllForUser(prevId);
+	resetEntries();
 	token.set(null);
 	user.set(null);
 	error.set(null);

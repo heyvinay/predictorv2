@@ -3,7 +3,9 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user, logout } from '$stores/auth';
 	import { getUserStats, changePassword } from '$api/auth';
+	import { loadEntries, activeEntryId, activeEntry } from '$stores/entries';
 	import type { UserStats } from '$types';
+	import { get } from 'svelte/store';
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
 
 	$: if (!$isAuthenticated) goto('/login');
@@ -20,14 +22,31 @@
 	let passwordSuccess: string | null = null;
 
 	onMount(async () => {
-		if ($isAuthenticated) await loadStats();
+		if ($isAuthenticated && $user) {
+			// Resolve the active entry before pulling stats — they're scoped
+			// to one entry now. The backend falls back to the user's primary
+			// eligible entry if we pass null, so this is best-effort.
+			if ($user.competition_id) {
+				await loadEntries($user.id, $user.competition_id);
+			}
+			await loadStats();
+		}
 	});
+
+	// Re-load stats whenever the active entry changes (e.g. user switched
+	// from another route). Skip the very-first run when activeEntryId is
+	// still null — onMount handles that case.
+	let lastEntryForStats: string | null = null;
+	$: if ($activeEntryId && $activeEntryId !== lastEntryForStats) {
+		lastEntryForStats = $activeEntryId;
+		void loadStats();
+	}
 
 	async function loadStats() {
 		statsLoading = true;
 		statsError = null;
 		try {
-			stats = await getUserStats();
+			stats = await getUserStats(get(activeEntryId));
 		} catch (e) {
 			statsError = e instanceof Error ? e.message : 'Failed to load stats';
 		} finally {
@@ -119,8 +138,11 @@
 		{:else if stats}
 			<section class="pn-pf-stats">
 				<div class="pn-pf-stat">
-					<div class="l">Total points</div>
+					<div class="l">{$activeEntry ? `${$activeEntry.display_name} · points` : 'Total points'}</div>
 					<div class="v">{stats.total_points}</div>
+					{#if $activeEntry}
+						<div class="sub">Entry {$activeEntry.reference}</div>
+					{/if}
 				</div>
 				<div class="pn-pf-stat">
 					<div class="l">Predictions</div>

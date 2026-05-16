@@ -11,11 +11,14 @@
 	} from '$stores/fixtures';
 	import {
 		fetchLeaderboard,
-		currentUserPosition,
+		activeEntryPosition,
+		myLeaderboardRows,
 		leaderboard,
 		totalParticipants
 	} from '$stores/leaderboard';
 	import { phase1Countdown, phase1Deadline } from '$stores/phase';
+	import { loadEntries, activeEntryId, activeEntry } from '$stores/entries';
+	import { get } from 'svelte/store';
 
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
 	import PnFlag from '$components/panini/PnFlag.svelte';
@@ -71,35 +74,58 @@
 	let realExposure: BracketExposureResponse | null = null;
 
 	onMount(async () => {
-		if ($isAuthenticated) {
-			fetchAllFixtures();
-			fetchLeaderboard();
-			fetchMatchPredictions();
-			try {
-				[realTrajectory, realClimbers, realAgreements, realExposure] = await Promise.all([
-					getMyRankTrajectory(7),
-					getSteepestClimbers(7, 32),
-					getAgreements(),
-					getBracketExposure('phase_1')
+		if ($isAuthenticated && $user) {
+			// Resolve the active entry BEFORE the entry-dependent fetches —
+			// predictions and per-entry bracket exposure both need it. The
+			// non-entry fetches run in parallel.
+			const nonEntryTasks: Promise<unknown>[] = [
+				fetchAllFixtures(),
+				fetchLeaderboard()
+			];
+			if ($user.competition_id) {
+				await Promise.all([
+					...nonEntryTasks,
+					loadEntries($user.id, $user.competition_id)
 				]);
-			} catch (_e) {
-				// Backend not reachable / endpoint missing — stubs take over below
-				realTrajectory = null;
-				realClimbers = null;
-				realAgreements = null;
-				realExposure = null;
+			} else {
+				await Promise.all(nonEntryTasks);
+			}
+
+			const entryId = get(activeEntryId);
+			if (entryId) {
+				fetchMatchPredictions();
+				try {
+					[realTrajectory, realClimbers, realAgreements, realExposure] = await Promise.all([
+						getMyRankTrajectory(7, entryId),
+						getSteepestClimbers(7, 32),
+						getAgreements(entryId),
+						getBracketExposure(entryId, 'phase_1')
+					]);
+				} catch (_e) {
+					// Backend not reachable / endpoint missing — stubs take over below
+					realTrajectory = null;
+					realClimbers = null;
+					realAgreements = null;
+					realExposure = null;
+				}
+			} else {
+				try {
+					realClimbers = await getSteepestClimbers(7, 32);
+				} catch (_e) {
+					realClimbers = null;
+				}
 			}
 		}
 	});
 
 	// ---- Derived values from existing stores -------------------------------
-	$: rank = $currentUserPosition?.position ?? 0;
+	$: rank = $activeEntryPosition?.position ?? 0;
 	$: totalPlayers = $totalParticipants || $leaderboard.length || 32;
-	$: totalPoints = $currentUserPosition?.total_points ?? 0;
-	$: exactCount = $currentUserPosition?.exact_scores ?? 0;
-	$: correctOutcomes = $currentUserPosition?.correct_outcomes ?? 0;
-	$: totalScored = $currentUserPosition?.breakdown?.total_predictions ?? 0;
-	$: movement = $currentUserPosition?.movement ?? 0;
+	$: totalPoints = $activeEntryPosition?.total_points ?? 0;
+	$: exactCount = $activeEntryPosition?.exact_scores ?? 0;
+	$: correctOutcomes = $activeEntryPosition?.correct_outcomes ?? 0;
+	$: totalScored = $activeEntryPosition?.breakdown?.total_predictions ?? 0;
+	$: movement = $activeEntryPosition?.movement ?? 0;
 	$: userId = $user?.id ?? 'anonymous';
 	$: userName = $user?.name ?? 'Player';
 	$: firstName = userName.split(' ')[0];
@@ -110,9 +136,11 @@
 	// Top 5 of leaderboard
 	$: topFive = $leaderboard.slice(0, 5);
 
-	// Rivals: ±1 around the current user. Falls back gracefully near edges.
+	// Rivals: ±1 around the user's active entry. Falls back gracefully near
+	// edges. Keyed by entry_id — when a user holds several entries, the
+	// rivals widget anchors to the one currently in focus.
 	$: rivals = (() => {
-		const idx = $leaderboard.findIndex((e) => e.user_id === $user?.id);
+		const idx = $leaderboard.findIndex((e) => e.entry_id === $activeEntryId);
 		if (idx === -1) return [];
 		const start = Math.max(0, idx - 1);
 		const end = Math.min($leaderboard.length, idx + 2);
@@ -156,7 +184,7 @@
 	// PointBreakdown that ships with the user's leaderboard row, so no
 	// extra fetch is needed.
 	$: bonusHaul = (() => {
-		const b = $currentUserPosition?.breakdown;
+		const b = $activeEntryPosition?.breakdown;
 		if (b) {
 			return {
 				fromExact: b.exact_score_points,
@@ -169,11 +197,13 @@
 		return stubBonusHaul(userId, exactCount);
 	})();
 	// Steepest climb: real climbers if available, stub fallback otherwise.
+	// Climbers are keyed by entry_id, so a user with two climbing entries
+	// can legitimately appear twice. Anchor to the active entry's row.
 	$: climb = (() => {
 		if (realClimbers && realClimbers.entries.length > 0) {
-			const me = realClimbers.entries.find((e) => e.user_id === userId);
+			const me = realClimbers.entries.find((e) => e.entry_id === $activeEntryId);
 			const myRank = me
-				? realClimbers.entries.findIndex((e) => e.user_id === userId) + 1
+				? realClimbers.entries.findIndex((e) => e.entry_id === $activeEntryId) + 1
 				: realClimbers.entries.length + 1;
 			return {
 				yourPlaces: me?.places ?? movement,
@@ -461,20 +491,21 @@
 						<div class="l"><span class="pip"></span>Closest rivals</div>
 					</div>
 					<div class="pn-card-body" style="padding: 0 16px 14px;">
-						{#each rivals as r (r.user_id)}
+						{#each rivals as r (r.entry_id)}
 							{@const g = gapVariant(r.total_points, totalPoints)}
-							<div class="row" class:you={r.user_id === $user?.id}>
+							{@const isYou = r.entry_id === $activeEntryId}
+							<div class="row" class:you={isYou}>
 								<div class="pos">{r.position}</div>
 								<div>
 									<div class="nm">
-										{r.user_name}
+										{r.entry_name}
 										<div class="h">
-											{r.user_id === $user?.id ? 'YOU' : `@${r.user_name.split(' ')[0].toLowerCase()}`}
+											{r.user_name}{isYou ? ' · YOU' : ''}
 											{#if r.exact_scores}· {r.exact_scores} exact{/if}
 										</div>
 									</div>
 								</div>
-								<div class="gap {g.cls}">{r.user_id === $user?.id ? '—' : g.label}</div>
+								<div class="gap {g.cls}">{isYou ? '—' : g.label}</div>
 								<div class="pts">{r.total_points}</div>
 							</div>
 						{:else}
@@ -534,12 +565,12 @@
 						<span class="end">of {totalPlayers}</span>
 					</div>
 					<div class="pn-pod">
-						{#each topFive as e, i (e.user_id)}
-							<div class="row" class:gold={i === 0} class:you={e.user_id === $user?.id}>
+						{#each topFive as e, i (e.entry_id)}
+							<div class="row" class:gold={i === 0} class:you={e.entry_id === $activeEntryId}>
 								<div class="pos">{e.position}</div>
 								<div>
-									<div class="nm">{e.user_name}</div>
-									<div class="h">{e.exact_scores} exact · {e.correct_outcomes} outcomes</div>
+									<div class="nm">{e.entry_name}</div>
+									<div class="h">{e.user_name} · {e.exact_scores} exact · {e.correct_outcomes} outcomes</div>
 								</div>
 								<div class="pts">{e.total_points}</div>
 							</div>
@@ -701,22 +732,22 @@
 				<span class="end">of {totalPlayers}</span>
 			</div>
 			<div class="pn-m-pod">
-				{#each $leaderboard.slice(0, 3) as e, i (e.user_id)}
+				{#each $leaderboard.slice(0, 3) as e, i (e.entry_id)}
 					<div class="pn-m-pod-row" class:gold={i === 0}>
 						<div class="pos">{e.position}</div>
 						<div>
-							<div class="nm">{e.user_name}</div>
-							<div class="h">{e.exact_scores} ex · {e.correct_outcomes} outc</div>
+							<div class="nm">{e.entry_name}</div>
+							<div class="h">{e.user_name} · {e.exact_scores} ex · {e.correct_outcomes} outc</div>
 						</div>
 						<div class="pts">{e.total_points}</div>
 					</div>
 				{/each}
-				{#if $currentUserPosition && $currentUserPosition.position > 3}
+				{#if $activeEntryPosition && $activeEntryPosition.position > 3}
 					<div class="pn-m-pod-row you">
-						<div class="pos">{$currentUserPosition.position}</div>
+						<div class="pos">{$activeEntryPosition.position}</div>
 						<div>
-							<div class="nm">{firstName} · YOU</div>
-							<div class="h">{exactCount} ex · {correctOutcomes} outc</div>
+							<div class="nm">{$activeEntryPosition.entry_name} · YOU</div>
+							<div class="h">{firstName} · {exactCount} ex · {correctOutcomes} outc</div>
 						</div>
 						<div class="pts">{totalPoints}</div>
 					</div>

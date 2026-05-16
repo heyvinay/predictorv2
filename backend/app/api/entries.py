@@ -142,6 +142,21 @@ async def create_entry(
     return EntryRead.model_validate(entry)
 
 
+@user_router.get("/settings", response_model=EntrySettingsRead)
+async def get_user_entry_settings(
+    session: DbSession, _current_user: CurrentUser
+) -> EntrySettingsRead:
+    """Read-only view of the active competition's entry settings.
+
+    Mirrors the admin endpoint but requires only an authenticated user.
+    The frontend reads this to decide whether to show the multi-entry
+    selector (`max_entries_per_user > 1`) and which user actions
+    (rename, duplicate, withdraw) to expose.
+    """
+    competition = await _get_competition(session)
+    return EntrySettingsRead.model_validate(competition)
+
+
 @user_router.get("/{entry_id}", response_model=EntryRead)
 async def get_entry(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser

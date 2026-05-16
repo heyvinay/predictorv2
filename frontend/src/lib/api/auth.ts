@@ -25,6 +25,15 @@ export async function changePassword(data: PasswordChange): Promise<{ message: s
 	return api.post<{ message: string }>('/auth/me/password', data);
 }
 
-export async function getUserStats(): Promise<UserStats> {
-	return api.get<UserStats>('/auth/me/stats');
+/**
+ * Stats are entry-scoped — points only aggregate at the entry level.
+ * Pass `entryId` to scope to a specific entry; otherwise the backend
+ * resolves to the user's primary eligible entry. Returns zero-filled
+ * stats when the user has no eligible entry.
+ */
+export async function getUserStats(entryId?: string | null): Promise<UserStats> {
+	const url = entryId
+		? `/auth/me/stats?entry_id=${encodeURIComponent(entryId)}`
+		: '/auth/me/stats';
+	return api.get<UserStats>(url);
 }

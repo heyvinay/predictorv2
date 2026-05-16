@@ -7,6 +7,7 @@
 		fetchMatchPredictions,
 		fetchBracketPredictions,
 		fetchPhase2BracketPredictions,
+		resetPredictions,
 		matchPredictions,
 		predictionsByFixture,
 		unsavedChanges,
@@ -23,6 +24,14 @@
 		unsavedPhase2BracketPrediction,
 		hasUnsavedPhase2BracketChanges
 	} from '$stores/predictions';
+	import {
+		loadEntries,
+		refreshEntries,
+		activeEntryId,
+		activeEntry,
+		entrySettings
+	} from '$stores/entries';
+	import * as entriesApi from '$api/entries';
 	import {
 		fetchGroupFixtures,
 		groupFixtures,
@@ -42,6 +51,7 @@
 	import { applyFifaTiebreakers, computeGroupStandingsMapWithWarnings } from '$lib/utils/standings';
 	import {
 		initPersistence,
+		teardownPersistence,
 		hydrateFromStorage,
 		lastLocalSave
 	} from '$stores/unsavedPersistence';
@@ -51,6 +61,7 @@
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
 	import PnFlag from '$components/panini/PnFlag.svelte';
 	import PnKnockoutBracket from '$components/panini/PnKnockoutBracket.svelte';
+	import PnEntrySelector from '$components/panini/PnEntrySelector.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -163,33 +174,67 @@
 	}
 
 	onMount(async () => {
-		if ($isAuthenticated) {
-			await Promise.all([
-				fetchMatchPredictions(),
-				fetchGroupFixtures(),
-				fetchBracketPredictions()
-			]);
-			if ($isPhase2Active) {
-				await Promise.all([
-					fetchActualKnockoutFixtures(),
-					fetchActualStandings(),
-					fetchPhase2BracketPredictions()
-				]);
+		if ($isAuthenticated && $user) {
+			// Group fixtures + entries can load in parallel — neither depends
+			// on each other. Match/bracket predictions wait for the active
+			// entry id (resolved by loadEntries) and are issued by the
+			// `$: if ($activeEntryId && …)` block below.
+			const tasks: Promise<unknown>[] = [fetchGroupFixtures()];
+			if ($user.competition_id) {
+				tasks.push(loadEntries($user.id, $user.competition_id));
 			}
-			fetchesDone = true;
+			if ($isPhase2Active) {
+				tasks.push(fetchActualKnockoutFixtures(), fetchActualStandings());
+			}
+			await Promise.all(tasks);
 		}
 		window.addEventListener('beforeunload', handleBeforeUnload);
 	});
 
+	// Re-fetch predictions whenever the active entry changes. Covers both
+	// the initial transition from null → first entry (after loadEntries
+	// resolves) and any subsequent user-driven switch via the selector.
+	let lastActiveEntryId: string | null = null;
+	$: if ($isAuthenticated && $activeEntryId && $activeEntryId !== lastActiveEntryId) {
+		const prev = lastActiveEntryId;
+		lastActiveEntryId = $activeEntryId;
+		// Reset in-memory state so stale rows from the previous entry don't
+		// flash in before the refetch lands.
+		resetPredictions();
+		if (prev && $user) {
+			teardownPersistence($user.id, prev);
+		}
+		// Allow the hydration block below to fire fresh against the new entry.
+		hydrated = false;
+		fetchesDone = false;
+		const phase2Was = $isPhase2Active;
+		void (async () => {
+			await Promise.all([
+				fetchMatchPredictions(),
+				fetchBracketPredictions(),
+				...(phase2Was ? [fetchPhase2BracketPredictions()] : [])
+			]);
+			fetchesDone = true;
+		})();
+	}
+
 	// Hydrate drafts from localStorage + start the persistence subscription
-	// once user is loaded AND initial fetches are done AND we have group
-	// fixtures to dedupe locked matches against. Runs at most once per user
-	// session via the `hydrated` guard.
-	$: if ($user && fetchesDone && !hydrated && $groupFixtures.length > 0) {
+	// once user is loaded AND active entry is known AND initial fetches are
+	// done AND we have group fixtures to dedupe locked matches against. Runs
+	// at most once per (user, entry) pair via the `hydrated` guard, which is
+	// reset by the entry-change effect above.
+	$: if (
+		$user &&
+		$activeEntryId &&
+		fetchesDone &&
+		!hydrated &&
+		$groupFixtures.length > 0
+	) {
 		hydrated = true;
-		initPersistence($user.id);
+		initPersistence($user.id, $activeEntryId);
 		const r = hydrateFromStorage(
 			$user.id,
+			$activeEntryId,
 			$groupFixtures,
 			$isPhase1Locked,
 			$isPhase2BracketLocked
@@ -202,6 +247,43 @@
 			setTimeout(() => {
 				restorationBanner = null;
 			}, 5000);
+		}
+	}
+
+	// ---- Entry selector handlers -----------------------------------------
+	async function handleEntryCreate(): Promise<void> {
+		try {
+			await entriesApi.createEntry();
+			await refreshEntries();
+		} catch (e) {
+			console.error('Create entry failed', e);
+		}
+	}
+
+	async function handleEntryRename(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		const next = window.prompt('Entry name', current.display_name);
+		if (!next || next.trim() === '' || next.trim() === current.display_name) return;
+		try {
+			await entriesApi.renameEntry(current.id, { display_name: next.trim() });
+			await refreshEntries();
+		} catch (e) {
+			console.error('Rename failed', e);
+		}
+	}
+
+	async function handleEntryDuplicate(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		try {
+			const created = await entriesApi.duplicateEntry(current.id);
+			await refreshEntries();
+			// Switch to the new entry so the wizard immediately reflects it.
+			const { setActiveEntry } = await import('$stores/entries');
+			setActiveEntry(created.id);
+		} catch (e) {
+			console.error('Duplicate failed', e);
 		}
 	}
 
@@ -226,6 +308,7 @@
 			else
 				map.set(id, {
 					id: '',
+					entry_id: $activeEntryId ?? '',
 					fixture_id: id,
 					home_score: scores.home_score,
 					away_score: scores.away_score,
@@ -651,6 +734,13 @@
 				</div>
 			</div>
 			<div class="toggle-stack">
+				<div class="entry-row">
+					<PnEntrySelector
+						on:create={handleEntryCreate}
+						on:duplicate={handleEntryDuplicate}
+						on:rename={handleEntryRename}
+					/>
+				</div>
 				{#if $isPhase2Active}
 					<div class="phase-toggle">
 						<button class:on={activePhase === 'phase1'} on:click={() => (activePhase = 'phase1')}>Phase I</button>

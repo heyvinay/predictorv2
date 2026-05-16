@@ -3,6 +3,9 @@
  * Mirrors backend Pydantic schemas.
  */
 
+// Re-export entry types so consumers can `import { Entry, EntryStatus } from '$types'`
+export * from './entry';
+
 // Auth types
 export interface User {
 	id: string;
@@ -76,6 +79,7 @@ export type PredictionPhase = 'phase_1' | 'phase_2';
 
 export interface MatchPrediction {
 	id: string;
+	entry_id: string;
 	fixture_id: string;
 	home_score: number;
 	away_score: number;
@@ -272,6 +276,9 @@ export function getGroupTotal(p: PhaseBreakdown): number {
 }
 
 export interface LeaderboardEntry {
+	entry_id: string;
+	entry_reference: string;
+	entry_name: string;
 	user_id: string;
 	user_name: string;
 	position: number;
@@ -349,6 +356,8 @@ export interface UserStats {
 // Community predictions (for scatter plot on results page)
 export interface CommunityPrediction {
 	user_name: string;
+	entry_reference: string;
+	entry_name: string;
 	home_score: number;
 	away_score: number;
 }

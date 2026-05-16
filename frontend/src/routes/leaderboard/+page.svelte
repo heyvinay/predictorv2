@@ -11,7 +11,8 @@
 		leaderboardLoading,
 		lastCalculated,
 		totalParticipants,
-		currentUserPosition,
+		activeEntryPosition,
+		myLeaderboardRows,
 		leaderboardPhase,
 		type LeaderboardPhase
 	} from '$stores/leaderboard';
@@ -80,11 +81,12 @@
 		return b.bracket_total;
 	}
 
-	// Row expansion state
+	// Row expansion state — keyed by entry_id (a user can hold multiple
+	// entries, each with its own row).
 	let expanded = new Set<string>();
-	function toggle(userId: string) {
-		if (expanded.has(userId)) expanded.delete(userId);
-		else expanded.add(userId);
+	function toggle(entryId: string) {
+		if (expanded.has(entryId)) expanded.delete(entryId);
+		else expanded.add(entryId);
 		expanded = expanded; // trigger reactivity
 	}
 
@@ -121,13 +123,13 @@
 		);
 	}
 
-	$: yourRank = $currentUserPosition?.position ?? 0;
-	$: yourPoints = $currentUserPosition?.total_points ?? 0;
+	$: yourRank = $activeEntryPosition?.position ?? 0;
+	$: yourPoints = $activeEntryPosition?.total_points ?? 0;
 	$: leaderPoints = $leaderboard[0]?.total_points ?? 0;
 	$: toFirst = yourRank > 1 ? yourPoints - leaderPoints : 0;
-	$: yourMovement = $currentUserPosition?.movement ?? 0;
-	$: yourExact = $currentUserPosition?.exact_scores ?? 0;
-	$: yourOutcomes = $currentUserPosition?.correct_outcomes ?? 0;
+	$: yourMovement = $activeEntryPosition?.movement ?? 0;
+	$: yourExact = $activeEntryPosition?.exact_scores ?? 0;
+	$: yourOutcomes = $activeEntryPosition?.correct_outcomes ?? 0;
 
 	// Roughly how many points are still in play — sum of remaining bracket
 	// stages + estimated unfinished match exact/outcome ceiling. For now
@@ -152,18 +154,18 @@
 				</div>
 			</div>
 
-			{#if $currentUserPosition}
+			{#if $activeEntryPosition}
 				<div class="pn-lb-self">
 					<div class="num">
 						{yourRank}<span style="font-size: 24px; color: rgba(255,255,255,0.65); vertical-align: top;">{ordinal(yourRank)}</span>
 					</div>
 					<div>
 						<div class="nm">
-							{$currentUserPosition.user_name}
+							{$activeEntryPosition.entry_name}
 							<span style="background: var(--paper); color: var(--red); padding: 2px 6px; font-size: 11px; margin-left: 8px;">YOU</span>
 						</div>
 						<div class="sub">
-							{yourExact} exact · {yourOutcomes} outcomes
+							{$activeEntryPosition.user_name} · {yourExact} exact · {yourOutcomes} outcomes
 							{#if yourMovement !== 0}
 								· {yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)} last update
 							{/if}
@@ -199,16 +201,16 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each $leaderboard as r (r.user_id)}
+							{#each $leaderboard as r (r.entry_id)}
 								{@const isYou = r.user_id === $user?.id}
-								{@const traj = stubRankTrajectory(r.user_id, r.position, $totalParticipants || $leaderboard.length || 32)}
-								{@const isOpen = expanded.has(r.user_id)}
-								<tr class:you={isYou} class:open={isOpen} on:click={() => toggle(r.user_id)} style="cursor: pointer;">
+								{@const traj = stubRankTrajectory(r.entry_id, r.position, $totalParticipants || $leaderboard.length || 32)}
+								{@const isOpen = expanded.has(r.entry_id)}
+								<tr class:you={isYou} class:open={isOpen} on:click={() => toggle(r.entry_id)} style="cursor: pointer;">
 									<td class="pos" class:gold={r.position <= 3}>{r.position}</td>
 									<td class="nm-cell">
 										<a href="/profile/{r.user_id}" style="color: inherit; text-decoration: none;" on:click|stopPropagation>
-											{r.user_name}
-											<span class="h">{isYou ? 'YOU' : `@${r.user_name.split(' ')[0].toLowerCase()}`}</span>
+											{r.entry_name}
+											<span class="h">{r.user_name}{isYou ? ' · YOU' : ''}</span>
 										</a>
 									</td>
 									<td class="c exact">{exactPts(r.breakdown, $leaderboardPhase)}</td>
@@ -279,14 +281,14 @@
 				<button class:on={$leaderboardPhase === 'phase_2'} on:click={() => handlePhaseChange('phase_2')}>Phase II</button>
 			</div>
 
-			{#if $currentUserPosition}
+			{#if $activeEntryPosition}
 				<div class="pn-m-lb-self">
 					<div class="num">
 						{yourRank}<span style="font-size: 16px; color: rgba(255,255,255,0.7); vertical-align: top;">{ordinal(yourRank)}</span>
 					</div>
 					<div>
-						<div class="nm">{$currentUserPosition.user_name}</div>
-						<div class="sub">{yourExact} ex · {yourOutcomes} outc {#if yourMovement !== 0}· {yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)}{/if}</div>
+						<div class="nm">{$activeEntryPosition.entry_name}</div>
+						<div class="sub">{$activeEntryPosition.user_name} · {yourExact} ex · {yourOutcomes} outc {#if yourMovement !== 0}· {yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)}{/if}</div>
 					</div>
 					<div class="pts">
 						<div class="v">{yourPoints}</div>
@@ -296,9 +298,9 @@
 			{/if}
 
 			<div class="pn-m-lb-rows">
-				{#each $leaderboard as r (r.user_id)}
+				{#each $leaderboard as r (r.entry_id)}
 					{@const isYou = r.user_id === $user?.id}
-					{@const isOpen = expanded.has(r.user_id)}
+					{@const isOpen = expanded.has(r.entry_id)}
 					<div
 						class="pn-m-lb-row"
 						class:gold={r.position <= 3}
@@ -306,13 +308,13 @@
 						class:open={isOpen}
 						role="button"
 						tabindex="0"
-						on:click={() => toggle(r.user_id)}
-						on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(r.user_id)}
+						on:click={() => toggle(r.entry_id)}
+						on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(r.entry_id)}
 					>
 						<div class="pos">{r.position}</div>
 						<div>
-							<div class="nm">{r.user_name}</div>
-							<div class="h">{r.exact_scores} ex · {r.correct_outcomes} outc · <span class="chev">▾</span></div>
+							<div class="nm">{r.entry_name}</div>
+							<div class="h">{r.user_name} · {r.exact_scores} ex · {r.correct_outcomes} outc · <span class="chev">▾</span></div>
 						</div>
 						<div class="pts">{r.total_points}</div>
 						<div class="mv">

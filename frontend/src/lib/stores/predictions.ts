@@ -1,9 +1,16 @@
 /**
  * Predictions store for managing match and bracket predictions.
+ *
+ * Every fetch/save reads `activeEntryId` from `$stores/entries` and
+ * aborts gracefully if there's no active entry yet (e.g. during the
+ * brief hydration window before {@link loadEntries} resolves). The
+ * route layer is responsible for calling {@link resetPredictions}
+ * + re-fetching when the active entry changes.
  */
 
 import { writable, derived, get } from 'svelte/store';
 import * as predictionsApi from '$api/predictions';
+import { activeEntryId } from '$stores/entries';
 import type {
 	MatchPrediction,
 	MatchPredictionCreate,
@@ -73,13 +80,33 @@ export const predictionsByFixture = derived(matchPredictions, ($predictions) => 
 	return map;
 });
 
+/**
+ * Clear all in-memory prediction state. Called by the wizard route
+ * when the user switches active entry (so stale state from entry A
+ * doesn't bleed into entry B before the refetch lands).
+ */
+export function resetPredictions(): void {
+	matchPredictions.set([]);
+	bracketPrediction.set(null);
+	phase2BracketPrediction.set(null);
+	unsavedChanges.set({});
+	unsavedBracketPrediction.set(null);
+	unsavedPhase2BracketPrediction.set(null);
+	matchPredictionsError.set(null);
+	bracketError.set(null);
+	phase2BracketError.set(null);
+}
+
 // Match prediction actions
 export async function fetchMatchPredictions(): Promise<void> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return;
+
 	matchPredictionsLoading.set(true);
 	matchPredictionsError.set(null);
 
 	try {
-		const predictions = await predictionsApi.getMatchPredictions();
+		const predictions = await predictionsApi.getMatchPredictions(entryId);
 		matchPredictions.set(predictions);
 		unsavedChanges.set({});
 	} catch (e) {
@@ -108,13 +135,16 @@ export function clearLocalPrediction(fixtureId: string): void {
 }
 
 export async function savePrediction(fixtureId: string): Promise<boolean> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return false;
+
 	const changes = get(unsavedChanges);
 	const change = changes[fixtureId];
 
 	if (!change) return true;
 
 	try {
-		const updated = await predictionsApi.updateMatchPrediction(fixtureId, change);
+		const updated = await predictionsApi.updateMatchPrediction(entryId, fixtureId, change);
 
 		// Update local state
 		matchPredictions.update((predictions) => {
@@ -136,6 +166,9 @@ export async function savePrediction(fixtureId: string): Promise<boolean> {
 }
 
 export async function saveAllPredictions(): Promise<boolean> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return false;
+
 	const changes = get(unsavedChanges);
 	const changeEntries = Object.entries(changes);
 
@@ -151,7 +184,7 @@ export async function saveAllPredictions(): Promise<boolean> {
 			away_score: scores.away_score
 		}));
 
-		const updated = await predictionsApi.batchUpdatePredictions(predictions);
+		const updated = await predictionsApi.batchUpdatePredictions(entryId, predictions);
 
 		// Update local state
 		matchPredictions.update((current) => {
@@ -178,12 +211,15 @@ export async function saveAllPredictions(): Promise<boolean> {
 
 // Bracket prediction actions (Phase 1)
 export async function fetchBracketPredictions(): Promise<void> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return;
+
 	bracketLoading.set(true);
 	bracketError.set(null);
 
 	try {
 		// Explicitly fetch Phase 1 bracket predictions
-		const bracket = await predictionsApi.getBracketPredictions('phase_1');
+		const bracket = await predictionsApi.getBracketPredictions(entryId, 'phase_1');
 		bracketPrediction.set(bracket);
 	} catch (e) {
 		bracketError.set(e instanceof Error ? e.message : 'Failed to load bracket');
@@ -194,11 +230,14 @@ export async function fetchBracketPredictions(): Promise<void> {
 
 // Phase 2 bracket prediction actions
 export async function fetchPhase2BracketPredictions(): Promise<void> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return;
+
 	phase2BracketLoading.set(true);
 	phase2BracketError.set(null);
 
 	try {
-		const bracket = await predictionsApi.getBracketPredictions('phase_2');
+		const bracket = await predictionsApi.getBracketPredictions(entryId, 'phase_2');
 		phase2BracketPrediction.set(bracket);
 	} catch (e) {
 		phase2BracketError.set(e instanceof Error ? e.message : 'Failed to load Phase 2 bracket');
@@ -210,11 +249,14 @@ export async function fetchPhase2BracketPredictions(): Promise<void> {
 export async function saveBracketPredictions(
 	predictions: TeamAdvancementPrediction[]
 ): Promise<boolean> {
+	const entryId = get(activeEntryId);
+	if (!entryId) return false;
+
 	bracketLoading.set(true);
 	bracketError.set(null);
 
 	try {
-		await predictionsApi.updateBracketPredictions(predictions);
+		await predictionsApi.updateBracketPredictions(entryId, predictions);
 		// Refresh the appropriate bracket based on current phase
 		// The backend uses current phase to determine which predictions to update
 		await fetchBracketPredictions();

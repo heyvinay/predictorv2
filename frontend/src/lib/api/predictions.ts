@@ -1,5 +1,13 @@
 /**
  * Predictions API functions.
+ *
+ * All routes are entry-scoped: every call requires an `entryId` (UUID
+ * string). Mirrors `backend/app/api/entry_predictions.py` (mounted at
+ * `/api/entries/{entry_id}/predictions/*`).
+ *
+ * `getCommunityPredictions` is the one exception — it reads aggregated
+ * results across all entries for a given fixture and lives under
+ * `/api/predictions/...` for now.
  */
 
 import { api } from './client';
@@ -12,8 +20,8 @@ import type {
 	CommunityPredictionsResponse
 } from '$types';
 
-export async function getMatchPredictions(): Promise<MatchPrediction[]> {
-	return api.get<MatchPrediction[]>('/predictions/matches');
+export async function getMatchPredictions(entryId: string): Promise<MatchPrediction[]> {
+	return api.get<MatchPrediction[]>(`/entries/${entryId}/predictions/matches`);
 }
 
 // ---- Social signals (replaces stubSocialSignal / building block for stubHotPick) ----
@@ -25,13 +33,17 @@ export interface FixtureAgreement {
 	total: number;
 }
 
-export async function getAgreements(fixtureIds?: string[]): Promise<FixtureAgreement[]> {
+export async function getAgreements(
+	entryId: string,
+	fixtureIds?: string[]
+): Promise<FixtureAgreement[]> {
 	const params = new URLSearchParams();
 	if (fixtureIds && fixtureIds.length > 0) {
 		for (const id of fixtureIds) params.append('fixture_ids', id);
 	}
 	const qs = params.toString();
-	const url = qs ? `/predictions/agreements?${qs}` : '/predictions/agreements';
+	const base = `/entries/${entryId}/predictions/agreements`;
+	const url = qs ? `${base}?${qs}` : base;
 	return api.get<FixtureAgreement[]>(url);
 }
 
@@ -48,37 +60,57 @@ export interface BracketExposureResponse {
 }
 
 export async function getBracketExposure(
+	entryId: string,
 	phase: 'phase_1' | 'phase_2' = 'phase_1'
 ): Promise<BracketExposureResponse> {
-	return api.get<BracketExposureResponse>(`/predictions/bracket-exposure?phase=${phase}`);
+	return api.get<BracketExposureResponse>(
+		`/entries/${entryId}/predictions/bracket-exposure?phase=${phase}`
+	);
 }
 
 export async function updateMatchPrediction(
+	entryId: string,
 	fixtureId: string,
 	data: MatchPredictionUpdate
 ): Promise<MatchPrediction> {
-	return api.put<MatchPrediction>(`/predictions/matches/${fixtureId}`, data);
+	return api.put<MatchPrediction>(
+		`/entries/${entryId}/predictions/matches/${fixtureId}`,
+		data
+	);
 }
 
 export async function batchUpdatePredictions(
+	entryId: string,
 	predictions: MatchPredictionCreate[]
 ): Promise<MatchPrediction[]> {
-	return api.post<MatchPrediction[]>('/predictions/matches/batch', predictions);
+	return api.post<MatchPrediction[]>(
+		`/entries/${entryId}/predictions/matches/batch`,
+		predictions
+	);
 }
 
-export async function getBracketPredictions(phase?: 'phase_1' | 'phase_2'): Promise<BracketPrediction | null> {
-	const url = phase ? `/predictions/bracket?phase=${phase}` : '/predictions/bracket';
+export async function getBracketPredictions(
+	entryId: string,
+	phase?: 'phase_1' | 'phase_2'
+): Promise<BracketPrediction | null> {
+	const base = `/entries/${entryId}/predictions/bracket`;
+	const url = phase ? `${base}?phase=${phase}` : base;
 	return api.get<BracketPrediction | null>(url);
 }
 
 export async function updateBracketPredictions(
+	entryId: string,
 	predictions: TeamAdvancementPrediction[]
 ): Promise<{ status: string }> {
-	return api.put<{ status: string }>('/predictions/bracket', { predictions });
+	return api.put<{ status: string }>(`/entries/${entryId}/predictions/bracket`, {
+		predictions
+	});
 }
 
 export async function getCommunityPredictions(
 	fixtureId: string
 ): Promise<CommunityPredictionsResponse> {
-	return api.get<CommunityPredictionsResponse>(`/predictions/matches/${fixtureId}/community`);
+	return api.get<CommunityPredictionsResponse>(
+		`/predictions/matches/${fixtureId}/community`
+	);
 }

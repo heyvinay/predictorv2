@@ -8,6 +8,7 @@ import * as leaderboardApi from '$api/leaderboard';
 import type { PhaseFilter } from '$api/leaderboard';
 import * as scoresApi from '$api/scores';
 import { user } from './auth';
+import { activeEntryId } from './entries';
 import type { LeaderboardEntry, LeaderboardResponse, PointBreakdown, LiveMatchScore } from '$types';
 
 // Phase filter type
@@ -28,10 +29,28 @@ export const liveMatches = writable<LiveMatchScore[]>([]);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 // Derived stores
-export const currentUserPosition = derived([leaderboard, user], ([$leaderboard, $user]) => {
-	if (!$user) return null;
-	return $leaderboard.find((entry) => entry.user_id === $user.id) ?? null;
+
+/**
+ * Every leaderboard row this user owns. A user can hold multiple
+ * entries, so this is plural — never collapse to "one row per user".
+ */
+export const myLeaderboardRows = derived([leaderboard, user], ([$leaderboard, $user]) => {
+	if (!$user) return [] as LeaderboardEntry[];
+	return $leaderboard.filter((row) => row.user_id === $user.id);
 });
+
+/**
+ * The single leaderboard row matching the active entry, or null if
+ * the active entry isn't on the board yet (e.g. still draft / ready).
+ * Drives the dashboard "my points / my rank" KPI.
+ */
+export const activeEntryPosition = derived(
+	[leaderboard, activeEntryId],
+	([$leaderboard, $entryId]) => {
+		if (!$entryId) return null;
+		return $leaderboard.find((row) => row.entry_id === $entryId) ?? null;
+	}
+);
 
 export const topThree = derived(leaderboard, ($leaderboard) => $leaderboard.slice(0, 3));
 
@@ -64,9 +83,9 @@ export async function fetchLeaderboard(phase?: LeaderboardPhase): Promise<void> 
 	}
 }
 
-export async function fetchUserBreakdown(userId: string): Promise<PointBreakdown | null> {
+export async function fetchEntryBreakdown(entryId: string): Promise<PointBreakdown | null> {
 	try {
-		return await leaderboardApi.getUserBreakdown(userId);
+		return await leaderboardApi.getEntryBreakdown(entryId);
 	} catch (e) {
 		return null;
 	}

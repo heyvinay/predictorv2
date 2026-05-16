@@ -63,6 +63,7 @@ function _pred(id: string, homeScore: number, awayScore: number): [string, Match
 		id,
 		{
 			id: `pred-${id}`,
+			entry_id: 'entry-test',
 			fixture_id: id,
 			home_score: homeScore,
 			away_score: awayScore,
