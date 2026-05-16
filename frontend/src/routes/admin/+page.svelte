@@ -22,12 +22,28 @@
 		toggleUserPaid,
 		getPaidLocal,
 		syncScores,
+		getAdminEntrySettings,
+		updateAdminEntrySettings,
+		openPhase2,
+		adminListEntries,
+		getAdminEntryEvents,
+		adminDisableEntry,
+		adminEnableEntry,
+		adminSetEntryPaid,
+		adminSetEntryPrizeEligible,
 		type AdminStats,
 		type CompetitionAdminView,
 		type UserAdminView,
-		type SyncScoresResponse
+		type SyncScoresResponse,
+		type AdminEntryFilters,
+		type EntryEvent,
+		type EntrySettingsUpdate,
+		type Phase2OpenResponse
 	} from '$lib/api/admin';
 	import { listBonusAnswers, setBonusAnswer, type BonusAnswerView } from '$api/bonus';
+	import type { Entry, EntrySettings, EntryStatus, PaymentMode } from '$lib/types/entry';
+	import { computeDisplayStatus } from '$lib/types/entry';
+	import type { PredictionPhase } from '$types';
 	import PnPageShell from '$components/panini/PnPageShell.svelte';
 
 	$: if ($isAuthenticated && !$user?.is_admin) goto('/');
@@ -59,6 +75,322 @@
 	let userSearch = '';
 	let togglingUserId: string | null = null;
 	let userActionError: string | null = null;
+
+	// --- F.2: Competition entry settings (the 11-field form) -----------------
+	type BoolSettingKey =
+		| 'auto_create_first_entry'
+		| 'allow_duplicate_from_existing'
+		| 'allow_user_rename'
+		| 'allow_user_withdrawal'
+		| 'require_ready_before_submit'
+		| 'block_unpaid_entry_submission'
+		| 'show_entry_reference_publicly'
+		| 'phase_scoped_status_enabled'
+		| 'bonus_questions_required_for_ready';
+	const BOOL_SETTINGS: { key: BoolSettingKey; label: string }[] = [
+		{ key: 'auto_create_first_entry', label: "Auto-create user's first entry" },
+		{ key: 'allow_duplicate_from_existing', label: 'Allow duplicate from existing' },
+		{ key: 'allow_user_rename', label: 'Allow users to rename entries' },
+		{ key: 'allow_user_withdrawal', label: 'Allow users to withdraw entries' },
+		{ key: 'require_ready_before_submit', label: 'Require READY before SUBMIT' },
+		{ key: 'block_unpaid_entry_submission', label: 'Block unpaid entry submission' },
+		{ key: 'show_entry_reference_publicly', label: 'Show entry reference publicly' },
+		{ key: 'phase_scoped_status_enabled', label: 'Per-phase status (vs. competition-wide)' },
+		{ key: 'bonus_questions_required_for_ready', label: 'Bonus questions required for READY' }
+	];
+
+	let entrySettings: EntrySettings | null = null;
+	let settingsDraft: EntrySettings | null = null;
+	let settingsLoading = false;
+	let settingsSaving = false;
+	let settingsError: string | null = null;
+	let settingsSuccess: string | null = null;
+
+	$: settingsDirty = (() => {
+		if (!entrySettings || !settingsDraft) return false;
+		const keys = Object.keys(entrySettings) as (keyof EntrySettings)[];
+		return keys.some((k) => entrySettings![k] !== settingsDraft![k]);
+	})();
+
+	// --- F.2: Phase II open ---------------------------------------------------
+	let openingPhase2 = false;
+	let phase2OpenResult: Phase2OpenResponse | null = null;
+	let phase2OpenError: string | null = null;
+
+	// --- F.2: Entries admin table --------------------------------------------
+	let entries: Entry[] = [];
+	let entriesLoading = false;
+	let entriesError: string | null = null;
+	let entryFilters: AdminEntryFilters = {};
+	let entryUserSearch = '';
+	let entryRefSearch = '';
+	let entryStatusFilter: '' | EntryStatus = '';
+	let entryPaidFilter: '' | 'paid' | 'unpaid' = '';
+	let entryDisabledFilter: '' | 'disabled' | 'active' = '';
+
+	let entryActionError: string | null = null;
+	let entryActingId: string | null = null;
+
+	// Audit drawer state. `auditEntryId` is the currently-open entry; null
+	// means the drawer is closed.
+	let auditEntryId: string | null = null;
+	let auditEvents: EntryEvent[] = [];
+	let auditLoading = false;
+	let auditError: string | null = null;
+
+	// Disable dialog state. We use a tiny inline form rather than
+	// window.prompt so the admin can paste a multi-word reason cleanly.
+	let disableTargetId: string | null = null;
+	let disableReason = '';
+
+	function setBoolSetting(key: BoolSettingKey, checked: boolean) {
+		if (!settingsDraft) return;
+		settingsDraft[key] = checked;
+		settingsDraft = settingsDraft;
+	}
+
+	async function loadEntrySettings() {
+		settingsLoading = true;
+		settingsError = null;
+		try {
+			const next = await getAdminEntrySettings();
+			entrySettings = next;
+			settingsDraft = { ...next };
+		} catch (e) {
+			settingsError = e instanceof Error ? e.message : 'Failed to load entry settings';
+		} finally {
+			settingsLoading = false;
+		}
+	}
+
+	async function handleSaveSettings() {
+		if (!entrySettings || !settingsDraft) return;
+		// Build a partial patch — only changed fields go up. Keeps the audit
+		// log clean and matches the backend's exclude_unset semantics.
+		const patch: EntrySettingsUpdate = {};
+		const keys = Object.keys(entrySettings) as (keyof EntrySettings)[];
+		for (const k of keys) {
+			if (entrySettings[k] !== settingsDraft[k]) {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(patch as any)[k] = settingsDraft[k];
+			}
+		}
+		if (Object.keys(patch).length === 0) return;
+
+		settingsSaving = true;
+		settingsError = null;
+		settingsSuccess = null;
+		try {
+			const next = await updateAdminEntrySettings(patch);
+			entrySettings = next;
+			settingsDraft = { ...next };
+			settingsSuccess = 'Entry settings saved';
+			setTimeout(() => (settingsSuccess = null), 3000);
+		} catch (e) {
+			settingsError = e instanceof Error ? e.message : 'Failed to save settings';
+		} finally {
+			settingsSaving = false;
+		}
+	}
+
+	function handleResetSettings() {
+		if (entrySettings) settingsDraft = { ...entrySettings };
+		settingsError = null;
+		settingsSuccess = null;
+	}
+
+	async function handleOpenPhase2() {
+		const ok = confirm(
+			'Open Phase II for all eligible entries? This advances each ' +
+				"submitted/locked entry's Phase 2 row to allow new picks. " +
+				'Audit-logged. Continue?'
+		);
+		if (!ok) return;
+		openingPhase2 = true;
+		phase2OpenError = null;
+		phase2OpenResult = null;
+		try {
+			phase2OpenResult = await openPhase2();
+			// Refresh entries list so the new phase rows surface.
+			await loadEntries();
+		} catch (e) {
+			phase2OpenError = e instanceof Error ? e.message : 'Failed to open Phase II';
+		} finally {
+			openingPhase2 = false;
+		}
+	}
+
+	function buildFilters(): AdminEntryFilters {
+		const f: AdminEntryFilters = {};
+		// User search hits both name and email client-side; the backend filter
+		// takes user_id, so we only set it once the search resolves to a
+		// unique match. Otherwise we filter the response client-side too.
+		if (entryRefSearch.trim()) f.reference = entryRefSearch.trim();
+		if (entryStatusFilter) f.status = entryStatusFilter;
+		if (entryPaidFilter === 'paid') f.paid = true;
+		else if (entryPaidFilter === 'unpaid') f.paid = false;
+		if (entryDisabledFilter === 'disabled') f.disabled = true;
+		else if (entryDisabledFilter === 'active') f.disabled = false;
+		return f;
+	}
+
+	async function loadEntries() {
+		entriesLoading = true;
+		entriesError = null;
+		try {
+			entryFilters = buildFilters();
+			entries = await adminListEntries(entryFilters);
+		} catch (e) {
+			entriesError = e instanceof Error ? e.message : 'Failed to load entries';
+		} finally {
+			entriesLoading = false;
+		}
+	}
+
+	function userNameById(userId: string): string {
+		const u = users.find((x) => x.id === userId);
+		return u?.name ?? userId.slice(0, 8);
+	}
+
+	function userEmailById(userId: string): string {
+		const u = users.find((x) => x.id === userId);
+		return u?.email ?? '—';
+	}
+
+	$: visibleEntries = (() => {
+		if (!entryUserSearch.trim()) return entries;
+		const q = entryUserSearch.trim().toLowerCase();
+		return entries.filter((e) => {
+			const u = users.find((x) => x.id === e.user_id);
+			if (!u) return false;
+			return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+		});
+	})();
+
+	function entryDisplayStatus(e: Entry): EntryStatus {
+		// Show the dominant status. Phase 1 is the default lens since the
+		// admin usually wants to know "is this entry locked in for the
+		// group stage?". Disabled / withdrawn already win in computeDisplayStatus.
+		return computeDisplayStatus(e, 'phase_1' as PredictionPhase);
+	}
+
+	function statusChipClass(s: EntryStatus): string {
+		switch (s) {
+			case 'submitted':
+			case 'locked':
+				return 'pn-tag got';
+			case 'ready':
+				return 'pn-tag gold';
+			case 'disabled':
+				return 'pn-tag red';
+			case 'withdrawn':
+				return 'pn-tag'; // muted default
+			default:
+				return 'pn-tag';
+		}
+	}
+
+	async function handleEntryTogglePaid(e: Entry) {
+		entryActingId = e.id;
+		entryActionError = null;
+		try {
+			const updated = await adminSetEntryPaid(e.id, !e.paid);
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to update paid';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	async function handleEntryTogglePrize(e: Entry) {
+		entryActingId = e.id;
+		entryActionError = null;
+		try {
+			const updated = await adminSetEntryPrizeEligible(e.id, !e.prize_eligible);
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to update prize eligibility';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	function openDisableDialog(e: Entry) {
+		disableTargetId = e.id;
+		disableReason = '';
+	}
+
+	function closeDisableDialog() {
+		disableTargetId = null;
+		disableReason = '';
+	}
+
+	async function handleConfirmDisable() {
+		if (!disableTargetId) return;
+		const reason = disableReason.trim();
+		if (!reason) {
+			entryActionError = 'A reason is required to disable an entry';
+			return;
+		}
+		entryActingId = disableTargetId;
+		entryActionError = null;
+		try {
+			const updated = await adminDisableEntry(disableTargetId, reason);
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+			closeDisableDialog();
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to disable entry';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	async function handleEnable(e: Entry) {
+		entryActingId = e.id;
+		entryActionError = null;
+		try {
+			const updated = await adminEnableEntry(e.id);
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to enable entry';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	async function openAuditDrawer(entryId: string) {
+		auditEntryId = entryId;
+		auditLoading = true;
+		auditError = null;
+		auditEvents = [];
+		try {
+			auditEvents = await getAdminEntryEvents(entryId);
+		} catch (err) {
+			auditError = err instanceof Error ? err.message : 'Failed to load audit log';
+		} finally {
+			auditLoading = false;
+		}
+	}
+
+	function closeAuditDrawer() {
+		auditEntryId = null;
+		auditEvents = [];
+		auditError = null;
+	}
+
+	function fmtAuditTime(iso: string): string {
+		try {
+			return new Date(iso).toLocaleString('en-GB', {
+				day: 'numeric',
+				month: 'short',
+				hour: '2-digit',
+				minute: '2-digit'
+			});
+		} catch {
+			return iso;
+		}
+	}
 
 	// Bonus question answers admin state
 	let bonusAnswerViews: BonusAnswerView[] = [];
@@ -131,7 +463,7 @@
 	onMount(async () => {
 		if ($user?.is_admin) {
 			await loadData();
-			await loadBonusAnswers();
+			await Promise.all([loadBonusAnswers(), loadEntrySettings(), loadEntries()]);
 		}
 	});
 
@@ -445,6 +777,241 @@
 							{/if}
 						</div>
 					</div>
+				</div>
+			</section>
+
+			<!-- Phase II open (advances each eligible entry's phase_2 row to draft) -->
+			{#if $isPhase2Active}
+				<section class="pn-pf-section">
+					<div class="h"><span>Phase II Open</span><span class="right">Per-entry advance</span></div>
+					<div class="body">
+						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; margin-bottom: 12px;">
+							Phase II <b>activation</b> opens the bracket window globally (above). Phase II <b>open</b> walks every eligible entry and advances its
+							per-phase row so the user can start picking. Idempotent — already-open rows are skipped.
+						</p>
+						{#if phase2OpenError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{phase2OpenError}</div>{/if}
+						{#if phase2OpenResult}
+							<div class="pn-ad-syncresult">
+								<div class="pills">
+									<span class="pn-tag got">{phase2OpenResult.entries_opened} opened</span>
+									<span class="pn-tag">{phase2OpenResult.entries_already_open} already open</span>
+									{#if phase2OpenResult.entries_skipped_withdrawn > 0}
+										<span class="pn-tag">{phase2OpenResult.entries_skipped_withdrawn} withdrawn</span>
+									{/if}
+									{#if phase2OpenResult.entries_skipped_disabled > 0}
+										<span class="pn-tag red">{phase2OpenResult.entries_skipped_disabled} disabled</span>
+									{/if}
+								</div>
+							</div>
+						{/if}
+						<button class="pn-btn gold" type="button" on:click={handleOpenPhase2} disabled={openingPhase2} style="margin-top: 12px;">
+							{openingPhase2 ? 'Opening…' : 'Open Phase II for all eligible entries'}
+						</button>
+					</div>
+				</section>
+			{/if}
+
+			<!-- Competition Entry Settings -->
+			<section class="pn-pf-section">
+				<div class="h">
+					<span>Entry Settings</span>
+					<span class="right">
+						{#if entrySettings}max {entrySettings.max_entries_per_user} / user · {entrySettings.payment_mode}{/if}
+					</span>
+				</div>
+				<div class="body">
+					{#if settingsLoading && !entrySettings}
+						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3);">Loading…</p>
+					{:else if settingsError}
+						<div class="pn-pf-alert error" style="margin-bottom: 12px;">{settingsError} · <button class="pn-btn ghost" style="padding: 4px 10px; font-size: 11px;" on:click={loadEntrySettings}>Retry</button></div>
+					{:else if settingsDraft}
+						{#if settingsSuccess}<div class="pn-pf-alert success" style="margin-bottom: 12px;">{settingsSuccess}</div>{/if}
+						<div class="pn-ad-settings">
+							<label class="num">
+								<span class="lbl">Max entries per user</span>
+								<input type="number" min="1" bind:value={settingsDraft.max_entries_per_user} />
+							</label>
+							<label class="num">
+								<span class="lbl">Payment mode</span>
+								<select bind:value={settingsDraft.payment_mode}>
+									<option value="per_entry">per_entry</option>
+									<option value="per_user">per_user</option>
+								</select>
+							</label>
+							{#each BOOL_SETTINGS as f (f.key)}
+								<label class="check">
+									<input
+										type="checkbox"
+										checked={settingsDraft[f.key]}
+										on:change={(e) => setBoolSetting(f.key, e.currentTarget.checked)}
+									/>
+									<span class="lbl">{f.label}</span>
+								</label>
+							{/each}
+						</div>
+						<div style="display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;">
+							<button class="pn-btn" type="button" on:click={handleSaveSettings} disabled={!settingsDirty || settingsSaving}>
+								{settingsSaving ? 'Saving…' : settingsDirty ? 'Save changes' : 'Saved'}
+							</button>
+							<button class="pn-btn ghost" type="button" on:click={handleResetSettings} disabled={!settingsDirty || settingsSaving}>
+								Reset
+							</button>
+						</div>
+					{/if}
+				</div>
+			</section>
+
+			<!-- Entries admin table -->
+			<section class="pn-pf-section">
+				<div class="h">
+					<span>Entries</span>
+					<span class="right">{visibleEntries.length} of {entries.length}</span>
+				</div>
+				<div class="body">
+					{#if entryActionError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{entryActionError}</div>{/if}
+
+					<!-- Filters row -->
+					<div class="pn-ad-entry-filters">
+						<input
+							class="pn-ad-search"
+							placeholder="User name / email…"
+							bind:value={entryUserSearch}
+							type="search"
+						/>
+						<input
+							class="pn-ad-search"
+							placeholder="Reference (WC26-…)"
+							bind:value={entryRefSearch}
+							type="search"
+							on:change={loadEntries}
+						/>
+						<select bind:value={entryStatusFilter} on:change={loadEntries}>
+							<option value="">Any status</option>
+							<option value="draft">draft</option>
+							<option value="ready">ready</option>
+							<option value="submitted">submitted</option>
+							<option value="locked">locked</option>
+							<option value="withdrawn">withdrawn</option>
+							<option value="disabled">disabled</option>
+						</select>
+						<select bind:value={entryPaidFilter} on:change={loadEntries}>
+							<option value="">Any paid</option>
+							<option value="paid">Paid</option>
+							<option value="unpaid">Unpaid</option>
+						</select>
+						<select bind:value={entryDisabledFilter} on:change={loadEntries}>
+							<option value="">Any state</option>
+							<option value="active">Active</option>
+							<option value="disabled">Disabled</option>
+						</select>
+						<button class="pn-btn ghost" type="button" on:click={loadEntries} disabled={entriesLoading}>
+							{entriesLoading ? '…' : 'Refresh'}
+						</button>
+					</div>
+
+					{#if entriesError}
+						<div class="pn-pf-alert error" style="margin-top: 12px;">{entriesError}</div>
+					{:else if entriesLoading && entries.length === 0}
+						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 14px;">Loading entries…</p>
+					{:else if visibleEntries.length === 0}
+						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 14px;">
+							No entries match the filters
+						</p>
+					{:else}
+						<div class="pn-ad-entries">
+							{#each visibleEntries as e (e.id)}
+								{@const status = entryDisplayStatus(e)}
+								<div class="pn-ad-entry" class:disabled={e.is_disabled} class:withdrawn={!!e.withdrawn_at}>
+									<div class="who">
+										<div class="nm">
+											{e.display_name}
+											<span class="ref">{e.reference}</span>
+										</div>
+										<div class="em">{userNameById(e.user_id)} · {userEmailById(e.user_id)}</div>
+									</div>
+									<div class="badges">
+										<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
+										{#if e.paid}<span class="pn-tag got">Paid</span>{:else}<span class="pn-tag">Unpaid</span>{/if}
+										{#if !e.prize_eligible}<span class="pn-tag">No prize</span>{/if}
+										{#if e.is_disabled && e.disabled_reason}
+											<span class="pn-tag red" title={e.disabled_reason}>Reason: {e.disabled_reason}</span>
+										{/if}
+									</div>
+									<div class="actions">
+										<button class="pn-btn ghost" type="button" on:click={() => handleEntryTogglePaid(e)} disabled={entryActingId === e.id}>
+											{e.paid ? '− Paid' : '+ Paid'}
+										</button>
+										<button class="pn-btn ghost" type="button" on:click={() => handleEntryTogglePrize(e)} disabled={entryActingId === e.id}>
+											{e.prize_eligible ? '− Prize' : '+ Prize'}
+										</button>
+										{#if e.is_disabled}
+											<button class="pn-btn navy" type="button" on:click={() => handleEnable(e)} disabled={entryActingId === e.id}>
+												Enable
+											</button>
+										{:else}
+											<button class="pn-btn navy" type="button" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>
+												Disable…
+											</button>
+										{/if}
+										<button class="pn-btn ghost" type="button" on:click={() => openAuditDrawer(e.id)}>
+											Audit
+										</button>
+									</div>
+								</div>
+
+								<!-- Inline disable dialog -->
+								{#if disableTargetId === e.id}
+									<div class="pn-ad-inline-dialog">
+										<div class="hh">Disable {e.display_name} ({e.reference})</div>
+										<input
+											type="text"
+											class="pn-ad-search"
+											style="margin: 8px 0;"
+											placeholder="Reason (required)"
+											bind:value={disableReason}
+										/>
+										<div style="display: flex; gap: 8px;">
+											<button class="pn-btn red" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>
+												{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}
+											</button>
+											<button class="pn-btn ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
+										</div>
+									</div>
+								{/if}
+
+								<!-- Inline audit drawer -->
+								{#if auditEntryId === e.id}
+									<div class="pn-ad-audit">
+										<div class="hh">
+											Audit log · {e.display_name}
+											<button class="pn-btn ghost" type="button" on:click={closeAuditDrawer} style="float: right; padding: 4px 10px; font-size: 11px;">Close</button>
+										</div>
+										{#if auditLoading}
+											<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 8px;">Loading…</p>
+										{:else if auditError}
+											<div class="pn-pf-alert error" style="margin-top: 8px;">{auditError}</div>
+										{:else if auditEvents.length === 0}
+											<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 8px;">No events.</p>
+										{:else}
+											<ul class="pn-ad-audit-list">
+												{#each auditEvents as ev (ev.id)}
+													<li>
+														<div class="line">
+															<span class="t">{fmtAuditTime(ev.created_at)}</span>
+															<span class="transition">{ev.from_status} → <b>{ev.to_status}</b></span>
+															{#if ev.phase}<span class="phase">{ev.phase}</span>{/if}
+															<span class="actor">by {userNameById(ev.actor_user_id)} ({ev.actor_role})</span>
+														</div>
+														{#if ev.reason}<div class="reason">"{ev.reason}"</div>{/if}
+													</li>
+												{/each}
+											</ul>
+										{/if}
+									</div>
+								{/if}
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</section>
 

@@ -146,3 +146,220 @@
 	color: var(--ink);
 	margin-bottom: 12px;
 }
+
+/* ===== F.2: Entry settings form + entries admin table =================== */
+
+/* Two-column form for the 11 competition entry settings. */
+.pn .pn-ad-settings {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px 18px;
+	font-family: var(--body);
+	font-size: 13px;
+	color: var(--ink);
+}
+@media (max-width: 700px) {
+	.pn .pn-ad-settings { grid-template-columns: 1fr; }
+}
+.pn .pn-ad-settings .num,
+.pn .pn-ad-settings .check {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 0;
+}
+.pn .pn-ad-settings .num .lbl,
+.pn .pn-ad-settings .check .lbl {
+	flex: 1;
+	font-family: var(--mono);
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink-2);
+}
+.pn .pn-ad-settings input[type="number"],
+.pn .pn-ad-settings select {
+	background: var(--paper-2);
+	border: 2px solid var(--ink);
+	padding: 6px 10px;
+	font-family: var(--body);
+	font-size: 13px;
+	color: var(--ink);
+	min-width: 110px;
+}
+.pn .pn-ad-settings input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+	accent-color: var(--green);
+}
+
+/* Filters row above the entries table. Wraps on narrow viewports. */
+.pn .pn-ad-entry-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 14px;
+	align-items: center;
+}
+.pn .pn-ad-entry-filters .pn-ad-search {
+	margin-bottom: 0;
+	max-width: 220px;
+}
+.pn .pn-ad-entry-filters select {
+	background: var(--paper-2);
+	border: 2px solid var(--ink);
+	padding: 7px 12px;
+	font-family: var(--body);
+	font-size: 13px;
+	color: var(--ink);
+}
+
+/* Entries list — mirrors .pn-ad-users grid but with status + reference. */
+.pn .pn-ad-entries {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.pn .pn-ad-entry {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 14px;
+	align-items: center;
+	padding: 10px 14px;
+	background: var(--paper-2);
+	border: 2px solid var(--ink);
+}
+.pn .pn-ad-entry.disabled {
+	opacity: 0.65;
+	border-left: 6px solid var(--red);
+}
+.pn .pn-ad-entry.withdrawn {
+	opacity: 0.5;
+	border-left: 6px solid var(--ink-3);
+}
+.pn .pn-ad-entry .who .nm {
+	font-family: var(--display2);
+	font-size: 14px;
+	font-weight: 700;
+	color: var(--ink);
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+.pn .pn-ad-entry .who .nm .ref {
+	font-family: var(--mono);
+	font-size: 10.5px;
+	color: var(--ink-3);
+	letter-spacing: 0.06em;
+}
+.pn .pn-ad-entry .who .em {
+	font-family: var(--mono);
+	font-size: 11px;
+	color: var(--ink-3);
+	letter-spacing: 0.04em;
+	margin-top: 2px;
+}
+.pn .pn-ad-entry .badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: flex-end;
+	max-width: 320px;
+}
+.pn .pn-ad-entry .actions {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+.pn .pn-ad-entry .actions .pn-btn {
+	padding: 4px 10px;
+	font-size: 10px;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+@media (max-width: 700px) {
+	.pn .pn-ad-entry {
+		grid-template-columns: 1fr;
+	}
+	.pn .pn-ad-entry .badges,
+	.pn .pn-ad-entry .actions {
+		justify-content: flex-start;
+	}
+}
+
+/* Inline confirmation dialog used for "disable entry with reason". */
+.pn .pn-ad-inline-dialog {
+	background: var(--paper-3);
+	border: 2px solid var(--red);
+	padding: 10px 14px;
+	margin: -4px 0 8px;
+}
+.pn .pn-ad-inline-dialog .hh {
+	font-family: var(--mono);
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--red);
+	font-weight: 600;
+}
+.pn .pn-ad-inline-dialog .pn-btn.red {
+	background: var(--red);
+	color: var(--paper);
+	padding: 6px 12px;
+	font-size: 11px;
+}
+
+/* Inline audit-log drawer (expands beneath the row). */
+.pn .pn-ad-audit {
+	background: var(--paper-3);
+	border: 2px solid var(--ink);
+	padding: 10px 14px;
+	margin: -4px 0 8px;
+}
+.pn .pn-ad-audit .hh {
+	font-family: var(--display);
+	font-size: 12px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ink);
+}
+.pn .pn-ad-audit-list {
+	list-style: none;
+	padding: 0;
+	margin: 8px 0 0;
+}
+.pn .pn-ad-audit-list li {
+	border-top: 1px dashed var(--ink-3);
+	padding: 8px 0;
+}
+.pn .pn-ad-audit-list li:first-child { border-top: 0; }
+.pn .pn-ad-audit-list .line {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: baseline;
+	font-family: var(--mono);
+	font-size: 11px;
+	color: var(--ink-2);
+	letter-spacing: 0.04em;
+}
+.pn .pn-ad-audit-list .line .t { color: var(--ink-3); }
+.pn .pn-ad-audit-list .line .transition { color: var(--ink); }
+.pn .pn-ad-audit-list .line .transition b { color: var(--green); }
+.pn .pn-ad-audit-list .line .phase {
+	background: var(--paper);
+	border: 1px solid var(--ink-3);
+	padding: 1px 6px;
+	font-size: 9.5px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.pn .pn-ad-audit-list .line .actor { color: var(--ink-3); }
+.pn .pn-ad-audit-list .reason {
+	font-family: var(--body);
+	font-size: 12.5px;
+	color: var(--ink-2);
+	font-style: italic;
+	margin-top: 4px;
+}
