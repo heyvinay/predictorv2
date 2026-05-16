@@ -3,7 +3,7 @@
 Questions themselves live in `config/worldcup2026.yml` under the `bonus:`
 key — they're tournament config, not data. These tables only hold:
 
-- One row per (user, question) for user picks (`bonus_predictions`)
+- One row per (entry, question) for entry picks (`bonus_predictions`)
 - One row per (competition, question) for the correct answer
   (`bonus_answers`), set by the admin when the answer is known.
 
@@ -23,19 +23,19 @@ from app.models._datetime import utc_datetime_column, utc_now
 
 if TYPE_CHECKING:
     from app.models.competition import Competition
-    from app.models.user import User
+    from app.models.entry import PredictionEntry
 
 
 class BonusPrediction(SQLModel, table=True):
-    """One user's answer for one bonus question."""
+    """One entry's answer for one bonus question."""
 
     __tablename__ = "bonus_predictions"
     __table_args__ = (
-        UniqueConstraint("user_id", "question_id", name="uq_bonus_pred_user_q"),
+        UniqueConstraint("entry_id", "question_id", name="uq_bonus_pred_entry_q"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
+    entry_id: uuid.UUID = Field(foreign_key="prediction_entries.id", index=True)
     # YAML question ID, e.g. "most_goals_scored_group" or "top_scorer".
     question_id: str = Field(index=True, max_length=64)
     # Free-text answer. For team questions this is the full team name (matching
@@ -47,7 +47,7 @@ class BonusPrediction(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now, sa_column=utc_datetime_column())
     updated_at: datetime = Field(default_factory=utc_now, sa_column=utc_datetime_column())
 
-    user: Optional["User"] = Relationship()
+    entry: Optional["PredictionEntry"] = Relationship(back_populates="bonus_predictions")
 
 
 class BonusAnswer(SQLModel, table=True):

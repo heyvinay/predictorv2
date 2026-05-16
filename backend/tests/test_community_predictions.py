@@ -24,10 +24,14 @@ class TestCommunityPredictionSchema:
         """Should create a prediction with user name and scores."""
         pred = CommunityPrediction(
             user_name="Alice",
+            entry_reference="WC26-000001",
+            entry_name="Entry 1",
             home_score=2,
             away_score=1,
         )
         assert pred.user_name == "Alice"
+        assert pred.entry_reference == "WC26-000001"
+        assert pred.entry_name == "Entry 1"
         assert pred.home_score == 2
         assert pred.away_score == 1
 
@@ -35,6 +39,8 @@ class TestCommunityPredictionSchema:
         """Should handle draw predictions."""
         pred = CommunityPrediction(
             user_name="Bob",
+            entry_reference="WC26-000002",
+            entry_name="Entry 1",
             home_score=0,
             away_score=0,
         )
@@ -58,8 +64,20 @@ class TestCommunityPredictionsResponseSchema:
             home_team="Brazil",
             away_team="Serbia",
             predictions=[
-                CommunityPrediction(user_name="Alice", home_score=2, away_score=0),
-                CommunityPrediction(user_name="Bob", home_score=3, away_score=1),
+                CommunityPrediction(
+                    user_name="Alice",
+                    entry_reference="WC26-000001",
+                    entry_name="Entry 1",
+                    home_score=2,
+                    away_score=0,
+                ),
+                CommunityPrediction(
+                    user_name="Bob",
+                    entry_reference="WC26-000002",
+                    entry_name="Entry 1",
+                    home_score=3,
+                    away_score=1,
+                ),
             ],
             actual=actual,
         )
@@ -77,7 +95,13 @@ class TestCommunityPredictionsResponseSchema:
             home_team="Japan",
             away_team="Germany",
             predictions=[
-                CommunityPrediction(user_name="Charlie", home_score=0, away_score=2),
+                CommunityPrediction(
+                    user_name="Charlie",
+                    entry_reference="WC26-000003",
+                    entry_name="Entry 1",
+                    home_score=0,
+                    away_score=2,
+                ),
             ],
             actual=None,
         )

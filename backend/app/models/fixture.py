@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models._datetime import utc_datetime_column, utc_now
+from app.models._datetime import aware_utc, utc_datetime_column, utc_now
 
 if TYPE_CHECKING:
     from app.models.competition import Competition
@@ -60,11 +60,13 @@ class Fixture(SQLModel, table=True):
 
     def is_locked(self, lock_minutes: int = 5) -> bool:
         """Check if predictions are locked for this fixture."""
-        lock_time = self.kickoff - timedelta(minutes=lock_minutes)
-        return utc_now() >= lock_time
+        kickoff = aware_utc(self.kickoff)
+        lock_time = kickoff - timedelta(minutes=lock_minutes)
+        return aware_utc(utc_now()) >= lock_time
 
     def time_until_lock(self, lock_minutes: int = 5) -> timedelta | None:
         """Get time remaining until predictions lock."""
-        lock_time = self.kickoff - timedelta(minutes=lock_minutes)
-        remaining = lock_time - utc_now()
+        kickoff = aware_utc(self.kickoff)
+        lock_time = kickoff - timedelta(minutes=lock_minutes)
+        remaining = lock_time - aware_utc(utc_now())
         return remaining if remaining.total_seconds() > 0 else None

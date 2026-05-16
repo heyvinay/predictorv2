@@ -14,12 +14,16 @@ from app.config import get_settings
 # Import every model so SQLModel.metadata can see it — required for
 # `alembic revision --autogenerate` to detect new tables / columns.
 from app.models import (  # noqa: F401
+    AuditEvent,
     BonusAnswer,
     BonusPrediction,
     Competition,
     Fixture,
     LeaderboardSnapshot,
     MatchPrediction,
+    PredictionEntry,
+    PredictionEntryEvent,
+    PredictionEntryPhase,
     Score,
     TeamPrediction,
     User,

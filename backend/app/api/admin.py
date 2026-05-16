@@ -12,6 +12,7 @@ from app.dependencies import AdminUser, DbSession
 from app.models._datetime import utc_now
 from app.models.bonus import BonusAnswer
 from app.models.competition import Competition
+from app.models.entry import PredictionEntry
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction
 from app.models.score import Score, ScoreSource
@@ -134,12 +135,16 @@ async def get_all_users(
 ) -> list[UserAdminView]:
     """Get all users with prediction counts (admin only)."""
     # Get users with prediction counts
+    # Count prediction rows across every entry the user owns. Predictions
+    # are entry-scoped, so we hop through PredictionEntry to attribute them
+    # back to the user.
     result = await session.execute(
         select(
             User,
             func.count(MatchPrediction.id).label("prediction_count")
         )
-        .outerjoin(MatchPrediction, User.id == MatchPrediction.user_id)
+        .outerjoin(PredictionEntry, User.id == PredictionEntry.user_id)
+        .outerjoin(MatchPrediction, MatchPrediction.entry_id == PredictionEntry.id)
         .group_by(User.id)
         .order_by(User.created_at.desc())
     )
@@ -181,7 +186,9 @@ async def toggle_user_admin(
 
     # Get prediction count
     count = await session.scalar(
-        select(func.count(MatchPrediction.id)).where(MatchPrediction.user_id == user_id)
+        select(func.count(MatchPrediction.id))
+        .join(PredictionEntry, MatchPrediction.entry_id == PredictionEntry.id)
+        .where(PredictionEntry.user_id == user_id)
     )
 
     return UserAdminView(
@@ -217,7 +224,9 @@ async def toggle_user_active(
 
     # Get prediction count
     count = await session.scalar(
-        select(func.count(MatchPrediction.id)).where(MatchPrediction.user_id == user_id)
+        select(func.count(MatchPrediction.id))
+        .join(PredictionEntry, MatchPrediction.entry_id == PredictionEntry.id)
+        .where(PredictionEntry.user_id == user_id)
     )
 
     return UserAdminView(
@@ -253,7 +262,9 @@ async def toggle_user_paid(
     await session.refresh(user)
 
     count = await session.scalar(
-        select(func.count(MatchPrediction.id)).where(MatchPrediction.user_id == user_id)
+        select(func.count(MatchPrediction.id))
+        .join(PredictionEntry, MatchPrediction.entry_id == PredictionEntry.id)
+        .where(PredictionEntry.user_id == user_id)
     )
 
     return UserAdminView(

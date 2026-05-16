@@ -17,10 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.config import get_tournament_config
+from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.score import Score
-from app.models.user import User
 from app.schemas.leaderboard import PhaseBreakdown, PointBreakdown
 
 
@@ -419,12 +419,34 @@ def _add_advancement_points_to_phase(
         phase_breakdown.winner_points += points
 
 
-async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> PointBreakdown:
-    """Calculate total points for a user.
+async def _count_eligible_entries(session: AsyncSession) -> int:
+    """Total competitors for hybrid-scoring rarity — number of entries that
+    have ever been submitted or locked (excluding withdrawn / disabled).
+    Replaces the old "active users" count now that scoring is entry-scoped.
+    """
+    result = await session.execute(
+        select(PredictionEntry.id)
+        .join(PredictionEntryPhase, PredictionEntryPhase.entry_id == PredictionEntry.id)
+        .where(
+            PredictionEntry.is_disabled == False,  # noqa: E712
+            PredictionEntry.withdrawn_at.is_(None),
+            PredictionEntryPhase.status.in_(
+                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
+            ),
+        )
+        .distinct()
+    )
+    return len(result.all())
+
+
+async def calculate_entry_points(
+    session: AsyncSession, entry_id: uuid.UUID
+) -> PointBreakdown:
+    """Calculate total points for a single prediction entry.
 
     Args:
         session: Database session
-        user_id: User to calculate points for
+        entry_id: PredictionEntry to calculate points for
 
     Returns:
         PointBreakdown with detailed point categories by phase
@@ -434,28 +456,22 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
     base_outcome_points = match_config.get("correct_outcome", 5)
     exact_score_points = match_config.get("exact_score", 10)
 
-    # Create phase breakdowns
     phase1 = PhaseBreakdown()
     phase2 = PhaseBreakdown()
 
-    # Aggregate stats
     total_predictions = 0
     correct_outcomes = 0
     exact_scores = 0
 
-    # Get total player count for hybrid scoring
-    user_count_result = await session.execute(
-        select(User).where(User.is_active == True)
-    )
-    total_players = len(user_count_result.scalars().all())
+    total_players = await _count_eligible_entries(session)
 
-    # Get all match predictions with scores
+    # Match predictions joined to their fixture + actual score
     result = await session.execute(
         select(MatchPrediction, Score, Fixture)
         .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
         .outerjoin(Score, Fixture.id == Score.fixture_id)
         .where(
-            MatchPrediction.user_id == user_id,
+            MatchPrediction.entry_id == entry_id,
             Fixture.status == MatchStatus.FINISHED,
         )
     )
@@ -467,13 +483,14 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
 
         total_predictions += 1
 
-        # Get correct player count for this fixture's outcome (for hybrid scoring)
         outcome_counts = await get_outcome_counts(session, fixture.id)
         correct_players = outcome_counts.get(score.outcome, 1) or 1
 
-        # Calculate points using configured strategy
         points, is_correct_outcome, is_exact_score = calculate_match_points(
-            prediction, score, total_players=total_players, correct_players=correct_players
+            prediction,
+            score,
+            total_players=total_players,
+            correct_players=correct_players,
         )
 
         if is_correct_outcome:
@@ -481,7 +498,6 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
         if is_exact_score:
             exact_scores += 1
 
-        # Add to appropriate phase breakdown
         phase_breakdown = phase1 if prediction.phase == PredictionPhase.PHASE_1 else phase2
         _add_match_points_to_phase(
             phase_breakdown,
@@ -492,20 +508,18 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
             is_exact_score,
         )
 
-    # Get team advancement predictions
+    # Team-advancement predictions
     result = await session.execute(
-        select(TeamPrediction).where(TeamPrediction.user_id == user_id)
+        select(TeamPrediction).where(TeamPrediction.entry_id == entry_id)
     )
     team_predictions = result.scalars().all()
 
-    # Calculate advancement points by stage
     actual_advancement = await get_actual_advancement(session)
     for pred in team_predictions:
         points = calculate_advancement_points(pred, actual_advancement, pred.phase)
         if points == 0:
             continue
 
-        # Add to appropriate phase breakdown
         phase_breakdown = phase1 if pred.phase == PredictionPhase.PHASE_1 else phase2
         _add_advancement_points_to_phase(
             phase_breakdown,
@@ -514,11 +528,10 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
             points,
         )
 
-    # Bonus-question points (cross-phase). Imported here to avoid a circular
-    # import at module load: services.bonus depends on the config layer
-    # already loaded by this file.
+    # Bonus-question points (cross-phase). Imported locally so this module
+    # can stay decoupled from services.bonus at import time.
     from app.services.bonus import calculate_bonus_points
-    bonus_points = await calculate_bonus_points(session, user_id)
+    bonus_points = await calculate_bonus_points(session, entry_id)
 
     return PointBreakdown(
         phase1=phase1,
@@ -528,6 +541,35 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
         total_predictions=total_predictions,
         bonus_question_points=bonus_points,
     )
+
+
+async def resolve_default_entry_id(
+    session: AsyncSession, user_id: uuid.UUID
+) -> uuid.UUID | None:
+    """Return the entry_id of the user's most recently-updated eligible
+    entry, or None if they have none.
+
+    Used by API endpoints that historically took a `user_id` but must now
+    operate on a single entry (profile stats, /snapshots/me, etc.). The
+    caller may also accept an explicit `entry_id` query param — this is
+    just the default.
+    """
+    result = await session.execute(
+        select(PredictionEntry)
+        .join(PredictionEntryPhase, PredictionEntryPhase.entry_id == PredictionEntry.id)
+        .where(
+            PredictionEntry.user_id == user_id,
+            PredictionEntry.is_disabled == False,  # noqa: E712
+            PredictionEntry.withdrawn_at.is_(None),
+            PredictionEntryPhase.status.in_(
+                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
+            ),
+        )
+        .order_by(PredictionEntry.updated_at.desc())
+        .limit(1)
+    )
+    row = result.scalars().first()
+    return row.id if row else None
 
 
 async def get_outcome_counts(session: AsyncSession, fixture_id: uuid.UUID) -> dict[str, int]:

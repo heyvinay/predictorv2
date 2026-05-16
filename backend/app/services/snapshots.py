@@ -1,26 +1,28 @@
-"""Daily leaderboard snapshot service.
+"""Daily leaderboard snapshot service — entry-keyed.
 
 Two write paths and two read paths:
 
 WRITE
-- take_daily_snapshots(session) — for every user with at least one prediction,
-  insert today's snapshot row. Idempotent: a per-user-per-day unique constraint
-  means a second call on the same day is a no-op for users who already have
-  a row. Called from the score_scheduler tick.
+- take_daily_snapshots(session) — for every eligible entry on the
+  leaderboard, insert today's snapshot row. Idempotent: a per-entry-per-day
+  unique constraint means a second call on the same day is a no-op for
+  entries that already have a row. Called from the score_scheduler tick.
 
 READ
-- get_user_trajectory(session, user_id, days) — return the last `days` of
-  snapshot points for one user (oldest first). The current live position is
-  NOT included; the API endpoint prepends/appends it as needed.
-- get_steepest_climbers(session, days, limit) — rank users by their position
-  improvement over the trailing N days. Used for the dashboard footer.
+- get_entry_trajectory(session, entry_id, days) — return the last `days`
+  of snapshot points for one entry (oldest first). The current live
+  position is NOT included; the API endpoint prepends/appends it.
+- get_steepest_climbers(session, days, limit) — rank entries by their
+  position improvement over the trailing N days. A user with two
+  climbing entries can legitimately appear twice — entries are the
+  unit, not users.
 """
 
 from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 async def take_daily_snapshots(session: AsyncSession) -> int:
-    """Snapshot every user's current position + total points for today (UTC).
+    """Snapshot every eligible entry's current position + total points for
+    today (UTC).
 
     Returns the number of rows actually inserted (zero if today's snapshot
     already exists for everyone — i.e. on every tick after the first).
@@ -52,6 +55,7 @@ async def take_daily_snapshots(session: AsyncSession) -> int:
         {
             "id": uuid.uuid4(),
             "user_id": entry.user_id,
+            "entry_id": entry.entry_id,
             "position": entry.position,
             "total_points": entry.total_points,
             "captured_date": today,
@@ -63,7 +67,7 @@ async def take_daily_snapshots(session: AsyncSession) -> int:
     stmt = (
         pg_insert(LeaderboardSnapshot)
         .values(rows)
-        .on_conflict_do_nothing(constraint="uq_snapshot_user_date")
+        .on_conflict_do_nothing(constraint="uq_snapshot_entry_date")
     )
     result = await session.execute(stmt)
     await session.commit()
@@ -73,12 +77,12 @@ async def take_daily_snapshots(session: AsyncSession) -> int:
     return inserted
 
 
-async def get_user_trajectory(
+async def get_entry_trajectory(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    entry_id: uuid.UUID,
     days: int = 7,
 ) -> list[LeaderboardSnapshot]:
-    """Return one user's snapshot history for the last `days` days, oldest first.
+    """Return one entry's snapshot history for the last `days` days, oldest first.
 
     Includes today's snapshot if one exists; doesn't fabricate missing days.
     The API endpoint appends a live "now" point on top of this so the chart's
@@ -87,7 +91,7 @@ async def get_user_trajectory(
     floor_date = utc_now().date() - timedelta(days=days - 1)
     result = await session.execute(
         select(LeaderboardSnapshot)
-        .where(LeaderboardSnapshot.user_id == user_id)
+        .where(LeaderboardSnapshot.entry_id == entry_id)
         .where(LeaderboardSnapshot.captured_date >= floor_date)
         .order_by(LeaderboardSnapshot.captured_date.asc())
     )
@@ -99,38 +103,42 @@ async def get_steepest_climbers(
     days: int = 7,
     limit: int = 5,
 ) -> list[dict]:
-    """Return the users whose position improved the most over the last `days`.
+    """Return the entries whose position improved the most over the last `days`.
 
-    Compared between each user's earliest snapshot in the window and their
-    most recent. `places` is positive when the user climbed (a lower number
+    Compared between each entry's earliest snapshot in the window and its
+    most recent. `places` is positive when the entry climbed (a lower number
     = better rank), so a move from 14 → 8 returns places=6.
 
-    Returns a list of dicts: { user_id, user_name, places, current_position,
-    previous_position }.
+    Returns a list of dicts: { entry_id, user_id, places, current_position,
+    previous_position }. `user_id` lets the API layer join to the display
+    name without a second pass over the entries table.
     """
     floor_date = utc_now().date() - timedelta(days=days - 1)
     result = await session.execute(
         select(LeaderboardSnapshot)
         .where(LeaderboardSnapshot.captured_date >= floor_date)
-        .order_by(LeaderboardSnapshot.user_id, LeaderboardSnapshot.captured_date.asc())
+        .order_by(LeaderboardSnapshot.entry_id, LeaderboardSnapshot.captured_date.asc())
     )
     snaps = list(result.scalars().all())
 
-    # Group by user → (earliest, latest)
-    per_user: dict[uuid.UUID, tuple[LeaderboardSnapshot, LeaderboardSnapshot]] = {}
+    # Group by entry → (earliest, latest)
+    per_entry: dict[uuid.UUID, tuple[LeaderboardSnapshot, LeaderboardSnapshot]] = {}
     for snap in snaps:
-        if snap.user_id not in per_user:
-            per_user[snap.user_id] = (snap, snap)
+        if snap.entry_id is None:
+            continue
+        if snap.entry_id not in per_entry:
+            per_entry[snap.entry_id] = (snap, snap)
         else:
-            first, _last = per_user[snap.user_id]
-            per_user[snap.user_id] = (first, snap)
+            first, _last = per_entry[snap.entry_id]
+            per_entry[snap.entry_id] = (first, snap)
 
     climbers = []
-    for user_id, (first, last) in per_user.items():
+    for entry_id, (first, last) in per_entry.items():
         places = first.position - last.position  # positive = climbed
         climbers.append(
             {
-                "user_id": user_id,
+                "entry_id": entry_id,
+                "user_id": last.user_id,
                 "places": places,
                 "current_position": last.position,
                 "previous_position": first.position,

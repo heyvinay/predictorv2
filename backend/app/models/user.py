@@ -11,7 +11,7 @@ from app.models._datetime import utc_datetime_column, utc_now
 
 if TYPE_CHECKING:
     from app.models.competition import Competition
-    from app.models.prediction import MatchPrediction, TeamPrediction
+    from app.models.entry import PredictionEntry
 
 
 class AuthProvider(str, Enum):
@@ -45,5 +45,7 @@ class User(SQLModel, table=True):
 
     # Relationships
     competition: Optional["Competition"] = Relationship(back_populates="users")
-    match_predictions: list["MatchPrediction"] = Relationship(back_populates="user")
-    team_predictions: list["TeamPrediction"] = Relationship(back_populates="user")
+    entries: list["PredictionEntry"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"foreign_keys": "[PredictionEntry.user_id]"},
+    )
