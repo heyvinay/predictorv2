@@ -13,6 +13,10 @@ import { describe, expect, it } from 'vitest';
 import {
 	computeDisplayStatus,
 	isPhaseEditable,
+	canMarkReady,
+	canSubmit,
+	canReopen,
+	canWithdraw,
 	type Entry,
 	type EntryStatus
 } from '$lib/types/entry';
@@ -157,5 +161,77 @@ describe('isPhaseEditable', () => {
 
 		const withdrawn = makeEntry({ withdrawn_at: '2026-05-12T00:00:00Z' });
 		expect(isPhaseEditable(withdrawn, 'phase_1')).toBe(false);
+	});
+});
+
+function phaseRow(status: EntryStatus) {
+	return {
+		phase: 'phase_1' as const,
+		status,
+		ready_at: null,
+		submitted_at: null,
+		locked_at: null,
+		status_reason: null
+	};
+}
+
+describe('canMarkReady', () => {
+	it('is true for draft, false otherwise', () => {
+		expect(canMarkReady(makeEntry({ phases: [phaseRow('draft')] }), 'phase_1')).toBe(true);
+		expect(canMarkReady(makeEntry({ phases: [phaseRow('ready')] }), 'phase_1')).toBe(false);
+		expect(canMarkReady(makeEntry({ phases: [phaseRow('submitted')] }), 'phase_1')).toBe(false);
+		expect(canMarkReady(makeEntry({ phases: [phaseRow('locked')] }), 'phase_1')).toBe(false);
+	});
+
+	it('is false for disabled / withdrawn entries', () => {
+		const e1 = makeEntry({ is_disabled: true, phases: [phaseRow('draft')] });
+		expect(canMarkReady(e1, 'phase_1')).toBe(false);
+		const e2 = makeEntry({ withdrawn_at: '2026-05-12T00:00:00Z', phases: [phaseRow('draft')] });
+		expect(canMarkReady(e2, 'phase_1')).toBe(false);
+	});
+});
+
+describe('canSubmit', () => {
+	it('is true on ready regardless of require_ready_before_submit', () => {
+		const e = makeEntry({ phases: [phaseRow('ready')] });
+		expect(canSubmit(e, 'phase_1', true)).toBe(true);
+		expect(canSubmit(e, 'phase_1', false)).toBe(true);
+	});
+
+	it('on draft, depends on require_ready_before_submit', () => {
+		const e = makeEntry({ phases: [phaseRow('draft')] });
+		expect(canSubmit(e, 'phase_1', true)).toBe(false); // require ready first
+		expect(canSubmit(e, 'phase_1', false)).toBe(true); // shortcut allowed
+	});
+
+	it('is false on submitted / locked / withdrawn / disabled', () => {
+		expect(canSubmit(makeEntry({ phases: [phaseRow('submitted')] }), 'phase_1', false)).toBe(false);
+		expect(canSubmit(makeEntry({ phases: [phaseRow('locked')] }), 'phase_1', false)).toBe(false);
+		expect(
+			canSubmit(makeEntry({ withdrawn_at: '2026-05-12T00:00:00Z', phases: [phaseRow('ready')] }), 'phase_1', false)
+		).toBe(false);
+		expect(canSubmit(makeEntry({ is_disabled: true, phases: [phaseRow('ready')] }), 'phase_1', false)).toBe(false);
+	});
+});
+
+describe('canReopen', () => {
+	it('is true only on submitted', () => {
+		expect(canReopen(makeEntry({ phases: [phaseRow('submitted')] }), 'phase_1')).toBe(true);
+		expect(canReopen(makeEntry({ phases: [phaseRow('locked')] }), 'phase_1')).toBe(false);
+		expect(canReopen(makeEntry({ phases: [phaseRow('ready')] }), 'phase_1')).toBe(false);
+		expect(canReopen(makeEntry({ phases: [phaseRow('draft')] }), 'phase_1')).toBe(false);
+	});
+});
+
+describe('canWithdraw', () => {
+	it('respects the allow_user_withdrawal setting', () => {
+		const e = makeEntry();
+		expect(canWithdraw(e, true)).toBe(true);
+		expect(canWithdraw(e, false)).toBe(false);
+	});
+
+	it('is false for already-withdrawn or disabled entries', () => {
+		expect(canWithdraw(makeEntry({ withdrawn_at: '2026-05-12T00:00:00Z' }), true)).toBe(false);
+		expect(canWithdraw(makeEntry({ is_disabled: true }), true)).toBe(false);
 	});
 });

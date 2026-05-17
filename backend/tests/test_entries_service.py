@@ -40,6 +40,7 @@ from app.services.entries import (
     EntryDuplicateError,
     EntryLimitExceededError,
     EntryStateError,
+    EntryValidationError,
 )
 
 
@@ -328,6 +329,89 @@ class TestStateTransitions:
             )
         ).scalars().all()
         assert len(audit_events) == 1
+
+    async def test_mark_ready_blocked_when_bonus_required_and_blank(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """When `bonus_questions_required_for_ready` is on, attempting
+        to mark Phase 1 ready with no bonus answers must raise
+        EntryValidationError. Off-by-default — opt-in via competition
+        setting."""
+        from unittest.mock import patch
+
+        from app.services import bonus as bonus_service
+        from app.services.bonus import BonusQuestion
+
+        competition.bonus_questions_required_for_ready = True
+        session.add(competition)
+        await session.commit()
+
+        # Stub the bonus question list so this test doesn't depend on
+        # whatever YAML happens to be loaded into the bonus singleton.
+        fake_qs = [
+            BonusQuestion(
+                id="q1", category="awards", label="Top scorer", input_type="player", points=10
+            ),
+            BonusQuestion(
+                id="q2", category="awards", label="Best player", input_type="player", points=10
+            ),
+        ]
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        with patch.object(bonus_service, "get_questions", return_value=fake_qs):
+            with pytest.raises(EntryValidationError, match="Bonus answers required"):
+                await entries_service.mark_phase_ready(
+                    session,
+                    entry=entry,
+                    user=user,
+                    phase=PredictionPhase.PHASE_1,
+                    competition=competition,
+                )
+
+    async def test_mark_ready_allowed_when_bonus_required_flag_off(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """Default-off behaviour: empty bonus answers don't block ready."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        # Flag is False by default per the migration; assert + don't toggle.
+        assert competition.bonus_questions_required_for_ready is False
+        await entries_service.mark_phase_ready(
+            session,
+            entry=entry,
+            user=user,
+            phase=PredictionPhase.PHASE_1,
+            competition=competition,
+        )
+        await session.commit()
+        # No raise — ready transition completed.
+
+    async def test_mark_ready_phase2_skips_bonus_check(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """Bonus is a Phase 1 concept. PHASE_2 transitions ignore the gate
+        even when the flag is on."""
+        competition.bonus_questions_required_for_ready = True
+        session.add(competition)
+        await session.commit()
+
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        # Should not raise.
+        await entries_service.mark_phase_ready(
+            session,
+            entry=entry,
+            user=user,
+            phase=PredictionPhase.PHASE_2,
+            competition=competition,
+        )
 
     async def test_submit_requires_ready(
         self, session: AsyncSession, user: User, competition: Competition

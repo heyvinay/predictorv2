@@ -105,3 +105,57 @@ export function isPhaseEditable(entry: Entry, phase: PredictionPhase): boolean {
 	const status = computeDisplayStatus(entry, phase);
 	return status === 'draft';
 }
+
+/**
+ * Lifecycle button visibility helpers for the wizard hero.
+ *
+ * Each predicate answers a single yes/no question — "should this button
+ * render right now?". Separating them from {@link computeDisplayStatus}
+ * keeps the wizard template readable and gives vitest pure functions to
+ * exercise the state machine without rendering Svelte.
+ *
+ * Definitions:
+ * - **Mark Ready** — visible only on draft phases that are still open
+ *   (phase not server-side locked).
+ * - **Submit** — visible on `ready` (the canonical path) and on `draft`
+ *   when the competition has `require_ready_before_submit = false`
+ *   (a direct draft → submitted shortcut, allowed by the brief).
+ * - **Reopen** — visible on submitted phases, only while the phase is
+ *   not yet locked. After lock the entry is terminally frozen.
+ * - **Withdraw entry** — visible whenever the entry is active (not
+ *   disabled, not already withdrawn) AND the competition setting
+ *   `allow_user_withdrawal` is on.
+ */
+export function canMarkReady(entry: Entry, phase: PredictionPhase): boolean {
+	if (entry.is_disabled || entry.withdrawn_at) return false;
+	const row = entry.phases.find((p) => p.phase === phase);
+	if (!row) return false;
+	return row.status === 'draft';
+}
+
+export function canSubmit(
+	entry: Entry,
+	phase: PredictionPhase,
+	requireReadyBeforeSubmit: boolean
+): boolean {
+	if (entry.is_disabled || entry.withdrawn_at) return false;
+	const row = entry.phases.find((p) => p.phase === phase);
+	if (!row) return false;
+	if (row.status === 'ready') return true;
+	if (row.status === 'draft' && !requireReadyBeforeSubmit) return true;
+	return false;
+}
+
+export function canReopen(entry: Entry, phase: PredictionPhase): boolean {
+	if (entry.is_disabled || entry.withdrawn_at) return false;
+	const row = entry.phases.find((p) => p.phase === phase);
+	if (!row) return false;
+	return row.status === 'submitted';
+}
+
+export function canWithdraw(entry: Entry, allowUserWithdrawal: boolean): boolean {
+	if (!allowUserWithdrawal) return false;
+	if (entry.is_disabled) return false;
+	if (entry.withdrawn_at) return false;
+	return true;
+}

@@ -670,6 +670,38 @@ async def mark_phase_ready(
         raise EntryStateError(f"Phase {phase.value} is locked")
     _check_transition_allowed(phase_row.status, EntryStatus.READY, actor_role)
 
+    # Bonus-completeness gate. Bonus questions live with Phase 1 (locked
+    # alongside the group stage in the brief), so we only enforce this on
+    # PHASE_1 transitions. When the competition flag is off, this is a
+    # no-op — users may go ready without answering bonus questions.
+    if (
+        competition.bonus_questions_required_for_ready
+        and phase == PredictionPhase.PHASE_1
+    ):
+        # Lazy import keeps the entries module independent of the bonus
+        # YAML loader at import time (helpful for the test stack).
+        from app.services.bonus import get_questions
+
+        all_qids = {q.id for q in get_questions()}
+        answered_qids = {
+            qid
+            for (qid,) in (
+                await session.execute(
+                    select(BonusPrediction.question_id).where(
+                        BonusPrediction.entry_id == entry.id,
+                        BonusPrediction.answer.isnot(None),
+                        BonusPrediction.answer != "",
+                    )
+                )
+            ).all()
+        }
+        missing = all_qids - answered_qids
+        if missing:
+            raise EntryValidationError(
+                f"Bonus answers required: {len(missing)} of "
+                f"{len(all_qids)} questions still blank"
+            )
+
     # Optional duplicate check at ready time (recommended by brief).
     conflict = await _find_duplicate_eligible_entry(
         session, entry=entry, phase=phase

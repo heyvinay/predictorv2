@@ -33,6 +33,12 @@
 	} from '$stores/entries';
 	import * as entriesApi from '$api/entries';
 	import {
+		canMarkReady,
+		canSubmit,
+		canReopen,
+		canWithdraw
+	} from '$lib/types/entry';
+	import {
 		fetchGroupFixtures,
 		groupFixtures,
 		fetchActualKnockoutFixtures,
@@ -290,6 +296,100 @@
 			setActiveEntry(created.id);
 		} catch (e) {
 			console.error('Duplicate failed', e);
+		}
+	}
+
+	// ---- Entry-lifecycle handlers (Mark Ready / Submit / Reopen / Withdraw)
+	let lifecycleBusy: false | 'ready' | 'submit' | 'reopen' | 'withdraw' = false;
+	let lifecycleError: string | null = null;
+
+	$: currentPhaseEnum = (activePhase === 'phase2' ? 'phase_2' : 'phase_1') as
+		import('$types').PredictionPhase;
+
+	$: readyVisible = !!$activeEntry && canMarkReady($activeEntry, currentPhaseEnum);
+	$: submitVisible =
+		!!$activeEntry &&
+		canSubmit(
+			$activeEntry,
+			currentPhaseEnum,
+			$entrySettings?.require_ready_before_submit ?? true
+		);
+	$: reopenVisible = !!$activeEntry && canReopen($activeEntry, currentPhaseEnum);
+	$: withdrawVisible =
+		!!$activeEntry &&
+		canWithdraw($activeEntry, $entrySettings?.allow_user_withdrawal ?? false);
+
+	async function handleMarkReady(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		lifecycleBusy = 'ready';
+		lifecycleError = null;
+		try {
+			await entriesApi.markPhaseReady(current.id, currentPhaseEnum);
+			await refreshEntries();
+		} catch (e) {
+			lifecycleError = e instanceof Error ? e.message : 'Failed to mark ready';
+		} finally {
+			lifecycleBusy = false;
+		}
+	}
+
+	async function handleSubmit(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		const ok = window.confirm(
+			`Submit ${currentPhaseEnum === 'phase_1' ? 'Phase I' : 'Phase II'} for ` +
+				`"${current.display_name}"? Once submitted you can reopen the phase ` +
+				'as long as the competition deadline has not passed.'
+		);
+		if (!ok) return;
+		lifecycleBusy = 'submit';
+		lifecycleError = null;
+		try {
+			await entriesApi.submitPhase(current.id, currentPhaseEnum);
+			await refreshEntries();
+		} catch (e) {
+			lifecycleError = e instanceof Error ? e.message : 'Failed to submit';
+		} finally {
+			lifecycleBusy = false;
+		}
+	}
+
+	async function handleReopen(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		lifecycleBusy = 'reopen';
+		lifecycleError = null;
+		try {
+			await entriesApi.reopenPhase(current.id, currentPhaseEnum);
+			await refreshEntries();
+		} catch (e) {
+			lifecycleError = e instanceof Error ? e.message : 'Failed to reopen';
+		} finally {
+			lifecycleBusy = false;
+		}
+	}
+
+	async function handleWithdraw(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) return;
+		const reason = window.prompt(
+			`Withdraw "${current.display_name}"? This is permanent — the entry ` +
+				'stops scoring, drops from the leaderboard, and cannot be undone. ' +
+				'Optional reason (leave blank to skip):',
+			''
+		);
+		// null = Cancel pressed; '' = Save with no reason.
+		if (reason === null) return;
+		lifecycleBusy = 'withdraw';
+		lifecycleError = null;
+		try {
+			await entriesApi.withdrawEntry(current.id, reason ? { reason } : {});
+			await refreshEntries();
+		} catch (e) {
+			lifecycleError = e instanceof Error ? e.message : 'Failed to withdraw';
+		} finally {
+			lifecycleBusy = false;
 		}
 	}
 
@@ -747,6 +847,54 @@
 						on:rename={handleEntryRename}
 					/>
 				</div>
+				{#if readyVisible || submitVisible || reopenVisible || withdrawVisible}
+					<div class="lifecycle-row">
+						{#if lifecycleError}
+							<div class="lifecycle-err">{lifecycleError}</div>
+						{/if}
+						{#if readyVisible}
+							<button
+								class="pn-btn gold"
+								type="button"
+								on:click={handleMarkReady}
+								disabled={lifecycleBusy !== false}
+							>
+								{lifecycleBusy === 'ready' ? 'Marking…' : 'Mark Ready'}
+							</button>
+						{/if}
+						{#if submitVisible}
+							<button
+								class="pn-btn"
+								type="button"
+								on:click={handleSubmit}
+								disabled={lifecycleBusy !== false}
+							>
+								{lifecycleBusy === 'submit' ? 'Submitting…' : 'Submit'}
+							</button>
+						{/if}
+						{#if reopenVisible}
+							<button
+								class="pn-btn ghost"
+								type="button"
+								on:click={handleReopen}
+								disabled={lifecycleBusy !== false}
+							>
+								{lifecycleBusy === 'reopen' ? 'Reopening…' : 'Reopen'}
+							</button>
+						{/if}
+						{#if withdrawVisible}
+							<button
+								class="pn-btn navy"
+								type="button"
+								on:click={handleWithdraw}
+								disabled={lifecycleBusy !== false}
+								title="Withdraw permanently"
+							>
+								{lifecycleBusy === 'withdraw' ? 'Withdrawing…' : 'Withdraw…'}
+							</button>
+						{/if}
+					</div>
+				{/if}
 				{#if $isPhase2Active}
 					<div class="phase-toggle">
 						<button class:on={activePhase === 'phase1'} on:click={() => (activePhase = 'phase1')}>Phase I</button>

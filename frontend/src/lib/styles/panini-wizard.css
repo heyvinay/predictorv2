@@ -1253,3 +1253,25 @@
 	font-weight: 700;
 	color: var(--red-deep);
 }
+
+/* ===== Lifecycle action row in the wizard hero ====================
+ * Sits inside .toggle-stack between the entry selector and the
+ * phase/section toggles. Buttons collapse to wrap on mobile. */
+.pn .pn-wiz-hero .lifecycle-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+.pn .pn-wiz-hero .lifecycle-row .pn-btn {
+	padding: 7px 14px;
+	font-size: 11px;
+	box-shadow: 2px 2px 0 var(--ink);
+}
+.pn .pn-wiz-hero .lifecycle-err {
+	flex-basis: 100%;
+	font-family: var(--mono);
+	font-size: 11px;
+	color: var(--red);
+	letter-spacing: 0.04em;
+}
