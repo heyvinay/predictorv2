@@ -77,7 +77,12 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      # Bind to 127.0.0.1 only — matches the other services. Without this,
+      # Docker Desktop on Windows also exposes [::]:5173 (IPv6) which
+      # accepts connections but resets them (Vite only listens on IPv4),
+      # causing browsers to fail with ERR_CONNECTION_RESET when Chrome's
+      # Happy Eyeballs algorithm tries ::1 first.
+      - "127.0.0.1:5173:5173"
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     profiles:
       - dev
