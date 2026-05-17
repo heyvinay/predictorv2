@@ -66,27 +66,23 @@ export const isSingleEntryMode = derived(
 	($s) => ($s?.max_entries_per_user ?? 1) === 1
 );
 
-function activeEntryStorageKey(userId: string, competitionId: string): string {
-	return `predictor_active_entry_${userId}_${competitionId}`;
+function activeEntryStorageKey(userId: string): string {
+	return `predictor_active_entry_${userId}`;
 }
 
-function readPersistedActiveEntry(userId: string, competitionId: string): string | null {
+function readPersistedActiveEntry(userId: string): string | null {
 	if (!browser) return null;
 	try {
-		return localStorage.getItem(activeEntryStorageKey(userId, competitionId));
+		return localStorage.getItem(activeEntryStorageKey(userId));
 	} catch {
 		return null;
 	}
 }
 
-function persistActiveEntry(
-	userId: string,
-	competitionId: string,
-	entryId: string | null
-): void {
+function persistActiveEntry(userId: string, entryId: string | null): void {
 	if (!browser) return;
 	try {
-		const key = activeEntryStorageKey(userId, competitionId);
+		const key = activeEntryStorageKey(userId);
 		if (entryId) localStorage.setItem(key, entryId);
 		else localStorage.removeItem(key);
 	} catch {
@@ -94,7 +90,7 @@ function persistActiveEntry(
 	}
 }
 
-let hydrationContext: { userId: string; competitionId: string } | null = null;
+let hydrationContext: { userId: string } | null = null;
 
 function pickInitialEntry(list: Entry[], persistedId: string | null): Entry | null {
 	if (list.length === 0) return null;
@@ -114,14 +110,20 @@ function pickInitialEntry(list: Entry[], persistedId: string | null): Entry | nu
 /**
  * Hydrate the entries store for a logged-in user.
  *
+ * The active competition is a backend-side singleton — the API derives
+ * it from the request's auth context, so we don't need to thread a
+ * competition id from the frontend. (Earlier versions did; that caused
+ * a race condition when `$user.competition_id` was still null in the
+ * Svelte store at the moment `onMount` ran on a fresh page load.)
+ *
  * Safe to call repeatedly — subsequent calls refresh the list without
  * resetting the active entry (unless the persisted one is no longer in
  * the response).
  */
-export async function loadEntries(userId: string, competitionId: string): Promise<void> {
+export async function loadEntries(userId: string): Promise<void> {
 	entriesLoading.set(true);
 	entriesError.set(null);
-	hydrationContext = { userId, competitionId };
+	hydrationContext = { userId };
 
 	try {
 		const [list, settings] = await Promise.all([
@@ -137,11 +139,11 @@ export async function loadEntries(userId: string, competitionId: string): Promis
 		}
 		entries.set(workingList);
 
-		const persisted = readPersistedActiveEntry(userId, competitionId);
+		const persisted = readPersistedActiveEntry(userId);
 		const initial = pickInitialEntry(workingList, persisted);
 		const nextId = initial?.id ?? null;
 		activeEntryId.set(nextId);
-		persistActiveEntry(userId, competitionId, nextId);
+		persistActiveEntry(userId, nextId);
 	} catch (e) {
 		entriesError.set(e instanceof Error ? e.message : 'Failed to load entries');
 	} finally {
@@ -164,11 +166,7 @@ export async function refreshEntries(): Promise<void> {
 			const fallback = pickInitialEntry(list, null);
 			activeEntryId.set(fallback?.id ?? null);
 			if (hydrationContext) {
-				persistActiveEntry(
-					hydrationContext.userId,
-					hydrationContext.competitionId,
-					fallback?.id ?? null
-				);
+				persistActiveEntry(hydrationContext.userId, fallback?.id ?? null);
 			}
 		}
 	} catch (e) {
@@ -183,7 +181,7 @@ export async function refreshEntries(): Promise<void> {
 export function setActiveEntry(entryId: string): void {
 	activeEntryId.set(entryId);
 	if (hydrationContext) {
-		persistActiveEntry(hydrationContext.userId, hydrationContext.competitionId, entryId);
+		persistActiveEntry(hydrationContext.userId, entryId);
 	}
 }
 

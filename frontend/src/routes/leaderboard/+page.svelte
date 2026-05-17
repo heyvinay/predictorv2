@@ -30,14 +30,18 @@
 	onMount(() => {
 		if ($isAuthenticated) {
 			startPolling(60000);
-			// Pull entry settings so the conditional reference column can
-			// resolve. Safe to call even if entries are already hydrated
-			// (the store dedupes via its hydration context).
-			if ($user?.competition_id) {
-				void loadEntries($user.id, $user.competition_id);
-			}
 		}
 	});
+
+	// Pull entry settings as soon as $user.id resolves. The conditional
+	// reference column on each row needs $entrySettings to be populated.
+	// Using $: so initAuth() resolving after onMount doesn't strand us
+	// without settings.
+	let entriesLoadStarted = false;
+	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
+		entriesLoadStarted = true;
+		void loadEntries($user.id);
+	}
 
 	onDestroy(() => {
 		stopPolling();

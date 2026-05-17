@@ -30,22 +30,23 @@
 	let passwordSuccess: string | null = null;
 
 	onMount(async () => {
-		if ($isAuthenticated && $user) {
-			// Resolve the active entry before pulling stats — they're scoped
-			// to one entry now. The backend falls back to the user's primary
-			// eligible entry if we pass null, so this is best-effort.
-			const tasks: Promise<unknown>[] = [];
-			if ($user.competition_id) {
-				tasks.push(loadEntries($user.id, $user.competition_id));
-			}
-			// Fetch the leaderboard so the entries-list can show per-entry
-			// total_points without N+1 breakdown calls. Pre-lock returns
-			// only the user's own rows, which is exactly what we want here.
-			tasks.push(fetchLeaderboard());
-			await Promise.all(tasks);
-			await loadStats();
+		if ($isAuthenticated) {
+			// The leaderboard fetch doesn't need $user. Entry loading + stats
+			// are handled by the reactive block below — needed because
+			// initAuth()/fetchUser() can race with this onMount.
+			await fetchLeaderboard();
 		}
 	});
+
+	// Hydrate entries + stats as soon as $user.id resolves.
+	let profileLoadStarted = false;
+	$: if ($isAuthenticated && $user?.id && !profileLoadStarted) {
+		profileLoadStarted = true;
+		void (async () => {
+			await loadEntries($user!.id);
+			await loadStats();
+		})();
+	}
 
 	function entryDisplayStatus(e: Entry): EntryStatus {
 		// Phase 1 is the default lens for profile cards — admin still gets

@@ -174,15 +174,11 @@
 	}
 
 	onMount(async () => {
-		if ($isAuthenticated && $user) {
-			// Group fixtures + entries can load in parallel — neither depends
-			// on each other. Match/bracket predictions wait for the active
-			// entry id (resolved by loadEntries) and are issued by the
-			// `$: if ($activeEntryId && …)` block below.
+		if ($isAuthenticated) {
+			// Group fixtures + actual standings don't need $user. Entries are
+			// loaded by the reactive block below (it triggers as soon as
+			// $user.id becomes truthy, even if that happens after onMount).
 			const tasks: Promise<unknown>[] = [fetchGroupFixtures()];
-			if ($user.competition_id) {
-				tasks.push(loadEntries($user.id, $user.competition_id));
-			}
 			if ($isPhase2Active) {
 				tasks.push(fetchActualKnockoutFixtures(), fetchActualStandings());
 			}
@@ -190,6 +186,16 @@
 		}
 		window.addEventListener('beforeunload', handleBeforeUnload);
 	});
+
+	// Load entries as soon as $user.id resolves. Using $: not onMount because
+	// initAuth() / fetchUser() can complete AFTER this page's onMount, leaving
+	// $user null at the moment onMount runs — a race that previously caused
+	// the entry selector / activeEntryPosition / settings to stay empty.
+	let entriesLoadStarted = false;
+	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
+		entriesLoadStarted = true;
+		void loadEntries($user.id);
+	}
 
 	// Re-fetch predictions whenever the active entry changes. Covers both
 	// the initial transition from null → first entry (after loadEntries

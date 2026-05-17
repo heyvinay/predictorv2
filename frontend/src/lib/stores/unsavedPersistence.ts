@@ -321,12 +321,21 @@ export function hydrateFromStorage(
 export function clearAllForUser(userId: string): void {
 	if (!browser) return;
 	const legacyPrefix = `predictor_unsaved_${userId}_`;
-	const activePrefix = `predictor_active_entry_${userId}_`;
+	// Active-entry key is exact-match (no competition segment after Task F.x);
+	// we keep the legacy-prefix match below in case an old per-competition
+	// variant survives from before the refactor.
+	const activeExactKey = `predictor_active_entry_${userId}`;
+	const activeLegacyPrefix = `predictor_active_entry_${userId}_`;
 	try {
 		const keysToRemove: string[] = [];
 		for (let i = 0; i < localStorage.length; i++) {
 			const key = localStorage.key(i);
-			if (key && (key.startsWith(legacyPrefix) || key.startsWith(activePrefix))) {
+			if (
+				key &&
+				(key.startsWith(legacyPrefix) ||
+					key === activeExactKey ||
+					key.startsWith(activeLegacyPrefix))
+			) {
 				keysToRemove.push(key);
 			}
 		}

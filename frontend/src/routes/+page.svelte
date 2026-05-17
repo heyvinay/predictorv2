@@ -74,49 +74,43 @@
 	let realExposure: BracketExposureResponse | null = null;
 
 	onMount(async () => {
-		if ($isAuthenticated && $user) {
-			// Resolve the active entry BEFORE the entry-dependent fetches —
-			// predictions and per-entry bracket exposure both need it. The
-			// non-entry fetches run in parallel.
-			const nonEntryTasks: Promise<unknown>[] = [
-				fetchAllFixtures(),
-				fetchLeaderboard()
-			];
-			if ($user.competition_id) {
-				await Promise.all([
-					...nonEntryTasks,
-					loadEntries($user.id, $user.competition_id)
-				]);
-			} else {
-				await Promise.all(nonEntryTasks);
-			}
-
-			const entryId = get(activeEntryId);
-			if (entryId) {
-				fetchMatchPredictions();
-				try {
-					[realTrajectory, realClimbers, realAgreements, realExposure] = await Promise.all([
-						getMyRankTrajectory(7, entryId),
-						getSteepestClimbers(7, 32),
-						getAgreements(entryId),
-						getBracketExposure(entryId, 'phase_1')
-					]);
-				} catch (_e) {
-					// Backend not reachable / endpoint missing — stubs take over below
-					realTrajectory = null;
-					realClimbers = null;
-					realAgreements = null;
-					realExposure = null;
-				}
-			} else {
-				try {
-					realClimbers = await getSteepestClimbers(7, 32);
-				} catch (_e) {
-					realClimbers = null;
-				}
-			}
+		if ($isAuthenticated) {
+			// Non-entry fetches run unconditionally. Entry-scoped fetches
+			// (trajectory, agreements, bracket exposure, match predictions)
+			// run in the reactive block below once $activeEntryId resolves.
+			await Promise.all([fetchAllFixtures(), fetchLeaderboard()]);
 		}
 	});
+
+	// Load entries as soon as $user.id resolves.
+	let entriesLoadStarted = false;
+	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
+		entriesLoadStarted = true;
+		void loadEntries($user.id);
+	}
+
+	// Fire entry-scoped fetches once the active entry id resolves.
+	let entryDepsLoadStarted = false;
+	$: if ($activeEntryId && !entryDepsLoadStarted) {
+		entryDepsLoadStarted = true;
+		const entryId = $activeEntryId;
+		void (async () => {
+			fetchMatchPredictions();
+			try {
+				[realTrajectory, realClimbers, realAgreements, realExposure] = await Promise.all([
+					getMyRankTrajectory(7, entryId),
+					getSteepestClimbers(7, 32),
+					getAgreements(entryId),
+					getBracketExposure(entryId, 'phase_1')
+				]);
+			} catch (_e) {
+				realTrajectory = null;
+				realClimbers = null;
+				realAgreements = null;
+				realExposure = null;
+			}
+		})();
+	}
 
 	// ---- Derived values from existing stores -------------------------------
 	$: rank = $activeEntryPosition?.position ?? 0;
