@@ -33,7 +33,6 @@
 		'/',
 		'/leaderboard',
 		'/predictions',
-		'/results',
 		'/admin',
 		'/rules',
 		'/panini-sandbox'
