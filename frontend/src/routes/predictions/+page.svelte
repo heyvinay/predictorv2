@@ -651,6 +651,20 @@
 			d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 		);
 	}
+
+	// Compact countdown for the match-card lock chip: "21d 21h", "2h 30m",
+	// "5m 30s" or "locked". `secs` is `time_until_lock` from FixtureRead.
+	function fmtCountdown(secs: number | null | undefined): string {
+		if (secs == null || secs <= 0) return 'locked';
+		const d = Math.floor(secs / 86400);
+		const h = Math.floor((secs % 86400) / 3600);
+		const m = Math.floor((secs % 3600) / 60);
+		const s = secs % 60;
+		if (d > 0) return `${d}d ${h}h`;
+		if (h > 0) return `${h}h ${m}m`;
+		if (m > 0) return `${m}m ${s}s`;
+		return `${s}s`;
+	}
 </script>
 
 <svelte:head>
@@ -840,93 +854,128 @@
 				{@const groupWarnings = groupStandingsWarnings.filter((w) => w.group === group.group)}
 				{@const groupGp = groupProgress(group)}
 				{@const groupComplete = groupGp.total > 0 && groupGp.done === groupGp.total}
-				<div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-					<!-- Standings -->
+
+				<!-- Group header -->
+				<div class="flex items-center gap-4 mb-6">
+					<div class="w-14 h-14 rounded-full border-2 border-primary/70 grid place-items-center bg-base-200/40">
+						<span class="font-display text-3xl text-primary leading-none translate-y-0.5">{group.group}</span>
+					</div>
 					<div>
-						{#if groupComplete && groupWarnings.length > 0}
-							<div class="alert alert-warning text-sm mb-3">
-								<div>
-									<h4 class="font-semibold">⚠ Tied teams in Group {group.group}</h4>
-									{#each groupWarnings as w (w.tiedTeams.join('-'))}
-										<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD, GF and head-to-head — currently ranked alphabetically. Adjust scores to change the ordering.</p>
-									{/each}
-								</div>
-							</div>
-						{/if}
-						<div class="group-standings">
-							<div class="px-3 py-2 flex items-center justify-between bg-base-300/30">
-								<span class="text-sm font-semibold">Group {group.group} · Predicted Standings</span>
-								<span class="badge badge-sm badge-success">LIVE</span>
-							</div>
-							<table class="standings-table">
-								<thead>
-									<tr><th></th><th class="text-left">Team</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center">D</th><th class="text-center">L</th><th class="text-center">GF</th><th class="text-center">GA</th><th class="text-center">GD</th><th>Pts</th></tr>
-								</thead>
-								<tbody>
-									{#each standings as t, i (t.team)}
-										<tr class="standing-row">
-											<td><span class="position-indicator {i < 2 ? '!bg-success/20 !text-success' : i === 2 ? '!bg-warning/20 !text-warning' : ''}">{i + 1}</span></td>
-											<td>
-												<span class="flex items-center gap-2">
-													{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
-													<span class="team-name-table">{t.team}</span>
-												</span>
-											</td>
-											<td class="text-center">{t.played}</td>
-											<td class="text-center">{t.won}</td>
-											<td class="text-center">{t.drawn}</td>
-											<td class="text-center">{t.lost}</td>
-											<td class="text-center">{t.goalsFor}</td>
-											<td class="text-center">{t.goalsAgainst}</td>
-											<td class="text-center gd-cell {t.goalDifference >= 0 ? 'positive' : 'negative'}">{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</td>
-											<td><span class="points-badge">{t.points}</span></td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-						<div class="flex gap-4 text-xs text-base-content/50 mt-2">
-							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-success"></span>Advances (top 2)</span>
-							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-warning"></span>Best 3rd</span>
-							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-base-content/30"></span>Out</span>
+						<h2 class="font-display text-3xl tracking-widest leading-none">GROUP {group.group}</h2>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mt-1">{group.fixtures.length} matches</p>
+					</div>
+				</div>
+
+				{#if groupComplete && groupWarnings.length > 0}
+					<div class="alert alert-warning text-sm mb-5">
+						<div>
+							<h4 class="font-semibold">⚠ Tied teams in Group {group.group}</h4>
+							{#each groupWarnings as w (w.tiedTeams.join('-'))}
+								<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD, GF and head-to-head — currently ranked alphabetically. Adjust scores to change the ordering.</p>
+							{/each}
 						</div>
 					</div>
+				{/if}
 
-					<!-- Matches -->
-					<div class="space-y-3">
+				<!-- Predicted Standings (full width) -->
+				<section class="mb-8">
+					<h3 class="section-label">
+						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6h6v13M5 19v-7h4v7M15 19v-3h4v3" /></svg>
+						Predicted Standings
+					</h3>
+					<div class="standings-card">
+						<table class="standings-table-v2">
+							<thead>
+								<tr>
+									<th class="w-10 text-left pl-4">#</th>
+									<th class="text-left">Team</th>
+									<th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each standings as t, i (t.team)}
+									{@const pos = i < 2 ? 'advance' : i === 2 ? 'thirdplace' : 'out'}
+									<tr class="standing-row-v2 pos-{pos}">
+										<td class="pl-4"><span class="rank-pill pos-{pos}">{i + 1}</span></td>
+										<td>
+											<span class="inline-flex items-center gap-2.5">
+												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
+												<span class="font-medium">{t.team}</span>
+											</span>
+										</td>
+										<td class="num">{t.played}</td>
+										<td class="num"><span class={t.won > 0 ? 'text-success' : 'text-base-content/40'}>{t.won}</span></td>
+										<td class="num">{t.drawn}</td>
+										<td class="num"><span class={t.lost > 0 ? 'text-error' : 'text-base-content/40'}>{t.lost}</span></td>
+										<td class="num">{t.goalsFor}</td>
+										<td class="num">{t.goalsAgainst}</td>
+										<td class="num"><span class={t.goalDifference > 0 ? 'text-success' : t.goalDifference < 0 ? 'text-error' : 'text-base-content/60'}>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span></td>
+										<td class="text-center"><span class="pts-badge">{t.points}</span></td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					<div class="flex gap-4 text-xs text-base-content/50 mt-3">
+						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-success rounded"></span>Advances (top 2)</span>
+						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-warning rounded"></span>Best 3rd</span>
+						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-base-content/20 rounded"></span>Out</span>
+					</div>
+				</section>
+
+				<!-- Match Predictions (responsive grid) -->
+				<section>
+					<h3 class="section-label">
+						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+						Match Predictions
+					</h3>
+					<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 						{#each group.fixtures as f (f.id)}
 							{@const state = predictionState(f)}
+							{@const countdown = fmtCountdown(f.time_until_lock)}
 							<div
-								class="match-card {state === 'locked' ? 'locked' : ''} {editingFixtureId === f.id ? 'ring-2 ring-primary' : ''}"
+								class="match-card-v2 {state === 'locked' ? 'is-locked' : ''} {editingFixtureId === f.id ? 'is-editing' : ''}"
 								on:focusin={() => handleMatchCardFocusIn(f.id, f.is_locked)}
 								on:focusout={handleMatchCardFocusOut}
 							>
-								<div class="text-xs text-base-content/40 mb-2">{fmtCard(f.kickoff)}{#if editingFixtureId === f.id} · <span class="text-primary">editing</span>{/if}</div>
-								<div class="flex items-center justify-between gap-2">
-									<div class="flex items-center gap-2 flex-1 min-w-0" title={f.home_team}>
-										{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
-										<span class="team-name">{teamCode(f.home_team)}</span>
+								<div class="match-card-header">
+									<div class="flex items-center gap-2 text-xs text-base-content/50">
+										<span>{fmtCard(f.kickoff)}</span>
+										<span class="group-tag">Group {group.group}</span>
 									</div>
-									<div class="flex items-center gap-1 shrink-0">
-										<input type="number" class="score-input" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'home')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'home', e.currentTarget.value); }} aria-label="{f.home_team} score" />
-										<span class="text-base-content/40">–</span>
-										<input type="number" class="score-input" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'away')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'away', e.currentTarget.value); }} aria-label="{f.away_team} score" />
+									<span class="countdown-chip {countdown === 'locked' ? 'is-locked' : ''}">{countdown}</span>
+								</div>
+
+								<div class="match-card-body">
+									<!-- Home team -->
+									<div class="team-block" title={f.home_team}>
+										{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="flag" />{/if}
+										<div class="team-label">{f.home_team}</div>
 									</div>
-									<div class="flex items-center gap-2 flex-1 min-w-0 justify-end" title={f.away_team}>
-										<span class="team-name">{teamCode(f.away_team)}</span>
-										{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
+									<!-- Score inputs with vs -->
+									<div class="score-row">
+										<input type="number" class="score-box" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'home')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'home', e.currentTarget.value); }} aria-label="{f.home_team} score" />
+										<span class="vs-pill">vs</span>
+										<input type="number" class="score-box" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'away')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'away', e.currentTarget.value); }} aria-label="{f.away_team} score" />
+									</div>
+									<!-- Away team -->
+									<div class="team-block" title={f.away_team}>
+										{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="flag" />{/if}
+										<div class="team-label">{f.away_team}</div>
 									</div>
 								</div>
-								<div class="flex items-center gap-2 mt-2 text-xs">
+
+								<div class="match-card-footer">
 									{#if state === 'locked'}<span class="badge badge-sm badge-ghost">Locked</span>
-									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40">Save to commit</span>
+									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40 text-xs">Save to commit</span>
 									{:else if state === 'saved'}<span class="badge badge-sm badge-success">✓ Saved</span>
-									{:else}<span class="badge badge-sm badge-ghost">Empty</span><span class="text-base-content/40">Enter a score</span>{/if}
+									{:else}<span class="badge badge-sm badge-ghost">Empty</span><span class="text-base-content/40 text-xs">Enter a score</span>{/if}
+									{#if editingFixtureId === f.id}<span class="text-primary text-xs ml-auto">editing</span>{/if}
 								</div>
 							</div>
 						{/each}
 					</div>
-				</div>
+				</section>
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">

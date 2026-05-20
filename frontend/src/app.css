@@ -376,6 +376,136 @@
 		@apply absolute inset-0 pointer-events-none opacity-[0.03];
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
 	}
+
+	/* ============ Predictions wizard — group view v2 ============ */
+
+	.section-label {
+		@apply text-xs uppercase tracking-[0.18em] text-base-content/50 font-semibold inline-flex items-center gap-2 mb-3;
+	}
+
+	.standings-card {
+		@apply rounded-xl bg-base-200/40 border border-base-300/40 overflow-hidden;
+	}
+
+	.standings-table-v2 {
+		@apply w-full min-w-[420px];
+	}
+
+	.standings-table-v2 thead th {
+		@apply py-3 text-[10px] uppercase tracking-wider text-base-content/40 font-medium text-center;
+	}
+
+	.standing-row-v2 {
+		@apply border-t border-base-300/20 transition-colors duration-150 relative;
+	}
+
+	.standing-row-v2:hover {
+		@apply bg-base-300/15;
+	}
+
+	.standing-row-v2 td {
+		@apply py-3 text-sm relative;
+	}
+
+	.standing-row-v2 td.num {
+		@apply text-center font-medium tabular-nums;
+	}
+
+	/* Thin left vertical position bar */
+	.standing-row-v2.pos-advance::before,
+	.standing-row-v2.pos-thirdplace::before {
+		content: '';
+		@apply absolute left-0 top-2 bottom-2 w-[3px] rounded;
+	}
+	.standing-row-v2.pos-advance::before { @apply bg-success; }
+	.standing-row-v2.pos-thirdplace::before { @apply bg-warning; }
+
+	.rank-pill {
+		@apply inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold;
+		@apply bg-base-300/60 text-base-content/60 border border-base-300/60;
+		font-family: 'Bebas Neue', sans-serif;
+		font-size: 0.95rem;
+	}
+	.rank-pill.pos-advance { @apply bg-success/15 text-success border-success/30; }
+	.rank-pill.pos-thirdplace { @apply bg-warning/15 text-warning border-warning/30; }
+
+	.pts-badge {
+		@apply inline-flex items-center justify-center min-w-[32px] h-8 px-2 rounded-md;
+		@apply bg-base-300/70 text-base-content border border-base-300/60;
+		font-family: 'Bebas Neue', sans-serif;
+		@apply text-lg tracking-wide;
+	}
+
+	/* ----- Match card v2 (grid cards with countdown chip) ----- */
+
+	.match-card-v2 {
+		@apply rounded-xl bg-base-200/40 border border-base-300/40 p-4;
+		@apply transition-all duration-150;
+	}
+	.match-card-v2:hover:not(.is-locked) {
+		@apply border-base-300/70 bg-base-200/60;
+	}
+	.match-card-v2.is-editing {
+		@apply ring-2 ring-primary/40 border-primary/30;
+	}
+	.match-card-v2.is-locked {
+		@apply opacity-70;
+	}
+
+	.match-card-header {
+		@apply flex items-center justify-between gap-2 mb-4;
+	}
+
+	.group-tag {
+		@apply px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider;
+		@apply bg-base-300/60 text-base-content/60;
+	}
+
+	.countdown-chip {
+		@apply px-2 py-1 rounded-md text-[11px] font-mono font-semibold;
+		@apply bg-warning/15 text-warning border border-warning/25;
+		white-space: nowrap;
+	}
+	.countdown-chip.is-locked {
+		@apply bg-base-300/60 text-base-content/50 border-base-300/40;
+	}
+
+	.match-card-body {
+		@apply grid items-center gap-3;
+		grid-template-columns: 1fr auto 1fr;
+	}
+
+	.team-block {
+		@apply flex flex-col items-center text-center min-w-0;
+	}
+	.team-block .flag {
+		@apply w-10 h-auto rounded-sm mb-2 shadow-sm;
+	}
+	.team-block .team-label {
+		@apply text-sm font-semibold truncate w-full;
+	}
+
+	.score-row {
+		@apply flex items-center gap-1.5;
+	}
+
+	.score-box {
+		@apply w-12 h-12 text-center text-xl font-bold rounded-lg;
+		@apply bg-base-300/40 border border-base-300/60;
+		@apply focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all;
+		font-family: 'Bebas Neue', sans-serif;
+	}
+	.score-box:disabled {
+		@apply opacity-60 cursor-not-allowed;
+	}
+
+	.vs-pill {
+		@apply text-[10px] uppercase tracking-wider text-base-content/40 px-1;
+	}
+
+	.match-card-footer {
+		@apply flex items-center gap-2 mt-3 pt-3 border-t border-base-300/30;
+	}
 }
 
 /* Hide number input spinners globally */
