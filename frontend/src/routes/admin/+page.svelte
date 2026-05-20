@@ -41,10 +41,9 @@
 		type Phase2OpenResponse
 	} from '$lib/api/admin';
 	import { listBonusAnswers, setBonusAnswer, type BonusAnswerView } from '$api/bonus';
-	import type { Entry, EntrySettings, EntryStatus, PaymentMode } from '$lib/types/entry';
+	import type { Entry, EntrySettings, EntryStatus } from '$lib/types/entry';
 	import { computeDisplayStatus } from '$lib/types/entry';
 	import type { PredictionPhase } from '$types';
-	import PnPageShell from '$components/panini/PnPageShell.svelte';
 
 	$: if ($isAuthenticated && !$user?.is_admin) goto('/');
 	$: if (!$isAuthenticated) goto('/login');
@@ -76,7 +75,7 @@
 	let togglingUserId: string | null = null;
 	let userActionError: string | null = null;
 
-	// --- F.2: Competition entry settings (the 11-field form) -----------------
+	// --- Competition entry settings (the 11-field form) ----------------------
 	type BoolSettingKey =
 		| 'auto_create_first_entry'
 		| 'allow_duplicate_from_existing'
@@ -112,12 +111,12 @@
 		return keys.some((k) => entrySettings![k] !== settingsDraft![k]);
 	})();
 
-	// --- F.2: Phase II open ---------------------------------------------------
+	// --- Phase II open --------------------------------------------------------
 	let openingPhase2 = false;
 	let phase2OpenResult: Phase2OpenResponse | null = null;
 	let phase2OpenError: string | null = null;
 
-	// --- F.2: Entries admin table --------------------------------------------
+	// --- Entries admin table --------------------------------------------------
 	let entries: Entry[] = [];
 	let entriesLoading = false;
 	let entriesError: string | null = null;
@@ -131,15 +130,13 @@
 	let entryActionError: string | null = null;
 	let entryActingId: string | null = null;
 
-	// Audit drawer state. `auditEntryId` is the currently-open entry; null
-	// means the drawer is closed.
+	// Audit drawer state.
 	let auditEntryId: string | null = null;
 	let auditEvents: EntryEvent[] = [];
 	let auditLoading = false;
 	let auditError: string | null = null;
 
-	// Disable dialog state. We use a tiny inline form rather than
-	// window.prompt so the admin can paste a multi-word reason cleanly.
+	// Disable dialog state.
 	let disableTargetId: string | null = null;
 	let disableReason = '';
 
@@ -165,8 +162,6 @@
 
 	async function handleSaveSettings() {
 		if (!entrySettings || !settingsDraft) return;
-		// Build a partial patch — only changed fields go up. Keeps the audit
-		// log clean and matches the backend's exclude_unset semantics.
 		const patch: EntrySettingsUpdate = {};
 		const keys = Object.keys(entrySettings) as (keyof EntrySettings)[];
 		for (const k of keys) {
@@ -211,7 +206,6 @@
 		phase2OpenResult = null;
 		try {
 			phase2OpenResult = await openPhase2();
-			// Refresh entries list so the new phase rows surface.
 			await loadEntries();
 		} catch (e) {
 			phase2OpenError = e instanceof Error ? e.message : 'Failed to open Phase II';
@@ -222,9 +216,6 @@
 
 	function buildFilters(): AdminEntryFilters {
 		const f: AdminEntryFilters = {};
-		// User search hits both name and email client-side; the backend filter
-		// takes user_id, so we only set it once the search resolves to a
-		// unique match. Otherwise we filter the response client-side too.
 		if (entryRefSearch.trim()) f.reference = entryRefSearch.trim();
 		if (entryStatusFilter) f.status = entryStatusFilter;
 		if (entryPaidFilter === 'paid') f.paid = true;
@@ -268,9 +259,6 @@
 	})();
 
 	function entryDisplayStatus(e: Entry): EntryStatus {
-		// Show the dominant status. Phase 1 is the default lens since the
-		// admin usually wants to know "is this entry locked in for the
-		// group stage?". Disabled / withdrawn already win in computeDisplayStatus.
 		return computeDisplayStatus(e, 'phase_1' as PredictionPhase);
 	}
 
@@ -278,15 +266,15 @@
 		switch (s) {
 			case 'submitted':
 			case 'locked':
-				return 'pn-tag got';
+				return 'badge badge-success';
 			case 'ready':
-				return 'pn-tag gold';
+				return 'badge badge-warning';
 			case 'disabled':
-				return 'pn-tag red';
+				return 'badge badge-error';
 			case 'withdrawn':
-				return 'pn-tag'; // muted default
+				return 'badge badge-ghost';
 			default:
-				return 'pn-tag';
+				return 'badge badge-ghost';
 		}
 	}
 
@@ -425,7 +413,6 @@
 			bonusAnswerViews = bonusAnswerViews.map((v) =>
 				v.question_id === view.question_id ? updated : v
 			);
-			// Clear the draft so the input now reflects the saved value.
 			const next = new Map(bonusDrafts);
 			next.delete(view.question_id);
 			bonusDrafts = next;
@@ -613,511 +600,302 @@
 </script>
 
 <svelte:head>
-	<title>Admin — Predictor</title>
+	<title>Admin - Predictor v2</title>
 </svelte:head>
 
 {#if $isAuthenticated && $user?.is_admin}
-	<PnPageShell>
-		<section class="pn-pf-hero">
-			<div class="av" style="background: var(--gold); color: var(--ink);">★</div>
-			<div class="nm-block">
-				<div class="nm">Admin <em>console</em></div>
-				<div class="sub">Manage competition, phases, scores, and users</div>
+	<div class="container mx-auto mobile-padding py-6 space-y-6">
+		<!-- Hero -->
+		<div class="flex items-center justify-between flex-wrap gap-3">
+			<div>
+				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Admin Console</h1>
+				<p class="text-sm text-base-content/50">Manage competition, phases, scores, and users</p>
 			</div>
-			<div class="rank-block">
-				<div class="l">Phase</div>
-				<div class="v" style="color: var(--gold);">{$isPhase2Active ? 'II' : 'I'}</div>
-				<div class="of">{activeCompetition?.name ?? 'no competition active'}</div>
+			<div class="text-right">
+				<div class="stat-title">Phase</div>
+				<div class="font-display text-2xl tracking-wide text-accent">{$isPhase2Active ? 'II' : 'I'}</div>
+				<div class="text-xs text-base-content/40">{activeCompetition?.name ?? 'no competition active'}</div>
 			</div>
-		</section>
+		</div>
 
 		{#if loading}
-			<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">Loading admin data…</p>
+			<p class="text-sm text-base-content/50">Loading admin data…</p>
 		{:else if error}
-			<div class="pn-pf-alert error">{error} · <button class="pn-btn ghost" style="padding: 4px 10px; font-size: 11px;" on:click={loadData}>Retry</button></div>
+			<div class="alert alert-error">{error}<button class="btn btn-sm btn-ghost" on:click={loadData}>Retry</button></div>
 		{:else}
 			<!-- Stats -->
 			{#if stats}
-				<section class="pn-pf-stats">
-					<div class="pn-pf-stat">
-						<div class="l">Users</div>
-						<div class="v">{stats.total_users}</div>
-						<div class="sub">{stats.active_users} active</div>
-					</div>
-					<div class="pn-pf-stat">
-						<div class="l">Fixtures</div>
-						<div class="v">{stats.total_fixtures}</div>
-						<div class="sub">{stats.completed_fixtures} completed</div>
-					</div>
-					<div class="pn-pf-stat">
-						<div class="l">Predictions</div>
-						<div class="v">{stats.total_predictions}</div>
-					</div>
-					<div class="pn-pf-stat">
-						<div class="l">Live</div>
-						<div class="v exact">{stats.live_fixtures}</div>
-						<div class="sub">matches</div>
-					</div>
-				</section>
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+					<div class="stat-card"><p class="stat-title">Users</p><p class="stat-value">{stats.total_users}</p><p class="text-xs text-base-content/40 mt-1">{stats.active_users} active</p></div>
+					<div class="stat-card"><p class="stat-title">Fixtures</p><p class="stat-value">{stats.total_fixtures}</p><p class="text-xs text-base-content/40 mt-1">{stats.completed_fixtures} completed</p></div>
+					<div class="stat-card"><p class="stat-title">Predictions</p><p class="stat-value">{stats.total_predictions}</p></div>
+					<div class="stat-card"><p class="stat-title">Live</p><p class="stat-value text-error">{stats.live_fixtures}</p><p class="text-xs text-base-content/40 mt-1">matches</p></div>
+				</div>
 			{/if}
 
 			<!-- Score Sync -->
-			<section class="pn-pf-section">
-				<div class="h"><span>Score Sync</span><span class="right">Football-Data.org</span></div>
-				<div class="body">
-					{#if syncError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{syncError}</div>{/if}
-					{#if syncResult}
-						<div class="pn-ad-syncresult">
-							<div>Last sync: <b>{syncedAt?.toLocaleTimeString() ?? ''}</b></div>
-							<div class="pills">
-								<span class="pn-tag got">{syncResult.synced} created</span>
-								<span class="pn-tag">{syncResult.updated} updated</span>
-								{#if syncResult.errors.length > 0}
-									<span class="pn-tag red">{syncResult.errors.length} errors</span>
-								{/if}
-							</div>
-							{#if syncResult.errors.length > 0}
-								<div style="margin-top: 8px;">
-									{#each syncResult.errors as err}
-										<div style="color: var(--red); font-size: 10.5px;">• {err}</div>
-									{/each}
-								</div>
-							{/if}
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Score Sync <span class="text-xs text-base-content/40">· Football-Data.org</span></h2>
+				{#if syncError}<div class="alert alert-error text-sm mb-3">{syncError}</div>{/if}
+				{#if syncResult}
+					<div class="mb-3 text-sm">
+						<div>Last sync: <b>{syncedAt?.toLocaleTimeString() ?? ''}</b></div>
+						<div class="flex gap-2 mt-1 flex-wrap">
+							<span class="badge badge-success">{syncResult.synced} created</span>
+							<span class="badge badge-ghost">{syncResult.updated} updated</span>
+							{#if syncResult.errors.length > 0}<span class="badge badge-error">{syncResult.errors.length} errors</span>{/if}
 						</div>
-					{/if}
-					<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; margin-bottom: 12px;">
-						The background scheduler runs every 60s during match windows; this is the manual escape hatch.
-					</p>
-					<button class="pn-btn gold" type="button" on:click={handleSyncScores} disabled={syncing}>
-						{syncing ? 'Syncing…' : 'Sync scores now'}
-					</button>
-				</div>
+						{#if syncResult.errors.length > 0}
+							<div class="mt-2 text-xs text-error">{#each syncResult.errors as err}<div>• {err}</div>{/each}</div>
+						{/if}
+					</div>
+				{/if}
+				<p class="text-xs text-base-content/50 mb-3">The background scheduler runs every 60s during match windows; this is the manual escape hatch.</p>
+				<button class="btn btn-primary btn-sm" type="button" on:click={handleSyncScores} disabled={syncing}>
+					{syncing ? 'Syncing…' : 'Sync scores now'}
+				</button>
 			</section>
 
 			<!-- Phase 1 Deadline -->
-			<section class="pn-pf-section">
-				<div class="h"><span>Phase I Deadline</span><span class="right">Group stage lock</span></div>
-				<div class="body">
-					<div class="pn-ad-status">
-						<span>
-							<b>DEADLINE</b>
-							{#if $phase1Deadline}
-								· {new Date($phase1Deadline).toLocaleString()}
-							{:else}
-								· <span class="warn">NOT SET</span>
-							{/if}
-						</span>
-						{#if $phase1Deadline}
-							<span class="{$phase1Countdown === 'Locked' ? 'warn' : 'ok'}">{$phase1Countdown}</span>
-						{/if}
-					</div>
-
-					{#if phase1Error}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{phase1Error}</div>{/if}
-					{#if phase1Success}<div class="pn-pf-alert success" style="margin-bottom: 12px;">{phase1Success}</div>{/if}
-
-					<div class="pn-pf-form row2">
-						<div>
-							<label for="p1-date">Date</label>
-							<input id="p1-date" type="date" bind:value={phase1DeadlineDate} />
-						</div>
-						<div>
-							<label for="p1-time">Time</label>
-							<input id="p1-time" type="time" bind:value={phase1DeadlineTime} />
-						</div>
-						<div class="full">
-							<button class="pn-btn" type="button" on:click={handleSetPhase1Deadline} disabled={settingPhase1}>
-								{settingPhase1 ? 'Setting…' : 'Set Phase I deadline'}
-							</button>
-						</div>
-					</div>
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Phase I Deadline <span class="text-xs text-base-content/40">· Group stage lock</span></h2>
+				<div class="text-sm mb-3">
+					<b>Deadline:</b>
+					{#if $phase1Deadline}{new Date($phase1Deadline).toLocaleString()} · <span class={$phase1Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase1Countdown}</span>{:else}<span class="text-warning">NOT SET</span>{/if}
+				</div>
+				{#if phase1Error}<div class="alert alert-error text-sm mb-3">{phase1Error}</div>{/if}
+				{#if phase1Success}<div class="alert alert-success text-sm mb-3">{phase1Success}</div>{/if}
+				<div class="flex gap-3 items-end flex-wrap">
+					<div class="form-control"><label class="label" for="p1-date"><span class="label-text">Date</span></label><input id="p1-date" type="date" class="input input-bordered input-sm" bind:value={phase1DeadlineDate} /></div>
+					<div class="form-control"><label class="label" for="p1-time"><span class="label-text">Time</span></label><input id="p1-time" type="time" class="input input-bordered input-sm" bind:value={phase1DeadlineTime} /></div>
+					<button class="btn btn-primary btn-sm" type="button" on:click={handleSetPhase1Deadline} disabled={settingPhase1}>{settingPhase1 ? 'Setting…' : 'Set Phase I deadline'}</button>
 				</div>
 			</section>
 
 			<!-- Phase 2 Activation -->
-			<section class="pn-pf-section">
-				<div class="h"><span>Phase II Activation</span><span class="right">Knockout stage</span></div>
-				<div class="body">
-					<div class="pn-ad-status">
-						<span>
-							<b>STATUS</b> ·
-							{#if $isPhase2Active}
-								<span class="ok">ACTIVE</span>
-								{#if $phase2BracketDeadline}
-									· Bracket locks {new Date($phase2BracketDeadline).toLocaleString()}
-								{/if}
-							{:else}
-								<span class="warn">NOT ACTIVE</span>
-							{/if}
-						</span>
-						{#if $phase2BracketDeadline}
-							<span class="{$phase2Countdown === 'Locked' ? 'warn' : 'ok'}">{$phase2Countdown}</span>
-						{/if}
-					</div>
-
-					{#if activationError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{activationError}</div>{/if}
-					{#if activationSuccess}<div class="pn-pf-alert success" style="margin-bottom: 12px;">{activationSuccess}</div>{/if}
-
-					<div class="pn-pf-form row2">
-						<div>
-							<label for="p2-date">Bracket lock date</label>
-							<input id="p2-date" type="date" bind:value={bracketDeadlineDate} />
-						</div>
-						<div>
-							<label for="p2-time">Time</label>
-							<input id="p2-time" type="time" bind:value={bracketDeadlineTime} />
-						</div>
-						<div class="full" style="display: flex; gap: 10px; flex-wrap: wrap;">
-							<button class="pn-btn gold" type="button" on:click={handleActivatePhase2} disabled={activating}>
-								{activating ? 'Working…' : ($isPhase2Active ? 'Update Phase II deadline' : 'Activate Phase II')}
-							</button>
-							{#if $isPhase2Active}
-								<button class="pn-btn navy" type="button" on:click={handleDeactivatePhase2} disabled={activating}>
-									Deactivate Phase II
-								</button>
-							{/if}
-						</div>
-					</div>
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Phase II Activation <span class="text-xs text-base-content/40">· Knockout stage</span></h2>
+				<div class="text-sm mb-3">
+					<b>Status:</b>
+					{#if $isPhase2Active}<span class="text-success">ACTIVE</span>{#if $phase2BracketDeadline} · Bracket locks {new Date($phase2BracketDeadline).toLocaleString()} · <span class={$phase2Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase2Countdown}</span>{/if}{:else}<span class="text-warning">NOT ACTIVE</span>{/if}
+				</div>
+				{#if activationError}<div class="alert alert-error text-sm mb-3">{activationError}</div>{/if}
+				{#if activationSuccess}<div class="alert alert-success text-sm mb-3">{activationSuccess}</div>{/if}
+				<div class="flex gap-3 items-end flex-wrap">
+					<div class="form-control"><label class="label" for="p2-date"><span class="label-text">Bracket lock date</span></label><input id="p2-date" type="date" class="input input-bordered input-sm" bind:value={bracketDeadlineDate} /></div>
+					<div class="form-control"><label class="label" for="p2-time"><span class="label-text">Time</span></label><input id="p2-time" type="time" class="input input-bordered input-sm" bind:value={bracketDeadlineTime} /></div>
+					<button class="btn btn-primary btn-sm" type="button" on:click={handleActivatePhase2} disabled={activating}>{activating ? 'Working…' : $isPhase2Active ? 'Update Phase II deadline' : 'Activate Phase II'}</button>
+					{#if $isPhase2Active}<button class="btn btn-outline btn-error btn-sm" type="button" on:click={handleDeactivatePhase2} disabled={activating}>Deactivate Phase II</button>{/if}
 				</div>
 			</section>
 
-			<!-- Phase II open (advances each eligible entry's phase_2 row to draft) -->
+			<!-- Phase II open -->
 			{#if $isPhase2Active}
-				<section class="pn-pf-section">
-					<div class="h"><span>Phase II Open</span><span class="right">Per-entry advance</span></div>
-					<div class="body">
-						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; margin-bottom: 12px;">
-							Phase II <b>activation</b> opens the bracket window globally (above). Phase II <b>open</b> walks every eligible entry and advances its
-							per-phase row so the user can start picking. Idempotent — already-open rows are skipped.
-						</p>
-						{#if phase2OpenError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{phase2OpenError}</div>{/if}
-						{#if phase2OpenResult}
-							<div class="pn-ad-syncresult">
-								<div class="pills">
-									<span class="pn-tag got">{phase2OpenResult.entries_opened} opened</span>
-									<span class="pn-tag">{phase2OpenResult.entries_already_open} already open</span>
-									{#if phase2OpenResult.entries_skipped_withdrawn > 0}
-										<span class="pn-tag">{phase2OpenResult.entries_skipped_withdrawn} withdrawn</span>
-									{/if}
-									{#if phase2OpenResult.entries_skipped_disabled > 0}
-										<span class="pn-tag red">{phase2OpenResult.entries_skipped_disabled} disabled</span>
-									{/if}
-								</div>
-							</div>
-						{/if}
-						<button class="pn-btn gold" type="button" on:click={handleOpenPhase2} disabled={openingPhase2} style="margin-top: 12px;">
-							{openingPhase2 ? 'Opening…' : 'Open Phase II for all eligible entries'}
-						</button>
-					</div>
+				<section class="stadium-card no-glow p-5">
+					<h2 class="text-lg font-display tracking-wide mb-3">Phase II Open <span class="text-xs text-base-content/40">· Per-entry advance</span></h2>
+					<p class="text-xs text-base-content/50 mb-3">Phase II <b>activation</b> opens the bracket window globally. Phase II <b>open</b> walks every eligible entry and advances its per-phase row so the user can start picking. Idempotent — already-open rows are skipped.</p>
+					{#if phase2OpenError}<div class="alert alert-error text-sm mb-3">{phase2OpenError}</div>{/if}
+					{#if phase2OpenResult}
+						<div class="flex gap-2 mb-3 flex-wrap">
+							<span class="badge badge-success">{phase2OpenResult.entries_opened} opened</span>
+							<span class="badge badge-ghost">{phase2OpenResult.entries_already_open} already open</span>
+							{#if phase2OpenResult.entries_skipped_withdrawn > 0}<span class="badge badge-ghost">{phase2OpenResult.entries_skipped_withdrawn} withdrawn</span>{/if}
+							{#if phase2OpenResult.entries_skipped_disabled > 0}<span class="badge badge-error">{phase2OpenResult.entries_skipped_disabled} disabled</span>{/if}
+						</div>
+					{/if}
+					<button class="btn btn-primary btn-sm" type="button" on:click={handleOpenPhase2} disabled={openingPhase2}>{openingPhase2 ? 'Opening…' : 'Open Phase II for all eligible entries'}</button>
 				</section>
 			{/if}
 
-			<!-- Competition Entry Settings -->
-			<section class="pn-pf-section">
-				<div class="h">
-					<span>Entry Settings</span>
-					<span class="right">
-						{#if entrySettings}max {entrySettings.max_entries_per_user} / user · {entrySettings.payment_mode}{/if}
-					</span>
-				</div>
-				<div class="body">
-					{#if settingsLoading && !entrySettings}
-						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3);">Loading…</p>
-					{:else if settingsError}
-						<div class="pn-pf-alert error" style="margin-bottom: 12px;">{settingsError} · <button class="pn-btn ghost" style="padding: 4px 10px; font-size: 11px;" on:click={loadEntrySettings}>Retry</button></div>
-					{:else if settingsDraft}
-						{#if settingsSuccess}<div class="pn-pf-alert success" style="margin-bottom: 12px;">{settingsSuccess}</div>{/if}
-						<div class="pn-ad-settings">
-							<label class="num">
-								<span class="lbl">Max entries per user</span>
-								<input type="number" min="1" bind:value={settingsDraft.max_entries_per_user} />
+			<!-- Entry Settings -->
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Entry Settings {#if entrySettings}<span class="text-xs text-base-content/40">· max {entrySettings.max_entries_per_user}/user · {entrySettings.payment_mode}</span>{/if}</h2>
+				{#if settingsLoading && !entrySettings}
+					<p class="text-sm text-base-content/50">Loading…</p>
+				{:else if settingsError}
+					<div class="alert alert-error text-sm">{settingsError}<button class="btn btn-xs btn-ghost" on:click={loadEntrySettings}>Retry</button></div>
+				{:else if settingsDraft}
+					{#if settingsSuccess}<div class="alert alert-success text-sm mb-3">{settingsSuccess}</div>{/if}
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<label class="form-control">
+							<span class="label-text mb-1">Max entries per user</span>
+							<input type="number" min="1" class="input input-bordered input-sm" bind:value={settingsDraft.max_entries_per_user} />
+						</label>
+						<label class="form-control">
+							<span class="label-text mb-1">Payment mode</span>
+							<select class="select select-bordered select-sm" bind:value={settingsDraft.payment_mode}>
+								<option value="per_entry">per_entry</option>
+								<option value="per_user">per_user</option>
+							</select>
+						</label>
+						{#each BOOL_SETTINGS as f (f.key)}
+							<label class="flex items-center gap-2 cursor-pointer">
+								<input type="checkbox" class="checkbox checkbox-sm" checked={settingsDraft[f.key]} on:change={(e) => setBoolSetting(f.key, e.currentTarget.checked)} />
+								<span class="text-sm">{f.label}</span>
 							</label>
-							<label class="num">
-								<span class="lbl">Payment mode</span>
-								<select bind:value={settingsDraft.payment_mode}>
-									<option value="per_entry">per_entry</option>
-									<option value="per_user">per_user</option>
-								</select>
-							</label>
-							{#each BOOL_SETTINGS as f (f.key)}
-								<label class="check">
-									<input
-										type="checkbox"
-										checked={settingsDraft[f.key]}
-										on:change={(e) => setBoolSetting(f.key, e.currentTarget.checked)}
-									/>
-									<span class="lbl">{f.label}</span>
-								</label>
-							{/each}
-						</div>
-						<div style="display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;">
-							<button class="pn-btn" type="button" on:click={handleSaveSettings} disabled={!settingsDirty || settingsSaving}>
-								{settingsSaving ? 'Saving…' : settingsDirty ? 'Save changes' : 'Saved'}
-							</button>
-							<button class="pn-btn ghost" type="button" on:click={handleResetSettings} disabled={!settingsDirty || settingsSaving}>
-								Reset
-							</button>
-						</div>
-					{/if}
-				</div>
+						{/each}
+					</div>
+					<div class="flex gap-3 mt-4 flex-wrap">
+						<button class="btn btn-primary btn-sm" type="button" on:click={handleSaveSettings} disabled={!settingsDirty || settingsSaving}>{settingsSaving ? 'Saving…' : settingsDirty ? 'Save changes' : 'Saved'}</button>
+						<button class="btn btn-outline btn-sm" type="button" on:click={handleResetSettings} disabled={!settingsDirty || settingsSaving}>Reset</button>
+					</div>
+				{/if}
 			</section>
 
 			<!-- Entries admin table -->
-			<section class="pn-pf-section">
-				<div class="h">
-					<span>Entries</span>
-					<span class="right">{visibleEntries.length} of {entries.length}</span>
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Entries <span class="text-xs text-base-content/40">· {visibleEntries.length} of {entries.length}</span></h2>
+				{#if entryActionError}<div class="alert alert-error text-sm mb-3">{entryActionError}</div>{/if}
+				<div class="flex flex-wrap gap-2 mb-4">
+					<input class="input input-bordered input-sm" placeholder="User name / email…" bind:value={entryUserSearch} type="search" />
+					<input class="input input-bordered input-sm" placeholder="Reference (WC26-…)" bind:value={entryRefSearch} type="search" on:change={loadEntries} />
+					<select class="select select-bordered select-sm" bind:value={entryStatusFilter} on:change={loadEntries}>
+						<option value="">Any status</option><option value="draft">draft</option><option value="ready">ready</option><option value="submitted">submitted</option><option value="locked">locked</option><option value="withdrawn">withdrawn</option><option value="disabled">disabled</option>
+					</select>
+					<select class="select select-bordered select-sm" bind:value={entryPaidFilter} on:change={loadEntries}>
+						<option value="">Any paid</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option>
+					</select>
+					<select class="select select-bordered select-sm" bind:value={entryDisabledFilter} on:change={loadEntries}>
+						<option value="">Any state</option><option value="active">Active</option><option value="disabled">Disabled</option>
+					</select>
+					<button class="btn btn-outline btn-sm" type="button" on:click={loadEntries} disabled={entriesLoading}>{entriesLoading ? '…' : 'Refresh'}</button>
 				</div>
-				<div class="body">
-					{#if entryActionError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{entryActionError}</div>{/if}
 
-					<!-- Filters row -->
-					<div class="pn-ad-entry-filters">
-						<input
-							class="pn-ad-search"
-							placeholder="User name / email…"
-							bind:value={entryUserSearch}
-							type="search"
-						/>
-						<input
-							class="pn-ad-search"
-							placeholder="Reference (WC26-…)"
-							bind:value={entryRefSearch}
-							type="search"
-							on:change={loadEntries}
-						/>
-						<select bind:value={entryStatusFilter} on:change={loadEntries}>
-							<option value="">Any status</option>
-							<option value="draft">draft</option>
-							<option value="ready">ready</option>
-							<option value="submitted">submitted</option>
-							<option value="locked">locked</option>
-							<option value="withdrawn">withdrawn</option>
-							<option value="disabled">disabled</option>
-						</select>
-						<select bind:value={entryPaidFilter} on:change={loadEntries}>
-							<option value="">Any paid</option>
-							<option value="paid">Paid</option>
-							<option value="unpaid">Unpaid</option>
-						</select>
-						<select bind:value={entryDisabledFilter} on:change={loadEntries}>
-							<option value="">Any state</option>
-							<option value="active">Active</option>
-							<option value="disabled">Disabled</option>
-						</select>
-						<button class="pn-btn ghost" type="button" on:click={loadEntries} disabled={entriesLoading}>
-							{entriesLoading ? '…' : 'Refresh'}
-						</button>
-					</div>
-
-					{#if entriesError}
-						<div class="pn-pf-alert error" style="margin-top: 12px;">{entriesError}</div>
-					{:else if entriesLoading && entries.length === 0}
-						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 14px;">Loading entries…</p>
-					{:else if visibleEntries.length === 0}
-						<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 14px;">
-							No entries match the filters
-						</p>
-					{:else}
-						<div class="pn-ad-entries">
-							{#each visibleEntries as e (e.id)}
-								{@const status = entryDisplayStatus(e)}
-								<div class="pn-ad-entry" class:disabled={e.is_disabled} class:withdrawn={!!e.withdrawn_at}>
-									<div class="who">
-										<div class="nm">
-											{e.display_name}
-											<span class="ref">{e.reference}</span>
-										</div>
-										<div class="em">{userNameById(e.user_id)} · {userEmailById(e.user_id)}</div>
+				{#if entriesError}
+					<div class="alert alert-error text-sm">{entriesError}</div>
+				{:else if entriesLoading && entries.length === 0}
+					<p class="text-sm text-base-content/50">Loading entries…</p>
+				{:else if visibleEntries.length === 0}
+					<p class="text-sm text-base-content/50">No entries match the filters</p>
+				{:else}
+					<div class="space-y-2">
+						{#each visibleEntries as e (e.id)}
+							{@const status = entryDisplayStatus(e)}
+							<div class="rounded-lg border border-base-300/50 p-3 {e.is_disabled || e.withdrawn_at ? 'opacity-60' : ''}">
+								<div class="flex items-start justify-between gap-3 flex-wrap">
+									<div class="min-w-0">
+										<div class="font-semibold flex items-center gap-2">{e.display_name}<span class="text-xs font-mono text-base-content/40">{e.reference}</span></div>
+										<div class="text-xs text-base-content/50">{userNameById(e.user_id)} · {userEmailById(e.user_id)}</div>
 									</div>
-									<div class="badges">
+									<div class="flex items-center gap-1.5 flex-wrap">
 										<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
-										{#if e.paid}<span class="pn-tag got">Paid</span>{:else}<span class="pn-tag">Unpaid</span>{/if}
-										{#if !e.prize_eligible}<span class="pn-tag">No prize</span>{/if}
-										{#if e.is_disabled && e.disabled_reason}
-											<span class="pn-tag red" title={e.disabled_reason}>Reason: {e.disabled_reason}</span>
-										{/if}
-									</div>
-									<div class="actions">
-										<button class="pn-btn ghost" type="button" on:click={() => handleEntryTogglePaid(e)} disabled={entryActingId === e.id}>
-											{e.paid ? '− Paid' : '+ Paid'}
-										</button>
-										<button class="pn-btn ghost" type="button" on:click={() => handleEntryTogglePrize(e)} disabled={entryActingId === e.id}>
-											{e.prize_eligible ? '− Prize' : '+ Prize'}
-										</button>
-										{#if e.is_disabled}
-											<button class="pn-btn navy" type="button" on:click={() => handleEnable(e)} disabled={entryActingId === e.id}>
-												Enable
-											</button>
-										{:else}
-											<button class="pn-btn navy" type="button" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>
-												Disable…
-											</button>
-										{/if}
-										<button class="pn-btn ghost" type="button" on:click={() => openAuditDrawer(e.id)}>
-											Audit
-										</button>
+										<span class="badge {e.paid ? 'badge-success' : 'badge-ghost'}">{e.paid ? 'Paid' : 'Unpaid'}</span>
+										{#if !e.prize_eligible}<span class="badge badge-ghost">No prize</span>{/if}
+										{#if e.is_disabled && e.disabled_reason}<span class="badge badge-error" title={e.disabled_reason}>Reason: {e.disabled_reason}</span>{/if}
 									</div>
 								</div>
+								<div class="flex gap-2 mt-2 flex-wrap">
+									<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEntryTogglePaid(e)} disabled={entryActingId === e.id}>{e.paid ? '− Paid' : '+ Paid'}</button>
+									<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEntryTogglePrize(e)} disabled={entryActingId === e.id}>{e.prize_eligible ? '− Prize' : '+ Prize'}</button>
+									{#if e.is_disabled}
+										<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEnable(e)} disabled={entryActingId === e.id}>Enable</button>
+									{:else}
+										<button class="btn btn-xs btn-outline btn-error" type="button" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>Disable…</button>
+									{/if}
+									<button class="btn btn-xs btn-ghost" type="button" on:click={() => openAuditDrawer(e.id)}>Audit</button>
+								</div>
 
-								<!-- Inline disable dialog -->
 								{#if disableTargetId === e.id}
-									<div class="pn-ad-inline-dialog">
-										<div class="hh">Disable {e.display_name} ({e.reference})</div>
-										<input
-											type="text"
-											class="pn-ad-search"
-											style="margin: 8px 0;"
-											placeholder="Reason (required)"
-											bind:value={disableReason}
-										/>
-										<div style="display: flex; gap: 8px;">
-											<button class="pn-btn red" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>
-												{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}
-											</button>
-											<button class="pn-btn ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
+									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
+										<div class="text-sm font-semibold mb-2">Disable {e.display_name} ({e.reference})</div>
+										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={disableReason} />
+										<div class="flex gap-2">
+											<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}</button>
+											<button class="btn btn-xs btn-ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
 										</div>
 									</div>
 								{/if}
 
-								<!-- Inline audit drawer -->
 								{#if auditEntryId === e.id}
-									<div class="pn-ad-audit">
-										<div class="hh">
-											Audit log · {e.display_name}
-											<button class="pn-btn ghost" type="button" on:click={closeAuditDrawer} style="float: right; padding: 4px 10px; font-size: 11px;">Close</button>
+									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
+										<div class="flex items-center justify-between mb-2">
+											<span class="text-sm font-semibold">Audit log · {e.display_name}</span>
+											<button class="btn btn-xs btn-ghost" type="button" on:click={closeAuditDrawer}>Close</button>
 										</div>
 										{#if auditLoading}
-											<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 8px;">Loading…</p>
+											<p class="text-xs text-base-content/50">Loading…</p>
 										{:else if auditError}
-											<div class="pn-pf-alert error" style="margin-top: 8px;">{auditError}</div>
+											<div class="alert alert-error text-xs">{auditError}</div>
 										{:else if auditEvents.length === 0}
-											<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 8px;">No events.</p>
+											<p class="text-xs text-base-content/50">No events.</p>
 										{:else}
-											<ul class="pn-ad-audit-list">
+											<ul class="space-y-1.5">
 												{#each auditEvents as ev (ev.id)}
-													<li>
-														<div class="line">
-															<span class="t">{fmtAuditTime(ev.created_at)}</span>
-															<span class="transition">{ev.from_status} → <b>{ev.to_status}</b></span>
-															{#if ev.phase}<span class="phase">{ev.phase}</span>{/if}
-															<span class="actor">by {userNameById(ev.actor_user_id)} ({ev.actor_role})</span>
+													<li class="text-xs">
+														<div class="flex gap-2 flex-wrap items-center">
+															<span class="font-mono text-base-content/50">{fmtAuditTime(ev.created_at)}</span>
+															<span>{ev.from_status} → <b>{ev.to_status}</b></span>
+															{#if ev.phase}<span class="badge badge-xs">{ev.phase}</span>{/if}
+															<span class="text-base-content/40">by {userNameById(ev.actor_user_id)} ({ev.actor_role})</span>
 														</div>
-														{#if ev.reason}<div class="reason">"{ev.reason}"</div>{/if}
+														{#if ev.reason}<div class="text-base-content/50 italic">"{ev.reason}"</div>{/if}
 													</li>
 												{/each}
 											</ul>
 										{/if}
 									</div>
 								{/if}
-							{/each}
-						</div>
-					{/if}
-				</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</section>
 
 			<!-- Bonus question answers -->
-			<section class="pn-pf-section">
-				<div class="h">
-					<span>Bonus Question Answers</span>
-					<span class="right">{bonusAnswerViews.filter((v) => v.correct_answer).length} of {bonusAnswerViews.length} resolved</span>
-				</div>
-				<div class="body">
-					{#if bonusError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{bonusError}</div>{/if}
-					{#each ['group_stage', 'top_flop', 'awards'] as cat}
-						{@const items = bonusByCategory[cat] ?? []}
-						{#if items.length > 0}
-							<h3 style="font-family: var(--display); font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 8px;">
-								{BONUS_CATEGORY_LABEL[cat]}
-							</h3>
-							{#each items as v (v.question_id)}
-								<div class="pn-ad-user" style="grid-template-columns: 1fr 1fr auto auto;">
-									<div class="who">
-										<div class="nm" style="font-size: 13px; text-transform: none; letter-spacing: 0;">{v.label}</div>
-										<div class="em">{v.points} pts · {v.input_type} · {fmtResolved(v.resolved_at)}</div>
-									</div>
-									<input
-										type="text"
-										class="pn-ad-search"
-										style="margin: 0; max-width: 100%;"
-										placeholder={v.correct_answer ? '' : 'Enter correct answer…'}
-										value={draftFor(v)}
-										on:input={(e) => setDraft(v.question_id, e.currentTarget.value)}
-									/>
-									<div class="badges">
-										{#if v.correct_answer}
-											<span class="pn-tag got" title="Currently saved: {v.correct_answer}">✓ {v.correct_answer}</span>
-										{:else}
-											<span class="pn-tag" style="opacity: 0.6;">— Unset</span>
-										{/if}
-									</div>
-									<div class="actions">
-										<button
-											class="pn-btn ghost"
-											type="button"
-											on:click={() => handleSaveBonusAnswer(v)}
-											disabled={savingQId === v.question_id}
-										>
-											{savingQId === v.question_id ? 'Saving…' : 'Save'}
-										</button>
-									</div>
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">Bonus Question Answers <span class="text-xs text-base-content/40">· {bonusAnswerViews.filter((v) => v.correct_answer).length} of {bonusAnswerViews.length} resolved</span></h2>
+				{#if bonusError}<div class="alert alert-error text-sm mb-3">{bonusError}</div>{/if}
+				{#each ['group_stage', 'top_flop', 'awards'] as cat}
+					{@const items = bonusByCategory[cat] ?? []}
+					{#if items.length > 0}
+						<h3 class="text-sm font-display uppercase tracking-wide mt-4 mb-2">{BONUS_CATEGORY_LABEL[cat]}</h3>
+						{#each items as v (v.question_id)}
+							<div class="flex items-center gap-3 py-2 flex-wrap">
+								<div class="flex-1 min-w-[200px]">
+									<div class="text-sm font-medium">{v.label}</div>
+									<div class="text-xs text-base-content/40">{v.points} pts · {v.input_type} · {fmtResolved(v.resolved_at)}</div>
 								</div>
-							{/each}
-						{/if}
-					{/each}
-					<p style="font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 14px;">
-						★ Saving a correct answer awards bonus points to every player whose pick matches (case- and accent-insensitive). Leave blank to un-resolve a question.
-					</p>
-				</div>
+								<input type="text" class="input input-bordered input-sm flex-1 min-w-[160px]" placeholder={v.correct_answer ? '' : 'Enter correct answer…'} value={draftFor(v)} on:input={(e) => setDraft(v.question_id, e.currentTarget.value)} />
+								{#if v.correct_answer}<span class="badge badge-success" title="Currently saved: {v.correct_answer}">✓ {v.correct_answer}</span>{:else}<span class="badge badge-ghost">Unset</span>{/if}
+								<button class="btn btn-xs btn-outline" type="button" on:click={() => handleSaveBonusAnswer(v)} disabled={savingQId === v.question_id}>{savingQId === v.question_id ? 'Saving…' : 'Save'}</button>
+							</div>
+						{/each}
+					{/if}
+				{/each}
+				<p class="text-xs text-base-content/50 mt-3">★ Saving a correct answer awards bonus points to every player whose pick matches (case- and accent-insensitive). Leave blank to un-resolve a question.</p>
 			</section>
 
 			<!-- User Management -->
-			<section class="pn-pf-section">
-				<div class="h"><span>User Management</span><span class="right">{filteredUsers.length} of {users.length}</span></div>
-				<div class="body">
-					{#if userActionError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{userActionError}</div>{/if}
-					<input
-						class="pn-ad-search"
-						placeholder="Search by name or email…"
-						bind:value={userSearch}
-						type="search"
-					/>
-					<div class="pn-ad-users">
-						{#each filteredUsers as u (u.id)}
-							{@const isPaid = paidOf(u)}
-							<div class="pn-ad-user" class:admin={u.is_admin} class:inactive={!u.is_active} class:paid={isPaid}>
-								<label class="paid-toggle" title={isPaid ? 'Mark as unpaid' : 'Mark as paid'}>
-									<input
-										type="checkbox"
-										checked={isPaid}
-										disabled={togglingUserId === u.id}
-										on:change={() => handleTogglePaid(u)}
-									/>
-									<span class="box" aria-hidden="true">{isPaid ? '✓' : ''}</span>
-									<span class="lbl">{isPaid ? 'Paid' : 'Unpaid'}</span>
-								</label>
-								<div class="who">
-									<div class="nm">{u.name}</div>
-									<div class="em">{u.email} · {u.auth_provider === 'google' ? 'GOOGLE' : 'EMAIL'}</div>
-								</div>
-								<div class="badges">
-									{#if u.is_admin}<span class="pn-tag gold">Admin</span>{/if}
-									<span class="pn-tag {u.is_active ? 'got' : 'red'}">{u.is_active ? 'Active' : 'Inactive'}</span>
-								</div>
-								<div class="actions">
-									<button class="pn-btn ghost" type="button" on:click={() => handleToggleAdmin(u)} disabled={togglingUserId === u.id}>
-										{u.is_admin ? '− Admin' : '+ Admin'}
-									</button>
-									<button class="pn-btn navy" type="button" on:click={() => handleToggleActive(u)} disabled={togglingUserId === u.id}>
-										{u.is_active ? 'Deactivate' : 'Reactivate'}
-									</button>
-								</div>
+			<section class="stadium-card no-glow p-5">
+				<h2 class="text-lg font-display tracking-wide mb-3">User Management <span class="text-xs text-base-content/40">· {filteredUsers.length} of {users.length}</span></h2>
+				{#if userActionError}<div class="alert alert-error text-sm mb-3">{userActionError}</div>{/if}
+				<input class="input input-bordered input-sm w-full max-w-md mb-3" placeholder="Search by name or email…" bind:value={userSearch} type="search" />
+				<div class="space-y-2">
+					{#each filteredUsers as u (u.id)}
+						{@const isPaid = paidOf(u)}
+						<div class="flex items-center gap-3 rounded-lg border border-base-300/50 p-3 flex-wrap">
+							<label class="flex items-center gap-2 cursor-pointer" title={isPaid ? 'Mark as unpaid' : 'Mark as paid'}>
+								<input type="checkbox" class="checkbox checkbox-sm" checked={isPaid} disabled={togglingUserId === u.id} on:change={() => handleTogglePaid(u)} />
+								<span class="text-xs">{isPaid ? 'Paid' : 'Unpaid'}</span>
+							</label>
+							<div class="flex-1 min-w-0">
+								<div class="font-semibold">{u.name}</div>
+								<div class="text-xs text-base-content/50">{u.email} · {u.auth_provider === 'google' ? 'GOOGLE' : 'EMAIL'}</div>
 							</div>
-						{:else}
-							<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">No users match search</p>
-						{/each}
-					</div>
+							<div class="flex items-center gap-1.5">
+								{#if u.is_admin}<span class="badge badge-warning">Admin</span>{/if}
+								<span class="badge {u.is_active ? 'badge-success' : 'badge-error'}">{u.is_active ? 'Active' : 'Inactive'}</span>
+							</div>
+							<div class="flex gap-2">
+								<button class="btn btn-xs btn-outline" type="button" on:click={() => handleToggleAdmin(u)} disabled={togglingUserId === u.id}>{u.is_admin ? '− Admin' : '+ Admin'}</button>
+								<button class="btn btn-xs btn-outline" type="button" on:click={() => handleToggleActive(u)} disabled={togglingUserId === u.id}>{u.is_active ? 'Deactivate' : 'Reactivate'}</button>
+							</div>
+						</div>
+					{:else}
+						<p class="text-sm text-base-content/50">No users match search</p>
+					{/each}
 				</div>
 			</section>
 		{/if}
-	</PnPageShell>
+	</div>
 {/if}
