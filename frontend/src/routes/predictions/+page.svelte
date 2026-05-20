@@ -788,7 +788,11 @@
 						{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
 						<button
 							class="btn btn-sm {activeGroupPill === g.group ? 'btn-primary' : 'btn-outline'} {isComplete && hasTie ? 'btn-error' : isComplete ? 'btn-success' : ''}"
-							on:click={() => (activeGroupPill = g.group)}
+							on:click={() => {
+								activeGroupPill = g.group;
+								// All groups render stacked; pill is a jump-to nav.
+								document.getElementById(`group-${g.group}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+							}}
 						>
 							Group {g.group}
 							<span class="badge badge-sm ml-1">{gp.done}/{gp.total}</span>
@@ -848,13 +852,14 @@
 					</div>
 					<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Top 8 third-placed teams qualify for the Round of 32 under FIFA 2026 format</p>
 				</div>
-			{:else if activeSection === 'groups' && selectedGroup}
-				{@const group = selectedGroup}
+			{:else if activeSection === 'groups'}
+				{#each $groupFixtures as group, gIdx (group.group)}
 				{@const standings = standingsMap[group.group] ?? []}
 				{@const groupWarnings = groupStandingsWarnings.filter((w) => w.group === group.group)}
 				{@const groupGp = groupProgress(group)}
 				{@const groupComplete = groupGp.total > 0 && groupGp.done === groupGp.total}
 
+				<article id="group-{group.group}" class="group-stack-item" style="scroll-margin-top: 5rem;">
 				<!-- Group header -->
 				<div class="flex items-center gap-4 mb-6">
 					<div class="w-14 h-14 rounded-full border-2 border-primary/70 grid place-items-center bg-base-200/40">
@@ -976,6 +981,9 @@
 						{/each}
 					</div>
 				</section>
+				{#if gIdx < $groupFixtures.length - 1}<div class="group-stack-divider" aria-hidden="true"></div>{/if}
+				</article>
+				{/each}
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">

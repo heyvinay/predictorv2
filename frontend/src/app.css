@@ -507,6 +507,22 @@
 		@apply flex items-center gap-2 mt-3 pt-3 border-t border-base-300/30;
 	}
 
+	/* Sequential-group flow: each group is an <article>, separated by a
+	   thin centered hairline so the eye knows the boundary without shouting. */
+	.group-stack-item + .group-stack-item {
+		@apply mt-10;
+	}
+	.group-stack-divider {
+		@apply mx-auto mt-10 mb-2;
+		width: 60%;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, theme('colors.base-300') 30%, theme('colors.base-300') 70%, transparent);
+		opacity: 0.5;
+	}
+	[data-theme="premium"] .group-stack-divider {
+		background: linear-gradient(90deg, transparent, rgba(var(--premium-ink) / 0.18) 30%, rgba(var(--premium-bordeaux) / 0.30) 50%, rgba(var(--premium-ink) / 0.18) 70%, transparent);
+	}
+
 	/* ============ Premium theme polish ============
 	 * Scoped to [data-theme="premium"] so it kicks in only when the user
 	 * picks Premium from the avatar dropdown. Light editorial mood —
