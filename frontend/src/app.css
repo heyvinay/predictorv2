@@ -507,20 +507,150 @@
 		@apply flex items-center gap-2 mt-3 pt-3 border-t border-base-300/30;
 	}
 
-	/* Sequential-group flow: each group is an <article>, separated by a
-	   thin centered hairline so the eye knows the boundary without shouting. */
-	.group-stack-item + .group-stack-item {
-		@apply mt-10;
+	/* ============ Group selector v2 ============
+	 * Focused-hero header (prev / current group / next) above a compact
+	 * mini-pill strip that shows every group at a glance with progress.
+	 * Single-group-at-a-time wizard model; pills filter, not scroll.
+	 */
+	.group-selector {
+		@apply rounded-xl border border-base-300/40 bg-base-200/30 p-3 sm:p-4;
 	}
-	.group-stack-divider {
-		@apply mx-auto mt-10 mb-2;
-		width: 60%;
-		height: 1px;
-		background: linear-gradient(90deg, transparent, theme('colors.base-300') 30%, theme('colors.base-300') 70%, transparent);
-		opacity: 0.5;
+
+	.group-selector-hero {
+		@apply flex items-center gap-3 sm:gap-4;
 	}
-	[data-theme="premium"] .group-stack-divider {
-		background: linear-gradient(90deg, transparent, rgba(var(--premium-ink) / 0.18) 30%, rgba(var(--premium-bordeaux) / 0.30) 50%, rgba(var(--premium-ink) / 0.18) 70%, transparent);
+
+	.group-stepper-btn {
+		@apply flex items-center gap-1.5 px-3 py-2 rounded-lg;
+		@apply text-xs uppercase tracking-wider font-semibold;
+		@apply text-base-content/60 bg-base-300/40 border border-base-300/40;
+		@apply hover:text-base-content hover:bg-base-300/70 hover:border-base-300;
+		@apply transition-colors duration-200 shrink-0;
+	}
+	.group-stepper-btn:active { @apply scale-[0.98]; }
+
+	.group-focus-info {
+		@apply flex-1 min-w-0 flex items-center gap-3 sm:gap-4 px-1;
+	}
+
+	.group-focus-badge {
+		@apply w-14 h-14 sm:w-16 sm:h-16 rounded-full grid place-items-center shrink-0;
+		@apply border-2 border-primary/60 bg-base-100/60;
+	}
+	.group-focus-badge span {
+		font-family: 'Bebas Neue', sans-serif;
+		@apply text-3xl sm:text-4xl text-primary leading-none translate-y-0.5;
+	}
+	.group-focus-badge.is-thirdplace {
+		@apply border-warning/60;
+	}
+	.group-focus-badge.is-thirdplace span {
+		@apply text-warning text-2xl sm:text-3xl;
+	}
+
+	.group-focus-text {
+		@apply min-w-0;
+	}
+
+	/* ----- Mini-pill strip ----- */
+	.group-pill-strip {
+		@apply mt-3 sm:mt-4 flex flex-wrap gap-2;
+	}
+
+	.group-mini-pill {
+		@apply relative flex flex-col items-center justify-center;
+		@apply min-w-[44px] h-12 px-2.5 rounded-lg shrink-0;
+		@apply bg-base-300/40 border border-base-300/50;
+		@apply text-base-content/65 hover:text-base-content hover:bg-base-300/70 hover:border-base-300;
+		@apply transition-colors duration-150 cursor-pointer;
+	}
+	.group-mini-pill .letter {
+		font-family: 'Bebas Neue', sans-serif;
+		@apply text-lg leading-none tracking-wider mb-1;
+	}
+	.group-mini-pill .progress-bar {
+		@apply block w-full h-[3px] rounded-full overflow-hidden;
+		background-color: theme('colors.base-content / 0.10');
+	}
+	.group-mini-pill .progress-fill {
+		@apply block h-full rounded-full;
+		background-color: theme('colors.primary');
+		transition: width 200ms ease;
+	}
+	.group-mini-pill.is-active {
+		@apply text-primary border-primary bg-primary/10;
+		box-shadow: 0 0 0 2px theme('colors.primary / 0.20');
+	}
+	.group-mini-pill.is-complete {
+		@apply text-success border-success/60 bg-success/10;
+	}
+	.group-mini-pill.is-complete .progress-fill {
+		background-color: theme('colors.success');
+	}
+	.group-mini-pill.is-tied {
+		@apply text-error border-error/60 bg-error/10;
+	}
+	.group-mini-pill.is-tied .progress-fill {
+		background-color: theme('colors.error');
+	}
+	.group-mini-pill.is-thirdplace {
+		@apply text-warning/85 border-warning/50;
+	}
+	.group-mini-pill.is-thirdplace.is-active {
+		@apply text-warning border-warning bg-warning/10;
+		box-shadow: 0 0 0 2px theme('colors.warning / 0.25');
+	}
+	.group-mini-pill.is-thirdplace .letter {
+		@apply text-base;
+	}
+
+	/* ----- Premium-theme tuning for the selector ----- */
+	[data-theme="premium"] .group-selector {
+		border-color: rgba(var(--premium-ink) / 0.12);
+		background-color: rgba(var(--premium-cream) / 0.55);
+	}
+	[data-theme="premium"] .group-stepper-btn {
+		background-color: rgba(var(--premium-cream) / 0.6);
+		border-color: rgba(var(--premium-ink) / 0.15);
+		color: rgba(var(--premium-ink) / 0.65);
+	}
+	[data-theme="premium"] .group-stepper-btn:hover {
+		background-color: rgba(var(--premium-cream) / 0.85);
+		border-color: rgba(var(--premium-bordeaux) / 0.35);
+		color: rgba(var(--premium-bordeaux) / 1);
+	}
+	[data-theme="premium"] .group-focus-badge {
+		border-color: rgba(var(--premium-bordeaux) / 0.55);
+		background-color: rgba(var(--premium-cream) / 0.75);
+	}
+	[data-theme="premium"] .group-focus-badge span {
+		color: rgba(var(--premium-bordeaux) / 1);
+	}
+	[data-theme="premium"] .group-mini-pill {
+		background-color: rgba(var(--premium-cream) / 0.55);
+		border-color: rgba(var(--premium-ink) / 0.12);
+		color: rgba(var(--premium-ink) / 0.6);
+	}
+	[data-theme="premium"] .group-mini-pill:hover {
+		border-color: rgba(var(--premium-bordeaux) / 0.30);
+		color: rgba(var(--premium-bordeaux) / 1);
+	}
+	[data-theme="premium"] .group-mini-pill.is-active {
+		background-color: rgba(var(--premium-bordeaux) / 0.10);
+		border-color: rgba(var(--premium-bordeaux) / 0.55);
+		color: rgba(var(--premium-bordeaux) / 1);
+		box-shadow: 0 0 0 2px rgba(var(--premium-bordeaux) / 0.18);
+	}
+	[data-theme="premium"] .group-mini-pill .progress-fill {
+		background-color: rgba(var(--premium-bordeaux) / 1);
+	}
+	[data-theme="premium"] .group-mini-pill.is-complete {
+		background-color: rgba(61, 107, 78, 0.10);   /* muted forest */
+		border-color: rgba(61, 107, 78, 0.55);
+		color: rgba(61, 107, 78, 1);
+	}
+	[data-theme="premium"] .group-mini-pill.is-complete .progress-fill {
+		background-color: rgba(61, 107, 78, 1);
 	}
 
 	/* ============ Premium theme polish ============

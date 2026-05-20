@@ -321,6 +321,60 @@
 		activeGroupPill = $groupFixtures[0].group;
 	}
 
+	// ---- Group selector navigation (prev / next / keyboard) --------------
+	// Ordered pill list: A, B, …, L, then 'thirdplace'. Loops at the ends.
+	$: pillOrder = [...$groupFixtures.map((g) => g.group), 'thirdplace'];
+
+	function stepGroup(delta: number) {
+		if (pillOrder.length === 0) return;
+		const idx = pillOrder.indexOf(activeGroupPill);
+		const next = (idx + delta + pillOrder.length) % pillOrder.length;
+		activeGroupPill = pillOrder[next];
+	}
+
+	function isTypingInInput(el: EventTarget | null): boolean {
+		if (!(el instanceof HTMLElement)) return false;
+		const tag = el.tagName;
+		return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+	}
+
+	function handleSelectorKeydown(e: KeyboardEvent) {
+		// Only steal arrow keys when the user isn't editing a score.
+		if (activeSection !== 'groups') return;
+		if (isTypingInInput(e.target)) return;
+		if (e.key === 'ArrowLeft') { e.preventDefault(); stepGroup(-1); }
+		else if (e.key === 'ArrowRight') { e.preventDefault(); stepGroup(1); }
+	}
+
+	// ---- Derived: focused-header info for the active selection -----------
+	$: focusedInfo = (() => {
+		if (activeGroupPill === 'thirdplace') {
+			const filled = thirdPlaceStandings?.length ?? 0;
+			return {
+				badge: '3rd',
+				title: '3RD PLACE',
+				caption: 'Top 8 third-placed teams advance',
+				meta: filled > 0 ? `${filled} of 12 ranked` : 'Fill group predictions to rank thirds'
+			};
+		}
+		const g = selectedGroup;
+		if (!g) return null;
+		const gp = groupProgress(g);
+		const std = standingsMap[g.group] ?? [];
+		const leader = std[0]?.team;
+		const anyPicks = gp.done > 0;
+		const tied = groupStandingsWarnings.some((w) => w.group === g.group);
+		const metaParts: string[] = [];
+		if (anyPicks && leader) metaParts.push(`${leader} leads`);
+		if (tied && gp.done === gp.total) metaParts.push('tied — needs a tiebreaker');
+		return {
+			badge: g.group,
+			title: `GROUP ${g.group}`,
+			caption: `${gp.done} of ${gp.total} predicted`,
+			meta: metaParts.length > 0 ? metaParts.join(' · ') : 'No matches predicted yet'
+		};
+	})();
+
 	// ---- Derived: standings, progress, predictions -----------------------
 	$: livePredictionMap = (() => {
 		const map = new Map<string, MatchPrediction>();
@@ -671,6 +725,11 @@
 	<title>Predictions - Predictor v2</title>
 </svelte:head>
 
+<!-- Group-selector arrow-key navigation. The handler self-guards on
+     activeSection !== 'groups' and on typing-in-input, so it's a no-op
+     for the knockout / bonus / Phase 2 sections and while editing scores. -->
+<svelte:window on:keydown={handleSelectorKeydown} />
+
 {#if $isAuthenticated}
 	<div class="container mx-auto mobile-padding py-6">
 		{#if restorationBanner}
@@ -779,29 +838,78 @@
 
 		<!-- ============================== PHASE 1 ============================== -->
 		{#if activePhase === 'phase1'}
-			<!-- Group pills -->
+			<!-- Group selector: focused hero header + compact pill strip -->
 			{#if activeSection === 'groups'}
-				<div class="flex flex-wrap gap-2 mb-5">
-					{#each $groupFixtures as g (g.group)}
-						{@const gp = groupProgress(g)}
-						{@const isComplete = gp.total > 0 && gp.done === gp.total}
-						{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
+				<div class="group-selector mb-6">
+					<!-- Focused hero -->
+					<div class="group-selector-hero">
 						<button
-							class="btn btn-sm {activeGroupPill === g.group ? 'btn-primary' : 'btn-outline'} {isComplete && hasTie ? 'btn-error' : isComplete ? 'btn-success' : ''}"
-							on:click={() => {
-								activeGroupPill = g.group;
-								// All groups render stacked; pill is a jump-to nav.
-								document.getElementById(`group-${g.group}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-							}}
+							class="group-stepper-btn"
+							type="button"
+							aria-label="Previous group"
+							on:click={() => stepGroup(-1)}
 						>
-							Group {g.group}
-							<span class="badge badge-sm ml-1">{gp.done}/{gp.total}</span>
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+							<span>Prev</span>
 						</button>
-					{/each}
-					<button
-						class="btn btn-sm {activeGroupPill === 'thirdplace' ? 'btn-primary' : 'btn-outline'}"
-						on:click={() => (activeGroupPill = 'thirdplace')}
-					>3rd Place</button>
+
+						<div class="group-focus-info">
+							<div class="group-focus-badge {activeGroupPill === 'thirdplace' ? 'is-thirdplace' : ''}">
+								<span>{focusedInfo?.badge ?? '—'}</span>
+							</div>
+							<div class="group-focus-text">
+								<div class="text-[10px] uppercase tracking-[0.22em] text-base-content/45 mb-0.5">
+									{focusedInfo?.caption ?? ''}
+								</div>
+								<h2 class="font-display text-2xl sm:text-3xl tracking-widest leading-none">
+									{focusedInfo?.title ?? ''}
+								</h2>
+								<div class="text-xs text-base-content/55 mt-1.5 truncate">
+									{focusedInfo?.meta ?? ''}
+								</div>
+							</div>
+						</div>
+
+						<button
+							class="group-stepper-btn"
+							type="button"
+							aria-label="Next group"
+							on:click={() => stepGroup(1)}
+						>
+							<span>Next</span>
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+						</button>
+					</div>
+
+					<!-- Compact mini-pill strip — all 12 groups + 3rd place -->
+					<div class="group-pill-strip">
+						{#each $groupFixtures as g (g.group)}
+							{@const gp = groupProgress(g)}
+							{@const isActive = activeGroupPill === g.group}
+							{@const isComplete = gp.total > 0 && gp.done === gp.total}
+							{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
+							{@const pct = gp.total > 0 ? Math.round((gp.done / gp.total) * 100) : 0}
+							<button
+								class="group-mini-pill {isActive ? 'is-active' : ''} {isComplete && hasTie ? 'is-tied' : isComplete ? 'is-complete' : ''}"
+								type="button"
+								on:click={() => (activeGroupPill = g.group)}
+								title="Group {g.group} · {gp.done}/{gp.total}{hasTie && isComplete ? ' · tied' : ''}"
+								aria-label="Group {g.group}, {gp.done} of {gp.total} predicted"
+							>
+								<span class="letter">{g.group}</span>
+								<span class="progress-bar"><span class="progress-fill" style="width: {pct}%"></span></span>
+							</button>
+						{/each}
+						<button
+							class="group-mini-pill is-thirdplace {activeGroupPill === 'thirdplace' ? 'is-active' : ''}"
+							type="button"
+							on:click={() => (activeGroupPill = 'thirdplace')}
+							title="3rd Place qualifying"
+							aria-label="Third place qualifying view"
+						>
+							<span class="letter">3rd</span>
+						</button>
+					</div>
 				</div>
 			{/if}
 
@@ -852,24 +960,12 @@
 					</div>
 					<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Top 8 third-placed teams qualify for the Round of 32 under FIFA 2026 format</p>
 				</div>
-			{:else if activeSection === 'groups'}
-				{#each $groupFixtures as group, gIdx (group.group)}
+			{:else if activeSection === 'groups' && selectedGroup}
+				{@const group = selectedGroup}
 				{@const standings = standingsMap[group.group] ?? []}
 				{@const groupWarnings = groupStandingsWarnings.filter((w) => w.group === group.group)}
 				{@const groupGp = groupProgress(group)}
 				{@const groupComplete = groupGp.total > 0 && groupGp.done === groupGp.total}
-
-				<article id="group-{group.group}" class="group-stack-item" style="scroll-margin-top: 5rem;">
-				<!-- Group header -->
-				<div class="flex items-center gap-4 mb-6">
-					<div class="w-14 h-14 rounded-full border-2 border-primary/70 grid place-items-center bg-base-200/40">
-						<span class="font-display text-3xl text-primary leading-none translate-y-0.5">{group.group}</span>
-					</div>
-					<div>
-						<h2 class="font-display text-3xl tracking-widest leading-none">GROUP {group.group}</h2>
-						<p class="text-xs text-base-content/50 uppercase tracking-wider mt-1">{group.fixtures.length} matches</p>
-					</div>
-				</div>
 
 				{#if groupComplete && groupWarnings.length > 0}
 					<div class="alert alert-warning text-sm mb-5">
@@ -981,9 +1077,6 @@
 						{/each}
 					</div>
 				</section>
-				{#if gIdx < $groupFixtures.length - 1}<div class="group-stack-divider" aria-hidden="true"></div>{/if}
-				</article>
-				{/each}
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
