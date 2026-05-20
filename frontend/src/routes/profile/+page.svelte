@@ -14,7 +14,6 @@
 	import { computeDisplayStatus, type Entry, type EntryStatus } from '$lib/types/entry';
 	import type { UserStats } from '$types';
 	import { get } from 'svelte/store';
-	import PnPageShell from '$components/panini/PnPageShell.svelte';
 
 	$: if (!$isAuthenticated) goto('/login');
 
@@ -54,19 +53,19 @@
 		return computeDisplayStatus(e, 'phase_1');
 	}
 
-	function statusChipClass(s: EntryStatus): string {
+	function statusBadgeClass(s: EntryStatus): string {
 		switch (s) {
 			case 'submitted':
 			case 'locked':
-				return 'pn-tag got';
+				return 'badge-success';
 			case 'ready':
-				return 'pn-tag gold';
+				return 'badge-warning';
 			case 'disabled':
-				return 'pn-tag red';
+				return 'badge-error';
 			case 'withdrawn':
-				return 'pn-tag';
+				return 'badge-ghost';
 			default:
-				return 'pn-tag';
+				return 'badge-ghost';
 		}
 	}
 
@@ -138,98 +137,97 @@
 	function fmtDate(s: string): string {
 		return new Date(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 	}
-
-	function ordinal(n: number): string {
-		if (n % 100 >= 11 && n % 100 <= 13) return 'th';
-		switch (n % 10) {
-			case 1: return 'st';
-			case 2: return 'nd';
-			case 3: return 'rd';
-			default: return 'th';
-		}
-	}
 </script>
 
 <svelte:head>
-	<title>Profile — Predictor</title>
+	<title>Profile - Predictor v2</title>
 </svelte:head>
 
 {#if $isAuthenticated && $user}
-	<PnPageShell>
-		<!-- Hero -->
-		<section class="pn-pf-hero">
-			<div class="av">{($user.name?.[0] ?? '?').toUpperCase()}</div>
-			<div class="nm-block">
-				<div class="nm">{$user.name}</div>
-				<div class="sub">
-					<b>@{$user.email}</b> · member since {fmtDate($user.created_at)}
-				</div>
-				<div class="badges">
-					<span class="pn-tag {$user.auth_provider === 'google' ? 'gold' : ''}">{$user.auth_provider === 'google' ? 'Google' : 'Email'}</span>
-					{#if $user.is_admin}<span class="pn-tag red">Admin</span>{/if}
-					<span class="pn-tag {$user.is_active ? 'got' : ''}">{$user.is_active ? 'Active' : 'Inactive'}</span>
-				</div>
+	<div class="container mx-auto mobile-padding py-6">
+		<!-- Header -->
+		<div class="mb-8 flex items-center gap-4">
+			<div class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20">
+				<span class="text-2xl font-bold text-white leading-none translate-y-0.5">
+					{($user.name?.[0] ?? '?').toUpperCase()}
+				</span>
 			</div>
-			<div class="rank-block">
-				<div class="l">Leaderboard</div>
-				<div class="v">
+			<div>
+				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">{$user.name}</h1>
+				<p class="text-sm text-base-content/50">
+					{$user.email} · member since {fmtDate($user.created_at)}
+				</p>
+			</div>
+		</div>
+
+		<div class="space-y-8">
+			<!-- Prediction stats (active entry) -->
+			<div class="stadium-card no-glow p-6">
+				<div class="flex items-center justify-between mb-6 flex-wrap gap-2">
+					<div>
+						<h2 class="text-lg font-display tracking-wide">Prediction Stats</h2>
+						<p class="text-xs text-base-content/50">
+							{#if $activeEntry}{$activeEntry.display_name} · {$activeEntry.reference}{:else}Your performance overview{/if}
+						</p>
+					</div>
 					{#if stats?.leaderboard_position}
-						{stats.leaderboard_position}<span class="sx">{ordinal(stats.leaderboard_position)}</span>
-					{:else}
-						—
+						<span class="badge badge-primary badge-lg gap-1">
+							#{stats.leaderboard_position} of {stats.total_participants}
+						</span>
 					{/if}
 				</div>
-				<div class="of">{#if stats}of {stats.total_participants}{/if}</div>
+
+				{#if statsLoading}
+					<div class="flex justify-center py-8">
+						<span class="loading loading-spinner loading-lg text-primary"></span>
+					</div>
+				{:else if statsError}
+					<div class="alert alert-error">
+						<span>{statsError}</span>
+						<button class="btn btn-sm btn-ghost" on:click={loadStats}>Retry</button>
+					</div>
+				{:else if stats}
+					<div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+						<div class="stat-card">
+							<p class="stat-title">{$activeEntry ? 'Entry Points' : 'Total Points'}</p>
+							<p class="stat-value">{stats.total_points}</p>
+						</div>
+						<div class="stat-card">
+							<p class="stat-title">Predictions</p>
+							<p class="stat-value">{stats.total_predictions}</p>
+							<p class="text-xs text-base-content/40 mt-1">
+								{stats.total_match_predictions} match, {stats.total_team_predictions} team
+							</p>
+						</div>
+						<div class="stat-card">
+							<p class="stat-title">Accuracy</p>
+							<p class="stat-value">{stats.accuracy_pct}%</p>
+						</div>
+						<div class="stat-card">
+							<p class="stat-title">Exact Scores</p>
+							<p class="stat-value text-primary">{stats.exact_scores}</p>
+							<p class="text-xs text-base-content/40 mt-1">+{stats.exact_scores * 10} pts</p>
+						</div>
+						<div class="stat-card">
+							<p class="stat-title">Correct Outcomes</p>
+							<p class="stat-value text-success">{stats.correct_outcomes}</p>
+						</div>
+						<div class="stat-card">
+							<p class="stat-title">Bonus Haul</p>
+							<p class="stat-value text-accent">{stats.breakdown.hybrid_bonus_points}</p>
+						</div>
+					</div>
+				{/if}
 			</div>
-		</section>
 
-		{#if statsError}
-			<div class="pn-pf-alert error" style="margin-bottom: 22px;">{statsError} · <button class="pn-btn ghost" style="padding: 4px 10px; font-size: 11px;" on:click={loadStats}>Retry</button></div>
-		{:else if statsLoading}
-			<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 22px;">Loading stats…</p>
-		{:else if stats}
-			<section class="pn-pf-stats">
-				<div class="pn-pf-stat">
-					<div class="l">{$activeEntry ? `${$activeEntry.display_name} · points` : 'Total points'}</div>
-					<div class="v">{stats.total_points}</div>
-					{#if $activeEntry}
-						<div class="sub">Entry {$activeEntry.reference}</div>
-					{/if}
-				</div>
-				<div class="pn-pf-stat">
-					<div class="l">Predictions</div>
-					<div class="v">{stats.total_predictions}</div>
-					<div class="sub">{stats.total_match_predictions} match · {stats.total_team_predictions} team</div>
-				</div>
-				<div class="pn-pf-stat">
-					<div class="l">Accuracy</div>
-					<div class="v">{stats.accuracy_pct}%</div>
-				</div>
-				<div class="pn-pf-stat">
-					<div class="l">Exact scores</div>
-					<div class="v exact">{stats.exact_scores}</div>
-					<div class="sub">+{stats.exact_scores * 10} pts</div>
-				</div>
-				<div class="pn-pf-stat">
-					<div class="l">Correct outcomes</div>
-					<div class="v">{stats.correct_outcomes}</div>
-				</div>
-				<div class="pn-pf-stat">
-					<div class="l">Bonus haul</div>
-					<div class="v bonus">{stats.breakdown.hybrid_bonus_points}</div>
-				</div>
-			</section>
-		{/if}
-
-		<!-- F.3: All entries for this user -->
-		{#if $entries.length > 0}
-			<section class="pn-pf-section">
-				<div class="h">
-					<span>Your entries</span>
-					<span class="right">{$entries.length} of {$entries.length > 0 ? $entries.length : 0}</span>
-				</div>
-				<div class="body">
-					<div class="pn-pf-entries">
+			<!-- Your entries -->
+			{#if $entries.length > 0}
+				<div class="stadium-card no-glow p-6">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-lg font-display tracking-wide">Your Entries</h2>
+						<span class="text-xs text-base-content/50">{$entries.length} total</span>
+					</div>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 						{#each $entries as e (e.id)}
 							{@const status = entryDisplayStatus(e)}
 							{@const pts = pointsForEntry(e.id)}
@@ -237,88 +235,116 @@
 							{@const isActive = e.id === $activeEntryId}
 							<button
 								type="button"
-								class="pn-pf-entry"
-								class:active={isActive}
-								class:disabled={e.is_disabled}
-								class:withdrawn={!!e.withdrawn_at}
+								class="text-left rounded-xl border p-4 transition-all
+									{isActive
+										? 'bg-primary/10 border-primary/40 shadow-glow-green'
+										: 'bg-base-300/30 border-base-300/50 hover:border-base-content/20'}
+									{e.is_disabled || e.withdrawn_at ? 'opacity-60' : ''}"
 								on:click={() => handleSelectEntry(e)}
 								title={isActive ? 'Active entry' : 'Set as active entry'}
 							>
-								<div class="who">
-									<div class="nm">
-										{e.display_name}
-										{#if isActive}<span class="pn-tag gold">Active</span>{/if}
+								<div class="flex items-start justify-between gap-2">
+									<div class="min-w-0">
+										<div class="font-semibold flex items-center gap-2">
+											<span class="truncate">{e.display_name}</span>
+											{#if isActive}<span class="badge badge-primary badge-xs">Active</span>{/if}
+										</div>
+										<div class="text-xs text-base-content/50 font-mono mt-0.5">{e.reference}</div>
 									</div>
-									<div class="em">{e.reference}</div>
+									<div class="text-right shrink-0">
+										{#if pts !== null}
+											<div class="font-display text-2xl tracking-wide leading-none">{pts}</div>
+											<div class="text-[10px] text-base-content/40 uppercase tracking-wider">pts{#if pos !== null} · #{pos}{/if}</div>
+										{:else}
+											<div class="font-display text-2xl tracking-wide leading-none text-base-content/30">—</div>
+											<div class="text-[10px] text-base-content/40 uppercase tracking-wider">not ranked</div>
+										{/if}
+									</div>
 								</div>
-								<div class="badges">
-									<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
-									{#if e.paid}<span class="pn-tag got">Paid</span>{:else}<span class="pn-tag">Unpaid</span>{/if}
-								</div>
-								<div class="stat">
-									{#if pts !== null}
-										<div class="pts">{pts}</div>
-										<div class="lbl">pts{#if pos !== null} · #{pos}{/if}</div>
-									{:else}
-										<div class="pts">—</div>
-										<div class="lbl">not ranked</div>
-									{/if}
+								<div class="flex items-center gap-1.5 mt-3">
+									<span class="badge badge-sm {statusBadgeClass(status)}">{status.toUpperCase()}</span>
+									<span class="badge badge-sm {e.paid ? 'badge-success' : 'badge-ghost'}">{e.paid ? 'Paid' : 'Unpaid'}</span>
 								</div>
 							</button>
 						{/each}
 					</div>
 				</div>
-			</section>
-		{/if}
+			{/if}
 
-		<!-- Account info section -->
-		<section class="pn-pf-section">
-			<div class="h"><span>Account Information</span><span class="right">Read-only</span></div>
-			<div class="body">
-				<div class="pn-pf-info">
-					<div class="item"><div class="l">Name</div><div class="v">{$user.name}</div></div>
-					<div class="item"><div class="l">Email</div><div class="v lower">{$user.email}</div></div>
-					<div class="item"><div class="l">Auth</div><div class="v">{$user.auth_provider === 'google' ? 'Google' : 'Email'}</div></div>
-					<div class="item"><div class="l">Member since</div><div class="v">{fmtDate($user.created_at)}</div></div>
+			<!-- Account information -->
+			<div class="stadium-card no-glow p-6">
+				<h2 class="text-lg font-display tracking-wide mb-6">Account Information</h2>
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+					<div>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Name</p>
+						<p class="font-medium">{$user.name}</p>
+					</div>
+					<div>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Email</p>
+						<p class="font-medium lowercase">{$user.email}</p>
+					</div>
+					<div>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Auth</p>
+						<span class="badge badge-sm {$user.auth_provider === 'google' ? 'badge-info' : 'badge-ghost'}">
+							{$user.auth_provider === 'google' ? 'Google' : 'Email'}
+						</span>
+					</div>
+					<div>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Member Since</p>
+						<p class="text-sm">{fmtDate($user.created_at)}</p>
+					</div>
 				</div>
 			</div>
-		</section>
 
-		<!-- Password change section -->
-		<section class="pn-pf-section">
-			<div class="h"><span>Password</span><span class="right">Security</span></div>
-			<div class="body">
+			<!-- Password -->
+			<div class="stadium-card no-glow p-6">
+				<h2 class="text-lg font-display tracking-wide mb-6">Password</h2>
 				{#if $user.auth_provider === 'google'}
-					<div class="pn-pf-alert">★ Your password is managed by Google. To change it, visit your Google Account settings.</div>
+					<div class="p-4 rounded-xl bg-info/10 border border-info/20">
+						<p class="text-sm font-medium text-info">Google Account</p>
+						<p class="text-xs text-base-content/60 mt-1">
+							Your password is managed by Google. To change it, visit your Google Account settings.
+						</p>
+					</div>
 				{:else}
-					{#if passwordError}<div class="pn-pf-alert error" style="margin-bottom: 12px;">{passwordError}</div>{/if}
-					{#if passwordSuccess}<div class="pn-pf-alert success" style="margin-bottom: 12px;">{passwordSuccess}</div>{/if}
-					<div class="pn-pf-form row2">
-						<div class="full">
-							<label for="current-password">Current password</label>
-							<input id="current-password" type="password" bind:value={currentPassword} autocomplete="current-password" />
+					{#if passwordError}
+						<div class="alert alert-error mb-4"><span>{passwordError}</span></div>
+					{/if}
+					{#if passwordSuccess}
+						<div class="alert alert-success mb-4"><span>{passwordSuccess}</span></div>
+					{/if}
+					<div class="space-y-4">
+						<div class="form-control">
+							<label class="label" for="current-password"><span class="label-text">Current Password</span></label>
+							<input id="current-password" type="password" class="input input-bordered w-full max-w-md" bind:value={currentPassword} autocomplete="current-password" />
 						</div>
-						<div>
-							<label for="new-password">New password</label>
-							<input id="new-password" type="password" bind:value={newPassword} autocomplete="new-password" minlength={8} />
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md sm:max-w-none">
+							<div class="form-control">
+								<label class="label" for="new-password"><span class="label-text">New Password</span></label>
+								<input id="new-password" type="password" class="input input-bordered w-full" bind:value={newPassword} autocomplete="new-password" minlength={8} />
+							</div>
+							<div class="form-control">
+								<label class="label" for="confirm-password"><span class="label-text">Confirm New Password</span></label>
+								<input id="confirm-password" type="password" class="input input-bordered w-full" bind:value={confirmPassword} autocomplete="new-password" />
+							</div>
 						</div>
-						<div>
-							<label for="confirm-password">Confirm new password</label>
-							<input id="confirm-password" type="password" bind:value={confirmPassword} autocomplete="new-password" />
-						</div>
-						<div class="full" style="margin-top: 6px;">
-							<button class="pn-btn" type="button" on:click={handleChangePassword} disabled={passwordChanging}>
-								{passwordChanging ? 'Updating…' : 'Update password'}
-							</button>
-						</div>
+						<button class="btn btn-primary w-full sm:w-auto" on:click={handleChangePassword} disabled={passwordChanging}>
+							{#if passwordChanging}<span class="loading loading-spinner loading-sm"></span>{/if}
+							Update Password
+						</button>
 					</div>
 				{/if}
 			</div>
-		</section>
 
-		<!-- Logout -->
-		<div style="display: flex; justify-content: center; padding-top: 6px; margin-bottom: 22px;">
-			<button class="pn-btn navy" type="button" on:click={logout}>Sign out</button>
+			<!-- Logout -->
+			<div class="flex justify-center pt-4">
+				<button class="btn btn-outline btn-error" on:click={logout}>
+					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+					</svg>
+					Sign Out
+				</button>
+			</div>
 		</div>
-	</PnPageShell>
+	</div>
 {/if}

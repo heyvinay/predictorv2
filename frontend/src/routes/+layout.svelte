@@ -34,7 +34,6 @@
 		'/leaderboard',
 		'/predictions',
 		'/results',
-		'/profile',
 		'/admin',
 		'/rules',
 		'/panini-sandbox'
