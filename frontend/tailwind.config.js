@@ -88,6 +88,32 @@ export default {
 					'error-content': '#000000',
 				}
 			},
+			{
+				premium: {
+					// Editorial dark palette — jeweler-display black with one
+					// champagne-gold accent. Restraint is the whole point.
+					'primary': '#C9A961',           // Champagne gold (the only warm)
+					'primary-content': '#0A0A0B',
+					'secondary': '#1F2E3D',         // Midnight navy panel
+					'secondary-content': '#E8DFC9',
+					'accent': '#A37D43',            // Burnished bronze
+					'accent-content': '#0A0A0B',
+					'neutral': '#0F0F11',           // Deepest near-black
+					'neutral-content': '#E8DFC9',
+					'base-100': '#0A0A0B',          // Page canvas — pure obsidian
+					'base-200': '#141416',          // Panel surface
+					'base-300': '#1F1F22',          // Raised surface
+					'base-content': '#E8DFC9',      // Ivory (warm white)
+					'info': '#7A9CC6',              // Sky-grey-blue
+					'info-content': '#0A0A0B',
+					'success': '#5E8F6E',           // Muted forest — never neon
+					'success-content': '#0A0A0B',
+					'warning': '#C9A961',           // Reuse the gold for cohesion
+					'warning-content': '#0A0A0B',
+					'error': '#9B3A3A',             // Burgundy — deep, never bright
+					'error-content': '#E8DFC9',
+				}
+			},
 			'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
 			'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween',
 			'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy',
