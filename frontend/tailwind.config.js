@@ -90,28 +90,29 @@ export default {
 			},
 			{
 				premium: {
-					// Editorial dark palette — jeweler-display black with one
-					// champagne-gold accent. Restraint is the whole point.
-					'primary': '#C9A961',           // Champagne gold (the only warm)
-					'primary-content': '#0A0A0B',
-					'secondary': '#1F2E3D',         // Midnight navy panel
-					'secondary-content': '#E8DFC9',
-					'accent': '#A37D43',            // Burnished bronze
-					'accent-content': '#0A0A0B',
-					'neutral': '#0F0F11',           // Deepest near-black
-					'neutral-content': '#E8DFC9',
-					'base-100': '#0A0A0B',          // Page canvas — pure obsidian
-					'base-200': '#141416',          // Panel surface
-					'base-300': '#1F1F22',          // Raised surface
-					'base-content': '#E8DFC9',      // Ivory (warm white)
-					'info': '#7A9CC6',              // Sky-grey-blue
-					'info-content': '#0A0A0B',
-					'success': '#5E8F6E',           // Muted forest — never neon
-					'success-content': '#0A0A0B',
-					'warning': '#C9A961',           // Reuse the gold for cohesion
-					'warning-content': '#0A0A0B',
-					'error': '#9B3A3A',             // Burgundy — deep, never bright
-					'error-content': '#E8DFC9',
+					// Editorial light palette — cream paper, bordeaux ink, bronze
+					// highlights. Cartier catalogue, not casino. Burgundy carries
+					// the "expensive" weight that gold carries on dark themes.
+					'primary': '#6B1F2E',           // Deep bordeaux — the headline color
+					'primary-content': '#F5F0E6',
+					'secondary': '#1E2A3A',         // Ink navy (deep emphasis)
+					'secondary-content': '#F5F0E6',
+					'accent': '#9C7B3D',            // Antiqued bronze (rare highlights)
+					'accent-content': '#F5F0E6',
+					'neutral': '#2A2520',           // Espresso ink (borders, body text)
+					'neutral-content': '#F5F0E6',
+					'base-100': '#F5F0E6',          // Cream paper — NEVER pure white
+					'base-200': '#EDE6D6',          // Buff paper (panel)
+					'base-300': '#DDD3BD',          // Aged paper (raised)
+					'base-content': '#2A2520',      // Espresso text (NEVER pure black)
+					'info': '#3C5A7A',              // Slate blue
+					'info-content': '#F5F0E6',
+					'success': '#3D6B4E',           // Forest, never neon
+					'success-content': '#F5F0E6',
+					'warning': '#9C7B3D',           // Reuse the bronze for cohesion
+					'warning-content': '#F5F0E6',
+					'error': '#7A2530',             // Burgundy red (primary family)
+					'error-content': '#F5F0E6',
 				}
 			},
 			'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
