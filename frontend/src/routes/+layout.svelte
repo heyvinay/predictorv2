@@ -31,7 +31,6 @@
 	// double up. Remove a route here as it is migrated back to the dark theme.
 	const PANINI_ROUTES = [
 		'/',
-		'/leaderboard',
 		'/predictions',
 		'/admin',
 		'/rules',

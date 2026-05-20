@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user } from '$stores/auth';
 	import {
-		fetchLeaderboard,
 		setPhase,
 		startPolling,
 		stopPolling,
@@ -12,14 +11,12 @@
 		lastCalculated,
 		totalParticipants,
 		activeEntryPosition,
-		myLeaderboardRows,
 		leaderboardPhase,
 		type LeaderboardPhase
 	} from '$stores/leaderboard';
 	import { getGroupTotal, type PhaseBreakdown, type PointBreakdown } from '$types';
-	import PnPageShell from '$components/panini/PnPageShell.svelte';
-	import PnSparkline from '$components/panini/PnSparkline.svelte';
-	import { stubRankTrajectory } from '$lib/stubs/panini';
+	import Sparkline from '$components/Sparkline.svelte';
+	import { stubRankTrajectory } from '$lib/utils/widgetFallbacks';
 	import { loadEntries, entrySettings } from '$stores/entries';
 	import { isYouRow, shouldShowReference } from '$lib/utils/leaderboard';
 
@@ -35,8 +32,6 @@
 
 	// Pull entry settings as soon as $user.id resolves. The conditional
 	// reference column on each row needs $entrySettings to be populated.
-	// Using $: so initAuth() resolving after onMount doesn't strand us
-	// without settings.
 	let entriesLoadStarted = false;
 	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
 		entriesLoadStarted = true;
@@ -67,11 +62,6 @@
 	}
 
 	// Match-cell value for the current phase filter
-	function matchPts(b: PointBreakdown, phase: LeaderboardPhase): number {
-		if (phase === 'phase_1') return b.phase1.match_outcome_points + b.phase1.exact_score_points + b.phase1.hybrid_bonus_points;
-		if (phase === 'phase_2') return b.phase2.match_outcome_points + b.phase2.exact_score_points + b.phase2.hybrid_bonus_points;
-		return b.match_total;
-	}
 	function exactPts(b: PointBreakdown, phase: LeaderboardPhase): number {
 		if (phase === 'phase_1') return b.phase1.exact_score_points;
 		if (phase === 'phase_2') return b.phase2.exact_score_points;
@@ -108,7 +98,6 @@
 		{ k: 'phase2', name: 'Phase II' }
 	];
 
-	// Per-phase breakdown helpers
 	function phaseTotal(p: PhaseBreakdown): number {
 		return (
 			p.match_outcome_points +
@@ -143,233 +132,164 @@
 	$: yourExact = $activeEntryPosition?.exact_scores ?? 0;
 	$: yourOutcomes = $activeEntryPosition?.correct_outcomes ?? 0;
 
-	// Roughly how many points are still in play — sum of remaining bracket
-	// stages + estimated unfinished match exact/outcome ceiling. For now
-	// use a fixed-ish number; this slot exists in the design.
-	$: availablePts = 288;
+	const PHASE_TABS: Array<{ k: LeaderboardPhase; label: string }> = [
+		{ k: 'overall', label: 'Overall' },
+		{ k: 'phase_1', label: 'Phase I' },
+		{ k: 'phase_2', label: 'Phase II' }
+	];
+
+	function posBadgeClass(position: number): string {
+		if (position === 1) return 'position-badge gold';
+		if (position === 2) return 'position-badge silver';
+		if (position === 3) return 'position-badge bronze';
+		return 'position-badge';
+	}
 </script>
 
 <svelte:head>
-	<title>Standings — Predictor</title>
+	<title>Leaderboard - Predictor v2</title>
 </svelte:head>
 
 {#if $isAuthenticated}
-	<PnPageShell>
-		<!-- ===== DESKTOP ===== -->
-		<div class="pn-desk">
-			<div class="pn-lb-h">
-				<div class="ttl">THE <em>STANDINGS</em></div>
-				<div class="pn-lb-tabs">
-					<button class:on={$leaderboardPhase === 'overall'} on:click={() => handlePhaseChange('overall')}>Overall</button>
-					<button class:on={$leaderboardPhase === 'phase_1'} on:click={() => handlePhaseChange('phase_1')}>Phase I</button>
-					<button class:on={$leaderboardPhase === 'phase_2'} on:click={() => handlePhaseChange('phase_2')}>Phase II</button>
-				</div>
+	<div class="container mx-auto mobile-padding py-6">
+		<!-- Header + phase tabs -->
+		<div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+			<div>
+				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Standings</h1>
+				<p class="text-sm text-base-content/50 mt-1">
+					{$totalParticipants || $leaderboard.length} players
+					{#if $leaderboardLoading}· updating…{:else if $lastCalculated}· updated {formatLastUpdated($lastCalculated)}{/if}
+				</p>
 			</div>
-
-			{#if $activeEntryPosition}
-				<div class="pn-lb-self">
-					<div class="num">
-						{yourRank}<span style="font-size: 24px; color: rgba(255,255,255,0.65); vertical-align: top;">{ordinal(yourRank)}</span>
-					</div>
-					<div>
-						<div class="nm">
-							{$activeEntryPosition.entry_name}
-							<span style="background: var(--paper); color: var(--red); padding: 2px 6px; font-size: 11px; margin-left: 8px;">YOU</span>
-						</div>
-						<div class="sub">
-							{$activeEntryPosition.user_name} · {yourExact} exact · {yourOutcomes} outcomes
-							{#if yourMovement !== 0}
-								· {yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)} last update
-							{/if}
-						</div>
-					</div>
-					<div class="stat"><div class="l">Total</div><div class="v">{yourPoints}</div></div>
-					<div class="stat"><div class="l">To #1</div><div class="v">{toFirst < 0 ? toFirst : toFirst === 0 ? '—' : `+${toFirst}`}</div></div>
-					<div class="stat"><div class="l">Available</div><div class="v">{availablePts}</div></div>
-				</div>
-			{/if}
-
-			<div class="pn-card pn-lb-card">
-				<div class="pn-card-h">
-					<span>★ STANDINGS · {$totalParticipants || $leaderboard.length} PLAYERS</span>
-					<span class="right">
-						{#if $leaderboardLoading}LOADING…{:else if $lastCalculated}Updated {formatLastUpdated($lastCalculated)}{/if}
-					</span>
-				</div>
-				<div class="pn-card-body">
-					<table class="pn-lb-table">
-						<thead>
-							<tr>
-								<th>#</th>
-								<th>Player</th>
-								<th class="c">Exact</th>
-								<th class="c">Outcome</th>
-								<th class="c">Bonus</th>
-								<th class="c">Bracket</th>
-								<th class="c">Trend · 7d</th>
-								<th class="r">Total</th>
-								<th class="r">Move</th>
-								<th></th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each $leaderboard as r (r.entry_id)}
-								{@const isYou = isYouRow(r, $user?.id)}
-								{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
-								{@const traj = stubRankTrajectory(r.entry_id, r.position, $totalParticipants || $leaderboard.length || 32)}
-								{@const isOpen = expanded.has(r.entry_id)}
-								<tr class:you={isYou} class:open={isOpen} on:click={() => toggle(r.entry_id)} style="cursor: pointer;">
-									<td class="pos" class:gold={r.position <= 3}>{r.position}</td>
-									<td class="nm-cell">
-										<a href="/profile/{r.user_id}" style="color: inherit; text-decoration: none;" on:click|stopPropagation>
-											<span class="nm-line">
-												{r.entry_name}
-												{#if isYou}<span class="pn-lb-you">YOU</span>{/if}
-												{#if showRef}<span class="pn-lb-ref">{r.entry_reference}</span>{/if}
-											</span>
-											<span class="h">{r.user_name}</span>
-										</a>
-									</td>
-									<td class="c exact">{exactPts(r.breakdown, $leaderboardPhase)}</td>
-									<td class="c">{outcomePts(r.breakdown, $leaderboardPhase)}</td>
-									<td class="c bonus">{bonusPts(r.breakdown, $leaderboardPhase)}</td>
-									<td class="c bracket">{bracketPts(r.breakdown, $leaderboardPhase)}</td>
-									<td class="c">
-										<PnSparkline
-											ranks={traj.ranks}
-											maxRank={traj.maxRank}
-											width={80}
-											height={22}
-											strokeColor={isYou ? 'var(--red)' : 'var(--ink)'}
-											fillColor="transparent"
-											markerColor={isYou ? 'var(--red)' : 'var(--ink)'}
-										/>
-									</td>
-									<td class="r total">{#if isYou}<em>{r.total_points}</em>{:else}{r.total_points}{/if}</td>
-									<td class="r mv">
-										{#if r.movement > 0}<span class="up">▲{r.movement}</span>
-										{:else if r.movement < 0}<span class="dn">▼{Math.abs(r.movement)}</span>
-										{:else}<span class="eq">—</span>{/if}
-									</td>
-									<td class="expand"><span class="chev">▾</span></td>
-								</tr>
-								{#if isOpen}
-									<tr class="detail">
-										<td colspan="10">
-											<div class="pn-lb-detail">
-												{#each DETAIL_PHASES as ph (ph.k)}
-													{@const p = r.breakdown[ph.k]}
-													<div class="phase">
-														<div class="ph-h">
-															<span>{ph.name}</span>
-															<b>{phaseTotal(p)} pts</b>
-														</div>
-														<div class="grid">
-															<div class="cell"><div class="l">Outcome</div><div class="v">{p.match_outcome_points}</div></div>
-															<div class="cell"><div class="l">Exact</div><div class="v exact">{p.exact_score_points}</div></div>
-															<div class="cell"><div class="l">Bonus</div><div class="v bonus">{p.hybrid_bonus_points}</div></div>
-															<div class="cell"><div class="l">Bracket</div><div class="v bracket">{phaseBracketSum(p)}</div></div>
-														</div>
-													</div>
-												{/each}
-											</div>
-										</td>
-									</tr>
-								{/if}
-							{:else}
-								<tr><td colspan="10" style="padding: 24px; text-align: center; font-family: var(--mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">No standings yet</td></tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			</div>
-		</div>
-
-		<!-- ===== MOBILE ===== -->
-		<div class="pn-mob">
-			<div class="pn-m-lb-h">
-				<div class="ttl">THE <em>STANDINGS</em></div>
-				<div class="meta">{$totalParticipants || $leaderboard.length} PLAYERS<br />{#if $lastCalculated}UPD {formatLastUpdated($lastCalculated)}{/if}</div>
-			</div>
-
-			<div class="pn-m-lb-tabs">
-				<button class:on={$leaderboardPhase === 'overall'} on:click={() => handlePhaseChange('overall')}>Overall</button>
-				<button class:on={$leaderboardPhase === 'phase_1'} on:click={() => handlePhaseChange('phase_1')}>Phase I</button>
-				<button class:on={$leaderboardPhase === 'phase_2'} on:click={() => handlePhaseChange('phase_2')}>Phase II</button>
-			</div>
-
-			{#if $activeEntryPosition}
-				<div class="pn-m-lb-self">
-					<div class="num">
-						{yourRank}<span style="font-size: 16px; color: rgba(255,255,255,0.7); vertical-align: top;">{ordinal(yourRank)}</span>
-					</div>
-					<div>
-						<div class="nm">{$activeEntryPosition.entry_name}</div>
-						<div class="sub">{$activeEntryPosition.user_name} · {yourExact} ex · {yourOutcomes} outc {#if yourMovement !== 0}· {yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)}{/if}</div>
-					</div>
-					<div class="pts">
-						<div class="v">{yourPoints}</div>
-						<div class="l">{toFirst === 0 ? 'LEADER' : `${toFirst} to #1`}</div>
-					</div>
-				</div>
-			{/if}
-
-			<div class="pn-m-lb-rows">
-				{#each $leaderboard as r (r.entry_id)}
-					{@const isYou = isYouRow(r, $user?.id)}
-					{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
-					{@const isOpen = expanded.has(r.entry_id)}
-					<div
-						class="pn-m-lb-row"
-						class:gold={r.position <= 3}
-						class:you={isYou}
-						class:open={isOpen}
-						role="button"
-						tabindex="0"
-						on:click={() => toggle(r.entry_id)}
-						on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggle(r.entry_id)}
-					>
-						<div class="pos">{r.position}</div>
-						<div>
-							<div class="nm">
-								{r.entry_name}
-								{#if isYou}<span class="pn-lb-you">YOU</span>{/if}
-								{#if showRef}<span class="pn-lb-ref">{r.entry_reference}</span>{/if}
-							</div>
-							<div class="h">{r.user_name} · {r.exact_scores} ex · {r.correct_outcomes} outc · <span class="chev">▾</span></div>
-						</div>
-						<div class="pts">{r.total_points}</div>
-						<div class="mv">
-							{#if r.movement > 0}<span class="up">▲{r.movement}</span>
-							{:else if r.movement < 0}<span class="dn">▼{Math.abs(r.movement)}</span>
-							{:else}<span class="eq">—</span>{/if}
-						</div>
-					</div>
-					{#if isOpen}
-						<div class="pn-m-lb-detail">
-							{#each DETAIL_PHASES as ph (ph.k)}
-								{@const p = r.breakdown[ph.k]}
-								<div class="phase">
-									<div class="ph-h">
-										<span>{ph.name}</span>
-										<b>{phaseTotal(p)} pts</b>
-									</div>
-									<div class="grid">
-										<div class="cell"><div class="l">Out</div><div class="v">{p.match_outcome_points}</div></div>
-										<div class="cell"><div class="l">Exact</div><div class="v exact">{p.exact_score_points}</div></div>
-										<div class="cell"><div class="l">Bonus</div><div class="v bonus">{p.hybrid_bonus_points}</div></div>
-										<div class="cell"><div class="l">Brkt</div><div class="v bracket">{phaseBracketSum(p)}</div></div>
-									</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				{:else}
-					<div style="padding: 24px; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">
-						No standings yet
-					</div>
+			<div class="tabs tabs-boxed bg-base-200">
+				{#each PHASE_TABS as t}
+					<button class="tab {$leaderboardPhase === t.k ? 'tab-active' : ''}" on:click={() => handlePhaseChange(t.k)}>
+						{t.label}
+					</button>
 				{/each}
 			</div>
 		</div>
-	</PnPageShell>
+
+		<!-- Your position -->
+		{#if $activeEntryPosition}
+			<div class="stadium-card p-5 mb-6">
+				<div class="flex items-center gap-4 flex-wrap">
+					<div class="text-center">
+						<div class="font-display text-5xl tracking-wide leading-none text-primary">
+							{yourRank}<span class="text-xl text-base-content/50 align-top">{ordinal(yourRank)}</span>
+						</div>
+					</div>
+					<div class="flex-1 min-w-[160px]">
+						<div class="font-semibold flex items-center gap-2">
+							{$activeEntryPosition.entry_name}
+							<span class="badge badge-error badge-sm">YOU</span>
+						</div>
+						<div class="text-xs text-base-content/50 mt-0.5">
+							{$activeEntryPosition.user_name} · {yourExact} exact · {yourOutcomes} outcomes
+							{#if yourMovement !== 0}
+								· <span class={yourMovement > 0 ? 'text-success' : 'text-error'}>{yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)}</span>
+							{/if}
+						</div>
+					</div>
+					<div class="flex gap-6">
+						<div class="text-center">
+							<div class="stat-title">Total</div>
+							<div class="font-display text-2xl tracking-wide">{yourPoints}</div>
+						</div>
+						<div class="text-center">
+							<div class="stat-title">To #1</div>
+							<div class="font-display text-2xl tracking-wide">{toFirst < 0 ? toFirst : toFirst === 0 ? '—' : `+${toFirst}`}</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Standings table -->
+		<div class="stadium-card no-glow overflow-hidden">
+			<div class="overflow-x-auto">
+				<table class="table table-sm">
+					<thead>
+						<tr class="text-xs uppercase tracking-wider text-base-content/40">
+							<th>#</th>
+							<th>Player</th>
+							<th class="text-center hidden md:table-cell">Exact</th>
+							<th class="text-center hidden md:table-cell">Outcome</th>
+							<th class="text-center hidden md:table-cell">Bonus</th>
+							<th class="text-center hidden md:table-cell">Bracket</th>
+							<th class="text-center hidden lg:table-cell">Trend · 7d</th>
+							<th class="text-right">Total</th>
+							<th class="text-right">Move</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each $leaderboard as r (r.entry_id)}
+							{@const isYou = isYouRow(r, $user?.id)}
+							{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
+							{@const traj = stubRankTrajectory(r.entry_id, r.position, $totalParticipants || $leaderboard.length || 32)}
+							{@const isOpen = expanded.has(r.entry_id)}
+							<tr
+								class="cursor-pointer hover:bg-base-200/40 {isYou ? 'bg-primary/10' : ''}"
+								on:click={() => toggle(r.entry_id)}
+							>
+								<td>
+									<span class="{posBadgeClass(r.position)} !w-8 !h-8 !text-sm">{r.position}</span>
+								</td>
+								<td>
+									<a href="/profile/{r.user_id}" class="hover:text-primary" on:click|stopPropagation>
+										<div class="font-semibold flex items-center gap-1.5">
+											{r.entry_name}
+											{#if isYou}<span class="badge badge-error badge-xs">YOU</span>{/if}
+											{#if showRef}<span class="text-[10px] font-mono text-base-content/40">{r.entry_reference}</span>{/if}
+										</div>
+										<div class="text-xs text-base-content/40">{r.user_name}</div>
+									</a>
+								</td>
+								<td class="text-center hidden md:table-cell text-primary">{exactPts(r.breakdown, $leaderboardPhase)}</td>
+								<td class="text-center hidden md:table-cell">{outcomePts(r.breakdown, $leaderboardPhase)}</td>
+								<td class="text-center hidden md:table-cell text-accent">{bonusPts(r.breakdown, $leaderboardPhase)}</td>
+								<td class="text-center hidden md:table-cell text-info">{bracketPts(r.breakdown, $leaderboardPhase)}</td>
+								<td class="hidden lg:table-cell {isYou ? 'text-error' : 'text-base-content/60'}" style="width: 90px;">
+									<Sparkline ranks={traj.ranks} maxRank={traj.maxRank} width={80} height={22} />
+								</td>
+								<td class="text-right font-display text-lg tracking-wide">{r.total_points}</td>
+								<td class="text-right">
+									{#if r.movement > 0}<span class="text-success">▲{r.movement}</span>
+									{:else if r.movement < 0}<span class="text-error">▼{Math.abs(r.movement)}</span>
+									{:else}<span class="text-base-content/30">—</span>{/if}
+								</td>
+								<td class="text-base-content/30">{isOpen ? '▴' : '▾'}</td>
+							</tr>
+							{#if isOpen}
+								<tr class="bg-base-200/30">
+									<td colspan="10">
+										<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-2">
+											{#each DETAIL_PHASES as ph (ph.k)}
+												{@const p = r.breakdown[ph.k]}
+												<div class="rounded-lg bg-base-300/30 p-3">
+													<div class="flex items-center justify-between mb-2">
+														<span class="text-xs uppercase tracking-wider text-base-content/50">{ph.name}</span>
+														<b class="font-display tracking-wide">{phaseTotal(p)} pts</b>
+													</div>
+													<div class="grid grid-cols-4 gap-2 text-center">
+														<div><div class="stat-title">Outcome</div><div class="font-semibold">{p.match_outcome_points}</div></div>
+														<div><div class="stat-title">Exact</div><div class="font-semibold text-primary">{p.exact_score_points}</div></div>
+														<div><div class="stat-title">Bonus</div><div class="font-semibold text-accent">{p.hybrid_bonus_points}</div></div>
+														<div><div class="stat-title">Bracket</div><div class="font-semibold text-info">{phaseBracketSum(p)}</div></div>
+													</div>
+												</div>
+											{/each}
+										</div>
+									</td>
+								</tr>
+							{/if}
+						{:else}
+							<tr><td colspan="10" class="text-center py-8 text-base-content/40">No standings yet</td></tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
 {/if}
