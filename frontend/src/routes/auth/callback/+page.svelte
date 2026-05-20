@@ -9,10 +9,12 @@
 	onMount(() => {
 		const token = $page.url.searchParams.get('token');
 		const errorParam = $page.url.searchParams.get('error');
+
 		if (errorParam) {
 			error = errorParam;
 			return;
 		}
+
 		if (token) {
 			handleOAuthCallback(token);
 			goto('/');
@@ -23,27 +25,22 @@
 </script>
 
 <svelte:head>
-	<title>Authenticating… — Predictor</title>
+	<title>Authenticating... - Predictor v2</title>
 </svelte:head>
 
-<div class="pn">
-	<div class="pn-auth-page">
-		{#if error}
-			<div class="pn-auth-card" style="text-align: center;">
-				<div class="pn-auth-crest">
-					<div class="crest">P</div>
-					<div class="nm">The Predictor</div>
-				</div>
-				<h1 class="pn-auth-h" style="color: var(--red);">Authentication <em>failed</em></h1>
-				<p style="font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 22px;">
-					{error}
-				</p>
-				<a class="pn-btn" href="/login">Back to Sign In</a>
+<div class="auth-bg flex items-center justify-center px-4 py-12">
+	{#if error}
+		<div class="stadium-card p-6 sm:p-8 text-center max-w-md w-full">
+			<h2 class="text-xl font-display tracking-wide text-error mb-2">Authentication Failed</h2>
+			<p class="text-base-content/70 text-sm">{error}</p>
+			<div class="mt-6">
+				<a href="/login" class="btn btn-primary">Back to Login</a>
 			</div>
-		{:else}
-			<div style="text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-3);">
-				Completing authentication…
-			</div>
-		{/if}
-	</div>
+		</div>
+	{:else}
+		<div class="text-center">
+			<span class="loading loading-spinner loading-lg text-primary"></span>
+			<p class="mt-4 text-base-content/70">Completing authentication...</p>
+		</div>
+	{/if}
 </div>

@@ -26,9 +26,9 @@
 
 	$: currentPath = $page.url.pathname;
 
-	// Routes that render their own Panini chrome via <PnPageShell> — the
-	// root layout suppresses its dark navbar + mobile bottom-nav for these
-	// so we don't double up. Add a route here when migrating the page.
+	// Routes still rendering their own Panini chrome via <PnPageShell>. The root
+	// layout suppresses its dark navbar + mobile bottom-nav for these so we don't
+	// double up. Remove a route here as it is migrated back to the dark theme.
 	const PANINI_ROUTES = [
 		'/',
 		'/leaderboard',
@@ -36,9 +36,6 @@
 		'/results',
 		'/profile',
 		'/admin',
-		'/login',
-		'/register',
-		'/auth',
 		'/rules',
 		'/panini-sandbox'
 	];
