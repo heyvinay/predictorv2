@@ -30,7 +30,6 @@
 	// layout suppresses its dark navbar + mobile bottom-nav for these so we don't
 	// double up. Remove a route here as it is migrated back to the dark theme.
 	const PANINI_ROUTES = [
-		'/rules',
 		'/panini-sandbox'
 	];
 	$: usesPanini = PANINI_ROUTES.some(
