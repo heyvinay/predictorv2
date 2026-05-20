@@ -25,23 +25,8 @@
 	];
 
 	$: currentPath = $page.url.pathname;
-
-	// Routes still rendering their own Panini chrome via <PnPageShell>. The root
-	// layout suppresses its dark navbar + mobile bottom-nav for these so we don't
-	// double up. Remove a route here as it is migrated back to the dark theme.
-	const PANINI_ROUTES = [
-		'/panini-sandbox'
-	];
-	$: usesPanini = PANINI_ROUTES.some(
-		(r) => currentPath === r || (r !== '/' && currentPath.startsWith(r))
-	);
 </script>
 
-{#if usesPanini}
-	<!-- Panini route: page provides its own chrome via PnPageShell. We keep
-	     the auth init logic above but render the slot bare. -->
-	<slot />
-{:else}
 <div class="min-h-screen bg-base-100 flex flex-col noise">
 	<!-- Navigation -->
 	{#if $isAuthenticated}
@@ -162,4 +147,3 @@
 		<slot />
 	</main>
 </div>
-{/if}

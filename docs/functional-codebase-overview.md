@@ -41,7 +41,7 @@ Backend:
 Frontend:
 
 - `frontend/src/lib/stores/auth.ts` stores the JWT in `localStorage`, injects it into `ApiClient`, fetches the current user, and clears persisted drafts on logout/token failure.
-- `frontend/src/routes/login/+page.svelte` and `frontend/src/routes/register/+page.svelte` render the Panini auth screens.
+- `frontend/src/routes/login/+page.svelte` and `frontend/src/routes/register/+page.svelte` render the dark-theme auth screens.
 - `frontend/src/routes/auth/callback/+page.svelte` handles the OAuth redirect token.
 
 ### 2.2 Dashboard
@@ -62,7 +62,7 @@ Key code:
   - `GET /api/predictions/agreements`
   - `GET /api/predictions/bracket-exposure`
 
-Some dashboard widgets now use real backend data but still have deterministic stub fallbacks from `frontend/src/lib/stubs/panini.ts` for empty, unavailable, or newly deployed states.
+Some dashboard widgets use real backend data with deterministic stub fallbacks from `frontend/src/lib/utils/widgetFallbacks.ts` for empty, unavailable, or newly deployed states.
 
 ### 2.3 Phase I Predictions
 
@@ -384,9 +384,8 @@ There are several lock concepts:
 | `/profile` | Current user's account and stats |
 | `/profile/[userId]` | Public player profile and visible predictions |
 | `/admin` | Admin console |
-| `/panini-sandbox` | Design/system sandbox |
 
-Most user-facing routes are Panini routes and render their own chrome through `PnPageShell`. The root layout suppresses the old DaisyUI nav for these paths.
+All routes render inside the dark `data-theme="predictor"` DaisyUI layout: a sticky top navbar with a brand mark, the four main nav items, an optional Admin link, and a user dropdown; plus a fixed mobile bottom nav under 700px.
 
 ### 5.2 API Client Layer
 
@@ -415,22 +414,19 @@ Feature-specific API files map frontend calls to backend endpoints:
 | `leaderboard.ts` | Leaderboard entries, current user rank, phase filtering, live polling |
 | `unsavedPersistence.ts` | LocalStorage mirror for unsaved match and bracket drafts |
 
-### 5.4 Panini Design System
+### 5.4 Design System
 
-The active user-facing UI uses the Panini design system: cream paper, navy ink, red accents, gold highlights, hard sticker shadows, and scoped `.pn` styles.
+The UI uses the DaisyUI **predictor** theme: a dark sports-broadcast palette with green primary, navy secondary, gold accent, near-black background, and subtle pitch-pattern / noise overlays.
 
 Key files:
 
-- `frontend/src/app.css`: imports Panini CSS modules before Tailwind.
-- `frontend/src/lib/styles/panini-base.css`: tokens and primitives.
-- `frontend/src/lib/styles/panini-*.css`: page-specific styles.
-- `frontend/src/lib/components/panini/PnPageShell.svelte`: shell, masthead, mobile nav, strip.
-- `frontend/src/lib/components/panini/PnKnockoutBracket.svelte`: interactive bracket.
-- `frontend/src/lib/components/panini/PnBracketMatch.svelte`: one bracket match card.
-- `frontend/src/lib/components/panini/PnFlag.svelte`: stylized placeholder flag swatches.
-- `frontend/src/lib/components/panini/PnSparkline.svelte`: trend chart.
-
-Legacy components still exist under `frontend/src/lib/components` and `frontend/src/lib/components/bracket`. The Panini bracket reuses the legacy bracket state machine through `bracketResolver.ts`.
+- `frontend/tailwind.config.js`: theme tokens (`primary`, `secondary`, `accent`, `base-100..300`), custom utilities (pitch-pattern, stadium-glow, glow-*), and font setup.
+- `frontend/src/app.html`: sets `data-theme="predictor"` and loads Bebas Neue + DM Sans.
+- `frontend/src/app.css`: global classes (`stadium-card`, `match-card`, `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`) and base typography.
+- `frontend/src/routes/+layout.svelte`: dark navbar, mobile bottom nav, user dropdown.
+- `frontend/src/lib/components/MatchCard.svelte`, `GroupTable.svelte`, `ThirdPlaceTable.svelte`, `ResultCard.svelte`, `SaveButton.svelte`, `ErrorAlert.svelte`, `Icon.svelte`, `ScatterPlot.svelte`, `PredictionTable.svelte`, `GoogleLoginButton.svelte`, `EntrySelector.svelte`, `Sparkline.svelte`: shared UI primitives.
+- `frontend/src/lib/components/bracket/KnockoutBracket.svelte` + `BracketMatch.svelte`: interactive knockout bracket; state machine lives in `lib/utils/bracketResolver.ts`.
+- `frontend/src/lib/components/predictions/Phase1Groups.svelte`, `Phase1Bracket.svelte`, `Phase2Content.svelte`, `DeadlineBanner.svelte`, `ProgressBar.svelte`: prediction wizard sub-views.
 
 ## 6. Important Data Flows
 
@@ -446,7 +442,7 @@ Legacy components still exist under `frontend/src/lib/components` and `frontend/
 
 ### 6.2 Saving Bracket Predictions
 
-1. `PnKnockoutBracket` initializes bracket state from group standings.
+1. `KnockoutBracket` initializes bracket state from group standings.
 2. User clicks winners.
 3. The bracket emits a `BracketPrediction`.
 4. The route converts that into `TeamAdvancementPrediction[]`.
@@ -538,7 +534,7 @@ Frontend tests cover:
 - bracket resolver
 - third-place mapping JSON structure
 - standings and tie warnings
-- Panini deterministic stubs
+- widget fallbacks (deterministic stub data for backend-pending widgets)
 - sparkline path generation
 
 Common commands:
@@ -561,7 +557,7 @@ Typical path:
 6. Add tests.
 7. Generate and review migrations if schema changed.
 8. Add frontend API functions and store state.
-9. Wire UI into a Panini route/component.
+9. Wire UI into the relevant route/component.
 
 ### Add A New Scoring Rule
 
@@ -607,8 +603,8 @@ Important questions:
 - Bonus question IDs are durable keys. Renaming an ID in YAML can orphan existing user picks.
 - Public prediction views must preserve blind-pool rules.
 - Fixture sync never deletes database-only fixtures. It upserts by external ID and reports `db_only_count`.
-- `PnFlag.svelte` is a stylized placeholder, not real national flags.
-- Some Panini widgets still intentionally fall back to deterministic stubs while real backend history accumulates or endpoints are unavailable.
+- Flag swatches are stylized placeholders (2/3-stripe gradients driven by `lib/utils/teamCodes.ts`), not real national flags.
+- Some dashboard/leaderboard widgets still intentionally fall back to deterministic stubs (`lib/utils/widgetFallbacks.ts`) while real backend history accumulates or endpoints are unavailable.
 
 ## 12. Quick File Map
 
@@ -636,14 +632,14 @@ Important questions:
 | API client | `frontend/src/lib/api/client.ts`, `frontend/src/lib/api/*.ts` |
 | Stores | `frontend/src/lib/stores/*.ts` |
 | Types | `frontend/src/lib/types/index.ts` |
-| Dashboard | `frontend/src/routes/+page.svelte`, `frontend/src/lib/stubs/panini.ts` |
+| Dashboard | `frontend/src/routes/+page.svelte`, `frontend/src/lib/utils/widgetFallbacks.ts` |
 | Prediction wizard | `frontend/src/routes/predictions/+page.svelte`, `frontend/src/lib/utils/standings.ts`, `frontend/src/lib/utils/bracketResolver.ts` |
-| Bracket UI | `frontend/src/lib/components/panini/PnKnockoutBracket.svelte`, `PnBracketMatch.svelte` |
+| Bracket UI | `frontend/src/lib/components/bracket/KnockoutBracket.svelte`, `BracketMatch.svelte` |
 | Leaderboard | `frontend/src/routes/leaderboard/+page.svelte` |
 | Results | `frontend/src/routes/results/+page.svelte`, `frontend/src/lib/utils/predictionResult.ts` |
 | Profiles | `frontend/src/routes/profile/+page.svelte`, `frontend/src/routes/profile/[userId]/+page.svelte` |
 | Admin | `frontend/src/routes/admin/+page.svelte`, `frontend/src/lib/api/admin.ts` |
-| Panini styles | `frontend/src/lib/styles/panini-*.css` |
+| Global styles | `frontend/src/app.css`, `frontend/tailwind.config.js` |
 
 ## 13. Suggested Reading Order For New Enhancements
 

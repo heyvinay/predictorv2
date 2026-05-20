@@ -1,6 +1,6 @@
 """Daily leaderboard snapshot — one row per entry per day.
 
-Powers the rank trajectory sparkline on the Panini dashboard and the
+Powers the rank trajectory sparkline on the dashboard and the
 per-row 7-day trend column on the leaderboard. We take one snapshot per
 day per entry; the live current position is fetched separately and
 prepended client-side so the most recent dot is always up to date.

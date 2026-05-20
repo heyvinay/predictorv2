@@ -1,17 +1,3 @@
-/* Panini design system (scoped under .pn) — additive, does not affect dark theme pages.
- * MUST come before @tailwind directives: postcss-import / Tailwind's built-in import
- * handler drops @import rules that don't appear before all other at-rules. */
-@import './lib/styles/panini-base.css';
-@import './lib/styles/panini-dashboard.css';
-@import './lib/styles/panini-leaderboard.css';
-@import './lib/styles/panini-wizard.css';
-@import './lib/styles/panini-bracket.css';
-@import './lib/styles/panini-results.css';
-@import './lib/styles/panini-auth.css';
-@import './lib/styles/panini-profile.css';
-@import './lib/styles/panini-admin.css';
-@import './lib/styles/panini-rules.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

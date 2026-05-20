@@ -996,7 +996,7 @@ Scope:
 - Make prediction fetch/save calls use the active entry ID.
 - Scope unsaved localStorage drafts by entry ID.
 - Show current entry status and allowed actions.
-- Keep existing Panini design style.
+- Keep existing DaisyUI dark-theme style.
 
 Do not change backend code in this task.
 ```
@@ -1017,7 +1017,7 @@ Scope:
 - Add admin entry settings and entry management for paid/eligible/disabled status.
 - Preserve blind-pool rules.
 
-Keep changes consistent with the Panini design system.
+Keep changes consistent with the DaisyUI dark-theme design.
 ```
 
 ## 14. Acceptance Criteria

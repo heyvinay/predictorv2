@@ -1,6 +1,6 @@
 /**
  * Map team names (as stored in Fixture.home_team / away_team) to FIFA
- * three-letter codes used by PnFlag and the Panini design.
+ * three-letter codes used by flag swatches.
  *
  * Falls back to the first three letters uppercased for teams not in
  * the table. Expand the map as new teams appear in real fixture data.
