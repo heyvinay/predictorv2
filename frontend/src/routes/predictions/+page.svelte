@@ -62,12 +62,11 @@
 		lastLocalSave
 	} from '$stores/unsavedPersistence';
 	import { teamCode } from '$lib/utils/teamCodes';
+	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import type { Fixture, MatchPrediction, BracketPrediction, TeamAdvancementPrediction } from '$types';
 
-	import PnPageShell from '$components/panini/PnPageShell.svelte';
-	import PnFlag from '$components/panini/PnFlag.svelte';
-	import PnKnockoutBracket from '$components/panini/PnKnockoutBracket.svelte';
-	import PnEntrySelector from '$components/panini/PnEntrySelector.svelte';
+	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
+	import EntrySelector from '$components/EntrySelector.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -82,7 +81,6 @@
 	}
 
 	// Section toggle controls the outer mode (Groups / Knockout / Bonus).
-	// Group pills are a sub-selection that only appears in the Groups section.
 	type Section = 'groups' | 'knockout' | 'bonus';
 	let activeSection: Section = 'groups';
 	// Active group pill — either a group letter (e.g. 'A') or 'thirdplace'.
@@ -103,12 +101,8 @@
 	} | null = null;
 
 	// Editing state — set when the user's cursor is inside one of the two
-	// score inputs of a match card. Drives the "EDITING" chip on the card
-	// and the gold-with-red-shadow styling on the focused input cell.
-	// We use focusin/focusout (which bubble) on the parent .pn-mcard so
-	// tabbing between the home and away inputs doesn't briefly clear the
-	// state — focusout's relatedTarget check confirms whether focus left
-	// the card entirely.
+	// score inputs of a match card. We use focusin/focusout (which bubble) on
+	// the parent card so tabbing between inputs doesn't briefly clear it.
 	let editingFixtureId: string | null = null;
 
 	function handleMatchCardFocusIn(fixtureId: string, isLocked: boolean): void {
@@ -118,72 +112,11 @@
 	function handleMatchCardFocusOut(e: FocusEvent): void {
 		const card = e.currentTarget as HTMLElement;
 		const next = e.relatedTarget as Node | null;
-		// Only clear when focus moved entirely outside this card. Tabbing
-		// between the home and away inputs keeps the state intact.
 		if (!next || !card.contains(next)) editingFixtureId = null;
-	}
-
-	// Mobile-only dropdown state for the group picker. On desktop the
-	// pill grid is shown directly; on mobile (< 800px) we collapse to
-	// a single dropdown with prev/next arrows on either side.
-	let groupDropdownOpen = false;
-
-	// Reactive details about whichever group is currently active. Used by
-	// the mobile dropdown trigger so it can show the right label, progress
-	// counter, and done/tied/special styling without per-render @const blocks.
-	$: currentGroupObj = $groupFixtures.find((g) => g.group === activeGroupPill);
-	$: currentGp = currentGroupObj ? groupProgress(currentGroupObj) : null;
-	$: currentIsComplete = !!(currentGp && currentGp.total > 0 && currentGp.done === currentGp.total);
-	$: currentHasTie = groupStandingsWarnings.some((w) => w.group === activeGroupPill);
-
-	function selectGroup(g: string) {
-		activeGroupPill = g;
-		groupDropdownOpen = false;
-	}
-
-	function prevGroup() {
-		const list = $groupFixtures.map((g) => g.group);
-		if (list.length === 0) return;
-		if (activeGroupPill === 'thirdplace') {
-			activeGroupPill = list[list.length - 1];
-			return;
-		}
-		const idx = list.indexOf(activeGroupPill);
-		// Wrap: leftmost group → 3rd Place
-		activeGroupPill = idx <= 0 ? 'thirdplace' : list[idx - 1];
-	}
-
-	function nextGroup() {
-		const list = $groupFixtures.map((g) => g.group);
-		if (list.length === 0) return;
-		if (activeGroupPill === 'thirdplace') {
-			activeGroupPill = list[0];
-			return;
-		}
-		const idx = list.indexOf(activeGroupPill);
-		// Wrap: rightmost group → 3rd Place
-		activeGroupPill = idx >= list.length - 1 ? 'thirdplace' : list[idx + 1];
-	}
-
-	// Svelte action: invoke `callback` when a mousedown lands outside `node`.
-	// Used to close the mobile group dropdown when the user taps elsewhere.
-	function clickOutside(node: HTMLElement, callback: () => void) {
-		function handle(e: MouseEvent) {
-			if (!node.contains(e.target as Node)) callback();
-		}
-		document.addEventListener('mousedown', handle);
-		return {
-			destroy() {
-				document.removeEventListener('mousedown', handle);
-			}
-		};
 	}
 
 	onMount(async () => {
 		if ($isAuthenticated) {
-			// Group fixtures + actual standings don't need $user. Entries are
-			// loaded by the reactive block below (it triggers as soon as
-			// $user.id becomes truthy, even if that happens after onMount).
 			const tasks: Promise<unknown>[] = [fetchGroupFixtures()];
 			if ($isPhase2Active) {
 				tasks.push(fetchActualKnockoutFixtures(), fetchActualStandings());
@@ -194,29 +127,22 @@
 	});
 
 	// Load entries as soon as $user.id resolves. Using $: not onMount because
-	// initAuth() / fetchUser() can complete AFTER this page's onMount, leaving
-	// $user null at the moment onMount runs — a race that previously caused
-	// the entry selector / activeEntryPosition / settings to stay empty.
+	// initAuth() / fetchUser() can complete AFTER this page's onMount.
 	let entriesLoadStarted = false;
 	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
 		entriesLoadStarted = true;
 		void loadEntries($user.id);
 	}
 
-	// Re-fetch predictions whenever the active entry changes. Covers both
-	// the initial transition from null → first entry (after loadEntries
-	// resolves) and any subsequent user-driven switch via the selector.
+	// Re-fetch predictions whenever the active entry changes.
 	let lastActiveEntryId: string | null = null;
 	$: if ($isAuthenticated && $activeEntryId && $activeEntryId !== lastActiveEntryId) {
 		const prev = lastActiveEntryId;
 		lastActiveEntryId = $activeEntryId;
-		// Reset in-memory state so stale rows from the previous entry don't
-		// flash in before the refetch lands.
 		resetPredictions();
 		if (prev && $user) {
 			teardownPersistence($user.id, prev);
 		}
-		// Allow the hydration block below to fire fresh against the new entry.
 		hydrated = false;
 		fetchesDone = false;
 		const phase2Was = $isPhase2Active;
@@ -230,11 +156,7 @@
 		})();
 	}
 
-	// Hydrate drafts from localStorage + start the persistence subscription
-	// once user is loaded AND active entry is known AND initial fetches are
-	// done AND we have group fixtures to dedupe locked matches against. Runs
-	// at most once per (user, entry) pair via the `hydrated` guard, which is
-	// reset by the entry-change effect above.
+	// Hydrate drafts from localStorage + start the persistence subscription.
 	$: if (
 		$user &&
 		$activeEntryId &&
@@ -253,9 +175,6 @@
 		);
 		if (r) {
 			restorationBanner = r;
-			// Auto-dismiss after 5s. The user can still click × to dismiss
-			// it sooner; if they do, restorationBanner is already null when
-			// this timeout fires so the assignment is a harmless no-op.
 			setTimeout(() => {
 				restorationBanner = null;
 			}, 5000);
@@ -291,7 +210,6 @@
 		try {
 			const created = await entriesApi.duplicateEntry(current.id);
 			await refreshEntries();
-			// Switch to the new entry so the wizard immediately reflects it.
 			const { setActiveEntry } = await import('$stores/entries');
 			setActiveEntry(created.id);
 		} catch (e) {
@@ -379,7 +297,6 @@
 				'Optional reason (leave blank to skip):',
 			''
 		);
-		// null = Cancel pressed; '' = Save with no reason.
 		if (reason === null) return;
 		lifecycleBusy = 'withdraw';
 		lifecycleError = null;
@@ -432,12 +349,6 @@
 	$: groupStandingsWarnings = standingsResult.warnings;
 
 	// Per-group progress: count of fixtures that have a saved or unsaved pick.
-	// REACTIVE lambda (not plain function) so the call site
-	// `{@const gp = groupProgress(g)}` re-evaluates when livePredictionMap
-	// updates. See the same pattern on predictionState / scoreValue earlier
-	// in this file — Svelte doesn't trace into function bodies for template
-	// reactivity, so a plain function declaration here would freeze the
-	// counter on first render.
 	$: groupProgress = (g: { group: string; fixtures: Fixture[] }) => {
 		let done = 0;
 		for (const f of g.fixtures) {
@@ -447,7 +358,6 @@
 	};
 
 	// Phase 1 knockout bracket is gated on completing every group prediction.
-	// Phase 2 uses real standings so doesn't need the gate.
 	$: phase1BracketGated =
 		activePhase === 'phase1' &&
 		!(
@@ -468,9 +378,6 @@
 	})();
 
 	// True only when every fixture in every group has a saved or draft pick.
-	// Used to gate the third-place tie-warning banner — ties between
-	// third-placed teams are only meaningful once all 12 third-place stats
-	// are final, since the ranking depends on cross-group comparison.
 	$: allGroupsComplete = $groupFixtures.length > 0 && $groupFixtures.every((g) => {
 		const p = groupProgress(g);
 		return p.total > 0 && p.done === p.total;
@@ -483,10 +390,6 @@
 			: null;
 
 	// ---- Third-place qualifying standings (top 8 of 12 advance to R32) ----
-	// Uses applyFifaTiebreakers so any tie that survives points→GD→GF and
-	// can't be resolved cross-group (H2H is N/A across groups) emits a
-	// TieWarning. We surface the warnings in a banner so the user can
-	// adjust scores if they want a specific team to advance.
 	$: thirdPlaceResult = (() => {
 		const thirds = [];
 		for (const [group, std] of Object.entries(standingsMap)) {
@@ -497,9 +400,7 @@
 	$: thirdPlaceStandings = thirdPlaceResult.sorted;
 	$: thirdPlaceWarnings = thirdPlaceResult.warnings;
 
-	// Maximum goals allowed in a single match's score input. Enforced both in
-	// the handler and via clampScoreInput on every keystroke so the user
-	// sees the cap immediately — typing "16" instantly becomes "15".
+	// Maximum goals allowed in a single match's score input.
 	const MAX_GOALS = 15;
 
 	function clampScoreInput(el: HTMLInputElement): void {
@@ -527,17 +428,6 @@
 		updateLocalPrediction(fixtureId, next.home_score, next.away_score);
 	}
 
-	// Per-fixture state + score values, computed reactively so the UI updates
-	// without a page refresh when stores change.
-	//
-	// Note: the previous implementation was non-reactive function calls
-	// (`scoreValue(f.id, side)`, `predictionState(f)`). Svelte doesn't follow
-	// store reads INSIDE a function body, so those expressions in the template
-	// never re-evaluated when $unsavedChanges or $predictionsByFixture changed.
-	// Result: saving did update the stores, but the per-card input value, the
-	// .empty class on the cell, and the per-group progress counter all stayed
-	// stale until a full page refresh. Migrating to reactive Maps fixes all
-	// three symptoms at once.
 	type FixtureState = 'locked' | 'saved' | 'draft' | 'empty';
 
 	$: predictionStateMap = (() => {
@@ -575,13 +465,6 @@
 		return map;
 	})();
 
-	// Reactive lambdas (not plain `function` declarations) so the call-site
-	// expression `{@const state = predictionState(f)}` is reactive: when
-	// predictionStateMap updates, the `$:` block here reassigns
-	// predictionState to a new function reference, which Svelte's compiler
-	// tracks as a dependency of the call site. Plain function declarations
-	// would be referentially stable and the compiler would never re-evaluate
-	// the call.
 	$: predictionState = (f: Fixture): FixtureState =>
 		predictionStateMap.get(f.id) ?? (f.is_locked ? 'locked' : 'empty');
 
@@ -591,7 +474,7 @@
 	};
 
 	// ---- Bracket (Phase 1) ------------------------------------------------
-	let bracketComponent: PnKnockoutBracket;
+	let bracketComponent: KnockoutBracket;
 	$: displayBracket = $unsavedBracketPrediction || $bracketPrediction;
 
 	function bracketToPredictions(b: BracketPrediction): TeamAdvancementPrediction[] {
@@ -626,17 +509,9 @@
 	}
 
 	// ---- Phase 2 wiring ---------------------------------------------------
-	let phase2BracketComponent: PnKnockoutBracket;
+	let phase2BracketComponent: KnockoutBracket;
 	let phase2BracketSaveStatus: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
 	$: phase2DisplayBracket = $unsavedPhase2BracketPrediction || $phase2BracketPrediction;
-	$: hasPhase2BracketSelections = !!(
-		phase2DisplayBracket &&
-		(phase2DisplayBracket.round_of_16?.some((t) => t) ||
-			phase2DisplayBracket.quarter_finals?.some((t) => t) ||
-			phase2DisplayBracket.semi_finals?.some((t) => t) ||
-			phase2DisplayBracket.final?.some((t) => t) ||
-			phase2DisplayBracket.winner)
-	);
 	function handlePhase2BracketUpdate(event: CustomEvent<BracketPrediction>) {
 		unsavedPhase2BracketPrediction.set(event.detail);
 	}
@@ -650,11 +525,6 @@
 		if (ok) {
 			unsavedPhase2BracketPrediction.set(null);
 			setTimeout(() => (phase2BracketSaveStatus = 'idle'), 2000);
-		}
-	}
-	function handleClearPhase2Bracket() {
-		if (confirm('Clear all Phase 2 knockout selections?')) {
-			phase2BracketComponent?.clearAllSelections();
 		}
 	}
 
@@ -679,7 +549,6 @@
 	}
 
 	// ---- Bonus questions (real backend) ----------------------------------
-
 	let bonusQuestions: import('$api/bonus').BonusQuestion[] = [];
 	let bonusAnswers: Map<string, string> = new Map(); // question_id → answer
 	let bonusInitial: Map<string, string> = new Map(); // for change tracking
@@ -715,7 +584,6 @@
 				answer
 			}));
 			const saved = await saveBonusPredictions(preds);
-			// Reset baseline to whatever the backend returned.
 			const fresh = new Map<string, string>();
 			for (const p of saved) fresh.set(p.question_id, p.answer);
 			bonusAnswers = fresh;
@@ -727,9 +595,6 @@
 		}
 	}
 
-	// Reactive lambda (same pattern as groupProgress / predictionState above):
-	// the function reference must be reactive so `{@const answer = bonusAnswer(bq.id)}`
-	// in the template re-evaluates when bonusAnswers is reassigned.
 	$: bonusAnswer = (qid: string): string => bonusAnswers.get(qid) ?? '';
 
 	function formatLocalTime(d: Date): string {
@@ -774,496 +639,307 @@
 		awards: 'Awards'
 	};
 
-	// Load bonus questions + saved picks on mount (gated on auth via the
-	// reactive $isAuthenticated check below).
 	$: if ($isAuthenticated && bonusQuestions.length === 0) {
 		loadBonus().catch(() => {});
+	}
+
+	function fmtCard(iso: string): string {
+		const d = new Date(iso);
+		return (
+			d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) +
+			' · ' +
+			d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+		);
 	}
 </script>
 
 <svelte:head>
-	<title>Predictions — Predictor</title>
+	<title>Predictions - Predictor v2</title>
 </svelte:head>
 
 {#if $isAuthenticated}
-	<PnPageShell>
+	<div class="container mx-auto mobile-padding py-6">
 		{#if restorationBanner}
-			<div class="pn-restore-banner" transition:fade={{ duration: 400 }}>
-				<div class="content">
-					<span class="icon">✦</span>
-					<div class="text">
-						<b>Drafts restored from your last session.</b>
-						{#if restorationBanner.matchCount > 0}
-							{restorationBanner.matchCount} unsaved match
-							{restorationBanner.matchCount === 1 ? 'pick' : 'picks'}{#if restorationBanner.bracketPhase1Restored || restorationBanner.bracketPhase2Restored},{/if}
-						{/if}
-						{#if restorationBanner.bracketPhase1Restored}
-							Phase I bracket{#if restorationBanner.bracketPhase2Restored},{/if}
-						{/if}
-						{#if restorationBanner.bracketPhase2Restored}
-							Phase II bracket
-						{/if}
-						— remember to press Save when you're done.
-					</div>
-				</div>
-				<button class="dismiss" aria-label="Dismiss" on:click={() => (restorationBanner = null)}>×</button>
+			<div class="alert bg-info/10 border border-info/30 text-sm mb-4" transition:fade={{ duration: 400 }}>
+				<span>✦</span>
+				<span>
+					<b>Drafts restored from your last session.</b>
+					{#if restorationBanner.matchCount > 0}{restorationBanner.matchCount} unsaved match {restorationBanner.matchCount === 1 ? 'pick' : 'picks'}{/if}
+					{#if restorationBanner.bracketPhase1Restored} · Phase I bracket{/if}
+					{#if restorationBanner.bracketPhase2Restored} · Phase II bracket{/if}
+					— remember to press Save when you're done.
+				</span>
+				<button class="btn btn-ghost btn-xs" on:click={() => (restorationBanner = null)}>×</button>
 			</div>
 		{/if}
-		<!-- Hero / progress / phase toggle -->
-		<section class="pn-wiz-hero">
-			<div class="title-block">
-				<div class="l">
-					{activePhase === 'phase1' ? 'Phase I · Group Stage' : 'Phase II · Knockout'}
+
+		<!-- Hero: title + progress + entry selector + toggles -->
+		<div class="stadium-card no-glow p-5 mb-6">
+			<div class="flex items-start justify-between flex-wrap gap-4">
+				<div>
+					<p class="text-xs uppercase tracking-wider text-base-content/50">
+						{activePhase === 'phase1' ? 'Phase I · Group Stage' : 'Phase II · Knockout'}
+					</p>
+					<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Predict</h1>
 				</div>
-				<div class="ttl"><em>Predict</em></div>
-			</div>
-			<div class="progress-stack">
-				<div class="big-num" aria-hidden="true">
-					<b>{phaseProgress.done}</b><span class="slash">/{phaseProgress.total}</span>
-				</div>
-				<div class="bar-and-labels">
-					<div class="l">
-						<span>Matches predicted</span>
-						<span>{phaseProgress.pct}%</span>
-					</div>
-					<div class="bar"><div class="bar-fill" style="width: {phaseProgress.pct}%;"></div></div>
-					<div class="l">
-						<span>
-							{#if activePhase === 'phase1'}
-								{#if $isPhase1Locked}Locked{:else}Locks in {$phase1Countdown ?? '—'}{/if}
-							{:else}
-								{#if $isPhase2BracketLocked}Locked{:else}Locks in {$phase2Countdown ?? '—'}{/if}
-							{/if}
-						</span>
-						<span>{$unsavedChangesCount} unsaved</span>
+				<div class="flex items-center gap-3">
+					<div class="text-right">
+						<div class="font-display text-3xl tracking-wide leading-none">
+							{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span>
+						</div>
+						<div class="text-xs text-base-content/50">{phaseProgress.pct}% predicted</div>
 					</div>
 				</div>
 			</div>
-			<div class="toggle-stack">
-				<div class="entry-row">
-					<PnEntrySelector
-						on:create={handleEntryCreate}
-						on:duplicate={handleEntryDuplicate}
-						on:rename={handleEntryRename}
-					/>
+
+			<!-- Progress bar -->
+			<div class="mt-3">
+				<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden">
+					<div class="h-full bg-primary transition-all" style="width: {phaseProgress.pct}%;"></div>
 				</div>
-				{#if readyVisible || submitVisible || reopenVisible || withdrawVisible}
-					<div class="lifecycle-row">
-						{#if lifecycleError}
-							<div class="lifecycle-err">{lifecycleError}</div>
+				<div class="flex justify-between text-xs text-base-content/50 mt-1">
+					<span>
+						{#if activePhase === 'phase1'}
+							{#if $isPhase1Locked}Locked{:else}Locks in {$phase1Countdown ?? '—'}{/if}
+						{:else}
+							{#if $isPhase2BracketLocked}Locked{:else}Locks in {$phase2Countdown ?? '—'}{/if}
 						{/if}
-						{#if readyVisible}
-							<button
-								class="pn-btn gold"
-								type="button"
-								on:click={handleMarkReady}
-								disabled={lifecycleBusy !== false}
-							>
-								{lifecycleBusy === 'ready' ? 'Marking…' : 'Mark Ready'}
-							</button>
-						{/if}
-						{#if submitVisible}
-							<button
-								class="pn-btn"
-								type="button"
-								on:click={handleSubmit}
-								disabled={lifecycleBusy !== false}
-							>
-								{lifecycleBusy === 'submit' ? 'Submitting…' : 'Submit'}
-							</button>
-						{/if}
-						{#if reopenVisible}
-							<button
-								class="pn-btn ghost"
-								type="button"
-								on:click={handleReopen}
-								disabled={lifecycleBusy !== false}
-							>
-								{lifecycleBusy === 'reopen' ? 'Reopening…' : 'Reopen'}
-							</button>
-						{/if}
-						{#if withdrawVisible}
-							<button
-								class="pn-btn navy"
-								type="button"
-								on:click={handleWithdraw}
-								disabled={lifecycleBusy !== false}
-								title="Withdraw permanently"
-							>
-								{lifecycleBusy === 'withdraw' ? 'Withdrawing…' : 'Withdraw…'}
-							</button>
-						{/if}
-					</div>
+					</span>
+					<span>{$unsavedChangesCount} unsaved</span>
+				</div>
+			</div>
+
+			<!-- Entry selector + lifecycle -->
+			<div class="flex items-center gap-3 flex-wrap mt-4">
+				<EntrySelector
+					on:create={handleEntryCreate}
+					on:duplicate={handleEntryDuplicate}
+					on:rename={handleEntryRename}
+				/>
+				{#if lifecycleError}
+					<span class="text-error text-xs">{lifecycleError}</span>
 				{/if}
+				{#if readyVisible}
+					<button class="btn btn-sm btn-warning" type="button" on:click={handleMarkReady} disabled={lifecycleBusy !== false}>
+						{lifecycleBusy === 'ready' ? 'Marking…' : 'Mark Ready'}
+					</button>
+				{/if}
+				{#if submitVisible}
+					<button class="btn btn-sm btn-primary" type="button" on:click={handleSubmit} disabled={lifecycleBusy !== false}>
+						{lifecycleBusy === 'submit' ? 'Submitting…' : 'Submit'}
+					</button>
+				{/if}
+				{#if reopenVisible}
+					<button class="btn btn-sm btn-outline" type="button" on:click={handleReopen} disabled={lifecycleBusy !== false}>
+						{lifecycleBusy === 'reopen' ? 'Reopening…' : 'Reopen'}
+					</button>
+				{/if}
+				{#if withdrawVisible}
+					<button class="btn btn-sm btn-outline btn-error" type="button" on:click={handleWithdraw} disabled={lifecycleBusy !== false} title="Withdraw permanently">
+						{lifecycleBusy === 'withdraw' ? 'Withdrawing…' : 'Withdraw…'}
+					</button>
+				{/if}
+			</div>
+
+			<!-- Phase + section toggles -->
+			<div class="flex items-center gap-3 flex-wrap mt-4">
 				{#if $isPhase2Active}
-					<div class="phase-toggle">
-						<button class:on={activePhase === 'phase1'} on:click={() => (activePhase = 'phase1')}>Phase I</button>
-						<button class:on={activePhase === 'phase2'} on:click={() => (activePhase = 'phase2')}>Phase II</button>
+					<div class="tabs tabs-boxed bg-base-300/40">
+						<button class="tab {activePhase === 'phase1' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase1')}>Phase I</button>
+						<button class="tab {activePhase === 'phase2' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase2')}>Phase II</button>
 					</div>
 				{/if}
-				<div class="phase-toggle">
-					<button class:on={activeSection === 'groups'} on:click={() => (activeSection = 'groups')}>Groups</button>
-					<button
-						class:on={activeSection === 'knockout'}
-						class:gated={phase1BracketGated}
-						on:click={() => (activeSection = 'knockout')}
-						title={phase1BracketGated ? 'Complete all group predictions to unlock' : ''}
-					>Knockout</button>
-					<button class:on={activeSection === 'bonus'} on:click={() => (activeSection = 'bonus')}>Bonus</button>
-				</div>
+				{#if activePhase === 'phase1'}
+					<div class="tabs tabs-boxed bg-base-300/40">
+						<button class="tab {activeSection === 'groups' ? 'tab-active' : ''}" on:click={() => (activeSection = 'groups')}>Groups</button>
+						<button
+							class="tab {activeSection === 'knockout' ? 'tab-active' : ''} {phase1BracketGated ? 'opacity-50' : ''}"
+							on:click={() => (activeSection = 'knockout')}
+							title={phase1BracketGated ? 'Complete all group predictions to unlock' : ''}
+						>Knockout</button>
+						<button class="tab {activeSection === 'bonus' ? 'tab-active' : ''}" on:click={() => (activeSection = 'bonus')}>Bonus</button>
+					</div>
+				{/if}
 			</div>
-		</section>
+		</div>
 
-		<!-- Phase 1 wizard -->
+		<!-- ============================== PHASE 1 ============================== -->
 		{#if activePhase === 'phase1'}
-			<!-- Group pills (only when the Groups section is selected) -->
+			<!-- Group pills -->
 			{#if activeSection === 'groups'}
-				<section class="pn-wiz-nav">
-					<!-- Desktop layout: 12 groups in a divisor-of-12 grid +
-					     3rd Place spanning the full height on the right.
-					     Hidden on mobile via CSS media query. -->
-					<div class="pn-wiz-nav-desktop">
-						<div class="groups-grid">
-							{#each $groupFixtures as g (g.group)}
-								{@const gp = groupProgress(g)}
-								{@const isComplete = gp.total > 0 && gp.done === gp.total}
-								{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
-								<button
-									class="pn-wiz-gp"
-									class:active={activeGroupPill === g.group}
-									class:done={isComplete && !hasTie}
-									class:tied={isComplete && hasTie}
-									on:click={() => (activeGroupPill = g.group)}
-								>
-									Group {g.group}
-									<span class="gp-prog">{gp.done}/{gp.total}</span>
-								</button>
-							{/each}
-						</div>
+				<div class="flex flex-wrap gap-2 mb-5">
+					{#each $groupFixtures as g (g.group)}
+						{@const gp = groupProgress(g)}
+						{@const isComplete = gp.total > 0 && gp.done === gp.total}
+						{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
 						<button
-							class="pn-wiz-gp special"
-							class:active={activeGroupPill === 'thirdplace'}
-							on:click={() => (activeGroupPill = 'thirdplace')}
+							class="btn btn-sm {activeGroupPill === g.group ? 'btn-primary' : 'btn-outline'} {isComplete && hasTie ? 'btn-error' : isComplete ? 'btn-success' : ''}"
+							on:click={() => (activeGroupPill = g.group)}
 						>
-							3rd<br />Place
+							Group {g.group}
+							<span class="badge badge-sm ml-1">{gp.done}/{gp.total}</span>
 						</button>
-					</div>
-
-					<!-- Mobile layout: prev/next arrows wrap a Panini-styled
-					     dropdown picker. 3rd Place is a separate full-width
-					     button below. Hidden on desktop via CSS media query. -->
-					<div class="pn-wiz-nav-mobile">
-						<div class="picker-row">
-							<button
-								class="arrow"
-								on:click={prevGroup}
-								aria-label="Previous group"
-							>◀</button>
-							<div class="dropdown" use:clickOutside={() => (groupDropdownOpen = false)}>
-								<button
-									class="trigger"
-									class:done={currentIsComplete && !currentHasTie}
-									class:tied={currentIsComplete && currentHasTie}
-									class:open={groupDropdownOpen}
-									class:special={activeGroupPill === 'thirdplace'}
-									on:click={() => (groupDropdownOpen = !groupDropdownOpen)}
-								>
-									<span class="lbl">
-										{activeGroupPill === 'thirdplace' ? '3rd Place' : `Group ${activeGroupPill || 'A'}`}
-									</span>
-									{#if currentGp}
-										<span class="prog">{currentGp.done}/{currentGp.total}</span>
-									{/if}
-									<span class="chev">▾</span>
-								</button>
-								{#if groupDropdownOpen}
-									<ul class="menu" transition:fade={{ duration: 120 }}>
-										{#each $groupFixtures as g (g.group)}
-											{@const gp = groupProgress(g)}
-											{@const isComplete = gp.total > 0 && gp.done === gp.total}
-											{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
-											<li>
-												<button
-													class:active={activeGroupPill === g.group}
-													class:done={isComplete && !hasTie}
-													class:tied={isComplete && hasTie}
-													on:click={() => selectGroup(g.group)}
-												>
-													<span class="lbl">Group {g.group}</span>
-													<span class="prog">{gp.done}/{gp.total}</span>
-												</button>
-											</li>
-										{/each}
-									</ul>
-								{/if}
-							</div>
-							<button
-								class="arrow"
-								on:click={nextGroup}
-								aria-label="Next group"
-							>▶</button>
-						</div>
-						<button
-							class="pn-wiz-gp special wide"
-							class:active={activeGroupPill === 'thirdplace'}
-							on:click={() => (activeGroupPill = 'thirdplace')}
-						>
-							3rd Place
-						</button>
-					</div>
-				</section>
+					{/each}
+					<button
+						class="btn btn-sm {activeGroupPill === 'thirdplace' ? 'btn-primary' : 'btn-outline'}"
+						on:click={() => (activeGroupPill = 'thirdplace')}
+					>3rd Place</button>
+				</div>
 			{/if}
 
-			<!-- Group view -->
+			<!-- Third place view -->
 			{#if activeSection === 'groups' && activeGroupPill === 'thirdplace'}
-				<section class="pn-wiz-group">
+				<div class="stadium-card no-glow p-4 sm:p-5">
 					{#if allGroupsComplete && thirdPlaceWarnings.length > 0}
-						<div class="pn-tie-warn">
-							<h4>⚠ Tied teams · alphabetical fallback in effect</h4>
-							{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
-								<p>
-									<span class="teams">{w.tiedTeams.join(', ')}</span>
-									are tied on points, goal difference and goals-for. Third-place teams
-									come from different groups so head-to-head isn't applicable — they're
-									currently ranked alphabetically. Adjust your predicted scores if you want
-									a different team to qualify.
-								</p>
-							{/each}
+						<div class="alert alert-warning text-sm mb-4">
+							<div>
+								<h4 class="font-semibold">⚠ Tied teams · alphabetical fallback in effect</h4>
+								{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
+									<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD and GF. Third-place teams come from different groups so head-to-head isn't applicable — currently ranked alphabetically. Adjust scores to change qualification.</p>
+								{/each}
+							</div>
 						</div>
 					{/if}
-					<div class="pn-stnd">
-						<div class="h">
-							<span>Third-place standings · top 8 advance to R32</span>
-							<span class="live">LIVE</span>
-						</div>
-						<table class="pn-stnd-table">
+					<h2 class="text-lg font-display tracking-wide mb-3">Third-place standings · top 8 advance to R32</h2>
+					<div class="group-standings">
+						<table class="standings-table">
 							<thead>
-								<tr>
-									<th></th>
-									<th class="c">Grp</th>
-									<th>Team</th>
-									<th class="c">P</th>
-									<th class="c">W</th>
-									<th class="c">D</th>
-									<th class="c">L</th>
-									<th class="c">GF</th>
-									<th class="c">GA</th>
-									<th class="c">GD</th>
-									<th>Pts</th>
-								</tr>
+								<tr><th></th><th class="text-center">Grp</th><th class="text-left">Team</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center">D</th><th class="text-center">L</th><th class="text-center">GF</th><th class="text-center">GA</th><th class="text-center">GD</th><th>Pts</th></tr>
 							</thead>
 							<tbody>
 								{#each thirdPlaceStandings as t, i (t.team)}
-									<tr class:qualifies={i < 8}>
+									<tr class="standing-row {i < 8 ? 'bg-success/5' : ''}">
+										<td><span class="position-indicator {i < 8 ? '!bg-success/20 !text-success' : ''}">{i + 1}</span></td>
+										<td class="text-center text-xs">{t.group}</td>
 										<td>
-											<span class="pos" class:adv={i < 8} class:out={i >= 8}>{i + 1}</span>
-										</td>
-										<td class="grp">{t.group}</td>
-										<td>
-											<span class="team">
-												<PnFlag code={teamCode(t.team)} w={20} h={14} />
-												<span class="nm-text">{t.team}</span>
+											<span class="flex items-center gap-2">
+												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
+												<span class="team-name-table">{t.team}</span>
 											</span>
 										</td>
-										<td class="stat">{t.played}</td>
-										<td class="stat">{t.won}</td>
-										<td class="stat">{t.drawn}</td>
-										<td class="stat">{t.lost}</td>
-										<td class="stat">{t.goalsFor}</td>
-										<td class="stat">{t.goalsAgainst}</td>
-										<td class="stat gd" class:pos={t.goalDifference >= 0} class:neg={t.goalDifference < 0}>
-											{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}
-										</td>
-										<td>{t.points}</td>
+										<td class="text-center">{t.played}</td>
+										<td class="text-center">{t.won}</td>
+										<td class="text-center">{t.drawn}</td>
+										<td class="text-center">{t.lost}</td>
+										<td class="text-center">{t.goalsFor}</td>
+										<td class="text-center">{t.goalsAgainst}</td>
+										<td class="text-center gd-cell {t.goalDifference >= 0 ? 'positive' : 'negative'}">{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</td>
+										<td><span class="points-badge">{t.points}</span></td>
 									</tr>
 								{:else}
-									<tr><td colspan="11" style="padding: 24px; text-align: center; font-family: var(--mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">No third-place standings yet — fill in some group predictions</td></tr>
+									<tr><td colspan="11" class="text-center py-6 text-base-content/40">No third-place standings yet — fill in some group predictions</td></tr>
 								{/each}
 							</tbody>
 						</table>
 					</div>
-					<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 10px;">
-						★ Top 8 third-placed teams (gold rows) qualify for the Round of 32 under FIFA 2026 format
-					</p>
-				</section>
+					<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Top 8 third-placed teams qualify for the Round of 32 under FIFA 2026 format</p>
+				</div>
 			{:else if activeSection === 'groups' && selectedGroup}
 				{@const group = selectedGroup}
 				{@const standings = standingsMap[group.group] ?? []}
 				{@const groupWarnings = groupStandingsWarnings.filter((w) => w.group === group.group)}
 				{@const groupGp = groupProgress(group)}
 				{@const groupComplete = groupGp.total > 0 && groupGp.done === groupGp.total}
-				<section class="pn-wiz-group">
-					{#if groupComplete && groupWarnings.length > 0}
-						<div class="pn-tie-warn">
-							<h4>⚠ Tied teams in Group {group.group} · alphabetical fallback in effect</h4>
-							{#each groupWarnings as w (w.tiedTeams.join('-'))}
-								<p>
-									<span class="teams">{w.tiedTeams.join(', ')}</span>
-									are tied on points, goal difference, goals-for, and head-to-head — they're
-									currently ranked alphabetically. Adjust your predicted scores if you want
-									a different ordering.
-								</p>
-							{/each}
+				<div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+					<!-- Standings -->
+					<div>
+						{#if groupComplete && groupWarnings.length > 0}
+							<div class="alert alert-warning text-sm mb-3">
+								<div>
+									<h4 class="font-semibold">⚠ Tied teams in Group {group.group}</h4>
+									{#each groupWarnings as w (w.tiedTeams.join('-'))}
+										<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD, GF and head-to-head — currently ranked alphabetically. Adjust scores to change the ordering.</p>
+									{/each}
+								</div>
+							</div>
+						{/if}
+						<div class="group-standings">
+							<div class="px-3 py-2 flex items-center justify-between bg-base-300/30">
+								<span class="text-sm font-semibold">Group {group.group} · Predicted Standings</span>
+								<span class="badge badge-sm badge-success">LIVE</span>
+							</div>
+							<table class="standings-table">
+								<thead>
+									<tr><th></th><th class="text-left">Team</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center">D</th><th class="text-center">L</th><th class="text-center">GF</th><th class="text-center">GA</th><th class="text-center">GD</th><th>Pts</th></tr>
+								</thead>
+								<tbody>
+									{#each standings as t, i (t.team)}
+										<tr class="standing-row">
+											<td><span class="position-indicator {i < 2 ? '!bg-success/20 !text-success' : i === 2 ? '!bg-warning/20 !text-warning' : ''}">{i + 1}</span></td>
+											<td>
+												<span class="flex items-center gap-2">
+													{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
+													<span class="team-name-table">{t.team}</span>
+												</span>
+											</td>
+											<td class="text-center">{t.played}</td>
+											<td class="text-center">{t.won}</td>
+											<td class="text-center">{t.drawn}</td>
+											<td class="text-center">{t.lost}</td>
+											<td class="text-center">{t.goalsFor}</td>
+											<td class="text-center">{t.goalsAgainst}</td>
+											<td class="text-center gd-cell {t.goalDifference >= 0 ? 'positive' : 'negative'}">{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</td>
+											<td><span class="points-badge">{t.points}</span></td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
 						</div>
-					{/if}
-					<div class="pn-stnd-col">
-					<div class="pn-stnd">
-						<div class="h">
-							<span>Group {group.group} · Predicted Standings</span>
-							<span class="live">LIVE</span>
+						<div class="flex gap-4 text-xs text-base-content/50 mt-2">
+							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-success"></span>Advances (top 2)</span>
+							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-warning"></span>Best 3rd</span>
+							<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-base-content/30"></span>Out</span>
 						</div>
-						<table class="pn-stnd-table">
-							<thead>
-								<tr>
-									<th></th>
-									<th>Team</th>
-									<th class="c">P</th>
-									<th class="c">W</th>
-									<th class="c">D</th>
-									<th class="c">L</th>
-									<th class="c">GF</th>
-									<th class="c">GA</th>
-									<th class="c">GD</th>
-									<th>Pts</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each standings as t, i (t.team)}
-									<tr>
-										<td>
-											<span class="pos" class:adv={i < 2} class:maybe={i === 2} class:out={i >= 3}>{i + 1}</span>
-										</td>
-										<td>
-											<span class="team">
-												<PnFlag code={teamCode(t.team)} w={20} h={14} />
-												<span class="nm-text">{t.team}</span>
-											</span>
-										</td>
-										<td class="stat">{t.played}</td>
-										<td class="stat">{t.won}</td>
-										<td class="stat">{t.drawn}</td>
-										<td class="stat">{t.lost}</td>
-										<td class="stat">{t.goalsFor}</td>
-										<td class="stat">{t.goalsAgainst}</td>
-										<td class="stat gd" class:pos={t.goalDifference >= 0} class:neg={t.goalDifference < 0}>
-											{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}
-										</td>
-										<td>{t.points}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
 					</div>
-					<div class="pn-stnd-legend">
-						<span><span class="pip green"></span>Advances (top 2)</span>
-						<span><span class="pip gold"></span>Best 3rd match</span>
-						<span><span class="pip grey"></span>Out</span>
-					</div>
-					</div><!-- /pn-stnd-col -->
 
 					<!-- Matches -->
-					<div class="pn-wiz-matches">
+					<div class="space-y-3">
 						{#each group.fixtures as f (f.id)}
 							{@const state = predictionState(f)}
 							<div
-								class="pn-mcard"
-								class:locked={state === 'locked'}
-								class:empty={state === 'empty'}
-								class:editing={editingFixtureId === f.id}
+								class="match-card {state === 'locked' ? 'locked' : ''} {editingFixtureId === f.id ? 'ring-2 ring-primary' : ''}"
 								on:focusin={() => handleMatchCardFocusIn(f.id, f.is_locked)}
 								on:focusout={handleMatchCardFocusOut}
 							>
-								{#if editingFixtureId === f.id}
-									<span class="editing-tag">Editing</span>
-								{/if}
-								<div class="meta">
-									<span>{new Date(f.kickoff).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(f.kickoff).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-								</div>
-								<div class="row">
-									<div class="team" title={f.home_team}>
-										<PnFlag code={teamCode(f.home_team)} w={28} h={20} />
-										<span class="nm">{teamCode(f.home_team)}</span>
+								<div class="text-xs text-base-content/40 mb-2">{fmtCard(f.kickoff)}{#if editingFixtureId === f.id} · <span class="text-primary">editing</span>{/if}</div>
+								<div class="flex items-center justify-between gap-2">
+									<div class="flex items-center gap-2 flex-1 min-w-0" title={f.home_team}>
+										{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
+										<span class="team-name">{teamCode(f.home_team)}</span>
 									</div>
-									<div class="pn-score">
-										<input
-											type="number"
-											class="pn-score-cell"
-											class:empty={state === 'empty'}
-											min="0"
-											max={MAX_GOALS}
-											inputmode="numeric"
-											disabled={f.is_locked}
-											value={scoreValue(f.id, 'home')}
-											on:input={(e) => {
-												clampScoreInput(e.currentTarget);
-												handleScoreInput(f.id, 'home', e.currentTarget.value);
-											}}
-											aria-label="{f.home_team} score"
-										/>
-										<span class="dash">–</span>
-										<input
-											type="number"
-											class="pn-score-cell"
-											class:empty={state === 'empty'}
-											min="0"
-											max={MAX_GOALS}
-											inputmode="numeric"
-											disabled={f.is_locked}
-											value={scoreValue(f.id, 'away')}
-											on:input={(e) => {
-												clampScoreInput(e.currentTarget);
-												handleScoreInput(f.id, 'away', e.currentTarget.value);
-											}}
-											aria-label="{f.away_team} score"
-										/>
+									<div class="flex items-center gap-1 shrink-0">
+										<input type="number" class="score-input" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'home')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'home', e.currentTarget.value); }} aria-label="{f.home_team} score" />
+										<span class="text-base-content/40">–</span>
+										<input type="number" class="score-input" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'away')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'away', e.currentTarget.value); }} aria-label="{f.away_team} score" />
 									</div>
-									<div class="team r" title={f.away_team}>
-										<PnFlag code={teamCode(f.away_team)} w={28} h={20} />
-										<span class="nm">{teamCode(f.away_team)}</span>
+									<div class="flex items-center gap-2 flex-1 min-w-0 justify-end" title={f.away_team}>
+										<span class="team-name">{teamCode(f.away_team)}</span>
+										{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
 									</div>
 								</div>
-								<div class="save-row">
-									{#if state === 'locked'}
-										<span class="save-tag locked">Locked</span>
-										<span>No edits</span>
-									{:else if state === 'draft'}
-										<span class="save-tag draft">Draft</span>
-										<span>Click Save Phase I to commit</span>
-									{:else if state === 'saved'}
-										<span class="save-tag saved">✓ Saved</span>
-										<span>Submitted</span>
-									{:else}
-										<span class="save-tag empty">— Empty</span>
-										<span>Enter a score to predict</span>
-									{/if}
+								<div class="flex items-center gap-2 mt-2 text-xs">
+									{#if state === 'locked'}<span class="badge badge-sm badge-ghost">Locked</span>
+									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40">Save to commit</span>
+									{:else if state === 'saved'}<span class="badge badge-sm badge-success">✓ Saved</span>
+									{:else}<span class="badge badge-sm badge-ghost">Empty</span><span class="text-base-content/40">Enter a score</span>{/if}
 								</div>
 							</div>
 						{/each}
 					</div>
-				</section>
+				</div>
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
-					{@const pct = phaseProgress.total > 0 ? Math.round((phaseProgress.done / phaseProgress.total) * 100) : 0}
-					<section class="pn-locked">
-						<div class="lock-icon">
-							<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-								<rect x="5" y="11" width="14" height="10" rx="1" fill="currentColor" />
-								<path d="M8 11V7a4 4 0 018 0v4" fill="none" />
-							</svg>
-						</div>
-						<h2>Knockout bracket <em>locked</em></h2>
-						<p class="l">
-							Predict every group-stage match before opening the bracket. The bracket uses your predicted group standings to seed the Round of 32 — it can't be filled in until those are settled.
-						</p>
-						<div class="lock-progress">
-							<div class="v">{phaseProgress.done}<span class="of">/{phaseProgress.total}</span></div>
-							<div class="label">matches predicted · {pct}%</div>
-							<div class="bar"><div class="bar-fill" style="width: {pct}%;"></div></div>
-						</div>
-						<button class="pn-btn gold" type="button" on:click={() => (activeSection = 'groups')}>← Back to Groups</button>
-					</section>
+					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
+						<div class="text-4xl mb-2">🔒</div>
+						<h2 class="text-2xl font-display tracking-wide mb-2">Knockout bracket locked</h2>
+						<p class="text-sm text-base-content/60 mb-4">Predict every group-stage match before opening the bracket. It seeds the Round of 32 from your predicted standings.</p>
+						<div class="font-display text-3xl tracking-wide">{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span></div>
+						<div class="text-xs text-base-content/50 mb-3">matches predicted · {phaseProgress.pct}%</div>
+						<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden mb-4"><div class="h-full bg-primary" style="width: {phaseProgress.pct}%;"></div></div>
+						<button class="btn btn-primary btn-sm" type="button" on:click={() => (activeSection = 'groups')}>← Back to Groups</button>
+					</div>
 				{:else}
-					<PnKnockoutBracket
+					<KnockoutBracket
 						bind:this={bracketComponent}
 						prediction={displayBracket}
 						groupStandings={standingsMap}
@@ -1271,9 +947,9 @@
 						phase="phase_1"
 						on:update={handleBracketUpdate}
 					/>
-					<div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 12px; margin-bottom: 22px;">
+					<div class="flex gap-3 justify-end mt-3">
 						{#if $hasUnsavedBracketChanges}
-							<button class="pn-btn gold" on:click={handleSaveBracket} disabled={bracketSaveStatus === 'saving'}>
+							<button class="btn btn-primary btn-sm" on:click={handleSaveBracket} disabled={bracketSaveStatus === 'saving'}>
 								{bracketSaveStatus === 'saving' ? 'Saving…' : bracketSaveStatus === 'saved' ? '✓ Saved' : 'Save bracket'}
 							</button>
 						{/if}
@@ -1282,242 +958,124 @@
 			{:else if activeSection === 'bonus'}
 				{#each Object.entries(bonusByCategory) as [cat, qs] (cat)}
 					{#if qs.length > 0}
-						<div class="pn-banner" style="margin-top: 18px;">
-							<span class="n">{cat === 'group_stage' ? '06' : cat === 'top_flop' ? '07' : '08'}</span>
-							<h2>{CATEGORY_LABEL[cat]}</h2>
-							<span class="end">{qs.length} question{qs.length === 1 ? '' : 's'}</span>
-						</div>
-						<section class="pn-bonus-row">
+						<h2 class="text-lg font-display tracking-wide mt-5 mb-3">{CATEGORY_LABEL[cat]} <span class="text-sm text-base-content/40">· {qs.length} question{qs.length === 1 ? '' : 's'}</span></h2>
+						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{#each qs as bq (bq.id)}
 								{@const answer = bonusAnswer(bq.id)}
-								<div class="pn-bonus">
-									<div class="l"><span class="pip"></span>{CATEGORY_LABEL[cat]}</div>
-									<div class="q">{bq.label}</div>
+								<div class="stadium-card no-glow p-4">
+									<div class="text-sm font-medium mb-2">{bq.label}</div>
 									{#if bq.input_type === 'team'}
-										<select
-											class="answer"
-											class:empty={!answer}
-											value={answer}
-											on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}
-											style="cursor: pointer;"
-										>
+										<select class="select select-bordered select-sm w-full" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
 											<option value="">— Select a team —</option>
-											{#each allTeams as t (t)}
-												<option value={t}>{t}</option>
-											{/each}
+											{#each allTeams as t (t)}<option value={t}>{t}</option>{/each}
 										</select>
 									{:else}
-										<input
-											type="text"
-											class="answer"
-											class:empty={!answer}
-											value={answer}
-											on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}
-											placeholder="Type a player name…"
-										/>
+										<input type="text" class="input input-bordered input-sm w-full" value={answer} on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)} placeholder="Type a player name…" />
 									{/if}
-									<div class="pts-pill">+{bq.points} pts</div>
+									<div class="text-xs text-accent mt-2">+{bq.points} pts</div>
 								</div>
 							{/each}
-						</section>
+						</div>
 					{/if}
 				{/each}
 
-				<div style="display: flex; justify-content: flex-end; gap: 10px; margin: 14px 0 22px; align-items: center;">
-					<span style="font-family: var(--mono); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--ink-3);">
-						{bonusAnswers.size} of {bonusQuestions.length} answered
-					</span>
-					<button
-						class="pn-btn gold"
-						on:click={handleSaveBonus}
-						disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}
-					>
-						{bonusSaveStatus === 'saving'
-							? 'Saving…'
-							: bonusSaveStatus === 'saved'
-								? '✓ Saved'
-								: bonusSaveStatus === 'error'
-									? '× Error — retry'
-									: 'Save bonus picks'}
+				<div class="flex justify-end items-center gap-3 mt-4">
+					<span class="text-xs text-base-content/50">{bonusAnswers.size} of {bonusQuestions.length} answered</span>
+					<button class="btn btn-primary btn-sm" on:click={handleSaveBonus} disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}>
+						{bonusSaveStatus === 'saving' ? 'Saving…' : bonusSaveStatus === 'saved' ? '✓ Saved' : bonusSaveStatus === 'error' ? '× Error — retry' : 'Save bonus picks'}
 					</button>
 				</div>
-				<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase;">
-					★ Bonus picks lock with Phase I · admin will reveal correct answers as the tournament resolves
-				</p>
+				<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Bonus picks lock with Phase I · admin reveals correct answers as the tournament resolves</p>
 			{/if}
 
-			<!-- Sticky save bar -->
-			<section class="pn-wiz-foot">
-				<div class="stats">
+			<!-- Save bar (Phase I) -->
+			<div class="sticky bottom-0 mt-6 -mx-4 px-4 py-3 bg-base-200/95 backdrop-blur-md border-t border-base-300 flex items-center gap-3 flex-wrap">
+				<div class="text-sm flex-1">
 					{#if $unsavedChangesCount === 0 && !$hasUnsavedBracketChanges}
 						All changes saved
 					{:else}
-						{#if $unsavedChangesCount > 0}
-							<b>{$unsavedChangesCount}</b> match {$unsavedChangesCount === 1 ? 'pick' : 'picks'} unsaved
-						{/if}
-						{#if $unsavedChangesCount > 0 && $hasUnsavedBracketChanges}
-							<span class="sep">·</span>
-						{/if}
-						{#if $hasUnsavedBracketChanges}
-							bracket has unsaved changes
-						{/if}
+						{#if $unsavedChangesCount > 0}<b>{$unsavedChangesCount}</b> match {$unsavedChangesCount === 1 ? 'pick' : 'picks'} unsaved{/if}
+						{#if $unsavedChangesCount > 0 && $hasUnsavedBracketChanges} · {/if}
+						{#if $hasUnsavedBracketChanges}bracket has unsaved changes{/if}
 					{/if}
 				</div>
-				{#if $lastLocalSave}
-					<span class="saved-tag">Saved locally · {formatLocalTime($lastLocalSave)}</span>
-				{/if}
-				<button
-					class="submit-btn"
-					class:success={saveStatus === 'saved'}
-					class:error={saveStatus === 'error'}
-					on:click={handleSaveAll}
-					disabled={!$hasUnsavedChanges || saveStatus === 'saving' || $matchPredictionsLoading}
-				>
-					{#if saveStatus === 'saving'}Saving…
-					{:else if saveStatus === 'saved'}✓ Saved
-					{:else if saveStatus === 'error'}× Error — retry
-					{:else}Save Phase I ({$unsavedChangesCount}){/if}
+				{#if $lastLocalSave}<span class="text-xs text-base-content/40">Saved locally · {formatLocalTime($lastLocalSave)}</span>{/if}
+				<button class="btn btn-primary {saveStatus === 'error' ? 'btn-error' : ''}" on:click={handleSaveAll} disabled={!$hasUnsavedChanges || saveStatus === 'saving' || $matchPredictionsLoading}>
+					{#if saveStatus === 'saving'}Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}× Error — retry{:else}Save Phase I ({$unsavedChangesCount}){/if}
 				</button>
-			</section>
+			</div>
 		{/if}
 
-		<!-- Phase 2 — Panini bracket + knockout match score cards -->
+		<!-- ============================== PHASE 2 ============================== -->
 		{#if activePhase === 'phase2'}
 			{#if $actualStandingsLoading}
-				<p style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; padding: 16px;">Loading Phase II data…</p>
+				<p class="text-sm text-base-content/50 p-4">Loading Phase II data…</p>
 			{:else}
-				<PnKnockoutBracket
+				<KnockoutBracket
 					bind:this={phase2BracketComponent}
 					prediction={phase2DisplayBracket}
 					groupStandings={$actualGroupStandingsMap}
 					locked={$isPhase2BracketLocked}
 					phase="phase_2"
-					hideR32
 					on:update={handlePhase2BracketUpdate}
 				/>
-				<div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 12px; margin-bottom: 22px;">
+				<div class="flex gap-3 justify-end mt-3 mb-5">
 					{#if $hasUnsavedPhase2BracketChanges}
-						<button class="pn-btn gold" on:click={handleSavePhase2Bracket} disabled={phase2BracketSaveStatus === 'saving'}>
+						<button class="btn btn-primary btn-sm" on:click={handleSavePhase2Bracket} disabled={phase2BracketSaveStatus === 'saving'}>
 							{phase2BracketSaveStatus === 'saving' ? 'Saving…' : phase2BracketSaveStatus === 'saved' ? '✓ Saved' : 'Save bracket'}
 						</button>
 					{/if}
 				</div>
 
 				<!-- Knockout fixture score predictions (Phase 2 only) -->
-				<section class="pn-wiz-group">
-					<h2 style="font-family: var(--display); font-size: 22px; text-transform: uppercase; margin: 0 0 12px;">
-						Knockout <em style="color: var(--red); font-style: normal;">scores</em>
-					</h2>
-					<div class="pn-wiz-matches">
-						{#each $actualKnockoutFixtures as f (f.id)}
-							{@const state = predictionState(f)}
-							<div
-								class="pn-mcard"
-								class:locked={state === 'locked'}
-								class:empty={state === 'empty'}
-								class:editing={editingFixtureId === f.id}
-								on:focusin={() => handleMatchCardFocusIn(f.id, f.is_locked)}
-								on:focusout={handleMatchCardFocusOut}
-							>
-								{#if editingFixtureId === f.id}
-									<span class="editing-tag">Editing</span>
-								{/if}
-								<div class="meta">
-									<span>{new Date(f.kickoff).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(f.kickoff).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+				<h2 class="text-lg font-display tracking-wide mb-3">Knockout <span class="text-primary">scores</span></h2>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+					{#each $actualKnockoutFixtures as f (f.id)}
+						{@const state = predictionState(f)}
+						<div
+							class="match-card {state === 'locked' ? 'locked' : ''} {editingFixtureId === f.id ? 'ring-2 ring-primary' : ''}"
+							on:focusin={() => handleMatchCardFocusIn(f.id, f.is_locked)}
+							on:focusout={handleMatchCardFocusOut}
+						>
+							<div class="text-xs text-base-content/40 mb-2">{fmtCard(f.kickoff)}</div>
+							<div class="flex items-center justify-between gap-2">
+								<div class="flex items-center gap-2 flex-1 min-w-0" title={f.home_team}>
+									{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
+									<span class="team-name">{teamCode(f.home_team)}</span>
 								</div>
-								<div class="row">
-									<div class="team" title={f.home_team}>
-										<PnFlag code={teamCode(f.home_team)} w={28} h={20} />
-										<span class="nm">{teamCode(f.home_team)}</span>
-									</div>
-									<div class="pn-score">
-										<input
-											type="number"
-											class="pn-score-cell"
-											class:empty={state === 'empty'}
-											min="0"
-											max={MAX_GOALS}
-											inputmode="numeric"
-											disabled={f.is_locked}
-											value={scoreValue(f.id, 'home')}
-											on:input={(e) => {
-												clampScoreInput(e.currentTarget);
-												handleScoreInput(f.id, 'home', e.currentTarget.value);
-											}}
-											aria-label="{f.home_team} score"
-										/>
-										<span class="dash">–</span>
-										<input
-											type="number"
-											class="pn-score-cell"
-											class:empty={state === 'empty'}
-											min="0"
-											max={MAX_GOALS}
-											inputmode="numeric"
-											disabled={f.is_locked}
-											value={scoreValue(f.id, 'away')}
-											on:input={(e) => {
-												clampScoreInput(e.currentTarget);
-												handleScoreInput(f.id, 'away', e.currentTarget.value);
-											}}
-											aria-label="{f.away_team} score"
-										/>
-									</div>
-									<div class="team r" title={f.away_team}>
-										<PnFlag code={teamCode(f.away_team)} w={28} h={20} />
-										<span class="nm">{teamCode(f.away_team)}</span>
-									</div>
+								<div class="flex items-center gap-1 shrink-0">
+									<input type="number" class="score-input" min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'home')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'home', e.currentTarget.value); }} aria-label="{f.home_team} score" />
+									<span class="text-base-content/40">–</span>
+									<input type="number" class="score-input" min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'away')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'away', e.currentTarget.value); }} aria-label="{f.away_team} score" />
 								</div>
-								<div class="save-row">
-									{#if state === 'locked'}
-										<span class="save-tag locked">Locked</span>
-										<span>No edits</span>
-									{:else if state === 'draft'}
-										<span class="save-tag draft">Draft</span>
-										<span>Save below to commit</span>
-									{:else if state === 'saved'}
-										<span class="save-tag saved">✓ Saved</span>
-										<span>Submitted</span>
-									{:else}
-										<span class="save-tag empty">— Empty</span>
-										<span>Enter a score to predict</span>
-									{/if}
+								<div class="flex items-center gap-2 flex-1 min-w-0 justify-end" title={f.away_team}>
+									<span class="team-name">{teamCode(f.away_team)}</span>
+									{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
 								</div>
 							</div>
-						{:else}
-							<div style="padding: 16px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em;">
-								No knockout fixtures yet — Phase II starts once groups conclude.
+							<div class="flex items-center gap-2 mt-2 text-xs">
+								{#if state === 'locked'}<span class="badge badge-sm badge-ghost">Locked</span>
+								{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span>
+								{:else if state === 'saved'}<span class="badge badge-sm badge-success">✓ Saved</span>
+								{:else}<span class="badge badge-sm badge-ghost">Empty</span>{/if}
 							</div>
-						{/each}
-					</div>
-				</section>
-			{/if}
-
-			<!-- Sticky save bar for phase 2 match score picks -->
-			<section class="pn-wiz-foot">
-				<div class="stats">
-					{#if $unsavedChangesCount === 0}
-						All changes saved
+						</div>
 					{:else}
-						<b>{$unsavedChangesCount}</b> match {$unsavedChangesCount === 1 ? 'pick' : 'picks'} unsaved
-					{/if}
+						<p class="text-sm text-base-content/40 p-4">No knockout fixtures yet — Phase II starts once groups conclude.</p>
+					{/each}
 				</div>
-				{#if $lastLocalSave}
-					<span class="saved-tag">Saved locally · {formatLocalTime($lastLocalSave)}</span>
-				{/if}
-				<button
-					class="submit-btn"
-					class:success={saveStatus === 'saved'}
-					class:error={saveStatus === 'error'}
-					on:click={handleSaveAll}
-					disabled={!$hasUnsavedChanges || saveStatus === 'saving' || $matchPredictionsLoading}
-				>
-					{#if saveStatus === 'saving'}Saving…
-					{:else if saveStatus === 'saved'}✓ Saved
-					{:else if saveStatus === 'error'}× Error — retry
-					{:else}Save Phase II ({$unsavedChangesCount}){/if}
-				</button>
-			</section>
+
+				<!-- Save bar (Phase II) -->
+				<div class="sticky bottom-0 mt-6 -mx-4 px-4 py-3 bg-base-200/95 backdrop-blur-md border-t border-base-300 flex items-center gap-3 flex-wrap">
+					<div class="text-sm flex-1">
+						{#if $unsavedChangesCount === 0}All changes saved{:else}<b>{$unsavedChangesCount}</b> match {$unsavedChangesCount === 1 ? 'pick' : 'picks'} unsaved{/if}
+					</div>
+					{#if $lastLocalSave}<span class="text-xs text-base-content/40">Saved locally · {formatLocalTime($lastLocalSave)}</span>{/if}
+					<button class="btn btn-primary {saveStatus === 'error' ? 'btn-error' : ''}" on:click={handleSaveAll} disabled={!$hasUnsavedChanges || saveStatus === 'saving' || $matchPredictionsLoading}>
+						{#if saveStatus === 'saving'}Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}× Error — retry{:else}Save Phase II ({$unsavedChangesCount}){/if}
+					</button>
+				</div>
+			{/if}
 		{/if}
-	</PnPageShell>
+	</div>
 {/if}
