@@ -11,6 +11,14 @@
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet" />
 		<title>Predictor v2</title>
+		<script>
+			// Apply persisted theme synchronously to prevent FOUC.
+			// Mirrors DEFAULT_THEME and STORAGE_KEY in lib/stores/theme.ts.
+			try {
+				var t = localStorage.getItem('predictor:theme');
+				if (t) document.documentElement.setAttribute('data-theme', t);
+			} catch (e) {}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

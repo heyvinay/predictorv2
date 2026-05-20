@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { fetchPhaseStatus } from '$stores/phase';
+	import { theme, THEMES } from '$stores/theme';
 
 	let hasLoadedPhase = false;
 
@@ -97,6 +98,34 @@
 								</svg>
 								Profile
 							</a>
+						</li>
+						<li>
+							<details>
+								<summary class="rounded-lg">
+									<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+									</svg>
+									Theme
+									<span class="ml-auto text-xs opacity-60 capitalize">{$theme}</span>
+								</summary>
+								<ul class="max-h-64 overflow-y-auto flex-nowrap">
+									{#each THEMES as t}
+										<li>
+											<label class="cursor-pointer flex items-center gap-2 rounded-lg">
+												<input
+													type="radio"
+													name="theme-dropdown"
+													class="theme-controller radio radio-xs radio-primary"
+													value={t}
+													checked={$theme === t}
+													on:change={() => theme.set(t)}
+												/>
+												<span class="capitalize">{t}</span>
+											</label>
+										</li>
+									{/each}
+								</ul>
+							</details>
 						</li>
 						<li>
 							<button on:click={logout} class="rounded-lg text-error hover:bg-error/10">
