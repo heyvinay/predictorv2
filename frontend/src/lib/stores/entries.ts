@@ -34,23 +34,23 @@ export const activeEntry = derived(
 	([$entries, $id]) => $entries.find((e) => e.id === $id) ?? null
 );
 
-/** Entries the user can still edit (draft) or has prepared (ready). */
+/** Entries still in DRAFT (user can edit). */
 export const editableEntries = derived(entries, ($entries) =>
 	$entries.filter(
 		(e) =>
 			!e.is_disabled &&
 			!e.withdrawn_at &&
-			e.phases.some((p) => p.status === 'draft' || p.status === 'ready')
+			e.phases.some((p) => p.status === 'draft')
 	)
 );
 
-/** Entries that are submitted or locked — count toward the leaderboard. */
+/** Entries that are SUBMITTED — qualify for scoring + leaderboard. */
 export const submittedEntries = derived(entries, ($entries) =>
 	$entries.filter(
 		(e) =>
 			!e.is_disabled &&
 			!e.withdrawn_at &&
-			e.phases.some((p) => p.status === 'submitted' || p.status === 'locked')
+			e.phases.some((p) => p.status === 'submitted')
 	)
 );
 

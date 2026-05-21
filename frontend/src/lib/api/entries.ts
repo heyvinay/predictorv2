@@ -1,9 +1,10 @@
 /**
  * Prediction-entry API client.
  *
- * Mirrors `backend/app/api/entries.py` user_router (mounted at `/api/entries`).
- * Admin endpoints under `/api/admin/...` are NOT included here — those
- * arrive in Task F.
+ * Mirrors `backend/app/api/entries.py` after the lifecycle simplification.
+ * User endpoints live under `/api/entries`; admin endpoints (withdraw,
+ * reinstate, disable/enable, paid/prize toggles) live under
+ * `/api/admin/entries/{id}/...` and are called from the admin UI.
  */
 
 import { api } from './client';
@@ -12,9 +13,9 @@ import type {
 	EntrySettings,
 	EntryCreate,
 	EntryRename,
-	EntryWithdraw
+	EntryWithdraw,
+	EntryReinstate
 } from '$lib/types/entry';
-import type { PredictionPhase } from '$types';
 
 export async function listEntries(): Promise<Entry[]> {
 	return api.get<Entry[]>('/entries');
@@ -43,30 +44,28 @@ export async function duplicateEntry(entryId: string): Promise<Entry> {
 	return api.post<Entry>(`/entries/${entryId}/duplicate`);
 }
 
-export async function markPhaseReady(
-	entryId: string,
-	phase: PredictionPhase
-): Promise<Entry> {
-	return api.post<Entry>(`/entries/${entryId}/phases/${phase}/ready`);
+/** DRAFT → SUBMITTED. Visible only when canSubmit() returns true. */
+export async function submitEntry(entryId: string): Promise<Entry> {
+	return api.post<Entry>(`/entries/${entryId}/submit`);
 }
 
-export async function submitPhase(
-	entryId: string,
-	phase: PredictionPhase
-): Promise<Entry> {
-	return api.post<Entry>(`/entries/${entryId}/phases/${phase}/submit`);
+/** SUBMITTED → DRAFT. Allowed only before competition.phase1_deadline. */
+export async function editEntry(entryId: string): Promise<Entry> {
+	return api.post<Entry>(`/entries/${entryId}/edit`);
 }
 
-export async function reopenPhase(
+// ---- Admin-only endpoints (called from the admin entries table) ----
+
+export async function adminWithdrawEntry(
 	entryId: string,
-	phase: PredictionPhase
+	payload: EntryWithdraw
 ): Promise<Entry> {
-	return api.post<Entry>(`/entries/${entryId}/phases/${phase}/reopen`);
+	return api.post<Entry>(`/admin/entries/${entryId}/withdraw`, payload);
 }
 
-export async function withdrawEntry(
+export async function adminReinstateEntry(
 	entryId: string,
-	payload: EntryWithdraw = {}
+	payload: EntryReinstate
 ): Promise<Entry> {
-	return api.post<Entry>(`/entries/${entryId}/withdraw`, payload);
+	return api.post<Entry>(`/admin/entries/${entryId}/reinstate`, payload);
 }

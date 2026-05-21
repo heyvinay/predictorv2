@@ -1,22 +1,16 @@
 /**
  * Prediction-entry types — mirrors `backend/app/schemas/entry.py` and
- * `backend/app/models/entry.py`.
+ * `backend/app/models/entry.py` after the lifecycle simplification.
  *
- * The backend uses per-phase status: each entry carries an array of
- * `EntryPhase` rows (one per `PredictionPhase`) with its own status +
- * timestamps. There is no single top-level "entry status" — display
- * status is computed via {@link computeDisplayStatus}.
+ * Three-status model: DRAFT, SUBMITTED, WITHDRAWN. Per-phase rows still
+ * exist on the backend (Phase 2 dormant for future revival), but the UI
+ * surface treats every entry as a single object with one status — the
+ * Phase 1 row's status.
  */
 
 import type { PredictionPhase } from './index';
 
-export type EntryStatus =
-	| 'draft'
-	| 'ready'
-	| 'submitted'
-	| 'locked'
-	| 'withdrawn'
-	| 'disabled';
+export type EntryStatus = 'draft' | 'submitted' | 'withdrawn';
 
 export type PaymentMode = 'per_entry' | 'per_user';
 
@@ -54,13 +48,10 @@ export interface EntrySettings {
 	auto_create_first_entry: boolean;
 	allow_duplicate_from_existing: boolean;
 	allow_user_rename: boolean;
-	allow_user_withdrawal: boolean;
-	require_ready_before_submit: boolean;
 	payment_mode: PaymentMode;
 	block_unpaid_entry_submission: boolean;
 	show_entry_reference_publicly: boolean;
 	phase_scoped_status_enabled: boolean;
-	bonus_questions_required_for_ready: boolean;
 }
 
 export interface EntryCreate {
@@ -72,34 +63,37 @@ export interface EntryRename {
 }
 
 export interface EntryWithdraw {
-	reason?: string;
+	reason: string;
+}
+
+export interface EntryReinstate {
+	reason: string;
 }
 
 /**
  * Compute the entry-level status the UI should display.
  *
  * Order of precedence:
- *   1. `disabled`   — admin overlay; trumps everything.
- *   2. `withdrawn`  — user-initiated permanent exit.
- *   3. The active phase's status (`draft` / `ready` / `submitted` / `locked`).
+ *   1. `withdrawn` — set by admin or by the system at competition start.
+ *   2. The Phase 1 row's status (`draft` / `submitted`).
  *
- * Falls back to `draft` if no phase row exists for `phase` (defensive —
- * the backend always seeds both phase rows on entry creation).
+ * `is_disabled` is an orthogonal admin overlay (chargebacks, suspicious
+ * entries). It does not replace the status badge — UI can render it as
+ * an additional "Suspended" pill on top of the status if desired.
  */
 export function computeDisplayStatus(
 	entry: Entry,
 	phase: PredictionPhase
 ): EntryStatus {
-	if (entry.is_disabled) return 'disabled';
 	if (entry.withdrawn_at) return 'withdrawn';
 	const row = entry.phases.find((p) => p.phase === phase);
 	return row?.status ?? 'draft';
 }
 
 /**
- * True when an entry can be edited in `phase` (score inputs unlocked,
- * "Save draft" / "Mark ready" affordances visible). Mirrors the wizard's
- * status-driven gating.
+ * True when an entry can be edited (score inputs unlocked, "Submit"
+ * affordance visible). Edit is only allowed on `draft` entries that
+ * haven't crossed the competition deadline.
  */
 export function isPhaseEditable(entry: Entry, phase: PredictionPhase): boolean {
 	const status = computeDisplayStatus(entry, phase);
@@ -107,55 +101,44 @@ export function isPhaseEditable(entry: Entry, phase: PredictionPhase): boolean {
 }
 
 /**
- * Lifecycle button visibility helpers for the wizard hero.
+ * Lifecycle button visibility helpers.
  *
- * Each predicate answers a single yes/no question — "should this button
- * render right now?". Separating them from {@link computeDisplayStatus}
- * keeps the wizard template readable and gives vitest pure functions to
- * exercise the state machine without rendering Svelte.
+ * - **Submit** — visible on DRAFT entries, before the competition deadline.
+ * - **Edit**   — visible on SUBMITTED entries, before the competition deadline.
  *
- * Definitions:
- * - **Mark Ready** — visible only on draft phases that are still open
- *   (phase not server-side locked).
- * - **Submit** — visible on `ready` (the canonical path) and on `draft`
- *   when the competition has `require_ready_before_submit = false`
- *   (a direct draft → submitted shortcut, allowed by the brief).
- * - **Reopen** — visible on submitted phases, only while the phase is
- *   not yet locked. After lock the entry is terminally frozen.
- * - **Withdraw entry** — visible whenever the entry is active (not
- *   disabled, not already withdrawn) AND the competition setting
- *   `allow_user_withdrawal` is on.
+ * Both predicates take the competition's `phase1_deadline` so the UI can
+ * compute "is the deadline still in the future?" without hitting the
+ * server again. Pass `null` if no deadline is set (admin not yet
+ * configured) — both buttons are then allowed.
+ *
+ * Admin-only actions (withdraw, reinstate) are not exposed via these
+ * helpers — they're only ever rendered from the admin entries table.
  */
-export function canMarkReady(entry: Entry, phase: PredictionPhase): boolean {
-	if (entry.is_disabled || entry.withdrawn_at) return false;
-	const row = entry.phases.find((p) => p.phase === phase);
-	if (!row) return false;
-	return row.status === 'draft';
-}
-
 export function canSubmit(
 	entry: Entry,
 	phase: PredictionPhase,
-	requireReadyBeforeSubmit: boolean
+	phase1Deadline: string | null
 ): boolean {
 	if (entry.is_disabled || entry.withdrawn_at) return false;
 	const row = entry.phases.find((p) => p.phase === phase);
 	if (!row) return false;
-	if (row.status === 'ready') return true;
-	if (row.status === 'draft' && !requireReadyBeforeSubmit) return true;
-	return false;
+	if (row.status !== 'draft') return false;
+	return _isBeforeDeadline(phase1Deadline);
 }
 
-export function canReopen(entry: Entry, phase: PredictionPhase): boolean {
+export function canEdit(
+	entry: Entry,
+	phase: PredictionPhase,
+	phase1Deadline: string | null
+): boolean {
 	if (entry.is_disabled || entry.withdrawn_at) return false;
 	const row = entry.phases.find((p) => p.phase === phase);
 	if (!row) return false;
-	return row.status === 'submitted';
+	if (row.status !== 'submitted') return false;
+	return _isBeforeDeadline(phase1Deadline);
 }
 
-export function canWithdraw(entry: Entry, allowUserWithdrawal: boolean): boolean {
-	if (!allowUserWithdrawal) return false;
-	if (entry.is_disabled) return false;
-	if (entry.withdrawn_at) return false;
-	return true;
+function _isBeforeDeadline(deadline: string | null): boolean {
+	if (!deadline) return true; // no deadline configured → editing allowed.
+	return new Date(deadline).getTime() > Date.now();
 }

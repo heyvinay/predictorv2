@@ -41,14 +41,10 @@
 	function badgeClass(status: EntryStatus): string {
 		switch (status) {
 			case 'submitted':
-			case 'locked':
 				return 'badge-success';
-			case 'ready':
-				return 'badge-warning';
-			case 'disabled':
-				return 'badge-error';
 			case 'withdrawn':
-				return 'badge-ghost';
+				return 'badge-error';
+			case 'draft':
 			default:
 				return 'badge-ghost';
 		}
