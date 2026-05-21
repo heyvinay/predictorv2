@@ -1020,7 +1020,7 @@
 					<div class="flex gap-4 text-xs text-base-content/50 mt-3">
 						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-success rounded"></span>Advances (top 2)</span>
 						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-warning rounded"></span>Best 3rd</span>
-						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-base-content/20 rounded"></span>Out</span>
+						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-error rounded"></span>Out</span>
 					</div>
 				</section>
 

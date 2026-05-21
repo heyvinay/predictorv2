@@ -420,12 +420,14 @@
 		width: 3rem;
 	}
 	.standing-row-v2.pos-advance .rank-cell::before,
-	.standing-row-v2.pos-thirdplace .rank-cell::before {
+	.standing-row-v2.pos-thirdplace .rank-cell::before,
+	.standing-row-v2.pos-out .rank-cell::before {
 		content: '';
 		@apply absolute left-0 top-2 bottom-2 w-[3px] rounded;
 	}
 	.standing-row-v2.pos-advance .rank-cell::before { @apply bg-success; }
 	.standing-row-v2.pos-thirdplace .rank-cell::before { @apply bg-warning; }
+	.standing-row-v2.pos-out .rank-cell::before { @apply bg-error; }
 
 	/* Team cell — explicit left-align + a block-level flex DIV inside.
 	   Inline-flex spans don't fill cell width, so their position depends
@@ -453,6 +455,7 @@
 	}
 	.rank-pill.pos-advance { @apply bg-success/15 text-success border-success/30; }
 	.rank-pill.pos-thirdplace { @apply bg-warning/15 text-warning border-warning/30; }
+	.rank-pill.pos-out { @apply bg-error/15 text-error border-error/30; }
 
 	.pts-badge {
 		@apply inline-flex items-center justify-center min-w-[32px] h-8 px-2 rounded-md;
