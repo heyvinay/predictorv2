@@ -939,7 +939,7 @@
 										<td class="text-center text-xs">{t.group}</td>
 										<td>
 											<span class="flex items-center gap-2">
-												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
+												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="team-flag" />{/if}
 												<span class="team-name-table">{t.team}</span>
 											</span>
 										</td>
@@ -997,12 +997,12 @@
 								{#each standings as t, i (t.team)}
 									{@const pos = i < 2 ? 'advance' : i === 2 ? 'thirdplace' : 'out'}
 									<tr class="standing-row-v2 pos-{pos}">
-										<td class="pl-4"><span class="rank-pill pos-{pos}">{i + 1}</span></td>
-										<td>
-											<span class="inline-flex items-center gap-2.5">
-												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />{/if}
-												<span class="font-medium">{t.team}</span>
-											</span>
+										<td class="rank-cell"><span class="rank-pill pos-{pos}">{i + 1}</span></td>
+										<td class="team-cell">
+											<div class="team-content">
+												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="team-flag" />{/if}
+												<span class="team-name">{t.team}</span>
+											</div>
 										</td>
 										<td class="num">{t.played}</td>
 										<td class="num"><span class={t.won > 0 ? 'text-success' : 'text-base-content/40'}>{t.won}</span></td>

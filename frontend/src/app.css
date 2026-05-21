@@ -411,14 +411,39 @@
 		@apply text-center font-medium tabular-nums;
 	}
 
-	/* Thin left vertical position bar */
-	.standing-row-v2.pos-advance::before,
-	.standing-row-v2.pos-thirdplace::before {
+	/* Rank cell hosts the position bar (::before on td is more reliable
+	   across browsers than ::before on tr, which doesn't always honour
+	   position:relative). The bar sits at the left edge of the cell,
+	   below the rank pill in z-order so nothing visually overlaps. */
+	.standing-row-v2 .rank-cell {
+		@apply pl-4 relative;
+		width: 3rem;
+	}
+	.standing-row-v2.pos-advance .rank-cell::before,
+	.standing-row-v2.pos-thirdplace .rank-cell::before {
 		content: '';
 		@apply absolute left-0 top-2 bottom-2 w-[3px] rounded;
 	}
-	.standing-row-v2.pos-advance::before { @apply bg-success; }
-	.standing-row-v2.pos-thirdplace::before { @apply bg-warning; }
+	.standing-row-v2.pos-advance .rank-cell::before { @apply bg-success; }
+	.standing-row-v2.pos-thirdplace .rank-cell::before { @apply bg-warning; }
+
+	/* Team cell — explicit left-align + a block-level flex DIV inside.
+	   Inline-flex spans don't fill cell width, so their position depends
+	   on the cell's text-align (inherited from anywhere). A flex div
+	   fills the cell and anchors content at the left for every row,
+	   regardless of how wide the column auto-sized to. */
+	.standing-row-v2 .team-cell {
+		text-align: left;
+	}
+	.standing-row-v2 .team-cell .team-content {
+		@apply flex items-center gap-2.5;
+	}
+	.standing-row-v2 .team-cell .team-flag {
+		@apply w-5 h-auto rounded-sm shrink-0;
+	}
+	.standing-row-v2 .team-cell .team-name {
+		@apply font-medium;
+	}
 
 	.rank-pill {
 		@apply inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold;
