@@ -109,8 +109,8 @@ export default {
 					'info-content': '#F8FAFC',
 					'success': '#059669',           // Mint Success Green — saved states, positive trends
 					'success-content': '#F8FAFC',
-					'warning': '#F59E0B',           // Amber — classic broadcast warning
-					'warning-content': '#0B1329',
+					'warning': '#D97706',           // Amber-600 — deeper, executive-sports warning
+					'warning-content': '#F8FAFC',
 					'error': '#B91C1C',             // Wine red — sharp but restrained
 					'error-content': '#F8FAFC',
 				}

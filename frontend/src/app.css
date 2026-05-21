@@ -896,6 +896,48 @@
 	[data-theme="premium"] .group-mini-pill.is-complete .progress-fill {
 		background-color: rgba(var(--premium-mint) / 1);
 	}
+
+	/* ----- Top navbar — midnight navy executive chrome ----- */
+	[data-theme="premium"] .navbar {
+		background-color: rgba(var(--premium-navy) / 1);
+		border-bottom-color: rgba(var(--premium-gold) / 0.25);
+		color: rgba(var(--premium-ice) / 0.85);
+	}
+	/* Brand mark "PREDICTOR" — already gold via .nav-brand → primary,
+	   reads beautifully on navy. No override needed here. */
+
+	/* Desktop nav-center list items — ice-white text on the navy bar. */
+	[data-theme="premium"] .navbar-center > ul > li > a {
+		color: rgba(var(--premium-ice) / 0.75);
+		transition: color 180ms ease, background-color 180ms ease;
+	}
+	[data-theme="premium"] .navbar-center > ul > li > a:hover {
+		color: rgba(var(--premium-ice) / 1);
+		background-color: rgba(var(--premium-ice) / 0.08) !important;
+	}
+	/* Active link is `text-primary` in the markup — gold on navy is
+	   the correct premium read; no override needed. */
+
+	/* Avatar button hover (ghost) — keep the bg subtle on navy. */
+	[data-theme="premium"] .navbar .btn-ghost:hover {
+		background-color: rgba(var(--premium-ice) / 0.08);
+	}
+
+	/* Dropdown popover below the avatar lives on its own bg-base-200
+	   (slate-100) surface — text inside reverts to base-content (navy).
+	   No special handling needed. */
+
+	/* ----- "Bold and prominent" team titles (spec §6) -----
+	   Standings team names go from font-medium (500) to Manrope 700.
+	   Match-card team labels go from font-semibold (600) to Manrope 700.
+	   Lighter weight on other themes is preserved (these rules are
+	   scoped to [data-theme="premium"]). */
+	[data-theme="premium"] .standing-row-v2 .team-cell .team-name,
+	[data-theme="premium"] .team-block .team-label {
+		font-family: 'Manrope', system-ui, sans-serif;
+		font-weight: 700;
+		letter-spacing: 0.005em;
+	}
 }
 
 /* Hide number input spinners globally */
