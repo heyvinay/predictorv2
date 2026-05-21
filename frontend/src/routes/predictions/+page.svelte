@@ -32,12 +32,7 @@
 		entrySettings
 	} from '$stores/entries';
 	import * as entriesApi from '$api/entries';
-	import {
-		canMarkReady,
-		canSubmit,
-		canReopen,
-		canWithdraw
-	} from '$lib/types/entry';
+	import { canSubmit, canEdit } from '$lib/types/entry';
 	import {
 		fetchGroupFixtures,
 		groupFixtures,
@@ -52,7 +47,8 @@
 		isPhase2BracketLocked,
 		isPhase1Locked,
 		phase1Countdown,
-		phase2Countdown
+		phase2Countdown,
+		phase1Deadline
 	} from '$stores/phase';
 	import { applyFifaTiebreakers, computeGroupStandingsMapWithWarnings } from '$lib/utils/standings';
 	import {
@@ -72,13 +68,17 @@
 		goto('/login');
 	}
 
-	// Phase + pill selection state
-	let activePhase: 'phase1' | 'phase2' = 'phase1';
-	let initialPhaseSet = false;
-	$: if (!initialPhaseSet && $isPhase2Active !== undefined) {
-		activePhase = $isPhase2Active ? 'phase2' : 'phase1';
-		initialPhaseSet = true;
-	}
+	// Phase + pill selection state. Phase 2 is dormant in the simplified
+	// lifecycle — the wizard always operates on Phase 1. The `activePhase`
+	// variable stays so the Phase 2 conditional branches in the markup
+	// dead-code at runtime without a structural rewrite (preserves the
+	// Phase 2 surface for a future revival per plan i-want-to-simplify-
+	// bright-wolf.md).
+	// Typed as string (not literal) so TypeScript doesn't narrow the
+	// Phase 2 conditional branches to never-true. The Phase I/II toggle
+	// markup is preserved as dead code (gated on $isPhase2Active which
+	// stays false while Phase 2 is dormant).
+	let activePhase: string = 'phase1';
 
 	// Section toggle controls the outer mode (Groups / Knockout / Bonus).
 	type Section = 'groups' | 'knockout' | 'bonus';
@@ -218,53 +218,34 @@
 	}
 
 	// ---- Entry-lifecycle handlers (Mark Ready / Submit / Reopen / Withdraw)
-	let lifecycleBusy: false | 'ready' | 'submit' | 'reopen' | 'withdraw' = false;
+	let lifecycleBusy: false | 'submit' | 'edit' = false;
 	let lifecycleError: string | null = null;
 
 	$: currentPhaseEnum = (activePhase === 'phase2' ? 'phase_2' : 'phase_1') as
 		import('$types').PredictionPhase;
 
-	$: readyVisible = !!$activeEntry && canMarkReady($activeEntry, currentPhaseEnum);
+	// Pull the competition's phase1_deadline from the phase store so the
+	// Submit / Edit buttons hide once the competition has started.
 	$: submitVisible =
 		!!$activeEntry &&
-		canSubmit(
-			$activeEntry,
-			currentPhaseEnum,
-			$entrySettings?.require_ready_before_submit ?? true
-		);
-	$: reopenVisible = !!$activeEntry && canReopen($activeEntry, currentPhaseEnum);
-	$: withdrawVisible =
+		canSubmit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null);
+	$: editVisible =
 		!!$activeEntry &&
-		canWithdraw($activeEntry, $entrySettings?.allow_user_withdrawal ?? false);
-
-	async function handleMarkReady(): Promise<void> {
-		const current = $activeEntry;
-		if (!current) return;
-		lifecycleBusy = 'ready';
-		lifecycleError = null;
-		try {
-			await entriesApi.markPhaseReady(current.id, currentPhaseEnum);
-			await refreshEntries();
-		} catch (e) {
-			lifecycleError = e instanceof Error ? e.message : 'Failed to mark ready';
-		} finally {
-			lifecycleBusy = false;
-		}
-	}
+		canEdit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null);
 
 	async function handleSubmit(): Promise<void> {
 		const current = $activeEntry;
 		if (!current) return;
 		const ok = window.confirm(
-			`Submit ${currentPhaseEnum === 'phase_1' ? 'Phase I' : 'Phase II'} for ` +
-				`"${current.display_name}"? Once submitted you can reopen the phase ` +
-				'as long as the competition deadline has not passed.'
+			`Submit "${current.display_name}"? Your predictions become official and ` +
+				'qualify for scoring. You can still click "Edit" to revert to draft ' +
+				'until the competition starts — after that, the entry is locked.'
 		);
 		if (!ok) return;
 		lifecycleBusy = 'submit';
 		lifecycleError = null;
 		try {
-			await entriesApi.submitPhase(current.id, currentPhaseEnum);
+			await entriesApi.submitEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
 			lifecycleError = e instanceof Error ? e.message : 'Failed to submit';
@@ -273,38 +254,22 @@
 		}
 	}
 
-	async function handleReopen(): Promise<void> {
+	async function handleEdit(): Promise<void> {
 		const current = $activeEntry;
 		if (!current) return;
-		lifecycleBusy = 'reopen';
-		lifecycleError = null;
-		try {
-			await entriesApi.reopenPhase(current.id, currentPhaseEnum);
-			await refreshEntries();
-		} catch (e) {
-			lifecycleError = e instanceof Error ? e.message : 'Failed to reopen';
-		} finally {
-			lifecycleBusy = false;
-		}
-	}
-
-	async function handleWithdraw(): Promise<void> {
-		const current = $activeEntry;
-		if (!current) return;
-		const reason = window.prompt(
-			`Withdraw "${current.display_name}"? This is permanent — the entry ` +
-				'stops scoring, drops from the leaderboard, and cannot be undone. ' +
-				'Optional reason (leave blank to skip):',
-			''
+		const ok = window.confirm(
+			`Revert "${current.display_name}" to draft? Your predictions stay as ` +
+				"they are — you'll just need to click Submit again before the " +
+				'competition starts for them to qualify.'
 		);
-		if (reason === null) return;
-		lifecycleBusy = 'withdraw';
+		if (!ok) return;
+		lifecycleBusy = 'edit';
 		lifecycleError = null;
 		try {
-			await entriesApi.withdrawEntry(current.id, reason ? { reason } : {});
+			await entriesApi.editEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
-			lifecycleError = e instanceof Error ? e.message : 'Failed to withdraw';
+			lifecycleError = e instanceof Error ? e.message : 'Failed to revert to draft';
 		} finally {
 			lifecycleBusy = false;
 		}
@@ -751,7 +716,7 @@
 			<div class="flex items-start justify-between flex-wrap gap-4">
 				<div>
 					<p class="text-xs uppercase tracking-wider text-base-content/50">
-						{activePhase === 'phase1' ? 'Phase I · Group Stage' : 'Phase II · Knockout'}
+						Group Stage · Knockout · Bonus
 					</p>
 					<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Predict</h1>
 				</div>
@@ -792,24 +757,14 @@
 				{#if lifecycleError}
 					<span class="text-error text-xs">{lifecycleError}</span>
 				{/if}
-				{#if readyVisible}
-					<button class="btn btn-sm btn-warning" type="button" on:click={handleMarkReady} disabled={lifecycleBusy !== false}>
-						{lifecycleBusy === 'ready' ? 'Marking…' : 'Mark Ready'}
-					</button>
-				{/if}
 				{#if submitVisible}
 					<button class="btn btn-sm btn-primary" type="button" on:click={handleSubmit} disabled={lifecycleBusy !== false}>
 						{lifecycleBusy === 'submit' ? 'Submitting…' : 'Submit'}
 					</button>
 				{/if}
-				{#if reopenVisible}
-					<button class="btn btn-sm btn-outline" type="button" on:click={handleReopen} disabled={lifecycleBusy !== false}>
-						{lifecycleBusy === 'reopen' ? 'Reopening…' : 'Reopen'}
-					</button>
-				{/if}
-				{#if withdrawVisible}
-					<button class="btn btn-sm btn-outline btn-error" type="button" on:click={handleWithdraw} disabled={lifecycleBusy !== false} title="Withdraw permanently">
-						{lifecycleBusy === 'withdraw' ? 'Withdrawing…' : 'Withdraw…'}
+				{#if editVisible}
+					<button class="btn btn-sm btn-outline" type="button" on:click={handleEdit} disabled={lifecycleBusy !== false} title="Revert to draft so you can change your picks">
+						{lifecycleBusy === 'edit' ? 'Reverting…' : 'Edit'}
 					</button>
 				{/if}
 			</div>
