@@ -64,6 +64,7 @@
 	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
 	import EntrySelector from '$components/EntrySelector.svelte';
 	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
+	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -730,6 +731,11 @@
 					</div>
 					<SheetStatusDots />
 				</div>
+			</div>
+
+			<!-- Live countdown badge (DDd HH:MM:SS; hides past deadline; red <6h) -->
+			<div class="mt-3">
+				<CountdownTimer deadline={$phase1Deadline} />
 			</div>
 
 			<!-- Progress bar -->
