@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import get_settings
+from app.services.entries import flip_drafts_past_deadline
 from app.services.score_sync import has_active_or_imminent_match, sync_scores_once
 from app.services.snapshots import take_daily_snapshots
 
@@ -56,6 +57,20 @@ async def _run_one_tick(session_factory: async_sessionmaker[AsyncSession]) -> No
             await take_daily_snapshots(session)
         except Exception:  # noqa: BLE001
             logger.exception("score_scheduler: snapshot tick failed")
+
+        # Auto-withdraw any DRAFT entries past competition.phase1_deadline.
+        # Idempotent — re-runs are no-ops once all drafts have flipped.
+        try:
+            flipped = await flip_drafts_past_deadline(session)
+            if flipped:
+                await session.commit()
+                logger.info(
+                    "score_scheduler tick: auto-withdrew %d draft entries past deadline",
+                    flipped,
+                )
+        except Exception:  # noqa: BLE001
+            await session.rollback()
+            logger.exception("score_scheduler: auto-withdraw tick failed")
 
         if not await has_active_or_imminent_match(session):
             return
