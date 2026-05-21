@@ -63,6 +63,7 @@
 
 	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
 	import EntrySelector from '$components/EntrySelector.svelte';
+	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -720,13 +721,14 @@
 					</p>
 					<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Predict</h1>
 				</div>
-				<div class="flex items-center gap-3">
+				<div class="flex items-center gap-4">
 					<div class="text-right">
 						<div class="font-display text-3xl tracking-wide leading-none">
 							{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span>
 						</div>
 						<div class="text-xs text-base-content/50">{phaseProgress.pct}% predicted</div>
 					</div>
+					<SheetStatusDots />
 				</div>
 			</div>
 
