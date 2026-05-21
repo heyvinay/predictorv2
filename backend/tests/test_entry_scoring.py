@@ -353,7 +353,7 @@ class TestEligibilityFilters:
             user=bob,
             competition=competition,
             entry_number=1,
-            status=EntryStatus.READY,
+            status=EntryStatus.SUBMITTED,
         )
         for entry in (submitted, draft, ready):
             await _add_match_pick(

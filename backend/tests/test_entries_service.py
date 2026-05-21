@@ -229,8 +229,8 @@ class TestMaxEntriesLimit:
         )
         await session.commit()
         # Withdraw e1 — the limit should now allow a new entry.
-        await entries_service.withdraw_entry(
-            session, entry=e1, user=user, competition=competition
+        await entries_service.admin_withdraw_entry(
+            session, entry=e1, admin=user, reason="test"
         )
         await session.commit()
         # Should succeed — withdrawn entries are excluded from the count.
@@ -288,225 +288,146 @@ class TestRename:
 
 
 # ---------------------------------------------------------------------------
-# State transitions
+# Lifecycle — new 3-status model: DRAFT, SUBMITTED, WITHDRAWN.
+# Tests for the 5 transitions added in the simplification (see plan
+# i-want-to-simplify-bright-wolf.md).
 # ---------------------------------------------------------------------------
-class TestStateTransitions:
-    async def test_mark_phase_ready_writes_event(
+class TestLifecycle:
+    async def test_submit_flips_draft_to_submitted(
         self, session: AsyncSession, user: User, competition: Competition
     ):
         entry = await entries_service.create_entry(
             session, user=user, competition=competition
         )
         await session.commit()
-        phase = await entries_service.mark_phase_ready(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await session.commit()
-        assert phase.status == EntryStatus.READY
-        assert phase.ready_at is not None
-
-        # Both event tables should have one row each for this transition.
-        entry_events = (
-            await session.execute(
-                select(PredictionEntryEvent).where(
-                    PredictionEntryEvent.entry_id == entry.id
-                )
-            )
-        ).scalars().all()
-        assert any(
-            ev.from_status == "draft" and ev.to_status == "ready"
-            for ev in entry_events
-        )
-        audit_events = (
-            await session.execute(
-                select(AuditEvent).where(
-                    AuditEvent.event_type == "entry.phase_ready"
-                )
-            )
-        ).scalars().all()
-        assert len(audit_events) == 1
-
-    async def test_mark_ready_blocked_when_bonus_required_and_blank(
-        self, session: AsyncSession, user: User, competition: Competition
-    ):
-        """When `bonus_questions_required_for_ready` is on, attempting
-        to mark Phase 1 ready with no bonus answers must raise
-        EntryValidationError. Off-by-default — opt-in via competition
-        setting."""
-        from unittest.mock import patch
-
-        from app.services import bonus as bonus_service
-        from app.services.bonus import BonusQuestion
-
-        competition.bonus_questions_required_for_ready = True
-        session.add(competition)
-        await session.commit()
-
-        # Stub the bonus question list so this test doesn't depend on
-        # whatever YAML happens to be loaded into the bonus singleton.
-        fake_qs = [
-            BonusQuestion(
-                id="q1", category="awards", label="Top scorer", input_type="player", points=10
-            ),
-            BonusQuestion(
-                id="q2", category="awards", label="Best player", input_type="player", points=10
-            ),
-        ]
-        entry = await entries_service.create_entry(
-            session, user=user, competition=competition
-        )
-        await session.commit()
-
-        with patch.object(bonus_service, "get_questions", return_value=fake_qs):
-            with pytest.raises(EntryValidationError, match="Bonus answers required"):
-                await entries_service.mark_phase_ready(
-                    session,
-                    entry=entry,
-                    user=user,
-                    phase=PredictionPhase.PHASE_1,
-                    competition=competition,
-                )
-
-    async def test_mark_ready_allowed_when_bonus_required_flag_off(
-        self, session: AsyncSession, user: User, competition: Competition
-    ):
-        """Default-off behaviour: empty bonus answers don't block ready."""
-        entry = await entries_service.create_entry(
-            session, user=user, competition=competition
-        )
-        await session.commit()
-        # Flag is False by default per the migration; assert + don't toggle.
-        assert competition.bonus_questions_required_for_ready is False
-        await entries_service.mark_phase_ready(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await session.commit()
-        # No raise — ready transition completed.
-
-    async def test_mark_ready_phase2_skips_bonus_check(
-        self, session: AsyncSession, user: User, competition: Competition
-    ):
-        """Bonus is a Phase 1 concept. PHASE_2 transitions ignore the gate
-        even when the flag is on."""
-        competition.bonus_questions_required_for_ready = True
-        session.add(competition)
-        await session.commit()
-
-        entry = await entries_service.create_entry(
-            session, user=user, competition=competition
-        )
-        await session.commit()
-        # Should not raise.
-        await entries_service.mark_phase_ready(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_2,
-            competition=competition,
-        )
-
-    async def test_submit_requires_ready(
-        self, session: AsyncSession, user: User, competition: Competition
-    ):
-        # require_ready_before_submit defaults to True.
-        entry = await entries_service.create_entry(
-            session, user=user, competition=competition
-        )
-        await session.commit()
-        with pytest.raises(EntryStateError):
-            await entries_service.submit_phase(
-                session,
-                entry=entry,
-                user=user,
-                phase=PredictionPhase.PHASE_1,
-                competition=competition,
-            )
-
-    async def test_submit_succeeds_after_ready(
-        self, session: AsyncSession, user: User, competition: Competition
-    ):
-        entry = await entries_service.create_entry(
-            session, user=user, competition=competition
-        )
-        await session.commit()
-        await entries_service.mark_phase_ready(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await session.commit()
-        phase = await entries_service.submit_phase(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
+        phase = await entries_service.submit_entry(
+            session, entry=entry, user=user, competition=competition
         )
         await session.commit()
         assert phase.status == EntryStatus.SUBMITTED
         assert phase.submitted_at is not None
 
-    async def test_reopen_returns_to_draft(
+    async def test_edit_reverts_submitted_to_draft(
         self, session: AsyncSession, user: User, competition: Competition
     ):
         entry = await entries_service.create_entry(
             session, user=user, competition=competition
         )
         await session.commit()
-        await entries_service.mark_phase_ready(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
+        await entries_service.submit_entry(
+            session, entry=entry, user=user, competition=competition
         )
         await session.commit()
-        await entries_service.submit_phase(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await session.commit()
-        phase = await entries_service.reopen_phase(
-            session,
-            entry=entry,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
+        phase = await entries_service.edit_entry(
+            session, entry=entry, user=user, competition=competition
         )
         await session.commit()
         assert phase.status == EntryStatus.DRAFT
         assert phase.submitted_at is None
 
-    async def test_reopen_blocked_after_phase_deadline(
+    async def test_edit_blocked_after_deadline(
         self, session: AsyncSession, user: User, competition: Competition
     ):
-        # Set phase 1 deadline in the past — the phase is now considered locked.
-        competition.phase1_deadline = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        from datetime import datetime, timedelta, timezone
+
         entry = await entries_service.create_entry(
             session, user=user, competition=competition
         )
         await session.commit()
-        with pytest.raises(EntryStateError):
-            await entries_service.reopen_phase(
-                session,
-                entry=entry,
-                user=user,
-                phase=PredictionPhase.PHASE_1,
-                competition=competition,
+        await entries_service.submit_entry(
+            session, entry=entry, user=user, competition=competition
+        )
+        await session.commit()
+        competition.phase1_deadline = datetime.now(timezone.utc) - timedelta(minutes=5)
+        session.add(competition)
+        await session.commit()
+        with pytest.raises(entries_service.EntryStateError):
+            await entries_service.edit_entry(
+                session, entry=entry, user=user, competition=competition
             )
+
+    async def test_admin_reinstate_flips_withdrawn_to_submitted(
+        self, session: AsyncSession, user: User, admin: User, competition: Competition
+    ):
+        """The 'forgot to click Submit' rescue path."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        await entries_service.admin_withdraw_entry(
+            session, entry=entry, admin=admin, reason="auto"
+        )
+        await session.commit()
+        await entries_service.admin_reinstate_entry(
+            session,
+            entry=entry,
+            admin=admin,
+            reason="user filled everything, missed submit by 4 min",
+        )
+        await session.commit()
+        assert entry.withdrawn_at is None
+        phase_row = next(p for p in entry.phases if p.phase == PredictionPhase.PHASE_1)
+        assert phase_row.status == EntryStatus.SUBMITTED
+
+    async def test_admin_reinstate_requires_reason(
+        self, session: AsyncSession, user: User, admin: User, competition: Competition
+    ):
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        await entries_service.admin_withdraw_entry(
+            session, entry=entry, admin=admin, reason="x"
+        )
+        await session.commit()
+        with pytest.raises(entries_service.EntryValidationError):
+            await entries_service.admin_reinstate_entry(
+                session, entry=entry, admin=admin, reason=""
+            )
+
+    async def test_admin_reinstate_audit_links_to_prior_withdrawal_event(
+        self, session: AsyncSession, user: User, admin: User, competition: Competition
+    ):
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        await entries_service.admin_withdraw_entry(
+            session, entry=entry, admin=admin, reason="original reason"
+        )
+        await session.commit()
+        await entries_service.admin_reinstate_entry(
+            session, entry=entry, admin=admin, reason="reinstate evidence"
+        )
+        await session.commit()
+        reinstate_audit = (
+            await session.execute(
+                select(AuditEvent).where(
+                    AuditEvent.event_type == "entry.admin_reinstated"
+                )
+            )
+        ).scalar_one()
+        assert "previous_withdrawal_event_id" in reinstate_audit.event_metadata
+        assert reinstate_audit.event_metadata["previous_withdrawal_reason"] == "original reason"
+
+    async def test_flip_drafts_past_deadline_idempotent(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        from datetime import datetime, timedelta, timezone
+
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+        competition.phase1_deadline = datetime.now(timezone.utc) - timedelta(minutes=5)
+        session.add(competition)
+        await session.commit()
+        flipped = await entries_service.flip_drafts_past_deadline(session)
+        await session.commit()
+        assert flipped == 1
+        assert entry.withdrawn_at is not None
+        flipped_again = await entries_service.flip_drafts_past_deadline(session)
+        assert flipped_again == 0
 
 
 # ---------------------------------------------------------------------------
@@ -520,12 +441,8 @@ class TestWithdraw:
             session, user=user, competition=competition
         )
         await session.commit()
-        await entries_service.withdraw_entry(
-            session,
-            entry=entry,
-            user=user,
-            competition=competition,
-            reason="changed my mind",
+        await entries_service.admin_withdraw_entry(
+            session, entry=entry, admin=user, reason="changed my mind"
         )
         await session.commit()
         assert entry.withdrawn_at is not None
@@ -538,9 +455,7 @@ class TestWithdraw:
             session, user=user, competition=competition
         )
         await session.commit()
-        await entries_service.withdraw_entry(
-            session, entry=entry, user=user, competition=competition
-        )
+        await entries_service.admin_withdraw_entry(session, entry=entry, admin=user, reason="test")
         await session.commit()
         for p in entry.phases:
             assert p.status == EntryStatus.WITHDRAWN
@@ -561,7 +476,6 @@ class TestDuplicateSubmissionCheck:
                 fixture_id=fixture_id,
                 home_score=2,
                 away_score=1,
-                phase=PredictionPhase.PHASE_1,
             )
         )
         await session.commit()
@@ -579,18 +493,10 @@ class TestDuplicateSubmissionCheck:
         )
         await session.commit()
         await self._set_match_pred(session, e1, fixture_a.id)
-        await entries_service.mark_phase_ready(
+        await entries_service.submit_entry(
             session,
             entry=e1,
             user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await entries_service.submit_phase(
-            session,
-            entry=e1,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
             competition=competition,
         )
         await session.commit()
@@ -604,12 +510,8 @@ class TestDuplicateSubmissionCheck:
 
         # Submission must be rejected, naming e1's reference.
         with pytest.raises(EntryDuplicateError) as exc_info:
-            await entries_service.mark_phase_ready(
-                session,
-                entry=e2,
-                user=user,
-                phase=PredictionPhase.PHASE_1,
-                competition=competition,
+            await entries_service.submit_entry(
+                session, entry=e2, user=user, competition=competition
             )
         assert exc_info.value.conflict_reference == e1.reference
 
@@ -625,18 +527,10 @@ class TestDuplicateSubmissionCheck:
         )
         await session.commit()
         await self._set_match_pred(session, e1, fixture_a.id)  # 2-1
-        await entries_service.mark_phase_ready(
+        await entries_service.submit_entry(
             session,
             entry=e1,
             user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await entries_service.submit_phase(
-            session,
-            entry=e1,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
             competition=competition,
         )
         await session.commit()
@@ -651,21 +545,11 @@ class TestDuplicateSubmissionCheck:
                 fixture_id=fixture_a.id,
                 home_score=3,
                 away_score=0,
-                phase=PredictionPhase.PHASE_1,
             )
         )
         await session.commit()
 
         # Ready should not raise — predictions differ.
-        await entries_service.mark_phase_ready(
-            session,
-            entry=e2,
-            user=user,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-
-
 # ---------------------------------------------------------------------------
 # Cross-user access
 # ---------------------------------------------------------------------------
@@ -726,7 +610,7 @@ class TestAdminActions:
         phase1 = next(
             p for p in entry.phases if p.phase == PredictionPhase.PHASE_1
         )
-        phase1.status = EntryStatus.LOCKED
+        phase1.status = EntryStatus.SUBMITTED
         await session.commit()
 
         await entries_service.admin_disable_entry(
@@ -737,7 +621,7 @@ class TestAdminActions:
         assert entry.disabled_reason == "suspicious activity"
         # Locked phase status unchanged.
         await session.refresh(phase1)
-        assert phase1.status == EntryStatus.LOCKED
+        assert phase1.status == EntryStatus.SUBMITTED
 
     async def test_phase2_open_skips_withdrawn_and_disabled(
         self,
@@ -758,9 +642,7 @@ class TestAdminActions:
             session, user=other_user, competition=competition
         )
         await session.commit()
-        await entries_service.withdraw_entry(
-            session, entry=withdrawn, user=user, competition=competition
-        )
+        await entries_service.admin_withdraw_entry(session, entry=withdrawn, admin=user, reason="test")
         await entries_service.admin_disable_entry(
             session, entry=disabled, admin=admin, reason="test"
         )
@@ -802,7 +684,6 @@ class TestDuplicateEntry:
                 fixture_id=fixture_a.id,
                 home_score=4,
                 away_score=2,
-                phase=PredictionPhase.PHASE_1,
             )
         )
         await session.commit()

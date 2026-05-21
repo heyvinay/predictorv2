@@ -212,13 +212,6 @@ class TestPhaseStatusLock:
         fixture_future: Fixture,
     ):
         # Move phase_1 to READY.
-        await entries_service.mark_phase_ready(
-            session,
-            entry=alice_entry,
-            user=alice,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
         await session.commit()
         with pytest.raises(PredictionLockedError):
             await predictions_service.upsert_match_prediction(
@@ -239,18 +232,10 @@ class TestPhaseStatusLock:
         alice_entry: PredictionEntry,
         fixture_future: Fixture,
     ):
-        await entries_service.mark_phase_ready(
+        await entries_service.submit_entry(
             session,
             entry=alice_entry,
             user=alice,
-            phase=PredictionPhase.PHASE_1,
-            competition=competition,
-        )
-        await entries_service.submit_phase(
-            session,
-            entry=alice_entry,
-            user=alice,
-            phase=PredictionPhase.PHASE_1,
             competition=competition,
         )
         await session.commit()
@@ -442,8 +427,8 @@ class TestWithdrawnDisabled:
         alice_entry: PredictionEntry,
         fixture_future: Fixture,
     ):
-        await entries_service.withdraw_entry(
-            session, entry=alice_entry, user=alice, competition=competition
+        await entries_service.admin_withdraw_entry(
+            session, entry=alice_entry, admin=alice, reason="test"
         )
         await session.commit()
         with pytest.raises(PredictionValidationError):
@@ -583,7 +568,6 @@ class TestBracketReplaceClearsByPhase:
             entry_id=alice_entry.id,
             team="France",
             stage="winner",
-            phase=PredictionPhase.PHASE_2,
         )
         session.add(phase2_row)
         await session.commit()
