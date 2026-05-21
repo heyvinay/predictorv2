@@ -6,10 +6,15 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="description" content="Football prediction competition for World Cup 2026" />
 		<meta name="robots" content="noindex, nofollow" />
-		<!-- Google Fonts: Bebas Neue (display) + DM Sans (body) -->
+		<!-- Google Fonts:
+		     - Bebas Neue + DM Sans  → default predictor (and most other) themes.
+		     - Inter + Manrope       → premium theme (Inter for body,
+		       Manrope for scores / brand mark / display). Loaded
+		       unconditionally; the premium scoped CSS layer in app.css
+		       activates them only when data-theme="premium". -->
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet" />
+		<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@300..900&family=Manrope:wght@200..800&display=swap" rel="stylesheet" />
 		<title>Predictor v2</title>
 		<script>
 			// Apply persisted theme synchronously to prevent FOUC.

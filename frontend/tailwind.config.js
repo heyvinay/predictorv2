@@ -90,29 +90,29 @@ export default {
 			},
 			{
 				premium: {
-					// Editorial light palette — cream paper, bordeaux ink, bronze
-					// highlights. Cartier catalogue, not casino. Burgundy carries
-					// the "expensive" weight that gold carries on dark themes.
-					'primary': '#6B1F2E',           // Deep bordeaux — the headline color
-					'primary-content': '#F5F0E6',
-					'secondary': '#1E2A3A',         // Ink navy (deep emphasis)
-					'secondary-content': '#F5F0E6',
-					'accent': '#9C7B3D',            // Antiqued bronze (rare highlights)
-					'accent-content': '#F5F0E6',
-					'neutral': '#2A2520',           // Espresso ink (borders, body text)
-					'neutral-content': '#F5F0E6',
-					'base-100': '#F5F0E6',          // Cream paper — NEVER pure white
-					'base-200': '#EDE6D6',          // Buff paper (panel)
-					'base-300': '#DDD3BD',          // Aged paper (raised)
-					'base-content': '#2A2520',      // Espresso text (NEVER pure black)
-					'info': '#3C5A7A',              // Slate blue
-					'info-content': '#F5F0E6',
-					'success': '#3D6B4E',           // Forest, never neon
-					'success-content': '#F5F0E6',
-					'warning': '#9C7B3D',           // Reuse the bronze for cohesion
-					'warning-content': '#F5F0E6',
-					'error': '#7A2530',             // Burgundy red (primary family)
-					'error-content': '#F5F0E6',
+					// Premium sports-broadcast palette. Ice-white canvas,
+					// midnight-navy ink, champagne-gold CTAs, mint-green
+					// success. Cool-toned, editorial-meets-broadcast.
+					'primary': '#D4AF37',           // Champagne Gold — CTAs, active selected states
+					'primary-content': '#0B1329',   // Midnight navy reads on gold
+					'secondary': '#0B1329',         // Midnight Navy — deep panels, hero text
+					'secondary-content': '#F8FAFC',
+					'accent': '#0B1329',            // Midnight Navy — link hovers, secondary CTAs
+					'accent-content': '#F8FAFC',
+					'neutral': '#1E293B',           // Slate-800 — borders, deep neutral
+					'neutral-content': '#F8FAFC',
+					'base-100': '#F8FAFC',          // Crisp Ice White — main canvas
+					'base-200': '#F1F5F9',          // Slate-100 — panel surface (subtle)
+					'base-300': '#E2E8F0',          // Slate-200 — raised / divider
+					'base-content': '#0B1329',      // Midnight navy — body text
+					'info': '#3B82F6',              // Broadcast blue
+					'info-content': '#F8FAFC',
+					'success': '#059669',           // Mint Success Green — saved states, positive trends
+					'success-content': '#F8FAFC',
+					'warning': '#F59E0B',           // Amber — classic broadcast warning
+					'warning-content': '#0B1329',
+					'error': '#B91C1C',             // Wine red — sharp but restrained
+					'error-content': '#F8FAFC',
 				}
 			},
 			'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
