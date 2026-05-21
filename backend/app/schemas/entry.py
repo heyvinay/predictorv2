@@ -25,7 +25,23 @@ class EntryRename(BaseModel):
 
 
 class EntryWithdraw(BaseModel):
-    reason: str | None = Field(default=None, max_length=256)
+    """Admin withdraw — reason is REQUIRED in the simplified lifecycle.
+
+    User-initiated withdraw was removed; admins use this with a mandatory
+    reason that goes into the audit log.
+    """
+
+    reason: str = Field(min_length=1, max_length=256)
+
+
+class EntryReinstate(BaseModel):
+    """Admin reinstate (WITHDRAWN → SUBMITTED) — reason is REQUIRED.
+
+    Use case: user filled all predictions but forgot to click Submit before
+    competition start; admin reviews evidence and reinstates.
+    """
+
+    reason: str = Field(min_length=1, max_length=256)
 
 
 class EntryDisable(BaseModel):

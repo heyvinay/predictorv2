@@ -101,11 +101,7 @@ async def get_community_predictions(
             .where(MatchPrediction.fixture_id == fixture_id)
             .where(PredictionEntry.withdrawn_at.is_(None))
             .where(PredictionEntry.is_disabled.is_(False))
-            .where(
-                PredictionEntryPhase.status.in_(
-                    [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
-                )
-            )
+            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
         )
     ).all()
 

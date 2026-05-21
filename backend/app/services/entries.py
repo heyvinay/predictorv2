@@ -93,14 +93,13 @@ class EntryConfigError(EntryError):
 # Key: (from_status, to_status); value: roles permitted.
 # ---------------------------------------------------------------------------
 _ALLOWED_TRANSITIONS: dict[tuple[EntryStatus, EntryStatus], set[ActorRole]] = {
-    (EntryStatus.DRAFT, EntryStatus.READY): {ActorRole.USER, ActorRole.ADMIN},
-    (EntryStatus.READY, EntryStatus.DRAFT): {ActorRole.USER, ActorRole.ADMIN},
-    (EntryStatus.READY, EntryStatus.SUBMITTED): {ActorRole.USER, ActorRole.ADMIN},
+    (EntryStatus.DRAFT, EntryStatus.SUBMITTED): {ActorRole.USER, ActorRole.ADMIN},
     (EntryStatus.SUBMITTED, EntryStatus.DRAFT): {ActorRole.USER, ActorRole.ADMIN},
-    (EntryStatus.SUBMITTED, EntryStatus.LOCKED): {ActorRole.SYSTEM, ActorRole.ADMIN},
-    # Whole-entry withdraw and admin disable do not transition the phase
-    # status directly — they go through `withdraw_entry` and
-    # `admin_disable_entry` respectively. Locked is terminal for edits.
+    (EntryStatus.DRAFT, EntryStatus.WITHDRAWN): {ActorRole.ADMIN, ActorRole.SYSTEM},
+    (EntryStatus.SUBMITTED, EntryStatus.WITHDRAWN): {ActorRole.ADMIN},
+    (EntryStatus.WITHDRAWN, EntryStatus.SUBMITTED): {ActorRole.ADMIN},
+    # `is_disabled` is an orthogonal admin flag — never changes status.
+    # WITHDRAWN is non-terminal: admins can reinstate via `admin_reinstate_entry`.
 }
 
 
@@ -281,9 +280,13 @@ def _phase_record(
 def _phase_is_locked(
     phase_row: PredictionEntryPhase, competition: Competition
 ) -> bool:
-    """A phase is locked when its status is `locked` OR the deadline passed."""
-    if phase_row.status == EntryStatus.LOCKED:
-        return True
+    """A phase is locked when its deadline has passed.
+
+    `LOCKED` status was removed in the lifecycle simplification — locking is
+    now purely time-based. Once `competition.phase1_deadline` is in the past,
+    edits are blocked and any remaining DRAFT entries get auto-withdrawn by
+    `flip_drafts_past_deadline` (run every 60s by the scheduler).
+    """
     now = utc_now()
     deadline = (
         competition.phase1_deadline
@@ -649,17 +652,26 @@ def _entry_is_active(entry: PredictionEntry) -> bool:
     return entry.withdrawn_at is None and not entry.is_disabled
 
 
-async def mark_phase_ready(
+# ---------------------------------------------------------------------------
+# Lifecycle service functions — five transitions only:
+#   DRAFT → SUBMITTED          (submit_entry, user/admin, before deadline)
+#   SUBMITTED → DRAFT          (edit_entry, user/admin, before deadline)
+#   DRAFT/SUBMITTED → WITHDRAWN (admin_withdraw_entry, admin only)
+#   WITHDRAWN → SUBMITTED      (admin_reinstate_entry, admin only, reason required)
+#   DRAFT → WITHDRAWN          (flip_drafts_past_deadline, system, at deadline)
+# Phase 2 is dormant — all functions hardcode PHASE_1.
+# ---------------------------------------------------------------------------
+async def submit_entry(
     session: AsyncSession,
     *,
     entry: PredictionEntry,
     user: User,
-    phase: PredictionPhase,
     competition: Competition,
     actor_role: ActorRole = ActorRole.USER,
     ctx: AuditContext | None = None,
 ) -> PredictionEntryPhase:
-    """`draft → ready`. Requires entry active, phase not locked."""
+    """`DRAFT → SUBMITTED`. Enforces ownership, deadline, payment + duplicate rules."""
+    phase = PredictionPhase.PHASE_1
     if actor_role == ActorRole.USER:
         await _ensure_owner(entry, user)
     if not _entry_is_active(entry):
@@ -667,113 +679,14 @@ async def mark_phase_ready(
 
     phase_row = _phase_record(entry, phase)
     if _phase_is_locked(phase_row, competition):
-        raise EntryStateError(f"Phase {phase.value} is locked")
-    _check_transition_allowed(phase_row.status, EntryStatus.READY, actor_role)
+        raise EntryStateError("Competition has started — submit no longer possible")
+    _check_transition_allowed(phase_row.status, EntryStatus.SUBMITTED, actor_role)
 
-    # Bonus-completeness gate. Bonus questions live with Phase 1 (locked
-    # alongside the group stage in the brief), so we only enforce this on
-    # PHASE_1 transitions. When the competition flag is off, this is a
-    # no-op — users may go ready without answering bonus questions.
-    if (
-        competition.bonus_questions_required_for_ready
-        and phase == PredictionPhase.PHASE_1
-    ):
-        # Lazy import keeps the entries module independent of the bonus
-        # YAML loader at import time (helpful for the test stack).
-        from app.services.bonus import get_questions
-
-        all_qids = {q.id for q in get_questions()}
-        answered_qids = {
-            qid
-            for (qid,) in (
-                await session.execute(
-                    select(BonusPrediction.question_id).where(
-                        BonusPrediction.entry_id == entry.id,
-                        BonusPrediction.answer.isnot(None),
-                        BonusPrediction.answer != "",
-                    )
-                )
-            ).all()
-        }
-        missing = all_qids - answered_qids
-        if missing:
-            raise EntryValidationError(
-                f"Bonus answers required: {len(missing)} of "
-                f"{len(all_qids)} questions still blank"
-            )
-
-    # Optional duplicate check at ready time (recommended by brief).
-    conflict = await _find_duplicate_eligible_entry(
-        session, entry=entry, phase=phase
-    )
-    if conflict is not None:
-        raise EntryDuplicateError(
-            f"Predictions identical to entry {conflict}",
-            conflict_reference=conflict,
-        )
-
-    prev = phase_row.status
-    phase_row.status = EntryStatus.READY
-    phase_row.ready_at = utc_now()
-    phase_row.updated_at = utc_now()
-
-    await _write_transition_event(
-        session,
-        entry=entry,
-        phase=phase,
-        from_status=prev,
-        to_status=EntryStatus.READY,
-        actor_user_id=user.id,
-        actor_role=actor_role,
-        reason=None,
-        audit_event_type="entry.phase_ready",
-        ctx=ctx,
-    )
-    await session.flush()
-    return phase_row
-
-
-async def submit_phase(
-    session: AsyncSession,
-    *,
-    entry: PredictionEntry,
-    user: User,
-    phase: PredictionPhase,
-    competition: Competition,
-    actor_role: ActorRole = ActorRole.USER,
-    ctx: AuditContext | None = None,
-) -> PredictionEntryPhase:
-    """`ready → submitted`. Enforces payment + duplicate-submission rules."""
-    if actor_role == ActorRole.USER:
-        await _ensure_owner(entry, user)
-    if not _entry_is_active(entry):
-        raise EntryStateError("Entry is withdrawn or disabled")
-
-    phase_row = _phase_record(entry, phase)
-    if _phase_is_locked(phase_row, competition):
-        raise EntryStateError(f"Phase {phase.value} is locked")
-
-    # If require_ready_before_submit is true, the from-status MUST be
-    # ready. If false, a direct draft → submitted is permitted.
-    if competition.require_ready_before_submit:
-        if phase_row.status != EntryStatus.READY:
-            raise EntryStateError(
-                f"Phase must be ready before submit; current: {phase_row.status.value}"
-            )
-    elif phase_row.status not in {EntryStatus.DRAFT, EntryStatus.READY}:
-        raise EntryStateError(
-            f"Cannot submit from {phase_row.status.value}"
-        )
-
-    # Payment rule: when per-entry payment is configured and the
-    # competition blocks unpaid submission, the entry must be paid.
-    if (
-        competition.block_unpaid_entry_submission
-        and not entry.paid
-    ):
+    # Payment gate: if competition blocks unpaid submission, entry must be paid.
+    if competition.block_unpaid_entry_submission and not entry.paid:
         raise EntryValidationError("Entry is unpaid; submission blocked")
 
-    # Duplicate-submission check — must run on submit per brief.
+    # Duplicate-submission check — reject identical predictions.
     conflict = await _find_duplicate_eligible_entry(
         session, entry=entry, phase=phase
     )
@@ -784,10 +697,6 @@ async def submit_phase(
         )
 
     prev = phase_row.status
-    # If the transition is draft → submitted (when ready-gate is off),
-    # mark the transition as ready→submitted in the audit log to keep
-    # the lifecycle representation consistent. For the entry-event row
-    # we record the actual from-state.
     phase_row.status = EntryStatus.SUBMITTED
     phase_row.submitted_at = utc_now()
     phase_row.updated_at = utc_now()
@@ -801,24 +710,28 @@ async def submit_phase(
         actor_user_id=user.id,
         actor_role=actor_role,
         reason=None,
-        audit_event_type="entry.phase_submitted",
+        audit_event_type="entry.submitted",
         ctx=ctx,
     )
     await session.flush()
     return phase_row
 
 
-async def reopen_phase(
+async def edit_entry(
     session: AsyncSession,
     *,
     entry: PredictionEntry,
     user: User,
-    phase: PredictionPhase,
     competition: Competition,
     actor_role: ActorRole = ActorRole.USER,
     ctx: AuditContext | None = None,
 ) -> PredictionEntryPhase:
-    """`submitted → draft`. Blocked once the phase has locked."""
+    """`SUBMITTED → DRAFT`. Blocked once the competition has started.
+
+    User-facing: "Edit" button on a submitted entry reverts it to draft so the
+    user can change picks and re-submit before the deadline.
+    """
+    phase = PredictionPhase.PHASE_1
     if actor_role == ActorRole.USER:
         await _ensure_owner(entry, user)
     if not _entry_is_active(entry):
@@ -827,7 +740,7 @@ async def reopen_phase(
     phase_row = _phase_record(entry, phase)
     if _phase_is_locked(phase_row, competition):
         raise EntryStateError(
-            f"Phase {phase.value} is locked; reopen no longer possible"
+            "Competition has started — edit no longer possible"
         )
     _check_transition_allowed(phase_row.status, EntryStatus.DRAFT, actor_role)
 
@@ -846,74 +759,195 @@ async def reopen_phase(
         actor_user_id=user.id,
         actor_role=actor_role,
         reason=None,
-        audit_event_type="entry.phase_reopened",
+        audit_event_type="entry.edit_reverted",
         ctx=ctx,
     )
     await session.flush()
     return phase_row
 
 
-async def withdraw_entry(
+async def admin_withdraw_entry(
     session: AsyncSession,
     *,
     entry: PredictionEntry,
-    user: User,
-    competition: Competition,
-    reason: str | None = None,
-    actor_role: ActorRole = ActorRole.USER,
+    admin: User,
+    reason: str,
     ctx: AuditContext | None = None,
 ) -> PredictionEntry:
-    """Mark the whole entry as withdrawn. All phases get a `withdrawn`
-    event written. The phase status itself stays untouched if locked
-    (locked is terminal), otherwise we move it to `withdrawn`."""
-    if actor_role == ActorRole.USER:
-        await _ensure_owner(entry, user)
-        if not competition.allow_user_withdrawal:
-            raise EntryValidationError("Withdrawal is disabled for this competition")
+    """Admin-only withdrawal. Sets `entry.withdrawn_at` + flips phase status
+    to WITHDRAWN. Allowed from DRAFT or SUBMITTED. WITHDRAWN is non-terminal —
+    `admin_reinstate_entry` can reverse it. `reason` is mandatory.
+    """
+    if not reason or not reason.strip():
+        raise EntryValidationError("Withdrawal reason is required")
     if entry.withdrawn_at is not None:
         raise EntryStateError("Entry already withdrawn")
     if entry.is_disabled:
         raise EntryStateError("Cannot withdraw a disabled entry")
+
+    phase = PredictionPhase.PHASE_1
+    phase_row = _phase_record(entry, phase)
+    _check_transition_allowed(phase_row.status, EntryStatus.WITHDRAWN, ActorRole.ADMIN)
 
     now = utc_now()
     entry.withdrawn_at = now
     entry.withdrawn_reason = reason
     entry.updated_at = now
 
-    for phase_row in entry.phases:
-        if phase_row.status == EntryStatus.LOCKED:
-            # Locked is terminal; record the audit but don't mutate status.
+    prev = phase_row.status
+    phase_row.status = EntryStatus.WITHDRAWN
+    phase_row.updated_at = now
+
+    await _write_transition_event(
+        session,
+        entry=entry,
+        phase=phase,
+        from_status=prev,
+        to_status=EntryStatus.WITHDRAWN,
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        reason=reason,
+        audit_event_type="entry.withdrawn_admin",
+        ctx=ctx,
+    )
+    await session.flush()
+    return entry
+
+
+async def admin_reinstate_entry(
+    session: AsyncSession,
+    *,
+    entry: PredictionEntry,
+    admin: User,
+    reason: str,
+    ctx: AuditContext | None = None,
+) -> PredictionEntry:
+    """Admin-only reinstatement. `WITHDRAWN → SUBMITTED`. Reason mandatory.
+
+    Use case: user filled all predictions but forgot to click Submit before the
+    deadline; admin reviews evidence and reinstates. Captures the previous
+    withdrawal event's ID in audit metadata.
+    """
+    if not reason or not reason.strip():
+        raise EntryValidationError("Reinstatement reason is required")
+    if entry.withdrawn_at is None:
+        raise EntryStateError("Entry is not withdrawn — nothing to reinstate")
+    if entry.is_disabled:
+        raise EntryStateError("Cannot reinstate a disabled entry")
+
+    phase = PredictionPhase.PHASE_1
+    phase_row = _phase_record(entry, phase)
+    _check_transition_allowed(
+        phase_row.status, EntryStatus.SUBMITTED, ActorRole.ADMIN
+    )
+
+    # Most recent withdrawal event for audit context.
+    last_withdrawal = (
+        await session.execute(
+            select(PredictionEntryEvent)
+            .where(
+                PredictionEntryEvent.entry_id == entry.id,
+                PredictionEntryEvent.to_status == EntryStatus.WITHDRAWN.value,
+            )
+            .order_by(PredictionEntryEvent.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    now = utc_now()
+    entry.withdrawn_at = None
+    entry.withdrawn_reason = None
+    entry.updated_at = now
+
+    prev = phase_row.status
+    phase_row.status = EntryStatus.SUBMITTED
+    phase_row.submitted_at = now
+    phase_row.updated_at = now
+
+    extra_meta: dict[str, Any] = {}
+    if last_withdrawal is not None:
+        extra_meta["previous_withdrawal_event_id"] = str(last_withdrawal.id)
+        extra_meta["previous_withdrawal_reason"] = last_withdrawal.reason or ""
+
+    await _write_transition_event(
+        session,
+        entry=entry,
+        phase=phase,
+        from_status=prev,
+        to_status=EntryStatus.SUBMITTED,
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        reason=reason,
+        audit_event_type="entry.admin_reinstated",
+        ctx=ctx,
+        extra_metadata=extra_meta,
+    )
+    await session.flush()
+    return entry
+
+
+async def flip_drafts_past_deadline(session: AsyncSession) -> int:
+    """`DRAFT → WITHDRAWN` for every entry whose phase deadline has passed.
+
+    Idempotent — runs every 60s from the scheduler tick. Returns the number of
+    entries flipped. Writes one audit event per transitioned entry with
+    actor_role=SYSTEM, reason='competition_started'.
+    """
+    now = utc_now()
+    competitions = (
+        await session.execute(
+            select(Competition).where(
+                Competition.is_active == True,  # noqa: E712
+                Competition.phase1_deadline.is_not(None),
+            )
+        )
+    ).scalars().all()
+
+    flipped = 0
+    for competition in competitions:
+        deadline = competition.phase1_deadline
+        if deadline is None or aware_utc(now) < aware_utc(deadline):
+            continue
+
+        rows = (
+            await session.execute(
+                select(PredictionEntryPhase, PredictionEntry)
+                .join(PredictionEntry, PredictionEntry.id == PredictionEntryPhase.entry_id)
+                .where(
+                    PredictionEntry.competition_id == competition.id,
+                    PredictionEntry.withdrawn_at.is_(None),
+                    PredictionEntryPhase.phase == PredictionPhase.PHASE_1,
+                    PredictionEntryPhase.status == EntryStatus.DRAFT,
+                )
+            )
+        ).all()
+
+        for phase_row, entry in rows:
+            entry.withdrawn_at = now
+            entry.withdrawn_reason = "competition_started"
+            entry.updated_at = now
+
+            prev = phase_row.status
+            phase_row.status = EntryStatus.WITHDRAWN
+            phase_row.updated_at = now
+
             await _write_transition_event(
                 session,
                 entry=entry,
-                phase=phase_row.phase,
-                from_status=phase_row.status,
-                to_status=phase_row.status,
-                actor_user_id=user.id,
-                actor_role=actor_role,
-                reason=reason,
-                audit_event_type="entry.withdrawn",
-                ctx=ctx,
-                extra_metadata={"phase_locked": True},
+                phase=PredictionPhase.PHASE_1,
+                from_status=prev,
+                to_status=EntryStatus.WITHDRAWN,
+                actor_user_id=entry.user_id,
+                actor_role=ActorRole.SYSTEM,
+                reason="competition_started",
+                audit_event_type="entry.auto_withdrawn_at_start",
+                ctx=None,
             )
-            continue
-        prev = phase_row.status
-        phase_row.status = EntryStatus.WITHDRAWN
-        phase_row.updated_at = now
-        await _write_transition_event(
-            session,
-            entry=entry,
-            phase=phase_row.phase,
-            from_status=prev,
-            to_status=EntryStatus.WITHDRAWN,
-            actor_user_id=user.id,
-            actor_role=actor_role,
-            reason=reason,
-            audit_event_type="entry.withdrawn",
-            ctx=ctx,
-        )
-    await session.flush()
-    return entry
+            flipped += 1
+
+    if flipped > 0:
+        await session.flush()
+    return flipped
 
 
 # ---------------------------------------------------------------------------
@@ -929,7 +963,7 @@ async def _find_duplicate_eligible_entry(
     competition) whose predictions are identical to `entry`'s for the
     given phase. Returns None if no duplicate exists.
 
-    "Eligible" = status ∈ {submitted, locked}, not withdrawn, not disabled.
+    "Eligible" = status == submitted, not withdrawn, not disabled.
 
     "Identical" =
       - same set of (fixture_id, home_score, away_score) for the phase
@@ -951,9 +985,7 @@ async def _find_duplicate_eligible_entry(
             PredictionEntry.withdrawn_at.is_(None),
             PredictionEntry.is_disabled.is_(False),
             PredictionEntryPhase.phase == phase,
-            PredictionEntryPhase.status.in_(
-                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
-            ),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
         )
     )
     candidates = (await session.execute(candidates_q)).scalars().all()
@@ -1322,14 +1354,16 @@ _SETTINGS_FIELDS: tuple[str, ...] = (
     "auto_create_first_entry",
     "allow_duplicate_from_existing",
     "allow_user_rename",
-    "allow_user_withdrawal",
-    "require_ready_before_submit",
     "payment_mode",
     "block_unpaid_entry_submission",
     "show_entry_reference_publicly",
     "phase_scoped_status_enabled",
-    "bonus_questions_required_for_ready",
 )
+# Note: `allow_user_withdrawal`, `require_ready_before_submit`, and
+# `bonus_questions_required_for_ready` were removed in the lifecycle
+# simplification (READY status and user-initiated withdrawal are gone).
+# The columns remain in the DB schema for backward compat but are no
+# longer exposed via the entry-settings API.
 
 
 def settings_dict(competition: Competition) -> dict[str, Any]:

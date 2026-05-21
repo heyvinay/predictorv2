@@ -259,9 +259,10 @@ def calculate_advancement_points(
     config = get_scoring_config()
     adv_config = config.get("advancement", {})
 
-    # Get phase-specific multiplier
-    phase_multipliers = config.get("phase_multipliers", {"phase_1": 1.0, "phase_2": 0.7})
-    multiplier = phase_multipliers.get(phase.value, 1.0)
+    # Phase 2 is dormant — all entries are PHASE_1; multiplier is always 1.0.
+    # The 0.7 Phase 2 multiplier and the `phase_multipliers` config read are
+    # preserved in git history for future revival (see lifecycle simplification).
+    multiplier = 1.0
 
     team = team_prediction.team
     predicted_stage = team_prediction.stage
@@ -430,9 +431,7 @@ async def _count_eligible_entries(session: AsyncSession) -> int:
         .where(
             PredictionEntry.is_disabled == False,  # noqa: E712
             PredictionEntry.withdrawn_at.is_(None),
-            PredictionEntryPhase.status.in_(
-                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
-            ),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
         )
         .distinct()
     )
@@ -561,9 +560,7 @@ async def resolve_default_entry_id(
             PredictionEntry.user_id == user_id,
             PredictionEntry.is_disabled == False,  # noqa: E712
             PredictionEntry.withdrawn_at.is_(None),
-            PredictionEntryPhase.status.in_(
-                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
-            ),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
         )
         .order_by(PredictionEntry.updated_at.desc())
         .limit(1)

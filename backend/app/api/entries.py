@@ -29,6 +29,7 @@ from app.schemas.entry import (
     EntryPaidUpdate,
     EntryPrizeEligibleUpdate,
     EntryRead,
+    EntryReinstate,
     EntryRename,
     EntrySettingsRead,
     EntrySettingsUpdate,
@@ -234,12 +235,15 @@ async def duplicate_entry(
     return EntryRead.model_validate(new_entry)
 
 
-@user_router.post(
-    "/{entry_id}/phases/{phase}/ready", response_model=EntryRead
-)
-async def mark_phase_ready(
+# ---------------------------------------------------------------------------
+# Lifecycle: user submits / edits an entry. Two transitions only.
+#   POST /entries/{id}/submit  → DRAFT → SUBMITTED   (qualifies for scoring)
+#   POST /entries/{id}/edit    → SUBMITTED → DRAFT   (revert; before deadline)
+# Mark-Ready and user-Withdraw were removed in the lifecycle simplification.
+# ---------------------------------------------------------------------------
+@user_router.post("/{entry_id}/submit", response_model=EntryRead)
+async def submit_entry(
     entry_id: uuid.UUID,
-    phase: PredictionPhase,
     session: DbSession,
     current_user: CurrentUser,
     ctx: AuditCtx,
@@ -249,45 +253,10 @@ async def mark_phase_ready(
         entry = await entries_service.get_entry(
             session, entry_id=entry_id, requesting_user=current_user
         )
-        await entries_service.mark_phase_ready(
+        await entries_service.submit_entry(
             session,
             entry=entry,
             user=current_user,
-            phase=phase,
-            competition=competition,
-            ctx=ctx,
-        )
-        await session.commit()
-        # Refresh for response
-        entry = await entries_service.get_entry(
-            session, entry_id=entry_id, requesting_user=current_user
-        )
-    except Exception as exc:
-        await session.rollback()
-        _raise_for(exc)
-    return EntryRead.model_validate(entry)
-
-
-@user_router.post(
-    "/{entry_id}/phases/{phase}/submit", response_model=EntryRead
-)
-async def submit_phase(
-    entry_id: uuid.UUID,
-    phase: PredictionPhase,
-    session: DbSession,
-    current_user: CurrentUser,
-    ctx: AuditCtx,
-) -> EntryRead:
-    competition = await _get_competition(session)
-    try:
-        entry = await entries_service.get_entry(
-            session, entry_id=entry_id, requesting_user=current_user
-        )
-        await entries_service.submit_phase(
-            session,
-            entry=entry,
-            user=current_user,
-            phase=phase,
             competition=competition,
             ctx=ctx,
         )
@@ -301,58 +270,24 @@ async def submit_phase(
     return EntryRead.model_validate(entry)
 
 
-@user_router.post(
-    "/{entry_id}/phases/{phase}/reopen", response_model=EntryRead
-)
-async def reopen_phase(
+@user_router.post("/{entry_id}/edit", response_model=EntryRead)
+async def edit_entry(
     entry_id: uuid.UUID,
-    phase: PredictionPhase,
     session: DbSession,
     current_user: CurrentUser,
     ctx: AuditCtx,
 ) -> EntryRead:
+    """SUBMITTED → DRAFT. Only allowed before competition start."""
     competition = await _get_competition(session)
     try:
         entry = await entries_service.get_entry(
             session, entry_id=entry_id, requesting_user=current_user
         )
-        await entries_service.reopen_phase(
-            session,
-            entry=entry,
-            user=current_user,
-            phase=phase,
-            competition=competition,
-            ctx=ctx,
-        )
-        await session.commit()
-        entry = await entries_service.get_entry(
-            session, entry_id=entry_id, requesting_user=current_user
-        )
-    except Exception as exc:
-        await session.rollback()
-        _raise_for(exc)
-    return EntryRead.model_validate(entry)
-
-
-@user_router.post("/{entry_id}/withdraw", response_model=EntryRead)
-async def withdraw_entry(
-    entry_id: uuid.UUID,
-    payload: EntryWithdraw,
-    session: DbSession,
-    current_user: CurrentUser,
-    ctx: AuditCtx,
-) -> EntryRead:
-    competition = await _get_competition(session)
-    try:
-        entry = await entries_service.get_entry(
-            session, entry_id=entry_id, requesting_user=current_user
-        )
-        await entries_service.withdraw_entry(
+        await entries_service.edit_entry(
             session,
             entry=entry,
             user=current_user,
             competition=competition,
-            reason=payload.reason,
             ctx=ctx,
         )
         await session.commit()
@@ -443,6 +378,64 @@ async def admin_list_entries(
         disabled=disabled,
     )
     return [EntryRead.model_validate(r) for r in rows]
+
+
+@admin_router.post(
+    "/entries/{entry_id}/withdraw", response_model=EntryRead
+)
+async def admin_withdraw_entry(
+    entry_id: uuid.UUID,
+    payload: EntryWithdraw,
+    session: DbSession,
+    admin: AdminUser,
+    ctx: AuditCtx,
+) -> EntryRead:
+    """Admin withdraws an entry. Reason mandatory. Allowed from DRAFT or
+    SUBMITTED. Reversible via /reinstate."""
+    try:
+        entry = await entries_service.get_entry(
+            session,
+            entry_id=entry_id,
+            requesting_user=admin,
+            allow_admin=True,
+        )
+        entry = await entries_service.admin_withdraw_entry(
+            session, entry=entry, admin=admin, reason=payload.reason, ctx=ctx
+        )
+        await session.commit()
+    except Exception as exc:
+        await session.rollback()
+        _raise_for(exc)
+    return EntryRead.model_validate(entry)
+
+
+@admin_router.post(
+    "/entries/{entry_id}/reinstate", response_model=EntryRead
+)
+async def admin_reinstate_entry(
+    entry_id: uuid.UUID,
+    payload: EntryReinstate,
+    session: DbSession,
+    admin: AdminUser,
+    ctx: AuditCtx,
+) -> EntryRead:
+    """Admin reinstates a withdrawn entry to SUBMITTED. Reason mandatory.
+    Rescue path for users who filled everything but forgot to click Submit."""
+    try:
+        entry = await entries_service.get_entry(
+            session,
+            entry_id=entry_id,
+            requesting_user=admin,
+            allow_admin=True,
+        )
+        entry = await entries_service.admin_reinstate_entry(
+            session, entry=entry, admin=admin, reason=payload.reason, ctx=ctx
+        )
+        await session.commit()
+    except Exception as exc:
+        await session.rollback()
+        _raise_for(exc)
+    return EntryRead.model_validate(entry)
 
 
 @admin_router.post(

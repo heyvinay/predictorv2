@@ -112,9 +112,7 @@ async def _list_eligible_entries(
         .where(
             PredictionEntry.is_disabled == False,  # noqa: E712
             PredictionEntry.withdrawn_at.is_(None),
-            PredictionEntryPhase.status.in_(
-                [EntryStatus.SUBMITTED, EntryStatus.LOCKED]
-            ),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
         )
         .distinct()
     )

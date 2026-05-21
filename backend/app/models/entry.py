@@ -43,19 +43,26 @@ if TYPE_CHECKING:
 
 
 class EntryStatus(str, Enum):
-    """Lifecycle state of a prediction entry (or a single phase of one).
+    """Lifecycle state of a prediction entry.
 
-    `locked` is terminal for prediction edits. To exclude a locked entry
-    from a competition, use the `is_disabled` overlay on PredictionEntry
-    rather than mutating status.
+    Three values only:
+    - DRAFT      — editable, not final, does not qualify for scoring.
+    - SUBMITTED  — official, not editable, qualifies for scoring + leaderboard.
+    - WITHDRAWN  — read-only, excluded from scoring. Set by admin OR auto-set
+                   by scheduler when competition starts and entry is still draft.
+
+    Non-terminal: admins can transition WITHDRAWN → SUBMITTED via
+    `admin_reinstate_entry` (e.g. user filled everything but forgot to click
+    Submit before deadline). Reason mandatory on reinstate.
+
+    `is_disabled` on PredictionEntry is a separate orthogonal admin flag for
+    chargebacks / suspicious entries — it suspends scoring without changing
+    status. See plan: i-want-to-simplify-bright-wolf.md.
     """
 
     DRAFT = "draft"
-    READY = "ready"
     SUBMITTED = "submitted"
-    LOCKED = "locked"
     WITHDRAWN = "withdrawn"
-    DISABLED = "disabled"
 
 
 class ActorRole(str, Enum):
