@@ -41,6 +41,7 @@
 		type Phase2OpenResponse
 	} from '$lib/api/admin';
 	import { listBonusAnswers, setBonusAnswer, type BonusAnswerView } from '$api/bonus';
+	import { adminWithdrawEntry, adminReinstateEntry } from '$lib/api/entries';
 	import type { Entry, EntrySettings, EntryStatus } from '$lib/types/entry';
 	import { computeDisplayStatus } from '$lib/types/entry';
 	import type { PredictionPhase } from '$types';
@@ -80,22 +81,16 @@
 		| 'auto_create_first_entry'
 		| 'allow_duplicate_from_existing'
 		| 'allow_user_rename'
-		| 'allow_user_withdrawal'
-		| 'require_ready_before_submit'
 		| 'block_unpaid_entry_submission'
 		| 'show_entry_reference_publicly'
-		| 'phase_scoped_status_enabled'
-		| 'bonus_questions_required_for_ready';
+		| 'phase_scoped_status_enabled';
 	const BOOL_SETTINGS: { key: BoolSettingKey; label: string }[] = [
 		{ key: 'auto_create_first_entry', label: "Auto-create user's first entry" },
 		{ key: 'allow_duplicate_from_existing', label: 'Allow duplicate from existing' },
 		{ key: 'allow_user_rename', label: 'Allow users to rename entries' },
-		{ key: 'allow_user_withdrawal', label: 'Allow users to withdraw entries' },
-		{ key: 'require_ready_before_submit', label: 'Require READY before SUBMIT' },
 		{ key: 'block_unpaid_entry_submission', label: 'Block unpaid entry submission' },
 		{ key: 'show_entry_reference_publicly', label: 'Show entry reference publicly' },
-		{ key: 'phase_scoped_status_enabled', label: 'Per-phase status (vs. competition-wide)' },
-		{ key: 'bonus_questions_required_for_ready', label: 'Bonus questions required for READY' }
+		{ key: 'phase_scoped_status_enabled', label: 'Per-phase status (vs. competition-wide)' }
 	];
 
 	let entrySettings: EntrySettings | null = null;
@@ -139,6 +134,14 @@
 	// Disable dialog state.
 	let disableTargetId: string | null = null;
 	let disableReason = '';
+
+	// Withdraw dialog state (admin-only, irreversible elimination).
+	let withdrawTargetId: string | null = null;
+	let withdrawReason = '';
+
+	// Reinstate dialog state (admin-only, withdrawn → submitted rescue).
+	let reinstateTargetId: string | null = null;
+	let reinstateReason = '';
 
 	function setBoolSetting(key: BoolSettingKey, checked: boolean) {
 		if (!settingsDraft) return;
@@ -265,14 +268,10 @@
 	function statusChipClass(s: EntryStatus): string {
 		switch (s) {
 			case 'submitted':
-			case 'locked':
 				return 'badge badge-success';
-			case 'ready':
-				return 'badge badge-warning';
-			case 'disabled':
-				return 'badge badge-error';
 			case 'withdrawn':
-				return 'badge badge-ghost';
+				return 'badge badge-error';
+			case 'draft':
 			default:
 				return 'badge badge-ghost';
 		}
@@ -342,6 +341,66 @@
 			entries = entries.map((x) => (x.id === updated.id ? updated : x));
 		} catch (err) {
 			entryActionError = err instanceof Error ? err.message : 'Failed to enable entry';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	function openWithdrawDialog(e: Entry) {
+		withdrawTargetId = e.id;
+		withdrawReason = '';
+	}
+
+	function closeWithdrawDialog() {
+		withdrawTargetId = null;
+		withdrawReason = '';
+	}
+
+	async function handleConfirmWithdraw() {
+		if (!withdrawTargetId) return;
+		const reason = withdrawReason.trim();
+		if (!reason) {
+			entryActionError = 'A reason is required to withdraw an entry';
+			return;
+		}
+		entryActingId = withdrawTargetId;
+		entryActionError = null;
+		try {
+			const updated = await adminWithdrawEntry(withdrawTargetId, { reason });
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+			closeWithdrawDialog();
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to withdraw entry';
+		} finally {
+			entryActingId = null;
+		}
+	}
+
+	function openReinstateDialog(e: Entry) {
+		reinstateTargetId = e.id;
+		reinstateReason = '';
+	}
+
+	function closeReinstateDialog() {
+		reinstateTargetId = null;
+		reinstateReason = '';
+	}
+
+	async function handleConfirmReinstate() {
+		if (!reinstateTargetId) return;
+		const reason = reinstateReason.trim();
+		if (!reason) {
+			entryActionError = 'A reason is required to reinstate an entry';
+			return;
+		}
+		entryActingId = reinstateTargetId;
+		entryActionError = null;
+		try {
+			const updated = await adminReinstateEntry(reinstateTargetId, { reason });
+			entries = entries.map((x) => (x.id === updated.id ? updated : x));
+			closeReinstateDialog();
+		} catch (err) {
+			entryActionError = err instanceof Error ? err.message : 'Failed to reinstate entry';
 		} finally {
 			entryActingId = null;
 		}
@@ -656,11 +715,13 @@
 				</button>
 			</section>
 
-			<!-- Phase 1 Deadline -->
+			<!-- Competition start datetime — at this moment, any DRAFT entries
+			     auto-flip to WITHDRAWN (scheduler tick), and SUBMITTED entries
+			     become read-only and start scoring. -->
 			<section class="stadium-card no-glow p-5">
-				<h2 class="text-lg font-display tracking-wide mb-3">Phase I Deadline <span class="text-xs text-base-content/40">· Group stage lock</span></h2>
+				<h2 class="text-lg font-display tracking-wide mb-3">Competition starts at <span class="text-xs text-base-content/40">· locks predictions, kicks off scoring</span></h2>
 				<div class="text-sm mb-3">
-					<b>Deadline:</b>
+					<b>Starts:</b>
 					{#if $phase1Deadline}{new Date($phase1Deadline).toLocaleString()} · <span class={$phase1Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase1Countdown}</span>{:else}<span class="text-warning">NOT SET</span>{/if}
 				</div>
 				{#if phase1Error}<div class="alert alert-error text-sm mb-3">{phase1Error}</div>{/if}
@@ -668,7 +729,7 @@
 				<div class="flex gap-3 items-end flex-wrap">
 					<div class="form-control"><label class="label" for="p1-date"><span class="label-text">Date</span></label><input id="p1-date" type="date" class="input input-bordered input-sm" bind:value={phase1DeadlineDate} /></div>
 					<div class="form-control"><label class="label" for="p1-time"><span class="label-text">Time</span></label><input id="p1-time" type="time" class="input input-bordered input-sm" bind:value={phase1DeadlineTime} /></div>
-					<button class="btn btn-primary btn-sm" type="button" on:click={handleSetPhase1Deadline} disabled={settingPhase1}>{settingPhase1 ? 'Setting…' : 'Set Phase I deadline'}</button>
+					<button class="btn btn-primary btn-sm" type="button" on:click={handleSetPhase1Deadline} disabled={settingPhase1}>{settingPhase1 ? 'Setting…' : 'Set competition start'}</button>
 				</div>
 			</section>
 
@@ -689,23 +750,8 @@
 				</div>
 			</section>
 
-			<!-- Phase II open -->
-			{#if $isPhase2Active}
-				<section class="stadium-card no-glow p-5">
-					<h2 class="text-lg font-display tracking-wide mb-3">Phase II Open <span class="text-xs text-base-content/40">· Per-entry advance</span></h2>
-					<p class="text-xs text-base-content/50 mb-3">Phase II <b>activation</b> opens the bracket window globally. Phase II <b>open</b> walks every eligible entry and advances its per-phase row so the user can start picking. Idempotent — already-open rows are skipped.</p>
-					{#if phase2OpenError}<div class="alert alert-error text-sm mb-3">{phase2OpenError}</div>{/if}
-					{#if phase2OpenResult}
-						<div class="flex gap-2 mb-3 flex-wrap">
-							<span class="badge badge-success">{phase2OpenResult.entries_opened} opened</span>
-							<span class="badge badge-ghost">{phase2OpenResult.entries_already_open} already open</span>
-							{#if phase2OpenResult.entries_skipped_withdrawn > 0}<span class="badge badge-ghost">{phase2OpenResult.entries_skipped_withdrawn} withdrawn</span>{/if}
-							{#if phase2OpenResult.entries_skipped_disabled > 0}<span class="badge badge-error">{phase2OpenResult.entries_skipped_disabled} disabled</span>{/if}
-						</div>
-					{/if}
-					<button class="btn btn-primary btn-sm" type="button" on:click={handleOpenPhase2} disabled={openingPhase2}>{openingPhase2 ? 'Opening…' : 'Open Phase II for all eligible entries'}</button>
-				</section>
-			{/if}
+			<!-- Phase II open — hidden in the simplified-lifecycle build. Phase 2 stays
+			     dormant in the backend; the markup + handler are dropped from the UI. -->
 
 			<!-- Entry Settings -->
 			<section class="stadium-card no-glow p-5">
@@ -750,7 +796,7 @@
 					<input class="input input-bordered input-sm" placeholder="User name / email…" bind:value={entryUserSearch} type="search" />
 					<input class="input input-bordered input-sm" placeholder="Reference (WC26-…)" bind:value={entryRefSearch} type="search" on:change={loadEntries} />
 					<select class="select select-bordered select-sm" bind:value={entryStatusFilter} on:change={loadEntries}>
-						<option value="">Any status</option><option value="draft">draft</option><option value="ready">ready</option><option value="submitted">submitted</option><option value="locked">locked</option><option value="withdrawn">withdrawn</option><option value="disabled">disabled</option>
+						<option value="">Any status</option><option value="draft">draft</option><option value="submitted">submitted</option><option value="withdrawn">withdrawn</option>
 					</select>
 					<select class="select select-bordered select-sm" bind:value={entryPaidFilter} on:change={loadEntries}>
 						<option value="">Any paid</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option>
@@ -792,6 +838,11 @@
 									{:else}
 										<button class="btn btn-xs btn-outline btn-error" type="button" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>Disable…</button>
 									{/if}
+									{#if status === 'withdrawn'}
+										<button class="btn btn-xs btn-outline btn-success" type="button" on:click={() => openReinstateDialog(e)} disabled={entryActingId === e.id}>Reinstate…</button>
+									{:else}
+										<button class="btn btn-xs btn-outline btn-error" type="button" on:click={() => openWithdrawDialog(e)} disabled={entryActingId === e.id}>Withdraw…</button>
+									{/if}
 									<button class="btn btn-xs btn-ghost" type="button" on:click={() => openAuditDrawer(e.id)}>Audit</button>
 								</div>
 
@@ -802,6 +853,30 @@
 										<div class="flex gap-2">
 											<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}</button>
 											<button class="btn btn-xs btn-ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
+										</div>
+									</div>
+								{/if}
+
+								{#if withdrawTargetId === e.id}
+									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
+										<div class="text-sm font-semibold mb-2">Withdraw {e.display_name} ({e.reference})</div>
+										<p class="text-xs text-base-content/60 mb-2">Removes the entry from scoring. Reinstate is available later if needed.</p>
+										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={withdrawReason} />
+										<div class="flex gap-2">
+											<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmWithdraw} disabled={!withdrawReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Withdrawing…' : 'Confirm withdraw'}</button>
+											<button class="btn btn-xs btn-ghost" type="button" on:click={closeWithdrawDialog}>Cancel</button>
+										</div>
+									</div>
+								{/if}
+
+								{#if reinstateTargetId === e.id}
+									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
+										<div class="text-sm font-semibold mb-2">Reinstate {e.display_name} ({e.reference}) as SUBMITTED</div>
+										<p class="text-xs text-base-content/60 mb-2">Qualifies for scoring from this moment. Use for users who filled all picks but missed the deadline.</p>
+										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={reinstateReason} />
+										<div class="flex gap-2">
+											<button class="btn btn-xs btn-success" type="button" on:click={handleConfirmReinstate} disabled={!reinstateReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Reinstating…' : 'Confirm reinstate'}</button>
+											<button class="btn btn-xs btn-ghost" type="button" on:click={closeReinstateDialog}>Cancel</button>
 										</div>
 									</div>
 								{/if}

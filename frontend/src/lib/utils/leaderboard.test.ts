@@ -32,13 +32,10 @@ function makeSettings(overrides: Partial<EntrySettings> = {}): EntrySettings {
 		auto_create_first_entry: true,
 		allow_duplicate_from_existing: true,
 		allow_user_rename: true,
-		allow_user_withdrawal: true,
-		require_ready_before_submit: false,
 		payment_mode: 'per_entry',
 		block_unpaid_entry_submission: false,
 		show_entry_reference_publicly: false,
 		phase_scoped_status_enabled: false,
-		bonus_questions_required_for_ready: false,
 		...overrides
 	};
 }
