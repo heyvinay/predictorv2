@@ -732,18 +732,30 @@
 	})();
 
 	async function loadBonus() {
-		const [qs, preds] = await Promise.all([
-			(await import('$api/bonus')).getBonusQuestions(),
-			(await import('$api/bonus')).getMyBonusPredictions()
-		]);
+		const bonusApi = await import('$api/bonus');
+		const entryId = $activeEntryId;
+		// Questions are static — always loadable. Predictions are entry-scoped;
+		// skip the fetch (and any error from a not-yet-resolved active entry).
+		const qs = await bonusApi.getBonusQuestions();
 		bonusQuestions = qs;
-		const map = new Map<string, string>();
-		for (const p of preds) map.set(p.question_id, p.answer);
-		bonusAnswers = map;
-		bonusInitial = new Map(map);
+		if (entryId) {
+			try {
+				const preds = await bonusApi.getMyBonusPredictions(entryId);
+				const map = new Map<string, string>();
+				for (const p of preds) map.set(p.question_id, p.answer);
+				bonusAnswers = map;
+				bonusInitial = new Map(map);
+			} catch (e) {
+				// Predictions failed but questions still render — better UX
+				// than blanking the whole bonus tab on a single-endpoint hiccup.
+				console.warn('Failed to load bonus predictions', e);
+			}
+		}
 	}
 
 	async function handleSaveBonus() {
+		const entryId = $activeEntryId;
+		if (!entryId) return;
 		bonusSaveStatus = 'saving';
 		try {
 			const { saveBonusPredictions } = await import('$api/bonus');
@@ -751,7 +763,7 @@
 				question_id,
 				answer
 			}));
-			const saved = await saveBonusPredictions(preds);
+			const saved = await saveBonusPredictions(entryId, preds);
 			const fresh = new Map<string, string>();
 			for (const p of saved) fresh.set(p.question_id, p.answer);
 			bonusAnswers = fresh;
@@ -807,7 +819,18 @@
 		awards: 'Awards'
 	};
 
+	// Initial load: questions only (entry-agnostic). Predictions are
+	// entry-scoped and reload via the reactive below when the active
+	// entry changes.
 	$: if ($isAuthenticated && bonusQuestions.length === 0) {
+		loadBonus().catch(() => {});
+	}
+
+	// Reload bonus predictions whenever the active entry changes (and
+	// after questions have loaded).
+	let lastBonusEntryId: string | null = null;
+	$: if ($isAuthenticated && $activeEntryId && $activeEntryId !== lastBonusEntryId && bonusQuestions.length > 0) {
+		lastBonusEntryId = $activeEntryId;
 		loadBonus().catch(() => {});
 	}
 
