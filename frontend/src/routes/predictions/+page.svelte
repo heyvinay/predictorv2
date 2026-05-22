@@ -697,7 +697,13 @@
 	}
 
 	// ---- Unified save -----------------------------------------------------
-	$: hasAnyUnsaved = $hasUnsavedChanges || $hasUnsavedBracketChanges || $hasUnsavedPhase2BracketChanges;
+	// hasAnyUnsaved now covers matches + bracket + Phase 2 bracket + bonus.
+	// All four save through the single handleSaveAll flow.
+	$: hasAnyUnsaved =
+		$hasUnsavedChanges ||
+		$hasUnsavedBracketChanges ||
+		$hasUnsavedPhase2BracketChanges ||
+		hasUnsavedBonus;
 	beforeNavigate(({ cancel, type }) => {
 		if (!hasAnyUnsaved) return;
 		if (type === 'leave') return;
@@ -711,7 +717,39 @@
 
 	async function handleSaveAll() {
 		saveStatus = 'saving';
-		const ok = await saveAllPredictions();
+		// Save matches + bracket (Phase 1 and Phase 2 if any) via the
+		// predictions store action. Returns false on failure.
+		const matchesOk = await saveAllPredictions();
+
+		// Save bonus picks if any are dirty (independent of matches).
+		// Keeps a separate ok flag so a bonus-only save still works
+		// when matches/bracket are clean (saveAllPredictions returns
+		// true vacuously in that case).
+		let bonusOk = true;
+		if (hasUnsavedBonus) {
+			const entryId = $activeEntryId;
+			if (!entryId) {
+				bonusOk = false;
+			} else {
+				try {
+					const { saveBonusPredictions } = await import('$api/bonus');
+					const preds = Array.from(bonusAnswers.entries()).map(([question_id, answer]) => ({
+						question_id,
+						answer
+					}));
+					const saved = await saveBonusPredictions(entryId, preds);
+					const fresh = new Map<string, string>();
+					for (const p of saved) fresh.set(p.question_id, p.answer);
+					bonusAnswers = fresh;
+					bonusInitial = new Map(fresh);
+				} catch (e) {
+					console.error('Failed to save bonus', e);
+					bonusOk = false;
+				}
+			}
+		}
+
+		const ok = matchesOk && bonusOk;
 		saveStatus = ok ? 'saved' : 'error';
 		if (ok) setTimeout(() => (saveStatus = 'idle'), 2000);
 	}
@@ -1123,13 +1161,8 @@
 						phase="phase_1"
 						on:update={handleBracketUpdate}
 					/>
-					<div class="flex gap-3 justify-end mt-3">
-						{#if $hasUnsavedBracketChanges}
-							<button class="btn btn-primary btn-sm" on:click={handleSaveBracket} disabled={bracketSaveStatus === 'saving'}>
-								{bracketSaveStatus === 'saving' ? 'Saving…' : bracketSaveStatus === 'saved' ? '✓ Saved' : 'Save bracket'}
-							</button>
-						{/if}
-					</div>
+					<!-- Legacy "Save bracket" button removed — bracket edits now
+					     flow through the unified Save Draft in BottomActionBar. -->
 				{/if}
 			{:else if activeSection === 'bonus'}
 				{#each Object.entries(bonusByCategory) as [cat, qs] (cat)}
@@ -1156,8 +1189,8 @@
 				{/each}
 
 				<div class="flex justify-end items-center gap-3 mt-4">
-					<span class="text-xs text-base-content/50">{bonusAnswers.size} of {bonusQuestions.length} answered</span>
-					<button class="btn btn-primary btn-sm" on:click={handleSaveBonus} disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}>
+					<span class="text-xs text-base-content/50">{bonusAnswers.size} of {bonusQuestions.length} answered · use Save Draft below to persist</span>
+					<button class="btn btn-primary btn-sm hidden" on:click={handleSaveBonus} disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}>
 						{bonusSaveStatus === 'saving' ? 'Saving…' : bonusSaveStatus === 'saved' ? '✓ Saved' : bonusSaveStatus === 'error' ? '× Error — retry' : 'Save bonus picks'}
 					</button>
 				</div>
