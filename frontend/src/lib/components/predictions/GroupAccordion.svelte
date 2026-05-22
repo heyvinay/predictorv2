@@ -33,6 +33,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import type { Fixture, FixturesByGroup } from '$lib/types';
+	import type { TeamStanding } from '$lib/utils/standings';
 	import FixtureRow from './FixtureRow.svelte';
 
 	export let group: FixturesByGroup;
@@ -42,6 +43,21 @@
 		null;
 	export let onScore: (fixtureId: string, home: number, away: number) => void = () => {};
 	export let onToggle: () => void = () => {};
+
+	/**
+	 * Optional predicted standings for this group. When provided, renders
+	 * a compact 4-row table at the top of the body (above the fixtures).
+	 * Top 2 = advances (success), 3rd = best-third candidate (warning),
+	 * 4th = out (error). Mirrors the legacy `.standings-table-v2` semantics.
+	 */
+	export let standings: TeamStanding[] = [];
+
+	/**
+	 * Tied-teams groups (alphabetical fallback in effect). Each inner array
+	 * is the alphabetically-sorted set of tied team names. When non-empty,
+	 * a warning alert appears above the standings.
+	 */
+	export let tiedTeams: string[][] = [];
 
 	// Unique home teams (in fixture order). In a 4-team group's 6 matches,
 	// the four group teams each appear as "home" in 3 of the 6, so the
@@ -82,6 +98,20 @@
 		sections.sort((a, b) => a.date.getTime() - b.date.getTime());
 		return sections;
 	})();
+
+	// Static class lookup for standings position highlighting. Tailwind's JIT
+	// can't see dynamic class strings (`bg-${tone}/15`) so we materialize all
+	// three variants here as full class strings.
+	const POS_CLASS = {
+		advance: 'bg-success/15 text-success',
+		best3rd: 'bg-warning/15 text-warning',
+		out: 'bg-error/15 text-error'
+	} as const;
+	function posTone(i: number): 'advance' | 'best3rd' | 'out' {
+		if (i < 2) return 'advance';
+		if (i === 2) return 'best3rd';
+		return 'out';
+	}
 
 	function fmtDate(d: Date): string {
 		// "Mon 15 Jun" — short weekday + day + month
@@ -146,6 +176,100 @@
 	<!-- Body (only when open) -->
 	{#if open}
 		<div id="group-{group.group}-body" transition:slide={{ duration: 200, easing: cubicOut }}>
+			<!-- Tied-teams warning(s) (if any) -->
+			{#if tiedTeams.length > 0}
+				<div class="px-4 pt-3 pb-1">
+					<div class="alert alert-warning text-xs py-2">
+						<div>
+							<div class="font-semibold mb-0.5">⚠ Tied teams in Group {group.group}</div>
+							{#each tiedTeams as set (set.join('-'))}
+								<p class="text-[11px] opacity-90">
+									{set.join(', ')} — tied on points, GD, GF + head-to-head; ranked
+									alphabetically as fallback. Adjust scores to break the tie.
+								</p>
+							{/each}
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Predicted standings (compact, scoped to this group) -->
+			{#if standings.length > 0}
+				<div class="px-4 pt-3">
+					<div class="text-[10px] uppercase tracking-wider text-base-content/50 font-semibold mb-1.5">
+						Predicted standings
+					</div>
+					<div class="overflow-x-auto">
+						<table class="w-full text-xs">
+							<thead class="text-base-content/40 uppercase tracking-wider">
+								<tr>
+									<th class="text-left font-normal pb-1 w-6">#</th>
+									<th class="text-left font-normal pb-1">Team</th>
+									<th class="text-center font-normal pb-1">P</th>
+									<th class="text-center font-normal pb-1">W</th>
+									<th class="text-center font-normal pb-1">D</th>
+									<th class="text-center font-normal pb-1">L</th>
+									<th class="text-center font-normal pb-1">GD</th>
+									<th class="text-center font-normal pb-1">Pts</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each standings as t, i (t.team)}
+									<tr class="border-t border-base-content/5">
+										<td class="py-1">
+											<span
+												class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {POS_CLASS[
+													posTone(i)
+												]}">{i + 1}</span
+											>
+										</td>
+										<td class="py-1">
+											<span class="flex items-center gap-1.5">
+												{#if hasFlag(t.team)}
+													<img
+														src={getFlagUrl(t.team, 'sm')}
+														alt=""
+														class="w-4 h-auto rounded-sm flex-shrink-0"
+													/>
+												{/if}
+												<span class="truncate">{t.team}</span>
+											</span>
+										</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.won}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.drawn}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.lost}</td>
+										<td class="text-center font-mono tabular-nums py-1">
+											<span
+												class={t.goalDifference > 0
+													? 'text-success'
+													: t.goalDifference < 0
+														? 'text-error'
+														: 'opacity-60'}
+												>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span
+											>
+										</td>
+										<td class="text-center font-mono tabular-nums font-bold py-1">{t.points}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					<div class="flex gap-3 text-[10px] text-base-content/50 mt-2 mb-1 flex-wrap">
+						<span class="flex items-center gap-1"
+							><span class="w-1 h-2.5 bg-success rounded"></span>Advances (top 2)</span
+						>
+						<span class="flex items-center gap-1"
+							><span class="w-1 h-2.5 bg-warning rounded"></span>Best 3rd candidate</span
+						>
+						<span class="flex items-center gap-1"
+							><span class="w-1 h-2.5 bg-error rounded"></span>Out</span
+						>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Date-grouped fixtures -->
 			{#each fixturesByDate as section, idx (section.date.getTime())}
 				<div class:border-t={idx > 0} class="border-base-content/10">
 					<div

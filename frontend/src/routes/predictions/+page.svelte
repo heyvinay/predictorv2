@@ -873,9 +873,110 @@
 							getPrediction={fixturePrediction}
 							onScore={(fid, home, away) => updateLocalPrediction(fid, home, away)}
 							onToggle={() => toggleGroupAccordion(g.group)}
+							standings={standingsMap[g.group] ?? []}
+							tiedTeams={groupStandingsWarnings
+								.filter((w) => w.group === g.group)
+								.map((w) => w.tiedTeams)}
 						/>
 					{/each}
 				</div>
+
+				<!-- Third-place qualifying table (always visible — was previously
+				     gated behind the dropped pill-strip's "3rd" pill). -->
+				<section class="stadium-card no-glow p-4 sm:p-5 mb-6">
+					{#if allGroupsComplete && thirdPlaceWarnings.length > 0}
+						<div class="alert alert-warning text-xs py-2 mb-3">
+							<div>
+								<div class="font-semibold mb-0.5">
+									⚠ Tied teams · alphabetical fallback in effect
+								</div>
+								{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
+									<p class="text-[11px] opacity-90">
+										{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place teams
+										come from different groups so head-to-head isn't applicable; ranked
+										alphabetically. Adjust scores to change qualification.
+									</p>
+								{/each}
+							</div>
+						</div>
+					{/if}
+					<h2 class="text-base sm:text-lg font-display tracking-wide mb-3">
+						Third-place qualifying · top 8 advance to R32
+					</h2>
+					<div class="overflow-x-auto">
+						<table class="w-full text-xs">
+							<thead class="text-base-content/40 uppercase tracking-wider">
+								<tr>
+									<th class="text-left font-normal pb-1 w-6">#</th>
+									<th class="text-center font-normal pb-1 w-10">Grp</th>
+									<th class="text-left font-normal pb-1">Team</th>
+									<th class="text-center font-normal pb-1">P</th>
+									<th class="text-center font-normal pb-1">W</th>
+									<th class="text-center font-normal pb-1">D</th>
+									<th class="text-center font-normal pb-1">L</th>
+									<th class="text-center font-normal pb-1">GD</th>
+									<th class="text-center font-normal pb-1">Pts</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each thirdPlaceStandings as t, i (t.team)}
+									<tr
+										class="border-t border-base-content/5 {i < 8
+											? 'bg-success/5'
+											: ''}"
+									>
+										<td class="py-1">
+											<span
+												class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {i < 8
+													? 'bg-success/20 text-success'
+													: 'bg-base-300/40 text-base-content/50'}">{i + 1}</span
+											>
+										</td>
+										<td class="text-center text-[11px] font-mono py-1">{t.group}</td>
+										<td class="py-1">
+											<span class="flex items-center gap-1.5">
+												{#if hasFlag(t.team)}
+													<img
+														src={getFlagUrl(t.team, 'sm')}
+														alt=""
+														class="w-4 h-auto rounded-sm flex-shrink-0"
+													/>
+												{/if}
+												<span class="truncate">{t.team}</span>
+											</span>
+										</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.won}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.drawn}</td>
+										<td class="text-center font-mono tabular-nums py-1">{t.lost}</td>
+										<td class="text-center font-mono tabular-nums py-1">
+											<span
+												class={t.goalDifference > 0
+													? 'text-success'
+													: t.goalDifference < 0
+														? 'text-error'
+														: 'opacity-60'}
+												>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span
+											>
+										</td>
+										<td class="text-center font-mono tabular-nums font-bold py-1"
+											>{t.points}</td
+										>
+									</tr>
+								{:else}
+									<tr>
+										<td colspan="9" class="text-center py-4 text-base-content/40 text-xs">
+											No third-place standings yet — fill in some group predictions.
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					<p class="text-[10px] text-base-content/50 mt-2 uppercase tracking-wider">
+						★ Top 8 third-placed teams qualify for the Round of 32 (FIFA 2026 format)
+					</p>
+				</section>
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
