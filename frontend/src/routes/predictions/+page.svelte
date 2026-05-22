@@ -69,6 +69,7 @@
 	import SheetSelector from '$components/predictions/SheetSelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
 	import FixtureRow from '$components/predictions/FixtureRow.svelte';
+	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -259,6 +260,18 @@
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
 	let lockModalOpen = false;
 	let unlockModalOpen = false;
+
+	// GroupAccordion open-set. Multiple accordions can be open
+	// simultaneously (per the resolved no-single-expanded rule).
+	// All groups start closed.
+	let openGroups: Set<string> = new Set();
+	function toggleGroupAccordion(letter: string): void {
+		// Re-assign to trigger Svelte reactivity (Set mutations aren't reactive)
+		const next = new Set(openGroups);
+		if (next.has(letter)) next.delete(letter);
+		else next.add(letter);
+		openGroups = next;
+	}
 
 	function handleSubmit(): void {
 		if (!$activeEntry) return;
@@ -842,235 +855,27 @@
 
 		<!-- ============================== PHASE 1 ============================== -->
 		{#if activePhase === 'phase1'}
-			<!-- Group selector: focused hero header + compact pill strip -->
+			<!-- 12 group accordions (A-L). All closed by default; tap header
+			     to expand. Multiple accordions can be open simultaneously
+			     per the resolved no-single-expanded rule. The legacy pill
+			     strip, focused-hero stepper, predicted standings tables, and
+			     third-place qualifying table are intentionally dropped here
+			     per the Prompt 9 spec (header + flag cluster + completion
+			     badge + date-grouped fixtures only). Standings can return
+			     as a separate widget in a later prompt. -->
 			{#if activeSection === 'groups'}
-				<div class="group-selector mb-6">
-					<!-- Focused hero -->
-					<div class="group-selector-hero">
-						<button
-							class="group-stepper-btn"
-							type="button"
-							aria-label="Previous group"
-							on:click={() => stepGroup(-1)}
-						>
-							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
-							<span>Prev</span>
-						</button>
-
-						<div class="group-focus-info">
-							<div class="group-focus-badge {activeGroupPill === 'thirdplace' ? 'is-thirdplace' : ''}">
-								<span>{focusedInfo?.badge ?? '—'}</span>
-							</div>
-							<div class="group-focus-text">
-								<div class="text-[10px] uppercase tracking-[0.22em] text-base-content/45 mb-0.5">
-									{focusedInfo?.caption ?? ''}
-								</div>
-								<h2 class="font-display text-2xl sm:text-3xl tracking-widest leading-none">
-									{focusedInfo?.title ?? ''}
-								</h2>
-								<div class="text-xs text-base-content/55 mt-1.5 truncate">
-									{focusedInfo?.meta ?? ''}
-								</div>
-							</div>
-						</div>
-
-						<button
-							class="group-stepper-btn"
-							type="button"
-							aria-label="Next group"
-							on:click={() => stepGroup(1)}
-						>
-							<span>Next</span>
-							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-						</button>
-					</div>
-
-					<!-- Compact mini-pill strip — all 12 groups + 3rd place -->
-					<div class="group-pill-strip">
-						{#each $groupFixtures as g (g.group)}
-							{@const gp = groupProgress(g)}
-							{@const isActive = activeGroupPill === g.group}
-							{@const isComplete = gp.total > 0 && gp.done === gp.total}
-							{@const hasTie = groupStandingsWarnings.some((w) => w.group === g.group)}
-							{@const pct = gp.total > 0 ? Math.round((gp.done / gp.total) * 100) : 0}
-							<button
-								class="group-mini-pill {isActive ? 'is-active' : ''} {isComplete && hasTie ? 'is-tied' : isComplete ? 'is-complete' : ''}"
-								type="button"
-								on:click={() => (activeGroupPill = g.group)}
-								title="Group {g.group} · {gp.done}/{gp.total}{hasTie && isComplete ? ' · tied' : ''}"
-								aria-label="Group {g.group}, {gp.done} of {gp.total} predicted"
-							>
-								<span class="letter">{g.group}</span>
-								<span class="progress-bar"><span class="progress-fill" style="width: {pct}%"></span></span>
-							</button>
-						{/each}
-						<button
-							class="group-mini-pill is-thirdplace {activeGroupPill === 'thirdplace' ? 'is-active' : ''}"
-							type="button"
-							on:click={() => (activeGroupPill = 'thirdplace')}
-							title="3rd Place qualifying"
-							aria-label="Third place qualifying view"
-						>
-							<span class="letter">3rd</span>
-						</button>
-					</div>
+				<div class="space-y-3 mb-6">
+					{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g (g.group)}
+						<GroupAccordion
+							group={g}
+							open={openGroups.has(g.group)}
+							editable={$activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1')}
+							getPrediction={fixturePrediction}
+							onScore={(fid, home, away) => updateLocalPrediction(fid, home, away)}
+							onToggle={() => toggleGroupAccordion(g.group)}
+						/>
+					{/each}
 				</div>
-			{/if}
-
-			<!-- Third place view -->
-			{#if activeSection === 'groups' && activeGroupPill === 'thirdplace'}
-				<div class="stadium-card no-glow p-4 sm:p-5">
-					{#if allGroupsComplete && thirdPlaceWarnings.length > 0}
-						<div class="alert alert-warning text-sm mb-4">
-							<div>
-								<h4 class="font-semibold">⚠ Tied teams · alphabetical fallback in effect</h4>
-								{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
-									<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD and GF. Third-place teams come from different groups so head-to-head isn't applicable — currently ranked alphabetically. Adjust scores to change qualification.</p>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					<h2 class="text-lg font-display tracking-wide mb-3">Third-place standings · top 8 advance to R32</h2>
-					<div class="group-standings">
-						<table class="standings-table">
-							<thead>
-								<tr><th></th><th class="text-center">Grp</th><th class="text-left">Team</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center">D</th><th class="text-center">L</th><th class="text-center">GF</th><th class="text-center">GA</th><th class="text-center">GD</th><th>Pts</th></tr>
-							</thead>
-							<tbody>
-								{#each thirdPlaceStandings as t, i (t.team)}
-									<tr class="standing-row {i < 8 ? 'bg-success/5' : ''}">
-										<td><span class="position-indicator {i < 8 ? '!bg-success/20 !text-success' : ''}">{i + 1}</span></td>
-										<td class="text-center text-xs">{t.group}</td>
-										<td>
-											<span class="flex items-center gap-2">
-												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="team-flag" />{/if}
-												<span class="team-name-table">{t.team}</span>
-											</span>
-										</td>
-										<td class="text-center">{t.played}</td>
-										<td class="text-center">{t.won}</td>
-										<td class="text-center">{t.drawn}</td>
-										<td class="text-center">{t.lost}</td>
-										<td class="text-center">{t.goalsFor}</td>
-										<td class="text-center">{t.goalsAgainst}</td>
-										<td class="text-center gd-cell {t.goalDifference >= 0 ? 'positive' : 'negative'}">{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</td>
-										<td><span class="points-badge">{t.points}</span></td>
-									</tr>
-								{:else}
-									<tr><td colspan="11" class="text-center py-6 text-base-content/40">No third-place standings yet — fill in some group predictions</td></tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-					<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Top 8 third-placed teams qualify for the Round of 32 under FIFA 2026 format</p>
-				</div>
-			{:else if activeSection === 'groups' && selectedGroup}
-				{@const group = selectedGroup}
-				{@const standings = standingsMap[group.group] ?? []}
-				{@const groupWarnings = groupStandingsWarnings.filter((w) => w.group === group.group)}
-				{@const groupGp = groupProgress(group)}
-				{@const groupComplete = groupGp.total > 0 && groupGp.done === groupGp.total}
-
-				{#if groupComplete && groupWarnings.length > 0}
-					<div class="alert alert-warning text-sm mb-5">
-						<div>
-							<h4 class="font-semibold">⚠ Tied teams in Group {group.group}</h4>
-							{#each groupWarnings as w (w.tiedTeams.join('-'))}
-								<p class="text-xs mt-1">{w.tiedTeams.join(', ')} are tied on points, GD, GF and head-to-head — currently ranked alphabetically. Adjust scores to change the ordering.</p>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Predicted Standings (full width) -->
-				<section class="mb-8">
-					<h3 class="section-label">
-						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6h6v13M5 19v-7h4v7M15 19v-3h4v3" /></svg>
-						Predicted Standings
-					</h3>
-					<div class="standings-card">
-						<table class="standings-table-v2">
-							<thead>
-								<tr>
-									<th class="w-10 text-left pl-4">#</th>
-									<th class="text-left">Team</th>
-									<th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each standings as t, i (t.team)}
-									{@const pos = i < 2 ? 'advance' : i === 2 ? 'thirdplace' : 'out'}
-									<tr class="standing-row-v2 pos-{pos}">
-										<td class="rank-cell"><span class="rank-pill pos-{pos}">{i + 1}</span></td>
-										<td class="team-cell">
-											<div class="team-content">
-												{#if hasFlag(t.team)}<img src={getFlagUrl(t.team, 'sm')} alt="" class="team-flag" />{/if}
-												<span class="team-name">{t.team}</span>
-											</div>
-										</td>
-										<td class="num">{t.played}</td>
-										<td class="num"><span class={t.won > 0 ? 'text-success' : 'text-base-content/40'}>{t.won}</span></td>
-										<td class="num">{t.drawn}</td>
-										<td class="num"><span class={t.lost > 0 ? 'text-error' : 'text-base-content/40'}>{t.lost}</span></td>
-										<td class="num">{t.goalsFor}</td>
-										<td class="num">{t.goalsAgainst}</td>
-										<td class="num"><span class={t.goalDifference > 0 ? 'text-success' : t.goalDifference < 0 ? 'text-error' : 'text-base-content/60'}>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span></td>
-										<td class="text-center"><span class="pts-badge">{t.points}</span></td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-					<div class="flex gap-4 text-xs text-base-content/50 mt-3">
-						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-success rounded"></span>Advances (top 2)</span>
-						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-warning rounded"></span>Best 3rd</span>
-						<span class="flex items-center gap-1.5"><span class="w-0.5 h-3 bg-error rounded"></span>Out</span>
-					</div>
-				</section>
-
-				<!-- Match Predictions (responsive grid) -->
-				<section>
-					<h3 class="section-label">
-						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-						Match Predictions
-					</h3>
-					<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-						{#each group.fixtures as f (f.id)}
-							{@const state = predictionState(f)}
-							{@const countdown = fmtCountdown(f.time_until_lock)}
-							{@const fixtureEditable = !f.is_locked && $activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1')}
-							{@const fixturePred = fixturePrediction(f.id)}
-							<div class="rounded-lg border border-base-content/10 bg-base-200/30 mb-2">
-								<!-- Top meta strip: kickoff time + group tag + countdown chip -->
-								<div class="flex items-center justify-between gap-2 px-3 pt-2 text-xs text-base-content/50">
-									<div class="flex items-center gap-2">
-										<span>{fmtCard(f.kickoff)}</span>
-										<span class="group-tag">Group {group.group}</span>
-									</div>
-									<span class="countdown-chip {countdown === 'locked' ? 'is-locked' : ''}">{countdown}</span>
-								</div>
-								<!-- FixtureRow: home | center zone | away. The center
-								     zone shows TAP / Stepper / read-only based on
-								     (editable, prediction). Multiple rows can be
-								     expanded simultaneously. -->
-								<FixtureRow
-									fixture={f}
-									prediction={fixturePred}
-									editable={fixtureEditable}
-									onScore={(home, away) => updateLocalPrediction(f.id, home, away)}
-								/>
-								<!-- Status footer kept inline below for now; will be
-								     subsumed by the row's own state at Prompt 14. -->
-								<div class="flex items-center gap-2 px-3 pb-2 text-xs">
-									{#if state === 'locked'}<span class="badge badge-sm badge-ghost">Locked</span>
-									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40">Save to commit</span>
-									{:else if state === 'saved'}<span class="badge badge-sm badge-success">✓ Saved</span>
-									{:else}<span class="badge badge-sm badge-ghost">Empty</span>{/if}
-								</div>
-							</div>
-						{/each}
-					</div>
-				</section>
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
