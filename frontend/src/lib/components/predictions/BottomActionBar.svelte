@@ -30,17 +30,26 @@
 	import { createEventDispatcher } from 'svelte';
 
 	export let status: 'draft' | 'locked' | 'scored' | 'missed' = 'draft';
-	export let completionPct: number = 0;
+	/**
+	 * Whether the Submit button is enabled. True only when EVERY required
+	 * prediction is in: all 72 group fixtures + the full knockout bracket
+	 * + every bonus question. Caller computes this; we just render it.
+	 */
+	export let canSubmit: boolean = false;
+	/**
+	 * Short human-readable summary of what's still missing when canSubmit
+	 * is false — shown in the disabled button's tooltip. e.g. "3 fixtures,
+	 * 5 bracket picks, 2 bonus" or null when nothing is missing.
+	 */
+	export let incompleteSummary: string | null = null;
 	export let hasUnsavedChanges: boolean = false;
 	export let savingDraft: boolean = false;
 
 	const dispatch = createEventDispatcher<{
 		saveDraft: void;
-		lockIn: void;
+		submit: void;
 		unlock: void;
 	}>();
-
-	$: lockInEnabled = completionPct === 100;
 	let savedFlash = false;
 
 	async function handleSaveDraft() {
@@ -82,12 +91,16 @@
 
 				<button
 					type="button"
-					class="btn flex-1 min-h-12 {lockInEnabled ? 'btn-success' : 'btn-disabled'}"
-					on:click={() => lockInEnabled && dispatch('lockIn')}
-					disabled={!lockInEnabled}
-					title={lockInEnabled ? 'Lock in your predictions' : `Complete all fixtures to unlock (${completionPct}%)`}
+					class="btn flex-1 min-h-12 {canSubmit ? 'btn-success' : 'btn-disabled'}"
+					on:click={() => canSubmit && dispatch('submit')}
+					disabled={!canSubmit}
+					title={canSubmit
+						? 'Submit your predictions'
+						: incompleteSummary
+							? `Complete to submit: ${incompleteSummary}`
+							: 'Complete all predictions to submit'}
 				>
-					🔒 Lock In{lockInEnabled ? '' : ` (${completionPct}%)`}
+					Submit
 				</button>
 			{:else if status === 'locked'}
 				<div

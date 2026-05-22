@@ -485,6 +485,58 @@
 		return p.total > 0 && p.done === p.total;
 	});
 
+	// Counts of what's still missing across the three submit gates.
+	// Used to compute canSubmit + a friendly tooltip for the disabled state.
+	$: missingFixtureCount = (() => {
+		let missing = 0;
+		for (const g of $groupFixtures) {
+			if (g.group === 'thirdplace') continue;
+			const p = groupProgress(g);
+			missing += p.total - p.done;
+		}
+		return missing;
+	})();
+
+	$: bracketIsComplete = (() => {
+		const b = $unsavedBracketPrediction || $bracketPrediction;
+		if (!b) return false;
+		return (
+			b.round_of_32?.length === 32 &&
+			b.round_of_16?.length === 16 &&
+			b.quarter_finals?.length === 8 &&
+			b.semi_finals?.length === 4 &&
+			b.final?.length === 2 &&
+			!!b.winner
+		);
+	})();
+
+	$: missingBracketPicks = bracketIsComplete ? 0 : 1; // boolean-ish; tooltip just says "bracket"
+
+	$: missingBonusCount = (() => {
+		// bonusQuestions.length is the canonical total. Count questions
+		// that have no answer or an empty answer.
+		let missing = 0;
+		for (const q of bonusQuestions) {
+			const a = bonusAnswers.get(q.id);
+			if (!a || a.trim() === '') missing++;
+		}
+		return missing;
+	})();
+
+	$: phase1AllComplete =
+		allGroupsComplete && bracketIsComplete && missingBonusCount === 0;
+
+	$: incompleteSummary = (() => {
+		if (phase1AllComplete) return null;
+		const parts: string[] = [];
+		if (missingFixtureCount > 0)
+			parts.push(`${missingFixtureCount} fixture${missingFixtureCount === 1 ? '' : 's'}`);
+		if (!bracketIsComplete) parts.push('bracket');
+		if (missingBonusCount > 0)
+			parts.push(`${missingBonusCount} bonus`);
+		return parts.join(', ');
+	})();
+
 	// ---- Selected group's fixtures ---------------------------------------
 	$: selectedGroup =
 		activeGroupPill && activeGroupPill !== 'thirdplace'
@@ -1175,11 +1227,12 @@
 		     the layout's mobile bottom nav (pb-16). -->
 		<BottomActionBar
 			status={uiStatus}
-			completionPct={phaseProgress.pct}
+			canSubmit={phase1AllComplete}
+			incompleteSummary={incompleteSummary}
 			hasUnsavedChanges={$hasUnsavedChanges}
 			savingDraft={saveStatus === 'saving'}
 			on:saveDraft={handleSaveAll}
-			on:lockIn={handleSubmit}
+			on:submit={handleSubmit}
 			on:unlock={handleEdit}
 		/>
 
@@ -1188,11 +1241,11 @@
 		<ConfirmModal
 			open={lockModalOpen}
 			icon="🔒"
-			title="Lock in your predictions?"
+			title="Submit your predictions?"
 			message={$activeEntry
 				? `"${$activeEntry.display_name}" becomes official and qualifies for scoring. You can still tap Edit to revert until the competition starts.`
 				: ''}
-			confirmLabel="Lock In"
+			confirmLabel="Submit"
 			confirmVariant="success"
 			onConfirm={confirmSubmit}
 			onCancel={() => (lockModalOpen = false)}
