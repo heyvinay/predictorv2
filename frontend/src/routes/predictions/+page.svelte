@@ -909,16 +909,11 @@
 				{#if lifecycleError}
 					<span class="text-error text-xs">{lifecycleError}</span>
 				{/if}
-				{#if submitVisible}
-					<button class="btn btn-sm btn-primary" type="button" on:click={handleSubmit} disabled={lifecycleBusy !== false}>
-						{lifecycleBusy === 'submit' ? 'Submitting…' : 'Submit'}
-					</button>
-				{/if}
-				{#if editVisible}
-					<button class="btn btn-sm btn-outline" type="button" on:click={handleEdit} disabled={lifecycleBusy !== false} title="Revert to draft so you can change your picks">
-						{lifecycleBusy === 'edit' ? 'Reverting…' : 'Edit'}
-					</button>
-				{/if}
+				<!-- The legacy Submit / Edit buttons were removed here — both
+				     actions live on the BottomActionBar (Submit + Unlock).
+				     The submitVisible / editVisible reactives + canSubmit /
+				     canEdit imports remain in the script as legacy guards
+				     until the next janitor pass. -->
 			</div>
 
 			<!-- Phase + section toggles -->
