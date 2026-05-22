@@ -15,13 +15,19 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 
-	export let done: number = 0;
-	export let total: number = 0;
+	// Three sub-progresses — caller computes each. The bar visualises
+	// the COMBINED count so reaching 100% requires every group fixture
+	// + every bracket pick + every bonus answer.
+	export let groupProgress: { done: number; total: number } = { done: 0, total: 0 };
+	export let bracketProgress: { done: number; total: number } = { done: 0, total: 0 };
+	export let bonusProgress: { done: number; total: number } = { done: 0, total: 0 };
 	export let canSmartFill: boolean = false;
 	export let status: 'draft' | 'locked' | 'scored' | 'missed' = 'draft';
 
 	const dispatch = createEventDispatcher<{ smartfill: void }>();
 
+	$: done = groupProgress.done + bracketProgress.done + bonusProgress.done;
+	$: total = groupProgress.total + bracketProgress.total + bonusProgress.total;
 	$: pct = total > 0 ? Math.round((done / total) * 100) : 0;
 	$: complete = total > 0 && done === total;
 
@@ -53,9 +59,7 @@
 
 <div class="mb-3">
 	<div class="flex items-center justify-between text-xs mb-1.5">
-		<span class="text-base-content/60 font-mono tabular-nums"
-			>{done}/{total} fixtures</span
-		>
+		<span class="text-base-content/60 font-mono tabular-nums">{done}/{total} picks</span>
 		<span class="font-semibold tabular-nums {PCT_TEXT_CLASS[pctKey]}">{pct}%</span>
 	</div>
 
@@ -64,6 +68,23 @@
 			class="h-full {FILL_CLASS[fillKey]} transition-all duration-300"
 			style="width: {pct}%"
 		></div>
+	</div>
+
+	<!-- Sub-breakdown: per-area progress so the user can see WHERE the
+	     missing picks live (groups vs bracket vs bonus). Each segment
+	     turns green when its area is complete; otherwise muted. -->
+	<div class="flex items-center justify-center gap-2 text-[10px] font-mono tabular-nums mt-1.5 text-base-content/60">
+		<span class={groupProgress.done === groupProgress.total && groupProgress.total > 0 ? 'text-success' : ''}>
+			Groups {groupProgress.done}/{groupProgress.total}
+		</span>
+		<span class="opacity-30">·</span>
+		<span class={bracketProgress.done === bracketProgress.total && bracketProgress.total > 0 ? 'text-success' : ''}>
+			Bracket {bracketProgress.done}/{bracketProgress.total}
+		</span>
+		<span class="opacity-30">·</span>
+		<span class={bonusProgress.done === bonusProgress.total && bonusProgress.total > 0 ? 'text-success' : ''}>
+			Bonus {bonusProgress.done}/{bonusProgress.total}
+		</span>
 	</div>
 
 	{#if canSmartFill}

@@ -555,6 +555,34 @@
 	$: phase1AllComplete =
 		allGroupsComplete && bracketIsComplete && missingBonusCount === 0;
 
+	// Granular progress per area for the unified ProgressSection bar.
+	// Combined into one overall percentage in the component.
+	$: bracketSubProgress = (() => {
+		const b = $unsavedBracketPrediction || $bracketPrediction;
+		// User picks: R16 (16) + QF (8) + SF (4) + F (2) + Winner (1) = 31.
+		// R32 is derived from group standings (not a user pick) and 3rd
+		// place is derived from SF losers, so neither contributes.
+		const total = 31;
+		if (!b) return { done: 0, total };
+		const done =
+			(b.round_of_16?.length ?? 0) +
+			(b.quarter_finals?.length ?? 0) +
+			(b.semi_finals?.length ?? 0) +
+			(b.final?.length ?? 0) +
+			(b.winner ? 1 : 0);
+		return { done: Math.min(done, total), total };
+	})();
+
+	$: bonusSubProgress = (() => {
+		const total = bonusQuestions.length;
+		let done = 0;
+		for (const q of bonusQuestions) {
+			const a = bonusAnswers.get(q.id);
+			if (a && a.trim() !== '') done++;
+		}
+		return { done, total };
+	})();
+
 	$: incompleteSummary = (() => {
 		if (phase1AllComplete) return null;
 		const parts: string[] = [];
@@ -996,11 +1024,13 @@
 				<CountdownTimer deadline={$phase1Deadline} />
 			</div>
 
-			<!-- Progress section: completion bar + Smart Fill button -->
+			<!-- Progress section: combined completion bar (groups + bracket
+			     + bonus) + sub-breakdown line + Smart Fill button -->
 			<div class="mt-4">
 				<ProgressSection
-					done={phaseProgress.done}
-					total={phaseProgress.total}
+					groupProgress={{ done: phaseProgress.done, total: phaseProgress.total }}
+					bracketProgress={bracketSubProgress}
+					bonusProgress={bonusSubProgress}
 					canSmartFill={uiStatus === 'draft'}
 					status={uiStatus}
 					on:smartfill={() => (smartFillModalOpen = true)}
