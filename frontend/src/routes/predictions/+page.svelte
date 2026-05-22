@@ -1224,7 +1224,7 @@
 			status={uiStatus}
 			canSubmit={phase1AllComplete}
 			incompleteSummary={incompleteSummary}
-			hasUnsavedChanges={$hasUnsavedChanges}
+			hasUnsavedChanges={hasAnyUnsaved}
 			savingDraft={saveStatus === 'saving'}
 			on:saveDraft={handleSaveAll}
 			on:submit={handleSubmit}
