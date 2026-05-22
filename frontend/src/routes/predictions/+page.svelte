@@ -33,7 +33,7 @@
 		entrySettings
 	} from '$stores/entries';
 	import * as entriesApi from '$api/entries';
-	import { canSubmit, canEdit, isPhaseEditable } from '$lib/types/entry';
+	import { canSubmit, canEdit, isPhaseEditable, computeDisplayStatus } from '$lib/types/entry';
 	import {
 		fetchGroupFixtures,
 		groupFixtures,
@@ -71,6 +71,8 @@
 	import FixtureRow from '$components/predictions/FixtureRow.svelte';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
 	import GroupQuickNav from '$components/predictions/GroupQuickNav.svelte';
+	import ProgressSection from '$components/predictions/ProgressSection.svelte';
+	import { smartFillScoreline } from '$lib/utils/smartFill';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -272,6 +274,32 @@
 		if (next.has(letter)) next.delete(letter);
 		else next.add(letter);
 		openGroups = next;
+	}
+
+	// Smart Fill modal state.
+	let smartFillModalOpen = false;
+	$: smartFillBlanksOnly = $groupFixtures
+		.flatMap((g) => g.fixtures)
+		.filter((f) => !f.is_locked && fixturePrediction(f.id) === null);
+	$: smartFillExisting = $groupFixtures
+		.flatMap((g) => g.fixtures)
+		.filter((f) => !f.is_locked && fixturePrediction(f.id) !== null);
+
+	/**
+	 * Run Smart Fill on the current sheet. `mode='overwrite'` replaces
+	 * every editable fixture's prediction; 'blanks' fills only empty
+	 * editable fixtures. Computed per (user, fixture) so each user
+	 * gets a deterministically-different variation.
+	 */
+	function runSmartFill(mode: 'overwrite' | 'blanks'): void {
+		smartFillModalOpen = false;
+		const user = $user;
+		if (!user || !$activeEntry) return;
+		const targetFixtures = mode === 'overwrite' ? [...smartFillExisting, ...smartFillBlanksOnly] : smartFillBlanksOnly;
+		for (const f of targetFixtures) {
+			const [h, a] = smartFillScoreline(f.home_team, f.away_team, user.id, f.id);
+			updateLocalPrediction(f.id, h, a);
+		}
 	}
 
 	function handleSubmit(): void {
@@ -793,20 +821,23 @@
 				<CountdownTimer deadline={$phase1Deadline} />
 			</div>
 
-			<!-- Progress bar -->
-			<div class="mt-3">
-				<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden">
-					<div class="h-full bg-primary transition-all" style="width: {phaseProgress.pct}%;"></div>
-				</div>
-				<div class="flex justify-between text-xs text-base-content/50 mt-1">
-					<span>
-						{#if activePhase === 'phase1'}
-							{#if $isPhase1Locked}Locked{:else}Locks in {$phase1Countdown ?? '—'}{/if}
-						{:else}
-							{#if $isPhase2BracketLocked}Locked{:else}Locks in {$phase2Countdown ?? '—'}{/if}
-						{/if}
-					</span>
-					<span>{$unsavedChangesCount} unsaved</span>
+			<!-- Progress section: completion bar + Smart Fill button -->
+			<div class="mt-4">
+				<ProgressSection
+					done={phaseProgress.done}
+					total={phaseProgress.total}
+					canSmartFill={$activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1') && !$isPhase1Locked}
+					status={$isPhase1Locked
+						? $activeEntry && computeDisplayStatus($activeEntry, 'phase_1') === 'submitted'
+							? 'scored'
+							: 'missed'
+						: $activeEntry && computeDisplayStatus($activeEntry, 'phase_1') === 'submitted'
+							? 'locked'
+							: 'draft'}
+					on:smartfill={() => (smartFillModalOpen = true)}
+				/>
+				<div class="text-[10px] text-base-content/40 text-right mt-1 font-mono">
+					{$unsavedChangesCount} unsaved
 				</div>
 			</div>
 
@@ -1168,6 +1199,34 @@
 			confirmVariant="warning"
 			onConfirm={confirmEdit}
 			onCancel={() => (unlockModalOpen = false)}
+		/>
+
+		<!-- Smart Fill modal — 3-button choice when existing predictions > 0,
+		     2-button (Cancel + Fill) when 0 existing. Uses ConfirmModal's
+		     secondaryAction prop for the "Fill blanks only" path. -->
+		<ConfirmModal
+			open={smartFillModalOpen}
+			icon="⚡"
+			title="Smart Fill from FIFA Rankings"
+			message={smartFillExisting.length > 0
+				? `Fill predictions based on each team's FIFA ranking points. You have ${smartFillExisting.length} existing pick${smartFillExisting.length === 1 ? '' : 's'} in this sheet and ${smartFillBlanksOnly.length} blank fixture${smartFillBlanksOnly.length === 1 ? '' : 's'}.`
+				: `Fill all ${smartFillBlanksOnly.length} fixture${smartFillBlanksOnly.length === 1 ? '' : 's'} based on each team's FIFA ranking points.`}
+			warning={smartFillExisting.length > 0
+				? '"Overwrite all" replaces your existing picks. "Fill blanks only" leaves them untouched.'
+				: null}
+			confirmLabel={smartFillExisting.length > 0
+				? `Overwrite all (${smartFillExisting.length + smartFillBlanksOnly.length})`
+				: `Fill (${smartFillBlanksOnly.length})`}
+			confirmVariant={smartFillExisting.length > 0 ? 'warning' : 'primary'}
+			secondaryAction={smartFillExisting.length > 0 && smartFillBlanksOnly.length > 0
+				? {
+						label: `Fill blanks only (${smartFillBlanksOnly.length})`,
+						variant: 'primary',
+						onClick: () => runSmartFill('blanks')
+					}
+				: null}
+			onConfirm={() => runSmartFill('overwrite')}
+			onCancel={() => (smartFillModalOpen = false)}
 		/>
 	</div>
 {/if}
