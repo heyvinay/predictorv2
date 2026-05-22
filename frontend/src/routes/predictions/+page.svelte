@@ -73,6 +73,7 @@
 	import GroupQuickNav from '$components/predictions/GroupQuickNav.svelte';
 	import ProgressSection from '$components/predictions/ProgressSection.svelte';
 	import StatusBanner from '$components/predictions/StatusBanner.svelte';
+	import BottomActionBar from '$components/predictions/BottomActionBar.svelte';
 	import { smartFillScoreline } from '$lib/utils/smartFill';
 
 	$: if (!$isAuthenticated) {
@@ -1182,6 +1183,18 @@
 				</div>
 			{/if}
 		{/if}
+
+		<!-- Sticky bottom action bar — state-driven CTA strip. Sits above
+		     the layout's mobile bottom nav (pb-16). -->
+		<BottomActionBar
+			status={uiStatus}
+			completionPct={phaseProgress.pct}
+			hasUnsavedChanges={$hasUnsavedChanges}
+			savingDraft={saveStatus === 'saving'}
+			on:saveDraft={handleSaveAll}
+			on:lockIn={handleSubmit}
+			on:unlock={handleEdit}
+		/>
 
 		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
 		     so their DOM location is purely organizational. -->
