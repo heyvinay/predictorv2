@@ -72,6 +72,7 @@
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
 	import GroupQuickNav from '$components/predictions/GroupQuickNav.svelte';
 	import ProgressSection from '$components/predictions/ProgressSection.svelte';
+	import StatusBanner from '$components/predictions/StatusBanner.svelte';
 	import { smartFillScoreline } from '$lib/utils/smartFill';
 
 	$: if (!$isAuthenticated) {
@@ -275,6 +276,16 @@
 		else next.add(letter);
 		openGroups = next;
 	}
+
+	// Shared UI-status for the active sheet — used by ProgressSection
+	// (fill color) and StatusBanner (variant).
+	$: uiStatus = ((): 'draft' | 'locked' | 'scored' | 'missed' => {
+		if (!$activeEntry) return 'draft';
+		const s = computeDisplayStatus($activeEntry, 'phase_1');
+		if (s === 'withdrawn') return 'missed';
+		if (s === 'submitted') return $isPhase1Locked ? 'scored' : 'locked';
+		return $isPhase1Locked ? 'missed' : 'draft';
+	})();
 
 	// Smart Fill modal state.
 	let smartFillModalOpen = false;
@@ -826,14 +837,8 @@
 				<ProgressSection
 					done={phaseProgress.done}
 					total={phaseProgress.total}
-					canSmartFill={$activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1') && !$isPhase1Locked}
-					status={$isPhase1Locked
-						? $activeEntry && computeDisplayStatus($activeEntry, 'phase_1') === 'submitted'
-							? 'scored'
-							: 'missed'
-						: $activeEntry && computeDisplayStatus($activeEntry, 'phase_1') === 'submitted'
-							? 'locked'
-							: 'draft'}
+					canSmartFill={uiStatus === 'draft'}
+					status={uiStatus}
 					on:smartfill={() => (smartFillModalOpen = true)}
 				/>
 				<div class="text-[10px] text-base-content/40 text-right mt-1 font-mono">
@@ -896,6 +901,11 @@
 			     badge + date-grouped fixtures only). Standings can return
 			     as a separate widget in a later prompt. -->
 			{#if activeSection === 'groups'}
+				<!-- Status banner for locked / scored / missed sheets. Hidden on
+				     editable drafts (returns nothing). Unlock button only when
+				     deadline hasn't passed — wires into the existing Edit flow. -->
+				<StatusBanner status={uiStatus} canUnlock={uiStatus === 'locked'} on:unlock={handleEdit} />
+
 				<!-- A-L quick-nav strip: tap to scroll + auto-open the target accordion -->
 				<div class="mb-3">
 					<GroupQuickNav
