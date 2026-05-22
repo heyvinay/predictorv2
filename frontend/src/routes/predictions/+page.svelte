@@ -68,6 +68,7 @@
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SheetSelector from '$components/predictions/SheetSelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
+	import ScorePresets from '$components/predictions/ScorePresets.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -258,6 +259,15 @@
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
 	let lockModalOpen = false;
 	let unlockModalOpen = false;
+
+	// PROMPT 6 PREVIEW state — temporary harness for ScorePresets.
+	// To be removed at Prompt 8 when FixtureRow uses ScorePresets properly.
+	let previewPresetsOpen = false;
+	let previewLastPick: string | null = null;
+	function handlePresetPreview(home: number, away: number): void {
+		previewLastPick = `${home} - ${away}`;
+		previewPresetsOpen = false; // demo the "instant disappear" behavior
+	}
 
 	function handleSubmit(): void {
 		if (!$activeEntry) return;
@@ -1216,6 +1226,32 @@
 				</div>
 			{/if}
 		{/if}
+
+		<!-- PROMPT 6 PREVIEW — temporary harness for ScorePresets.
+		     Removed at Prompt 8 when FixtureRow consumes ScorePresets in
+		     its real context (below expanded empty fixture rows). -->
+		<div class="mt-6 p-4 rounded-lg border border-dashed border-base-content/20 bg-base-200/30">
+			<div class="flex items-center justify-between gap-3 mb-2">
+				<div class="text-xs uppercase tracking-wider opacity-50 font-semibold">
+					Prompt 6 preview · Score presets
+				</div>
+				<button
+					type="button"
+					class="btn btn-xs btn-ghost"
+					on:click={() => (previewPresetsOpen = !previewPresetsOpen)}
+				>
+					{previewPresetsOpen ? 'Hide' : 'Show'}
+				</button>
+			</div>
+			{#if previewPresetsOpen}
+				<ScorePresets onSelect={handlePresetPreview} />
+			{/if}
+			{#if previewLastPick}
+				<div class="text-center text-xs opacity-60 mt-2 font-mono">
+					Last pick: {previewLastPick}
+				</div>
+			{/if}
+		</div>
 
 		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
 		     so their DOM location is purely organizational. -->
