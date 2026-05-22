@@ -74,7 +74,9 @@
 	import ProgressSection from '$components/predictions/ProgressSection.svelte';
 	import StatusBanner from '$components/predictions/StatusBanner.svelte';
 	import BottomActionBar from '$components/predictions/BottomActionBar.svelte';
-	import { smartFillScoreline } from '$lib/utils/smartFill';
+	import SmartFillModal from '$components/predictions/SmartFillModal.svelte';
+	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
+	import { tick } from 'svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -298,19 +300,46 @@
 		.filter((f) => !f.is_locked && fixturePrediction(f.id) !== null);
 
 	/**
-	 * Run Smart Fill on the current sheet. `mode='overwrite'` replaces
-	 * every editable fixture's prediction; 'blanks' fills only empty
-	 * editable fixtures. Computed per (user, fixture) so each user
-	 * gets a deterministically-different variation.
+	 * Run Smart Fill on the current sheet with the checkbox payload from
+	 * SmartFillModal.
+	 *
+	 * - opts.overwrite      → re-fills fixtures that already have a pick
+	 * - opts.fillBlanks     → fills fixtures with no current pick
+	 * - opts.fillBracket    → after the scoreline pass, recomputes
+	 *                         standings and walks the knockout bracket
+	 *                         picking the higher-ranked team in each
+	 *                         match. Only runs when its enable-gate is
+	 *                         satisfied at modal apply time.
+	 *
+	 * Per-(user, fixture) seeded so the same user gets the same picks on
+	 * repeated runs, but different users diverge on tier-edge and
+	 * tied matchups.
 	 */
-	function runSmartFill(mode: 'overwrite' | 'blanks'): void {
+	async function runSmartFill(opts: {
+		overwrite: boolean;
+		fillBlanks: boolean;
+		fillBracket: boolean;
+	}): Promise<void> {
 		smartFillModalOpen = false;
 		const user = $user;
 		if (!user || !$activeEntry) return;
-		const targetFixtures = mode === 'overwrite' ? [...smartFillExisting, ...smartFillBlanksOnly] : smartFillBlanksOnly;
-		for (const f of targetFixtures) {
+
+		// 1. Scoreline fill — collect the union of fixtures to touch.
+		const targets: typeof smartFillBlanksOnly = [];
+		if (opts.fillBlanks) targets.push(...smartFillBlanksOnly);
+		if (opts.overwrite) targets.push(...smartFillExisting);
+		for (const f of targets) {
 			const [h, a] = smartFillScoreline(f.home_team, f.away_team, user.id, f.id);
 			updateLocalPrediction(f.id, h, a);
+		}
+
+		// 2. Bracket fill — only after a tick so standingsMap reactively
+		//    recomputes from the just-written predictions. Higher-ranked
+		//    team always advances; ties = seeded coin flip per match.
+		if (opts.fillBracket) {
+			await tick();
+			const bracket = smartFillBracket(standingsMap, user.id);
+			unsavedBracketPrediction.set(bracket);
 		}
 	}
 
@@ -1336,32 +1365,16 @@
 			onCancel={() => (unlockModalOpen = false)}
 		/>
 
-		<!-- Smart Fill modal — 3-button choice when existing predictions > 0,
-		     2-button (Cancel + Fill) when 0 existing. Uses ConfirmModal's
-		     secondaryAction prop for the "Fill blanks only" path. -->
-		<ConfirmModal
+		<!-- Smart Fill modal — checkbox form (overwrite, fill blanks, fill
+		     bracket). The fill-bracket checkbox is gated on having every
+		     group fixture predicted (or selecting fill-blanks). -->
+		<SmartFillModal
 			open={smartFillModalOpen}
-			icon="⚡"
-			title="Smart Fill from FIFA Rankings"
-			message={smartFillExisting.length > 0
-				? `Fill predictions based on each team's FIFA ranking points. You have ${smartFillExisting.length} existing pick${smartFillExisting.length === 1 ? '' : 's'} in this sheet and ${smartFillBlanksOnly.length} blank fixture${smartFillBlanksOnly.length === 1 ? '' : 's'}.`
-				: `Fill all ${smartFillBlanksOnly.length} fixture${smartFillBlanksOnly.length === 1 ? '' : 's'} based on each team's FIFA ranking points.`}
-			warning={smartFillExisting.length > 0
-				? '"Overwrite all" replaces your existing picks. "Fill blanks only" leaves them untouched.'
-				: null}
-			confirmLabel={smartFillExisting.length > 0
-				? `Overwrite all (${smartFillExisting.length + smartFillBlanksOnly.length})`
-				: `Fill (${smartFillBlanksOnly.length})`}
-			confirmVariant={smartFillExisting.length > 0 ? 'warning' : 'primary'}
-			secondaryAction={smartFillExisting.length > 0 && smartFillBlanksOnly.length > 0
-				? {
-						label: `Fill blanks only (${smartFillBlanksOnly.length})`,
-						variant: 'primary',
-						onClick: () => runSmartFill('blanks')
-					}
-				: null}
-			onConfirm={() => runSmartFill('overwrite')}
-			onCancel={() => (smartFillModalOpen = false)}
+			existingCount={smartFillExisting.length}
+			blankCount={smartFillBlanksOnly.length}
+			bracketAlreadyFilled={bracketIsComplete}
+			on:apply={(e) => runSmartFill(e.detail)}
+			on:cancel={() => (smartFillModalOpen = false)}
 		/>
 	</div>
 {/if}

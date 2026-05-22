@@ -199,3 +199,87 @@ export function smartFillScoreline(
 	}
 	return [weak, strong];
 }
+
+// ---------------------------------------------------------------------------
+// Bracket auto-fill: "higher-ranked team always wins" per FIFA points
+// ---------------------------------------------------------------------------
+
+import {
+	initializeBracketState,
+	setMatchWinner,
+	getDisplayMatches,
+	bracketStateToPrediction,
+	type GroupStandingsMap
+} from './bracketResolver';
+import type { BracketPrediction } from '$lib/types';
+
+/**
+ * Returns the winner of a head-to-head matchup based on FIFA ranking points.
+ *
+ * - Strict winner: team with higher fifaPoints() wins, every time.
+ * - Equal points: deterministic seeded coin flip keyed on
+ *   `${userId}:bracket:${matchKey}`. The "bracket:" prefix in the seed
+ *   string keeps this draw-key namespace separate from the per-fixture
+ *   variation seeds used by smartFillScoreline.
+ */
+export function pickHigherRanked(
+	homeTeam: string,
+	awayTeam: string,
+	userId: string,
+	matchKey: string
+): string {
+	const homePts = fifaPoints(homeTeam);
+	const awayPts = fifaPoints(awayTeam);
+	if (homePts > awayPts) return homeTeam;
+	if (awayPts > homePts) return awayTeam;
+	// Tie — seeded coin flip
+	const seed = hashString(`${userId}:bracket:${matchKey}`);
+	return seededRoll(seed) < 0.5 ? homeTeam : awayTeam;
+}
+
+/**
+ * Auto-fill the full Phase 1 knockout bracket from the predicted group
+ * standings. Walks R32 -> R16 -> QF -> SF -> Final -> 3rd-place,
+ * picking the higher-ranked team in each pairing. Cascading is handled
+ * by bracketResolver.setMatchWinner so later rounds' teams populate as
+ * upstream winners are committed.
+ *
+ * Caller is responsible for ensuring `standings` contains every group's
+ * top-4 (i.e. every group fixture must already have a prediction). If
+ * the standings don't fully resolve to 32 teams, the returned
+ * BracketPrediction will have null entries — caller should gate on this.
+ */
+export function smartFillBracket(
+	standings: GroupStandingsMap,
+	userId: string
+): BracketPrediction {
+	let state = initializeBracketState(standings);
+
+	const ROUNDS = [
+		'round_of_32',
+		'round_of_16',
+		'quarter_finals',
+		'semi_finals',
+		'final',
+		'third_place'
+	] as const;
+
+	for (const round of ROUNDS) {
+		// Re-read display matches each round because state cascades
+		// populate later rounds' home/away after winners are set.
+		const matches = getDisplayMatches(state, round);
+		for (const m of matches) {
+			if (m.homeTeam && m.awayTeam && !m.winner) {
+				const winner = pickHigherRanked(
+					m.homeTeam,
+					m.awayTeam,
+					userId,
+					`match-${m.match.matchNumber}`
+				);
+				state = setMatchWinner(state, m.match.matchNumber, winner);
+			}
+		}
+	}
+
+	return bracketStateToPrediction(state);
+}
