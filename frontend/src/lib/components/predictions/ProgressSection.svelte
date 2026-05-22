@@ -31,18 +31,33 @@
 	$: pct = total > 0 ? Math.round((done / total) * 100) : 0;
 	$: complete = total > 0 && done === total;
 
-	// Static class map so Tailwind JIT picks all variants up.
-	const FILL_CLASS = {
-		draft: 'bg-warning',
+	// Per-segment color, computed from that segment's own completion + the
+	// sheet's overall status. Static map so Tailwind JIT keeps all classes.
+	type SegmentKey = 'complete' | 'progress' | 'empty' | 'missed';
+	const SEGMENT_CLASS: Record<SegmentKey, string> = {
 		complete: 'bg-success',
+		progress: 'bg-warning',
+		empty: 'bg-base-content/15',
 		missed: 'bg-error'
-	} as const;
-	$: fillKey =
-		status === 'missed'
-			? ('missed' as const)
-			: complete || status === 'locked' || status === 'scored'
-				? ('complete' as const)
-				: ('draft' as const);
+	};
+
+	function segmentKey(done: number, total: number): SegmentKey {
+		if (status === 'missed') return 'missed';
+		if (total === 0) return 'empty';
+		if (done === total) return 'complete';
+		if (done > 0) return 'progress';
+		return 'empty';
+	}
+
+	$: groupKey = segmentKey(groupProgress.done, groupProgress.total);
+	$: bracketKey = segmentKey(bracketProgress.done, bracketProgress.total);
+	$: bonusKey = segmentKey(bonusProgress.done, bonusProgress.total);
+
+	// Width share = each segment's TOTAL picks / overall total. Stable so
+	// segments don't resize as picks fill in.
+	$: groupShare = total > 0 ? (groupProgress.total / total) * 100 : 0;
+	$: bracketShare = total > 0 ? (bracketProgress.total / total) * 100 : 0;
+	$: bonusShare = total > 0 ? (bonusProgress.total / total) * 100 : 0;
 
 	const PCT_TEXT_CLASS = {
 		muted: 'text-base-content/60',
@@ -63,10 +78,28 @@
 		<span class="font-semibold tabular-nums {PCT_TEXT_CLASS[pctKey]}">{pct}%</span>
 	</div>
 
-	<div class="w-full h-1.5 rounded-full bg-base-300/60 overflow-hidden">
+	<!-- Three-segment bar. Segment widths are proportional to each area's
+	     share of total picks; segment colors reflect that area's own
+	     completion state (green=complete, amber=in progress, muted=empty,
+	     red=sheet missed). Thin base-100 dividers keep the segments
+	     visually distinct without breaking the bar shape. -->
+	<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden flex" aria-label="Prediction progress by area">
 		<div
-			class="h-full {FILL_CLASS[fillKey]} transition-all duration-300"
-			style="width: {pct}%"
+			class="h-full transition-colors duration-300 {SEGMENT_CLASS[groupKey]}"
+			style="width: {groupShare}%"
+			title="Groups {groupProgress.done}/{groupProgress.total}"
+		></div>
+		<div class="h-full w-px bg-base-100/40 flex-shrink-0" aria-hidden="true"></div>
+		<div
+			class="h-full transition-colors duration-300 {SEGMENT_CLASS[bracketKey]}"
+			style="width: {bracketShare}%"
+			title="Bracket {bracketProgress.done}/{bracketProgress.total}"
+		></div>
+		<div class="h-full w-px bg-base-100/40 flex-shrink-0" aria-hidden="true"></div>
+		<div
+			class="h-full transition-colors duration-300 {SEGMENT_CLASS[bonusKey]}"
+			style="width: {bonusShare}%"
+			title="Bonus {bonusProgress.done}/{bonusProgress.total}"
 		></div>
 	</div>
 
