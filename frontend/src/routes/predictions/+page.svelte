@@ -33,7 +33,7 @@
 		entrySettings
 	} from '$stores/entries';
 	import * as entriesApi from '$api/entries';
-	import { canSubmit, canEdit } from '$lib/types/entry';
+	import { canSubmit, canEdit, isPhaseEditable } from '$lib/types/entry';
 	import {
 		fetchGroupFixtures,
 		groupFixtures,
@@ -68,7 +68,7 @@
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SheetSelector from '$components/predictions/SheetSelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
-	import ScorePresets from '$components/predictions/ScorePresets.svelte';
+	import FixtureRow from '$components/predictions/FixtureRow.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -259,15 +259,6 @@
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
 	let lockModalOpen = false;
 	let unlockModalOpen = false;
-
-	// PROMPT 6 PREVIEW state — temporary harness for ScorePresets.
-	// To be removed at Prompt 8 when FixtureRow uses ScorePresets properly.
-	let previewPresetsOpen = false;
-	let previewLastPick: string | null = null;
-	function handlePresetPreview(home: number, away: number): void {
-		previewLastPick = `${home} - ${away}`;
-		previewPresetsOpen = false; // demo the "instant disappear" behavior
-	}
 
 	function handleSubmit(): void {
 		if (!$activeEntry) return;
@@ -524,6 +515,20 @@
 
 	$: predictionState = (f: Fixture): FixtureState =>
 		predictionStateMap.get(f.id) ?? (f.is_locked ? 'locked' : 'empty');
+
+	// Typed-prediction helper for FixtureRow. Returns null when either
+	// side is empty (no prediction at all); returns the numeric pair
+	// when both home and away are set. Mirrors the truthy/falsy logic
+	// the legacy `predictionState` reactive uses.
+	$: fixturePrediction = (fixtureId: string): { home: number; away: number } | null => {
+		const entry = scoreValueMap.get(fixtureId);
+		if (!entry) return null;
+		if (entry.home === '' || entry.away === '') return null;
+		const h = parseInt(entry.home, 10);
+		const a = parseInt(entry.away, 10);
+		if (Number.isNaN(h) || Number.isNaN(a)) return null;
+		return { home: h, away: a };
+	};
 
 	$: scoreValue = (fixtureId: string, side: 'home' | 'away'): string => {
 		const entry = scoreValueMap.get(fixtureId);
@@ -1033,44 +1038,34 @@
 						{#each group.fixtures as f (f.id)}
 							{@const state = predictionState(f)}
 							{@const countdown = fmtCountdown(f.time_until_lock)}
-							<div
-								class="match-card-v2 {state === 'locked' ? 'is-locked' : ''} {editingFixtureId === f.id ? 'is-editing' : ''}"
-								on:focusin={() => handleMatchCardFocusIn(f.id, f.is_locked)}
-								on:focusout={handleMatchCardFocusOut}
-							>
-								<div class="match-card-header">
-									<div class="flex items-center gap-2 text-xs text-base-content/50">
+							{@const fixtureEditable = !f.is_locked && $activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1')}
+							{@const fixturePred = fixturePrediction(f.id)}
+							<div class="rounded-lg border border-base-content/10 bg-base-200/30 mb-2">
+								<!-- Top meta strip: kickoff time + group tag + countdown chip -->
+								<div class="flex items-center justify-between gap-2 px-3 pt-2 text-xs text-base-content/50">
+									<div class="flex items-center gap-2">
 										<span>{fmtCard(f.kickoff)}</span>
 										<span class="group-tag">Group {group.group}</span>
 									</div>
 									<span class="countdown-chip {countdown === 'locked' ? 'is-locked' : ''}">{countdown}</span>
 								</div>
-
-								<div class="match-card-body">
-									<!-- Home team -->
-									<div class="team-block" title={f.home_team}>
-										{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="flag" />{/if}
-										<div class="team-label">{f.home_team}</div>
-									</div>
-									<!-- Score inputs with vs -->
-									<div class="score-row">
-										<input type="number" class="score-box" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'home')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'home', e.currentTarget.value); }} aria-label="{f.home_team} score" />
-										<span class="vs-pill">vs</span>
-										<input type="number" class="score-box" class:opacity-50={state === 'empty'} min="0" max={MAX_GOALS} inputmode="numeric" disabled={f.is_locked} value={scoreValue(f.id, 'away')} on:input={(e) => { clampScoreInput(e.currentTarget); handleScoreInput(f.id, 'away', e.currentTarget.value); }} aria-label="{f.away_team} score" />
-									</div>
-									<!-- Away team -->
-									<div class="team-block" title={f.away_team}>
-										{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="flag" />{/if}
-										<div class="team-label">{f.away_team}</div>
-									</div>
-								</div>
-
-								<div class="match-card-footer">
+								<!-- FixtureRow: home | center zone | away. The center
+								     zone shows TAP / Stepper / read-only based on
+								     (editable, prediction). Multiple rows can be
+								     expanded simultaneously. -->
+								<FixtureRow
+									fixture={f}
+									prediction={fixturePred}
+									editable={fixtureEditable}
+									onScore={(home, away) => updateLocalPrediction(f.id, home, away)}
+								/>
+								<!-- Status footer kept inline below for now; will be
+								     subsumed by the row's own state at Prompt 14. -->
+								<div class="flex items-center gap-2 px-3 pb-2 text-xs">
 									{#if state === 'locked'}<span class="badge badge-sm badge-ghost">Locked</span>
-									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40 text-xs">Save to commit</span>
+									{:else if state === 'draft'}<span class="badge badge-sm badge-warning">Draft</span><span class="text-base-content/40">Save to commit</span>
 									{:else if state === 'saved'}<span class="badge badge-sm badge-success">✓ Saved</span>
-									{:else}<span class="badge badge-sm badge-ghost">Empty</span><span class="text-base-content/40 text-xs">Enter a score</span>{/if}
-									{#if editingFixtureId === f.id}<span class="text-primary text-xs ml-auto">editing</span>{/if}
+									{:else}<span class="badge badge-sm badge-ghost">Empty</span>{/if}
 								</div>
 							</div>
 						{/each}
@@ -1226,32 +1221,6 @@
 				</div>
 			{/if}
 		{/if}
-
-		<!-- PROMPT 6 PREVIEW — temporary harness for ScorePresets.
-		     Removed at Prompt 8 when FixtureRow consumes ScorePresets in
-		     its real context (below expanded empty fixture rows). -->
-		<div class="mt-6 p-4 rounded-lg border border-dashed border-base-content/20 bg-base-200/30">
-			<div class="flex items-center justify-between gap-3 mb-2">
-				<div class="text-xs uppercase tracking-wider opacity-50 font-semibold">
-					Prompt 6 preview · Score presets
-				</div>
-				<button
-					type="button"
-					class="btn btn-xs btn-ghost"
-					on:click={() => (previewPresetsOpen = !previewPresetsOpen)}
-				>
-					{previewPresetsOpen ? 'Hide' : 'Show'}
-				</button>
-			</div>
-			{#if previewPresetsOpen}
-				<ScorePresets onSelect={handlePresetPreview} />
-			{/if}
-			{#if previewLastPick}
-				<div class="text-center text-xs opacity-60 mt-2 font-mono">
-					Last pick: {previewLastPick}
-				</div>
-			{/if}
-		</div>
 
 		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
 		     so their DOM location is purely organizational. -->
