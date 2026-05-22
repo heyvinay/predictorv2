@@ -32,13 +32,19 @@
 	$: complete = total > 0 && done === total;
 
 	// Per-segment color, computed from that segment's own completion + the
-	// sheet's overall status. Static map so Tailwind JIT keeps all classes.
+	// sheet's overall status. Static maps so Tailwind JIT keeps all classes.
 	type SegmentKey = 'complete' | 'progress' | 'empty' | 'missed';
 	const SEGMENT_CLASS: Record<SegmentKey, string> = {
 		complete: 'bg-success',
 		progress: 'bg-warning',
 		empty: 'bg-base-content/15',
 		missed: 'bg-error'
+	};
+	const SEGMENT_TEXT_CLASS: Record<SegmentKey, string> = {
+		complete: 'text-success',
+		progress: 'text-warning',
+		empty: 'text-base-content/40',
+		missed: 'text-error'
 	};
 
 	function segmentKey(done: number, total: number): SegmentKey {
@@ -53,11 +59,10 @@
 	$: bracketKey = segmentKey(bracketProgress.done, bracketProgress.total);
 	$: bonusKey = segmentKey(bonusProgress.done, bonusProgress.total);
 
-	// Width share = each segment's TOTAL picks / overall total. Stable so
-	// segments don't resize as picks fill in.
-	$: groupShare = total > 0 ? (groupProgress.total / total) * 100 : 0;
-	$: bracketShare = total > 0 ? (bracketProgress.total / total) * 100 : 0;
-	$: bonusShare = total > 0 ? (bonusProgress.total / total) * 100 : 0;
+	// CSS Grid columns use the raw `total` counts as fractional units, so
+	// segment widths AND label-row columns stay in lockstep (labels align
+	// under their own segment, regardless of viewport width).
+	$: gridCols = `${Math.max(1, groupProgress.total)}fr ${Math.max(1, bracketProgress.total)}fr ${Math.max(1, bonusProgress.total)}fr`;
 
 	const PCT_TEXT_CLASS = {
 		muted: 'text-base-content/60',
@@ -78,46 +83,69 @@
 		<span class="font-semibold tabular-nums {PCT_TEXT_CLASS[pctKey]}">{pct}%</span>
 	</div>
 
-	<!-- Three-segment bar. Segment widths are proportional to each area's
-	     share of total picks; segment colors reflect that area's own
-	     completion state (green=complete, amber=in progress, muted=empty,
-	     red=sheet missed). Thin base-100 dividers keep the segments
-	     visually distinct without breaking the bar shape. -->
-	<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden flex" aria-label="Prediction progress by area">
+	<!-- Three-segment bar — CSS Grid with fractional columns sized by each
+	     area's total picks. Each segment is a muted backdrop pill with a
+	     colored fill INSIDE sized to that area's own done/total. So 5/72
+	     in Groups shows ~7% green-or-amber fill within the Groups pill,
+	     not a fully-colored Groups segment. `gap-2` (8px) keeps the
+	     three pills visually distinct. -->
+	<div
+		class="grid w-full h-2 gap-2"
+		style="grid-template-columns: {gridCols}"
+		aria-label="Prediction progress by area"
+	>
 		<div
-			class="h-full transition-colors duration-300 {SEGMENT_CLASS[groupKey]}"
-			style="width: {groupShare}%"
+			class="h-full rounded-full bg-base-content/15 overflow-hidden"
 			title="Groups {groupProgress.done}/{groupProgress.total}"
-		></div>
-		<div class="h-full w-px bg-base-100/40 flex-shrink-0" aria-hidden="true"></div>
+		>
+			<div
+				class="h-full rounded-full transition-all duration-300 {SEGMENT_CLASS[groupKey]}"
+				style="width: {groupProgress.total > 0 ? (groupProgress.done / groupProgress.total) * 100 : 0}%"
+			></div>
+		</div>
 		<div
-			class="h-full transition-colors duration-300 {SEGMENT_CLASS[bracketKey]}"
-			style="width: {bracketShare}%"
+			class="h-full rounded-full bg-base-content/15 overflow-hidden"
 			title="Bracket {bracketProgress.done}/{bracketProgress.total}"
-		></div>
-		<div class="h-full w-px bg-base-100/40 flex-shrink-0" aria-hidden="true"></div>
+		>
+			<div
+				class="h-full rounded-full transition-all duration-300 {SEGMENT_CLASS[bracketKey]}"
+				style="width: {bracketProgress.total > 0 ? (bracketProgress.done / bracketProgress.total) * 100 : 0}%"
+			></div>
+		</div>
 		<div
-			class="h-full transition-colors duration-300 {SEGMENT_CLASS[bonusKey]}"
-			style="width: {bonusShare}%"
+			class="h-full rounded-full bg-base-content/15 overflow-hidden"
 			title="Bonus {bonusProgress.done}/{bonusProgress.total}"
-		></div>
+		>
+			<div
+				class="h-full rounded-full transition-all duration-300 {SEGMENT_CLASS[bonusKey]}"
+				style="width: {bonusProgress.total > 0 ? (bonusProgress.done / bonusProgress.total) * 100 : 0}%"
+			></div>
+		</div>
 	</div>
 
-	<!-- Sub-breakdown: per-area progress so the user can see WHERE the
-	     missing picks live (groups vs bracket vs bonus). Each segment
-	     turns green when its area is complete; otherwise muted. -->
-	<div class="flex items-center justify-center gap-2 text-[10px] font-mono tabular-nums mt-1.5 text-base-content/60">
-		<span class={groupProgress.done === groupProgress.total && groupProgress.total > 0 ? 'text-success' : ''}>
-			Groups {groupProgress.done}/{groupProgress.total}
-		</span>
-		<span class="opacity-30">·</span>
-		<span class={bracketProgress.done === bracketProgress.total && bracketProgress.total > 0 ? 'text-success' : ''}>
-			Bracket {bracketProgress.done}/{bracketProgress.total}
-		</span>
-		<span class="opacity-30">·</span>
-		<span class={bonusProgress.done === bonusProgress.total && bonusProgress.total > 0 ? 'text-success' : ''}>
-			Bonus {bonusProgress.done}/{bonusProgress.total}
-		</span>
+	<!-- Per-segment labels, aligned under their own segment via the SAME
+	     grid columns. Label name on top, count on the next line so
+	     narrow columns (esp. Bonus at ~8% of bar width) don't blow out
+	     the layout. -->
+	<div class="grid gap-2 mt-2" style="grid-template-columns: {gridCols}">
+		<div class="flex flex-col items-center text-center min-w-0">
+			<span class="text-[10px] font-semibold {SEGMENT_TEXT_CLASS[groupKey]}">Groups</span>
+			<span class="text-[9px] font-mono tabular-nums opacity-70">
+				{groupProgress.done}/{groupProgress.total}
+			</span>
+		</div>
+		<div class="flex flex-col items-center text-center min-w-0">
+			<span class="text-[10px] font-semibold {SEGMENT_TEXT_CLASS[bracketKey]}">Bracket</span>
+			<span class="text-[9px] font-mono tabular-nums opacity-70">
+				{bracketProgress.done}/{bracketProgress.total}
+			</span>
+		</div>
+		<div class="flex flex-col items-center text-center min-w-0">
+			<span class="text-[10px] font-semibold {SEGMENT_TEXT_CLASS[bonusKey]}">Bonus</span>
+			<span class="text-[9px] font-mono tabular-nums opacity-70">
+				{bonusProgress.done}/{bonusProgress.total}
+			</span>
+		</div>
 	</div>
 
 	{#if canSmartFill}
