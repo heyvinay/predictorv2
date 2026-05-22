@@ -1094,22 +1094,9 @@
 				<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Bonus picks lock with Phase I · admin reveals correct answers as the tournament resolves</p>
 			{/if}
 
-			<!-- Save bar (Phase I) -->
-			<div class="sticky bottom-0 mt-6 -mx-4 px-4 py-3 bg-base-200/95 backdrop-blur-md border-t border-base-300 flex items-center gap-3 flex-wrap">
-				<div class="text-sm flex-1">
-					{#if $unsavedChangesCount === 0 && !$hasUnsavedBracketChanges}
-						All changes saved
-					{:else}
-						{#if $unsavedChangesCount > 0}<b>{$unsavedChangesCount}</b> match {$unsavedChangesCount === 1 ? 'pick' : 'picks'} unsaved{/if}
-						{#if $unsavedChangesCount > 0 && $hasUnsavedBracketChanges} · {/if}
-						{#if $hasUnsavedBracketChanges}bracket has unsaved changes{/if}
-					{/if}
-				</div>
-				{#if $lastLocalSave}<span class="text-xs text-base-content/40">Saved locally · {formatLocalTime($lastLocalSave)}</span>{/if}
-				<button class="btn btn-primary {saveStatus === 'error' ? 'btn-error' : ''}" on:click={handleSaveAll} disabled={!$hasUnsavedChanges || saveStatus === 'saving' || $matchPredictionsLoading}>
-					{#if saveStatus === 'saving'}Saving…{:else if saveStatus === 'saved'}✓ Saved{:else if saveStatus === 'error'}× Error — retry{:else}Save Phase I ({$unsavedChangesCount}){/if}
-				</button>
-			</div>
+			<!-- Phase I sticky save bar removed at Prompt 14 — superseded by
+			     BottomActionBar at the page bottom. Bracket-specific save
+			     still lives in the knockout section's own save button. -->
 		{/if}
 
 		<!-- ============================== PHASE 2 ============================== -->
