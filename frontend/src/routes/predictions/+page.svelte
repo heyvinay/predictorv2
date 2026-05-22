@@ -27,6 +27,7 @@
 	import {
 		loadEntries,
 		refreshEntries,
+		entries,
 		activeEntryId,
 		activeEntry,
 		entrySettings
@@ -65,6 +66,7 @@
 	import EntrySelector from '$components/EntrySelector.svelte';
 	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
+	import SheetSelector from '$components/predictions/SheetSelector.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -200,6 +202,22 @@
 		if (!next || next.trim() === '' || next.trim() === current.display_name) return;
 		try {
 			await entriesApi.renameEntry(current.id, { display_name: next.trim() });
+			await refreshEntries();
+		} catch (e) {
+			console.error('Rename failed', e);
+		}
+	}
+
+	// Variant for the new SheetSelector — it dispatches `rename` with the
+	// specific entry id (any row can be renamed, not just the active one).
+	// Keeps the legacy zero-arg handler above unchanged for EntrySelector.
+	async function handleSheetRename(event: CustomEvent<{ entryId: string }>): Promise<void> {
+		const target = $entries.find((e) => e.id === event.detail.entryId);
+		if (!target) return;
+		const next = window.prompt('Sheet name', target.display_name);
+		if (!next || next.trim() === '' || next.trim() === target.display_name) return;
+		try {
+			await entriesApi.renameEntry(target.id, { display_name: next.trim() });
 			await refreshEntries();
 		} catch (e) {
 			console.error('Rename failed', e);
@@ -757,10 +775,10 @@
 
 			<!-- Entry selector + lifecycle -->
 			<div class="flex items-center gap-3 flex-wrap mt-4">
-				<EntrySelector
+				<SheetSelector
+					activeProgress={{ done: phaseProgress.done, total: phaseProgress.total }}
 					on:create={handleEntryCreate}
-					on:duplicate={handleEntryDuplicate}
-					on:rename={handleEntryRename}
+					on:rename={handleSheetRename}
 				/>
 				{#if lifecycleError}
 					<span class="text-error text-xs">{lifecycleError}</span>
