@@ -70,6 +70,7 @@
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
 	import FixtureRow from '$components/predictions/FixtureRow.svelte';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
+	import GroupQuickNav from '$components/predictions/GroupQuickNav.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -864,6 +865,19 @@
 			     badge + date-grouped fixtures only). Standings can return
 			     as a separate widget in a later prompt. -->
 			{#if activeSection === 'groups'}
+				<!-- A-L quick-nav strip: tap to scroll + auto-open the target accordion -->
+				<div class="mb-3">
+					<GroupQuickNav
+						groups={$groupFixtures}
+						getPrediction={fixturePrediction}
+						on:navigate={(e) => {
+							const next = new Set(openGroups);
+							next.add(e.detail.groupLetter);
+							openGroups = next;
+						}}
+					/>
+				</div>
+
 				<div class="space-y-3 mb-6">
 					{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g (g.group)}
 						<GroupAccordion
