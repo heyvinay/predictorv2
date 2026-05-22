@@ -67,6 +67,7 @@
 	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SheetSelector from '$components/predictions/SheetSelector.svelte';
+	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -253,15 +254,21 @@
 		!!$activeEntry &&
 		canEdit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null);
 
-	async function handleSubmit(): Promise<void> {
+	// ConfirmModal state — one boolean per modal usage on this page.
+	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
+	let lockModalOpen = false;
+	let unlockModalOpen = false;
+
+	function handleSubmit(): void {
+		if (!$activeEntry) return;
+		lifecycleError = null;
+		lockModalOpen = true;
+	}
+
+	async function confirmSubmit(): Promise<void> {
+		lockModalOpen = false;
 		const current = $activeEntry;
 		if (!current) return;
-		const ok = window.confirm(
-			`Submit "${current.display_name}"? Your predictions become official and ` +
-				'qualify for scoring. You can still click "Edit" to revert to draft ' +
-				'until the competition starts — after that, the entry is locked.'
-		);
-		if (!ok) return;
 		lifecycleBusy = 'submit';
 		lifecycleError = null;
 		try {
@@ -274,15 +281,16 @@
 		}
 	}
 
-	async function handleEdit(): Promise<void> {
+	function handleEdit(): void {
+		if (!$activeEntry) return;
+		lifecycleError = null;
+		unlockModalOpen = true;
+	}
+
+	async function confirmEdit(): Promise<void> {
+		unlockModalOpen = false;
 		const current = $activeEntry;
 		if (!current) return;
-		const ok = window.confirm(
-			`Revert "${current.display_name}" to draft? Your predictions stay as ` +
-				"they are — you'll just need to click Submit again before the " +
-				'competition starts for them to qualify.'
-		);
-		if (!ok) return;
 		lifecycleBusy = 'edit';
 		lifecycleError = null;
 		try {
@@ -1208,5 +1216,33 @@
 				</div>
 			{/if}
 		{/if}
+
+		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
+		     so their DOM location is purely organizational. -->
+		<ConfirmModal
+			open={lockModalOpen}
+			icon="🔒"
+			title="Lock in your predictions?"
+			message={$activeEntry
+				? `"${$activeEntry.display_name}" becomes official and qualifies for scoring. You can still tap Edit to revert until the competition starts.`
+				: ''}
+			confirmLabel="Lock In"
+			confirmVariant="success"
+			onConfirm={confirmSubmit}
+			onCancel={() => (lockModalOpen = false)}
+		/>
+
+		<ConfirmModal
+			open={unlockModalOpen}
+			icon="✏️"
+			title="Revert to draft?"
+			message={$activeEntry
+				? `"${$activeEntry.display_name}" goes back to draft. Your predictions stay as they are — you'll just need to tap Lock In again before the competition starts.`
+				: ''}
+			confirmLabel="Revert"
+			confirmVariant="warning"
+			onConfirm={confirmEdit}
+			onCancel={() => (unlockModalOpen = false)}
+		/>
 	</div>
 {/if}
