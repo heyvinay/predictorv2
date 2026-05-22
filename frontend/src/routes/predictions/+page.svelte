@@ -717,14 +717,35 @@
 
 	async function handleSaveAll() {
 		saveStatus = 'saving';
-		// Save matches + bracket (Phase 1 and Phase 2 if any) via the
-		// predictions store action. Returns false on failure.
+
+		// Matches (Phase 1 group-stage + any other locked-out edits).
+		// saveAllPredictions returns true vacuously when unsavedChanges
+		// is empty, so calling unconditionally is cheap and idempotent.
 		const matchesOk = await saveAllPredictions();
 
-		// Save bonus picks if any are dirty (independent of matches).
-		// Keeps a separate ok flag so a bonus-only save still works
-		// when matches/bracket are clean (saveAllPredictions returns
-		// true vacuously in that case).
+		// Phase 1 bracket. saveBracketPredictions takes the team-
+		// advancement list shape. On success we clear the unsaved
+		// store so the dirty flag re-derives to false.
+		let bracketOk = true;
+		if ($unsavedBracketPrediction) {
+			const b = $unsavedBracketPrediction;
+			bracketOk = await saveBracketPredictions(bracketToPredictions(b));
+			if (bracketOk) unsavedBracketPrediction.set(null);
+		}
+
+		// Phase 2 bracket (currently dormant; the conditional below
+		// is dead code in v1 but keeps the unified save honest if
+		// Phase 2 ever activates).
+		let phase2BracketOk = true;
+		if ($unsavedPhase2BracketPrediction) {
+			const b = $unsavedPhase2BracketPrediction;
+			const preds = bracketToPredictions(b).filter((p) => p.stage !== 'round_of_32');
+			phase2BracketOk = await saveBracketPredictions(preds);
+			if (phase2BracketOk) unsavedPhase2BracketPrediction.set(null);
+		}
+
+		// Bonus picks (entry-scoped). Skip silently if no active entry
+		// (shouldn't happen on the predictions page but guarded for safety).
 		let bonusOk = true;
 		if (hasUnsavedBonus) {
 			const entryId = $activeEntryId;
@@ -749,7 +770,7 @@
 			}
 		}
 
-		const ok = matchesOk && bonusOk;
+		const ok = matchesOk && bracketOk && phase2BracketOk && bonusOk;
 		saveStatus = ok ? 'saved' : 'error';
 		if (ok) setTimeout(() => (saveStatus = 'idle'), 2000);
 	}
