@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { goto, beforeNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
 	import {
 		fetchMatchPredictions,
@@ -30,10 +31,16 @@
 		entries,
 		activeEntryId,
 		activeEntry,
+		setActiveEntry,
 		entrySettings
 	} from '$stores/entries';
 	import * as entriesApi from '$api/entries';
 	import { canSubmit, canEdit, isPhaseEditable, computeDisplayStatus } from '$lib/types/entry';
+	import {
+		entryUiStatus,
+		entryStatusBadge,
+		entryStatusDot
+	} from '$lib/utils/entryStatusBadge';
 	import {
 		fetchGroupFixtures,
 		groupFixtures,
@@ -66,7 +73,6 @@
 	import EntrySelector from '$components/EntrySelector.svelte';
 	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
-	import SheetSelector from '$components/predictions/SheetSelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
 	import FixtureRow from '$components/predictions/FixtureRow.svelte';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
@@ -140,12 +146,25 @@
 		window.addEventListener('beforeunload', handleBeforeUnload);
 	});
 
-	// Load entries as soon as $user.id resolves. Using $: not onMount because
-	// initAuth() / fetchUser() can complete AFTER this page's onMount.
-	let entriesLoadStarted = false;
-	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
-		entriesLoadStarted = true;
-		void loadEntries($user.id);
+	// Sync the active entry with the URL param. The entries store is
+	// hydrated by routes/entries/+layout.ts before this page mounts, but
+	// we still guard against an empty store (e.g. dev HMR) and against
+	// URLs that point at an entry the user doesn't own — the latter
+	// redirects silently to the list.
+	$: entryParam = $page.params.entryId;
+
+	let entriesEnsured = false;
+	$: if ($isAuthenticated && $user?.id && !entriesEnsured) {
+		entriesEnsured = true;
+		if ($entries.length === 0) void loadEntries($user.id);
+	}
+
+	$: if (entryParam && $entries.length > 0) {
+		if ($entries.some((e) => e.id === entryParam)) {
+			if ($activeEntryId !== entryParam) setActiveEntry(entryParam);
+		} else {
+			void goto('/entries', { replaceState: true });
+		}
 	}
 
 	// Re-fetch predictions whenever the active entry changes.
@@ -196,14 +215,11 @@
 	}
 
 	// ---- Entry selector handlers -----------------------------------------
-	async function handleEntryCreate(): Promise<void> {
-		try {
-			await entriesApi.createEntry();
-			await refreshEntries();
-		} catch (e) {
-			console.error('Create entry failed', e);
-		}
-	}
+	// handleEntryCreate was removed when SheetSelector was lifted out of the
+	// wizard hero. Entry creation now happens elsewhere (the /entries list
+	// page or a future re-introduced dropdown). handleEntryRename and
+	// handleEntryDuplicate below remain pending a janitor pass — they were
+	// wired to the legacy EntrySelector (still imported but unused).
 
 	async function handleEntryRename(): Promise<void> {
 		const current = $activeEntry;
@@ -212,22 +228,6 @@
 		if (!next || next.trim() === '' || next.trim() === current.display_name) return;
 		try {
 			await entriesApi.renameEntry(current.id, { display_name: next.trim() });
-			await refreshEntries();
-		} catch (e) {
-			console.error('Rename failed', e);
-		}
-	}
-
-	// Variant for the new SheetSelector — it dispatches `rename` with the
-	// specific entry id (any row can be renamed, not just the active one).
-	// Keeps the legacy zero-arg handler above unchanged for EntrySelector.
-	async function handleSheetRename(event: CustomEvent<{ entryId: string }>): Promise<void> {
-		const target = $entries.find((e) => e.id === event.detail.entryId);
-		if (!target) return;
-		const next = window.prompt('Sheet name', target.display_name);
-		if (!next || next.trim() === '' || next.trim() === target.display_name) return;
-		try {
-			await entriesApi.renameEntry(target.id, { display_name: next.trim() });
 			await refreshEntries();
 		} catch (e) {
 			console.error('Rename failed', e);
@@ -262,6 +262,9 @@
 	$: editVisible =
 		!!$activeEntry &&
 		canEdit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null);
+
+	$: activeEntryUi = $activeEntry ? entryUiStatus($activeEntry, $isPhase1Locked) : 'draft';
+	$: activeEntryBadge = $activeEntry ? entryStatusBadge(activeEntryUi) : null;
 
 	// ConfirmModal state — one boolean per modal usage on this page.
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
@@ -975,7 +978,7 @@
 </script>
 
 <svelte:head>
-	<title>Predictions - Predictor v2</title>
+	<title>{$activeEntry?.display_name ?? 'Entry'} - Predictor v2</title>
 </svelte:head>
 
 <!-- Group-selector arrow-key navigation. The handler self-guards on
@@ -1040,13 +1043,22 @@
 				</div>
 			</div>
 
-			<!-- Entry selector + lifecycle -->
+			<!-- Entry context + lifecycle. The back-link previously rendered
+			     here was lifted into the topbar breadcrumb (see +layout.svelte). -->
 			<div class="flex items-center gap-3 flex-wrap mt-4">
-				<SheetSelector
-					activeProgress={{ done: phaseProgress.done, total: phaseProgress.total }}
-					on:create={handleEntryCreate}
-					on:rename={handleSheetRename}
-				/>
+				{#if $activeEntry && activeEntryBadge}
+					<span class="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-300/40 border border-base-content/10">
+						<span
+							class="w-2.5 h-2.5 rounded-full {entryStatusDot(activeEntryUi)} flex-shrink-0"
+							aria-hidden="true"
+						></span>
+						<span class="text-[10px] uppercase tracking-wider opacity-50 font-semibold">Entry</span>
+						<span class="font-semibold truncate max-w-[10rem] sm:max-w-[14rem]"
+							>{$activeEntry.display_name || `Entry #${$activeEntry.entry_number}`}</span
+						>
+						<span class="badge badge-sm {activeEntryBadge.class}">{activeEntryBadge.label}</span>
+					</span>
+				{/if}
 				{#if lifecycleError}
 					<span class="text-error text-xs">{lifecycleError}</span>
 				{/if}

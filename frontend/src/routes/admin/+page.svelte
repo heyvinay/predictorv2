@@ -45,6 +45,9 @@
 	import type { Entry, EntrySettings, EntryStatus } from '$lib/types/entry';
 	import { computeDisplayStatus } from '$lib/types/entry';
 	import type { PredictionPhase } from '$types';
+	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import OverflowMenu from '$lib/components/OverflowMenu.svelte';
 
 	$: if ($isAuthenticated && !$user?.is_admin) goto('/');
 	$: if (!$isAuthenticated) goto('/login');
@@ -113,10 +116,13 @@
 
 	// --- Entries admin table --------------------------------------------------
 	let entries: Entry[] = [];
+	let entriesTotal = 0;
+	let entriesOffset = 0;
+	const entriesLimit = 25;
 	let entriesLoading = false;
+	let entriesExporting = false;
 	let entriesError: string | null = null;
 	let entryFilters: AdminEntryFilters = {};
-	let entryUserSearch = '';
 	let entryRefSearch = '';
 	let entryStatusFilter: '' | EntryStatus = '';
 	let entryPaidFilter: '' | 'paid' | 'unpaid' = '';
@@ -228,17 +234,101 @@
 		return f;
 	}
 
-	async function loadEntries() {
+	async function loadEntries({ resetOffset = true }: { resetOffset?: boolean } = {}) {
 		entriesLoading = true;
 		entriesError = null;
 		try {
 			entryFilters = buildFilters();
-			entries = await adminListEntries(entryFilters);
+			if (resetOffset) entriesOffset = 0;
+			const page = await adminListEntries(entryFilters, {
+				limit: entriesLimit,
+				offset: entriesOffset
+			});
+			entries = page.items;
+			entriesTotal = page.total;
 		} catch (e) {
 			entriesError = e instanceof Error ? e.message : 'Failed to load entries';
 		} finally {
 			entriesLoading = false;
 		}
+	}
+
+	async function handleEntriesPrev() {
+		if (entriesOffset === 0) return;
+		entriesOffset = Math.max(0, entriesOffset - entriesLimit);
+		await loadEntries({ resetOffset: false });
+	}
+
+	async function handleEntriesNext() {
+		if (entriesOffset + entriesLimit >= entriesTotal) return;
+		entriesOffset += entriesLimit;
+		await loadEntries({ resetOffset: false });
+	}
+
+	/** CSV export of the full filtered result set (no pagination applied). */
+	async function handleExportEntries() {
+		entriesExporting = true;
+		entryActionError = null;
+		try {
+			const all = await adminListEntries(buildFilters());
+			const csv = entriesToCsv(all.items);
+			const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+			a.href = url;
+			a.download = `entries-${stamp}.csv`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			entryActionError = e instanceof Error ? e.message : 'Export failed';
+		} finally {
+			entriesExporting = false;
+		}
+	}
+
+	function entriesToCsv(rows: Entry[]): string {
+		const header = [
+			'reference',
+			'display_name',
+			'user_name',
+			'user_email',
+			'status',
+			'paid',
+			'prize_eligible',
+			'is_disabled',
+			'disabled_reason',
+			'withdrawn_at',
+			'updated_at'
+		];
+		const lines = [header.join(',')];
+		for (const e of rows) {
+			const status = computeDisplayStatus(e, 'phase_1' as PredictionPhase);
+			const cells = [
+				e.reference,
+				e.display_name,
+				userNameById(e.user_id),
+				userEmailById(e.user_id),
+				status,
+				e.paid ? 'true' : 'false',
+				e.prize_eligible ? 'true' : 'false',
+				e.is_disabled ? 'true' : 'false',
+				e.disabled_reason ?? '',
+				e.withdrawn_at ?? '',
+				e.updated_at
+			].map(csvEscape);
+			lines.push(cells.join(','));
+		}
+		return lines.join('\n');
+	}
+
+	function csvEscape(value: string): string {
+		if (value == null) return '';
+		const s = String(value);
+		if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+		return s;
 	}
 
 	function userNameById(userId: string): string {
@@ -251,15 +341,9 @@
 		return u?.email ?? '—';
 	}
 
-	$: visibleEntries = (() => {
-		if (!entryUserSearch.trim()) return entries;
-		const q = entryUserSearch.trim().toLowerCase();
-		return entries.filter((e) => {
-			const u = users.find((x) => x.id === e.user_id);
-			if (!u) return false;
-			return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-		});
-	})();
+	// Client-side user-name search was removed when pagination landed —
+	// it would have only filtered the current page. Reintroduce later as
+	// a server-side user_id filter (the backend already supports it).
 
 	function entryDisplayStatus(e: Entry): EntryStatus {
 		return computeDisplayStatus(e, 'phase_1' as PredictionPhase);
@@ -790,129 +874,228 @@
 
 			<!-- Entries admin table -->
 			<section class="stadium-card no-glow p-5">
-				<h2 class="text-lg font-display tracking-wide mb-3">Entries <span class="text-xs text-base-content/40">· {visibleEntries.length} of {entries.length}</span></h2>
+				<h2 class="text-lg font-display tracking-wide mb-3">
+					Entries
+					<span class="text-xs text-base-content/40">· {entriesTotal} total</span>
+				</h2>
 				{#if entryActionError}<div class="alert alert-error text-sm mb-3">{entryActionError}</div>{/if}
-				<div class="flex flex-wrap gap-2 mb-4">
-					<input class="input input-bordered input-sm" placeholder="User name / email…" bind:value={entryUserSearch} type="search" />
-					<input class="input input-bordered input-sm" placeholder="Reference (WC26-…)" bind:value={entryRefSearch} type="search" on:change={loadEntries} />
-					<select class="select select-bordered select-sm" bind:value={entryStatusFilter} on:change={loadEntries}>
-						<option value="">Any status</option><option value="draft">draft</option><option value="submitted">submitted</option><option value="withdrawn">withdrawn</option>
-					</select>
-					<select class="select select-bordered select-sm" bind:value={entryPaidFilter} on:change={loadEntries}>
-						<option value="">Any paid</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option>
-					</select>
-					<select class="select select-bordered select-sm" bind:value={entryDisabledFilter} on:change={loadEntries}>
-						<option value="">Any state</option><option value="active">Active</option><option value="disabled">Disabled</option>
-					</select>
-					<button class="btn btn-outline btn-sm" type="button" on:click={loadEntries} disabled={entriesLoading}>{entriesLoading ? '…' : 'Refresh'}</button>
-				</div>
+
+				<Toolbar
+					bind:search={entryRefSearch}
+					searchPlaceholder="Reference (WC26-…)"
+					onSearchCommit={() => loadEntries()}
+				>
+					<svelte:fragment slot="filters">
+						<select class="select select-bordered select-sm" bind:value={entryStatusFilter} on:change={() => loadEntries()}>
+							<option value="">Any status</option>
+							<option value="draft">draft</option>
+							<option value="submitted">submitted</option>
+							<option value="withdrawn">withdrawn</option>
+						</select>
+						<select class="select select-bordered select-sm" bind:value={entryPaidFilter} on:change={() => loadEntries()}>
+							<option value="">Any paid</option>
+							<option value="paid">Paid</option>
+							<option value="unpaid">Unpaid</option>
+						</select>
+						<select class="select select-bordered select-sm" bind:value={entryDisabledFilter} on:change={() => loadEntries()}>
+							<option value="">Any state</option>
+							<option value="active">Active</option>
+							<option value="disabled">Disabled</option>
+						</select>
+					</svelte:fragment>
+					<svelte:fragment slot="actions">
+						<button
+							class="btn btn-outline btn-sm"
+							type="button"
+							on:click={handleExportEntries}
+							disabled={entriesExporting || entriesTotal === 0}
+						>
+							{entriesExporting ? 'Exporting…' : 'Export CSV'}
+						</button>
+					</svelte:fragment>
+				</Toolbar>
 
 				{#if entriesError}
 					<div class="alert alert-error text-sm">{entriesError}</div>
 				{:else if entriesLoading && entries.length === 0}
 					<p class="text-sm text-base-content/50">Loading entries…</p>
-				{:else if visibleEntries.length === 0}
+				{:else if entries.length === 0}
 					<p class="text-sm text-base-content/50">No entries match the filters</p>
 				{:else}
-					<div class="space-y-2">
-						{#each visibleEntries as e (e.id)}
-							{@const status = entryDisplayStatus(e)}
-							<div class="rounded-lg border border-base-300/50 p-3 {e.is_disabled || e.withdrawn_at ? 'opacity-60' : ''}">
-								<div class="flex items-start justify-between gap-3 flex-wrap">
-									<div class="min-w-0">
-										<div class="font-semibold flex items-center gap-2">{e.display_name}<span class="text-xs font-mono text-base-content/40">{e.reference}</span></div>
-										<div class="text-xs text-base-content/50">{userNameById(e.user_id)} · {userEmailById(e.user_id)}</div>
-									</div>
-									<div class="flex items-center gap-1.5 flex-wrap">
-										<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
-										<span class="badge {e.paid ? 'badge-success' : 'badge-ghost'}">{e.paid ? 'Paid' : 'Unpaid'}</span>
-										{#if !e.prize_eligible}<span class="badge badge-ghost">No prize</span>{/if}
-										{#if e.is_disabled && e.disabled_reason}<span class="badge badge-error" title={e.disabled_reason}>Reason: {e.disabled_reason}</span>{/if}
-									</div>
-								</div>
-								<div class="flex gap-2 mt-2 flex-wrap">
-									<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEntryTogglePaid(e)} disabled={entryActingId === e.id}>{e.paid ? '− Paid' : '+ Paid'}</button>
-									<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEntryTogglePrize(e)} disabled={entryActingId === e.id}>{e.prize_eligible ? '− Prize' : '+ Prize'}</button>
-									{#if e.is_disabled}
-										<button class="btn btn-xs btn-outline" type="button" on:click={() => handleEnable(e)} disabled={entryActingId === e.id}>Enable</button>
-									{:else}
-										<button class="btn btn-xs btn-outline btn-error" type="button" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>Disable…</button>
-									{/if}
-									{#if status === 'withdrawn'}
-										<button class="btn btn-xs btn-outline btn-success" type="button" on:click={() => openReinstateDialog(e)} disabled={entryActingId === e.id}>Reinstate…</button>
-									{:else}
-										<button class="btn btn-xs btn-outline btn-error" type="button" on:click={() => openWithdrawDialog(e)} disabled={entryActingId === e.id}>Withdraw…</button>
-									{/if}
-									<button class="btn btn-xs btn-ghost" type="button" on:click={() => openAuditDrawer(e.id)}>Audit</button>
-								</div>
-
-								{#if disableTargetId === e.id}
-									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
-										<div class="text-sm font-semibold mb-2">Disable {e.display_name} ({e.reference})</div>
-										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={disableReason} />
-										<div class="flex gap-2">
-											<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}</button>
-											<button class="btn btn-xs btn-ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
-										</div>
-									</div>
-								{/if}
-
-								{#if withdrawTargetId === e.id}
-									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
-										<div class="text-sm font-semibold mb-2">Withdraw {e.display_name} ({e.reference})</div>
-										<p class="text-xs text-base-content/60 mb-2">Removes the entry from scoring. Reinstate is available later if needed.</p>
-										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={withdrawReason} />
-										<div class="flex gap-2">
-											<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmWithdraw} disabled={!withdrawReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Withdrawing…' : 'Confirm withdraw'}</button>
-											<button class="btn btn-xs btn-ghost" type="button" on:click={closeWithdrawDialog}>Cancel</button>
-										</div>
-									</div>
-								{/if}
-
-								{#if reinstateTargetId === e.id}
-									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
-										<div class="text-sm font-semibold mb-2">Reinstate {e.display_name} ({e.reference}) as SUBMITTED</div>
-										<p class="text-xs text-base-content/60 mb-2">Qualifies for scoring from this moment. Use for users who filled all picks but missed the deadline.</p>
-										<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={reinstateReason} />
-										<div class="flex gap-2">
-											<button class="btn btn-xs btn-success" type="button" on:click={handleConfirmReinstate} disabled={!reinstateReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Reinstating…' : 'Confirm reinstate'}</button>
-											<button class="btn btn-xs btn-ghost" type="button" on:click={closeReinstateDialog}>Cancel</button>
-										</div>
-									</div>
-								{/if}
-
-								{#if auditEntryId === e.id}
-									<div class="mt-3 p-3 rounded-lg bg-base-300/40">
-										<div class="flex items-center justify-between mb-2">
-											<span class="text-sm font-semibold">Audit log · {e.display_name}</span>
-											<button class="btn btn-xs btn-ghost" type="button" on:click={closeAuditDrawer}>Close</button>
-										</div>
-										{#if auditLoading}
-											<p class="text-xs text-base-content/50">Loading…</p>
-										{:else if auditError}
-											<div class="alert alert-error text-xs">{auditError}</div>
-										{:else if auditEvents.length === 0}
-											<p class="text-xs text-base-content/50">No events.</p>
-										{:else}
-											<ul class="space-y-1.5">
-												{#each auditEvents as ev (ev.id)}
-													<li class="text-xs">
-														<div class="flex gap-2 flex-wrap items-center">
-															<span class="font-mono text-base-content/50">{fmtAuditTime(ev.created_at)}</span>
-															<span>{ev.from_status} → <b>{ev.to_status}</b></span>
-															{#if ev.phase}<span class="badge badge-xs">{ev.phase}</span>{/if}
-															<span class="text-base-content/40">by {userNameById(ev.actor_user_id)} ({ev.actor_role})</span>
-														</div>
-														{#if ev.reason}<div class="text-base-content/50 italic">"{ev.reason}"</div>{/if}
+					<div class="overflow-x-auto rounded-xl border border-base-300/50 bg-base-200">
+						<table class="table table-hover">
+							<thead>
+								<tr class="text-xs uppercase tracking-wider text-base-content/60">
+									<th>Reference</th>
+									<th>Entry</th>
+									<th class="hidden md:table-cell">User</th>
+									<th>Status</th>
+									<th class="hidden sm:table-cell">Paid</th>
+									<th class="hidden lg:table-cell">Prize</th>
+									<th class="hidden xl:table-cell">Updated</th>
+									<th class="text-right"><span class="sr-only">Actions</span></th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each entries as e (e.id)}
+									{@const status = entryDisplayStatus(e)}
+									{@const dimmed = e.is_disabled || !!e.withdrawn_at}
+									<tr class={dimmed ? 'opacity-60' : ''}>
+										<td>
+											<span class="text-xs font-mono text-base-content/60">{e.reference}</span>
+										</td>
+										<td>
+											<div class="font-medium truncate">{e.display_name}</div>
+											{#if e.is_disabled && e.disabled_reason}
+												<div class="text-xs text-error truncate" title={e.disabled_reason}>
+													Disabled: {e.disabled_reason}
+												</div>
+											{/if}
+										</td>
+										<td class="hidden md:table-cell">
+											<div class="text-sm truncate">{userNameById(e.user_id)}</div>
+											<div class="text-xs text-base-content/50 truncate">{userEmailById(e.user_id)}</div>
+										</td>
+										<td>
+											<span class={statusChipClass(status)}>{status.toUpperCase()}</span>
+										</td>
+										<td class="hidden sm:table-cell">
+											<span class="badge badge-sm {e.paid ? 'badge-success' : 'badge-ghost'}">
+												{e.paid ? 'Paid' : 'Unpaid'}
+											</span>
+										</td>
+										<td class="hidden lg:table-cell">
+											{#if e.prize_eligible}
+												<span class="text-xs text-base-content/60">Eligible</span>
+											{:else}
+												<span class="badge badge-sm badge-ghost">No prize</span>
+											{/if}
+										</td>
+										<td class="hidden xl:table-cell">
+											<span class="text-xs text-base-content/60">{new Date(e.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+										</td>
+										<td class="text-right">
+											<OverflowMenu label="Actions for {e.display_name}">
+												<li>
+													<button type="button" on:click={() => handleEntryTogglePaid(e)} disabled={entryActingId === e.id}>
+														{e.paid ? '− Mark Unpaid' : '+ Mark Paid'}
+													</button>
+												</li>
+												<li>
+													<button type="button" on:click={() => handleEntryTogglePrize(e)} disabled={entryActingId === e.id}>
+														{e.prize_eligible ? '− Remove Prize' : '+ Mark Prize-eligible'}
+													</button>
+												</li>
+												{#if e.is_disabled}
+													<li>
+														<button type="button" on:click={() => handleEnable(e)} disabled={entryActingId === e.id}>
+															Enable
+														</button>
 													</li>
-												{/each}
-											</ul>
-										{/if}
-									</div>
-								{/if}
-							</div>
-						{/each}
+												{:else}
+													<li>
+														<button type="button" class="text-error" on:click={() => openDisableDialog(e)} disabled={entryActingId === e.id}>
+															Disable…
+														</button>
+													</li>
+												{/if}
+												{#if status === 'withdrawn'}
+													<li>
+														<button type="button" class="text-success" on:click={() => openReinstateDialog(e)} disabled={entryActingId === e.id}>
+															Reinstate…
+														</button>
+													</li>
+												{:else}
+													<li>
+														<button type="button" class="text-error" on:click={() => openWithdrawDialog(e)} disabled={entryActingId === e.id}>
+															Withdraw…
+														</button>
+													</li>
+												{/if}
+												<li>
+													<button type="button" on:click={() => openAuditDrawer(e.id)}>
+														Audit log
+													</button>
+												</li>
+											</OverflowMenu>
+										</td>
+									</tr>
+
+									<!-- Inline action dialogs — expand under their row when targeted. -->
+									{#if disableTargetId === e.id || withdrawTargetId === e.id || reinstateTargetId === e.id || auditEntryId === e.id}
+										<tr class="bg-base-300/20">
+											<td colspan="8" class="p-3">
+												{#if disableTargetId === e.id}
+													<div class="text-sm font-semibold mb-2">Disable {e.display_name} ({e.reference})</div>
+													<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={disableReason} />
+													<div class="flex gap-2">
+														<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmDisable} disabled={!disableReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Disabling…' : 'Confirm disable'}</button>
+														<button class="btn btn-xs btn-ghost" type="button" on:click={closeDisableDialog}>Cancel</button>
+													</div>
+												{/if}
+
+												{#if withdrawTargetId === e.id}
+													<div class="text-sm font-semibold mb-2">Withdraw {e.display_name} ({e.reference})</div>
+													<p class="text-xs text-base-content/60 mb-2">Removes the entry from scoring. Reinstate is available later if needed.</p>
+													<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={withdrawReason} />
+													<div class="flex gap-2">
+														<button class="btn btn-xs btn-error" type="button" on:click={handleConfirmWithdraw} disabled={!withdrawReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Withdrawing…' : 'Confirm withdraw'}</button>
+														<button class="btn btn-xs btn-ghost" type="button" on:click={closeWithdrawDialog}>Cancel</button>
+													</div>
+												{/if}
+
+												{#if reinstateTargetId === e.id}
+													<div class="text-sm font-semibold mb-2">Reinstate {e.display_name} ({e.reference}) as SUBMITTED</div>
+													<p class="text-xs text-base-content/60 mb-2">Qualifies for scoring from this moment. Use for users who filled all picks but missed the deadline.</p>
+													<input type="text" class="input input-bordered input-sm w-full mb-2" placeholder="Reason (required)" bind:value={reinstateReason} />
+													<div class="flex gap-2">
+														<button class="btn btn-xs btn-success" type="button" on:click={handleConfirmReinstate} disabled={!reinstateReason.trim() || entryActingId === e.id}>{entryActingId === e.id ? 'Reinstating…' : 'Confirm reinstate'}</button>
+														<button class="btn btn-xs btn-ghost" type="button" on:click={closeReinstateDialog}>Cancel</button>
+													</div>
+												{/if}
+
+												{#if auditEntryId === e.id}
+													<div class="flex items-center justify-between mb-2">
+														<span class="text-sm font-semibold">Audit log · {e.display_name}</span>
+														<button class="btn btn-xs btn-ghost" type="button" on:click={closeAuditDrawer}>Close</button>
+													</div>
+													{#if auditLoading}
+														<p class="text-xs text-base-content/50">Loading…</p>
+													{:else if auditError}
+														<div class="alert alert-error text-xs">{auditError}</div>
+													{:else if auditEvents.length === 0}
+														<p class="text-xs text-base-content/50">No events.</p>
+													{:else}
+														<ul class="space-y-1.5">
+															{#each auditEvents as ev (ev.id)}
+																<li class="text-xs">
+																	<div class="flex gap-2 flex-wrap items-center">
+																		<span class="font-mono text-base-content/50">{fmtAuditTime(ev.created_at)}</span>
+																		<span>{ev.from_status} → <b>{ev.to_status}</b></span>
+																		{#if ev.phase}<span class="badge badge-xs">{ev.phase}</span>{/if}
+																		<span class="text-base-content/40">by {userNameById(ev.actor_user_id)} ({ev.actor_role})</span>
+																	</div>
+																	{#if ev.reason}<div class="text-base-content/50 italic">"{ev.reason}"</div>{/if}
+																</li>
+															{/each}
+														</ul>
+													{/if}
+												{/if}
+											</td>
+										</tr>
+									{/if}
+								{/each}
+							</tbody>
+						</table>
 					</div>
+
+					<Pagination
+						total={entriesTotal}
+						limit={entriesLimit}
+						offset={entriesOffset}
+						on:prev={handleEntriesPrev}
+						on:next={handleEntriesNext}
+					/>
 				{/if}
 			</section>
 

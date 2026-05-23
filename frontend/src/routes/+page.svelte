@@ -279,7 +279,7 @@
 					{#if rank}You're {rank}{ordinal(rank)} of {totalPlayers}{:else}World Cup 2026 Predictions{/if}
 				</p>
 			</div>
-			<a href="/predictions" class="btn btn-primary btn-sm">Make predictions</a>
+			<a href={$activeEntryId ? `/entries/${$activeEntryId}` : '/entries'} class="btn btn-primary btn-sm">Make predictions</a>
 		</div>
 
 		<!-- KPI row -->
@@ -465,7 +465,7 @@
 			<div class="stadium-card no-glow p-5">
 				<div class="flex items-center justify-between mb-3">
 					<h2 class="text-lg font-display tracking-wide">Up Next</h2>
-					<a href="/predictions" class="text-xs text-primary hover:underline">Predict →</a>
+					<a href={$activeEntryId ? `/entries/${$activeEntryId}` : '/entries'} class="text-xs text-primary hover:underline">Predict →</a>
 				</div>
 				<div class="overflow-x-auto">
 					<table class="table table-sm">

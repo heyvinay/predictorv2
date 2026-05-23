@@ -41,7 +41,11 @@
 		entrySettings
 	} from '$lib/stores/entries';
 	import { isPhase1Locked } from '$lib/stores/phase';
-	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
+	import {
+		entryUiStatus,
+		entryStatusBadge,
+		entryStatusDot
+	} from '$lib/utils/entryStatusBadge';
 
 	/**
 	 * Active sheet's fixture-completion progress (done / total). Optional:
@@ -54,34 +58,6 @@
 		create: void;
 		rename: { entryId: string };
 	}>();
-
-	type UiStatus = 'draft' | 'locked' | 'scored' | 'missed';
-
-	function uiStatusFor(entry: Entry, deadlinePassed: boolean): UiStatus {
-		const s = computeDisplayStatus(entry, 'phase_1');
-		if (s === 'withdrawn') return 'missed';
-		if (s === 'submitted') return deadlinePassed ? 'scored' : 'locked';
-		// status === 'draft'
-		return deadlinePassed ? 'missed' : 'draft';
-	}
-
-	// Badge label + DaisyUI semantic class. DRAFT is plain (in-progress
-	// default); the three "final" states carry a glyph for at-a-glance
-	// recognition without relying on color alone (a11y win for color-blind
-	// users who can't easily distinguish green from amber).
-	const BADGE: Record<UiStatus, { label: string; class: string }> = {
-		draft: { label: 'DRAFT', class: 'badge-warning' },
-		locked: { label: '🔒 LOCKED', class: 'badge-success' },
-		scored: { label: '✓ SCORED', class: 'badge-success' },
-		missed: { label: '✗ NOT SUBMITTED', class: 'badge-error' }
-	};
-
-	const DOT_FILL: Record<UiStatus, string> = {
-		draft: 'bg-warning',
-		locked: 'bg-success',
-		scored: 'bg-success',
-		missed: 'bg-error'
-	};
 
 	let open = false;
 	let triggerEl: HTMLButtonElement;
@@ -135,12 +111,13 @@
 		? $entries.length < $entrySettings.max_entries_per_user
 		: false;
 	$: canRename = $entrySettings?.allow_user_rename ?? false;
-	$: activeUi = $activeEntry ? uiStatusFor($activeEntry, deadlinePassed) : null;
+	$: activeUi = $activeEntry ? entryUiStatus($activeEntry, deadlinePassed) : null;
+	$: activeBadge = activeUi ? entryStatusBadge(activeUi) : null;
 </script>
 
 <div class="relative inline-block">
 	<!-- Trigger -->
-	{#if $activeEntry && activeUi}
+	{#if $activeEntry && activeUi && activeBadge}
 		<button
 			bind:this={triggerEl}
 			type="button"
@@ -150,14 +127,14 @@
 			on:click={toggleOpen}
 		>
 			<span
-				class="w-2.5 h-2.5 rounded-full {DOT_FILL[activeUi]} flex-shrink-0"
+				class="w-2.5 h-2.5 rounded-full {entryStatusDot(activeUi)} flex-shrink-0"
 				aria-hidden="true"
 			></span>
 			<span class="text-[10px] uppercase tracking-wider opacity-50 font-semibold">Entry</span>
 			<span class="font-semibold truncate max-w-[8rem] sm:max-w-[12rem]"
 				>{$activeEntry.display_name}</span
 			>
-			<span class="badge badge-sm {BADGE[activeUi].class}">{BADGE[activeUi].label}</span>
+			<span class="badge badge-sm {activeBadge.class}">{activeBadge.label}</span>
 			<svg
 				class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
 				class:rotate-180={open}
@@ -182,7 +159,8 @@
 		>
 			<ul class="max-h-72 overflow-y-auto py-1">
 				{#each $entries as e (e.id)}
-					{@const ui = uiStatusFor(e, deadlinePassed)}
+					{@const ui = entryUiStatus(e, deadlinePassed)}
+					{@const badge = entryStatusBadge(ui)}
 					{@const isActive = e.id === $activeEntryId}
 					<li class="flex items-center gap-1 px-1.5 py-0.5">
 						<!-- Row-select button (fills most of the row) -->
@@ -195,12 +173,12 @@
 							aria-current={isActive ? 'true' : undefined}
 						>
 							<span
-								class="w-2.5 h-2.5 rounded-full {DOT_FILL[ui]} flex-shrink-0"
+								class="w-2.5 h-2.5 rounded-full {entryStatusDot(ui)} flex-shrink-0"
 								aria-hidden="true"
 							></span>
 							<span class="font-medium truncate flex-1">{e.display_name}</span>
-							<span class="badge badge-xs {BADGE[ui].class} whitespace-nowrap"
-								>{BADGE[ui].label}</span
+							<span class="badge badge-xs {badge.class} whitespace-nowrap"
+								>{badge.label}</span
 							>
 							{#if isActive && activeProgress}
 								<span class="text-xs font-mono opacity-60 ml-1 whitespace-nowrap"

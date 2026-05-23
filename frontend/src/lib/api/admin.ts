@@ -155,6 +155,18 @@ export interface AdminEntryFilters {
 	disabled?: boolean;
 }
 
+/** Pagination options. Omit both for "give me everything" (CSV export). */
+export interface AdminEntriesPageOpts {
+	limit?: number;
+	offset?: number;
+}
+
+/** Paginated response from `GET /admin/entries`. */
+export interface AdminEntriesPage {
+	items: Entry[];
+	total: number;
+}
+
 /** Partial update — only included keys are PATCHed. */
 export interface EntrySettingsUpdate {
 	max_entries_per_user?: number;
@@ -191,17 +203,27 @@ export async function openPhase2(): Promise<Phase2OpenResponse> {
 // --- Entries listing + per-row actions ---
 
 export async function adminListEntries(
-	filters: AdminEntryFilters = {}
-): Promise<Entry[]> {
+	filters: AdminEntryFilters = {},
+	opts: AdminEntriesPageOpts = {}
+): Promise<AdminEntriesPage> {
 	const params = new URLSearchParams();
 	if (filters.user_id) params.set('user_id', filters.user_id);
 	if (filters.reference) params.set('reference', filters.reference);
 	if (filters.status) params.set('status', filters.status);
 	if (filters.paid !== undefined) params.set('paid', String(filters.paid));
 	if (filters.disabled !== undefined) params.set('disabled', String(filters.disabled));
+	if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+	if (opts.offset !== undefined) params.set('offset', String(opts.offset));
 	const qs = params.toString();
 	const url = qs ? `/admin/entries?${qs}` : '/admin/entries';
-	return api.get<Entry[]>(url);
+	const raw = await api.get<unknown>(url);
+	// Tolerate both shapes during rollout: the new backend returns
+	// {items, total}; the old backend returns a bare Entry[]. Once the
+	// backend change lands everywhere, drop the array branch.
+	if (Array.isArray(raw)) {
+		return { items: raw as Entry[], total: (raw as Entry[]).length };
+	}
+	return raw as AdminEntriesPage;
 }
 
 export async function getAdminEntryEvents(entryId: string): Promise<EntryEvent[]> {

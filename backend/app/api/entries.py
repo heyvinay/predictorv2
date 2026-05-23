@@ -23,6 +23,7 @@ from app.dependencies import AdminUser, CurrentUser, DbSession
 from app.models.entry import EntryStatus
 from app.models.prediction import PredictionPhase
 from app.schemas.entry import (
+    AdminEntriesPage,
     EntryCreate,
     EntryDisable,
     EntryEventRead,
@@ -357,7 +358,7 @@ async def admin_open_phase2(
     return Phase2OpenResponse(**summary.__dict__)
 
 
-@admin_router.get("/entries", response_model=list[EntryRead])
+@admin_router.get("/entries", response_model=AdminEntriesPage)
 async def admin_list_entries(
     session: DbSession,
     _admin: AdminUser,
@@ -366,9 +367,14 @@ async def admin_list_entries(
     status_: EntryStatus | None = Query(default=None, alias="status"),
     paid: bool | None = Query(default=None),
     disabled: bool | None = Query(default=None),
-) -> list[EntryRead]:
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> AdminEntriesPage:
+    """Paginated admin list. Pass `limit=None` (omit it) to return every
+    matching row — used for CSV export. Otherwise client provides
+    page-sized `limit` and `offset`; response carries the total."""
     competition = await _get_competition(session)
-    rows = await entries_service.admin_list_entries(
+    rows, total = await entries_service.admin_list_entries(
         session,
         competition=competition,
         user_id=user_id,
@@ -376,8 +382,13 @@ async def admin_list_entries(
         status=status_,
         paid=paid,
         disabled=disabled,
+        limit=limit,
+        offset=offset,
     )
-    return [EntryRead.model_validate(r) for r in rows]
+    return AdminEntriesPage(
+        items=[EntryRead.model_validate(r) for r in rows],
+        total=total,
+    )
 
 
 @admin_router.post(

@@ -157,6 +157,19 @@ class Phase2OpenResponse(BaseModel):
     entries_already_open: int
 
 
+class AdminEntriesPage(BaseModel):
+    """Paginated response from `GET /admin/entries`.
+
+    `items` is the entries on the requested page. `total` is the count
+    of rows matching the active filters before pagination — the
+    frontend uses it to render "Showing X–Y of Z" and to enable / disable
+    Prev / Next buttons.
+    """
+
+    items: list[EntryRead]
+    total: int
+
+
 class DuplicateConflict(BaseModel):
     """Raised when a user tries to submit an identical entry.
 

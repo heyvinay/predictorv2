@@ -1306,31 +1306,51 @@ async def admin_list_entries(
     status: EntryStatus | None = None,
     paid: bool | None = None,
     disabled: bool | None = None,
-) -> list[PredictionEntry]:
-    """Admin list with filters."""
-    q = (
+    limit: int | None = None,
+    offset: int = 0,
+) -> tuple[list[PredictionEntry], int]:
+    """Admin list with filters and pagination.
+
+    Returns ``(items, total)`` where ``total`` is the count of rows
+    matching the filters before pagination. Pass ``limit=None`` (the
+    default) to return every match — preserves the pre-pagination API
+    for callers that don't paginate (CSV export, tests).
+    """
+    base = (
         select(PredictionEntry)
-        .options(selectinload(PredictionEntry.phases))
         .where(PredictionEntry.competition_id == competition.id)
     )
     if user_id is not None:
-        q = q.where(PredictionEntry.user_id == user_id)
+        base = base.where(PredictionEntry.user_id == user_id)
     if reference is not None:
-        q = q.where(PredictionEntry.reference == reference)
+        base = base.where(PredictionEntry.reference == reference)
     if paid is not None:
-        q = q.where(PredictionEntry.paid == paid)
+        base = base.where(PredictionEntry.paid == paid)
     if disabled is not None:
-        q = q.where(PredictionEntry.is_disabled == disabled)
+        base = base.where(PredictionEntry.is_disabled == disabled)
     if status is not None:
         # Filter on whether the entry has at least one phase with this
         # status. Status is per-phase, not per-entry, so this is the
         # most useful semantic for admin search.
-        q = q.join(
+        base = base.join(
             PredictionEntryPhase,
             PredictionEntry.id == PredictionEntryPhase.entry_id,
         ).where(PredictionEntryPhase.status == status)
-    q = q.order_by(PredictionEntry.entry_number)
-    return list((await session.execute(q)).scalars().unique().all())
+
+    # Count the filtered set BEFORE paginating, against the same query
+    # graph (so joins added by the status filter are honoured).
+    total_q = select(func.count()).select_from(base.subquery())
+    total = int((await session.execute(total_q)).scalar_one())
+
+    items_q = (
+        base.options(selectinload(PredictionEntry.phases))
+        .order_by(PredictionEntry.entry_number)
+        .offset(offset)
+    )
+    if limit is not None:
+        items_q = items_q.limit(limit)
+    items = list((await session.execute(items_q)).scalars().unique().all())
+    return items, total
 
 
 async def admin_get_events(
