@@ -148,12 +148,20 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 DESKTOP WALLCHART (≥ lg)
 	 Neutral DaisyUI token palette — bg-base-100 canvas, bg-base-200 chips,
-	 text-base-content body, with primary as the title accent, secondary
-	 as the FINAL vibrant focal hue, and success as the champion frame.
+	 text-base-content body, with primary as the title accent, gold as the
+	 FINAL accent and success as the winner-row wash.
+
+	 The panel breaks out of any parent container's max-width constraint via
+	 the classic full-bleed pattern (left-1/2 + -translate-x-1/2 + viewport-
+	 relative width) so the chips have the whole viewport to breathe — more
+	 columns can show full country names instead of falling back to codes.
+	 Capped at 1800 px so it never goes silly on ultrawide monitors.
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
 	class="wallchart-panel hidden lg:block bg-base-100 text-base-content
-		rounded-2xl p-6 shadow-2xl border border-base-content/15"
+		rounded-2xl p-8 shadow-2xl border border-base-content/15
+		relative left-1/2 -translate-x-1/2
+		w-[calc(100vw-2rem)] max-w-[1800px]"
 >
 	<!-- Header strip: title + status meta -->
 	<header class="flex items-start justify-between mb-3 gap-6">
@@ -186,7 +194,7 @@
 
 	<!-- 9-column wallchart -->
 	<div
-		class="grid gap-3 items-stretch"
+		class="grid gap-x-5 gap-y-3 items-stretch"
 		style="grid-template-columns: 1.1fr 1.1fr 1.1fr 1.1fr 1.5fr 1.1fr 1.1fr 1.1fr 1.1fr;"
 	>
 		<!-- Column header labels -->
