@@ -5,12 +5,16 @@
 	team gets a leading "•" bullet and bolder weight; the unpicked
 	row dims slightly. A locked card disables clicks.
 
-	The card sits on the navy wallchart panel (the parent provides the
-	background). Colours are hardcoded so the wallchart looks the same
-	regardless of which DaisyUI theme is active:
-	  Champagne Gold  #D4AF37  → chip surface
-	  Midnight Navy   #0B1329  → text + divider
-	  Wine Red        #B91C1C  → FINAL accent strip
+	The card uses DaisyUI theme tokens so it harmonises with whatever
+	theme is active:
+	  bg-primary / text-primary-content  → chip surface + text
+	  bg-error                            → FINAL accent strip (top edge)
+	  border-error                        → FINAL chip outline
+
+	On premium-day/premium-night that resolves to Champagne Gold chips
+	with Midnight Navy text and a Wine Red FINAL pill — the reference
+	look. On other themes the chip swaps to whatever the theme defines
+	as primary, so the wallchart follows the rest of the chrome.
 
 	No SVG connectors — the bracket shape is implicit in the parent
 	grid's column alignment.
@@ -54,13 +58,13 @@
 <div
 	class="bracket-chip relative overflow-hidden rounded-md border
 		{isFinal
-			? 'border-[#B91C1C]/70 bg-[#D4AF37] text-[#0B1329] shadow-lg'
-			: 'border-[#0B1329]/15 bg-[#D4AF37] text-[#0B1329] shadow-sm'}
+			? 'border-error/70 bg-primary text-primary-content shadow-lg'
+			: 'border-primary-content/15 bg-primary text-primary-content shadow-sm'}
 		{locked ? 'opacity-80' : ''}"
 >
 	{#if isFinal}
 		<div
-			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-[#B91C1C] text-white py-0.5"
+			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-error text-error-content py-0.5"
 			aria-hidden="true"
 		>
 			Final
@@ -86,7 +90,7 @@
 	</button>
 
 	<!-- Divider hairline -->
-	<div class="border-t border-[#0B1329]/15" aria-hidden="true"></div>
+	<div class="border-t border-primary-content/15" aria-hidden="true"></div>
 
 	<!-- Team 2 row -->
 	<button

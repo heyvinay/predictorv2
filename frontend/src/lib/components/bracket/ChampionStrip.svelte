@@ -6,8 +6,9 @@
 	  2. Mobile: persistent footer above the prev/next nav
 	     (set showPicks={true})
 
-	Hardcoded Midnight Navy + Champagne Gold + Wine Red so the strip
-	looks correct regardless of which DaisyUI theme is active.
+	Uses DaisyUI theme tokens (bg-primary gold sticker, border-error
+	red frame, text-primary-content for body text) so the strip swaps
+	colours with the active theme.
 -->
 <script lang="ts">
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
@@ -23,8 +24,8 @@
 </script>
 
 <div
-	class="flex items-center gap-3 rounded-lg border-2 border-[#B91C1C]
-		bg-[#D4AF37] text-[#0B1329]
+	class="flex items-center gap-3 rounded-lg border-2 border-error
+		bg-primary text-primary-content
 		{compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}"
 >
 	<span

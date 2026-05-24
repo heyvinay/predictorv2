@@ -147,20 +147,20 @@
 
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 DESKTOP WALLCHART (≥ lg)
-	 The wallchart hardcodes its palette (Midnight Navy panel, Champagne
-	 Gold chips, Wine Red FINAL accent) so it reads the same regardless
-	 of which DaisyUI theme is active. The panel uses a lifted navy
-	 (#142042) so it stays distinct from the page surround in dark
-	 themes, framed by a subtle gold border.
+	 Panel uses DaisyUI theme tokens — bg-secondary as the panel surface,
+	 text-secondary-content for body, primary as the gold/accent role,
+	 error as the red FINAL accent. On premium-day/premium-night this
+	 resolves to the reference wallchart (Midnight Navy panel, Champagne
+	 Gold chips, Wine Red FINAL). Other themes follow accordingly.
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="wallchart-panel hidden lg:block text-[#F8FAFC] rounded-2xl p-6 shadow-2xl
-		border border-[#D4AF37]/25"
+	class="wallchart-panel hidden lg:block bg-secondary text-secondary-content
+		rounded-2xl p-6 shadow-2xl border border-primary/25"
 >
 	<!-- Header strip: title + status meta -->
 	<header class="flex items-start justify-between mb-3 gap-6">
 		<h2 class="font-display text-2xl tracking-wide leading-none">
-			YOUR <span class="text-[#D4AF37]">BRACKET</span>
+			YOUR <span class="text-primary">BRACKET</span>
 		</h2>
 
 		<dl
@@ -177,14 +177,14 @@
 				{locked ? 'LOCKED' : 'OPEN'}
 			</dd>
 			<dd
-				class="row-start-2 font-display text-lg leading-none tracking-wide text-[#D4AF37]"
+				class="row-start-2 font-display text-lg leading-none tracking-wide text-primary"
 			>
 				{tournamentWinner ? tournamentWinner.toUpperCase() : '—'}
 			</dd>
 		</dl>
 	</header>
 
-	<hr class="border-[#D4AF37]/30 mb-5" />
+	<hr class="border-primary/30 mb-5" />
 
 	<!-- 9-column wallchart -->
 	<div
@@ -357,20 +357,20 @@
 	 MOBILE CAROUSEL (< lg)
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="wallchart-panel lg:hidden text-[#F8FAFC] rounded-2xl p-4 shadow-2xl
-		border border-[#D4AF37]/25"
+	class="wallchart-panel lg:hidden bg-secondary text-secondary-content
+		rounded-2xl p-4 shadow-2xl border border-primary/25"
 >
 	<!-- Header: title + page dots + counter -->
 	<header class="flex items-center justify-between mb-3 gap-3">
 		<h2 class="font-display text-base tracking-wide leading-none">
-			YOUR <span class="text-[#D4AF37]">BRACKET</span>
+			YOUR <span class="text-primary">BRACKET</span>
 		</h2>
 		<div class="flex gap-1.5">
 			{#each Array(PAGE_COUNT) as _, i}
 				<button
 					type="button"
 					class="w-1.5 h-1.5 rounded-full transition-colors
-						{page === i ? 'bg-[#D4AF37]' : 'bg-white/30'}"
+						{page === i ? 'bg-primary' : 'bg-secondary-content/30'}"
 					aria-label={`Go to page ${i + 1}`}
 					on:click={() => (page = i)}
 				></button>
@@ -383,7 +383,7 @@
 
 	<!-- Current page label -->
 	<div
-		class="rounded bg-white/10 px-3 py-1.5 mb-3 text-center
+		class="rounded bg-secondary-content/10 px-3 py-1.5 mb-3 text-center
 			text-[11px] font-mono uppercase tracking-[0.2em]"
 	>
 		{PAGE_LABELS[page]}
@@ -557,7 +557,7 @@
 	>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+			class="px-2 py-1 rounded hover:bg-secondary-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === 0}
 			on:click={goPrev}
 		>
@@ -566,7 +566,7 @@
 		<span class="opacity-60">Page {page + 1} / {PAGE_COUNT}</span>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+			class="px-2 py-1 rounded hover:bg-secondary-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === PAGE_COUNT - 1}
 			on:click={goNext}
 		>
@@ -576,16 +576,18 @@
 </div>
 
 <style>
-	/* Wallchart panel — lifted navy with a faint diagonal pinstripe so
-	   the surface reads as a piece of "wallchart paper" rather than a
-	   flat slab. The stripe is barely visible (alpha 0.025), enough to
-	   give texture without competing with the chips. */
+	/* Wallchart panel — the surface colour comes from bg-secondary on
+	   the parent element (theme-driven). Here we only paint a faint
+	   diagonal pinstripe on top so the panel reads as a piece of
+	   "wallchart paper" rather than a flat slab. The stripe is barely
+	   visible (alpha 0.04), enough to give texture without competing
+	   with the chips, and stays neutral so it works on light themes
+	   too where the secondary surface is darker. */
 	.wallchart-panel {
-		background-color: #142042;
 		background-image: repeating-linear-gradient(
 			45deg,
-			rgba(255, 255, 255, 0.025) 0,
-			rgba(255, 255, 255, 0.025) 1px,
+			rgba(255, 255, 255, 0.04) 0,
+			rgba(255, 255, 255, 0.04) 1px,
 			transparent 1px,
 			transparent 6px
 		);
@@ -604,7 +606,7 @@
 	}
 
 	.col-label--final {
-		color: #ff7d6e; /* lighter wine-red so it reads on the navy panel */
+		color: hsl(var(--er) / 1);
 		font-weight: 700;
 		opacity: 1;
 		background: rgb(255 255 255 / 0.1);
