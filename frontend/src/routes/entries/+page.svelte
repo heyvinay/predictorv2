@@ -1,12 +1,14 @@
 <!--
-	/entries — list view of every prediction entry the user owns.
+	/entries — list of every prediction entry the user owns.
 
-	Features:
-	  - "＋ New Entry" button — disabled at max_entries_per_user limit
-	  - Completion dots (groups / bracket / bonus) in a dedicated column
-	  - Per-row Duplicate, Withdraw/Reinstate, Print actions
-	  - Mobile: secondary actions collapse into a ⋯ overflow menu
-	  - Withdrawn rows: faded + only Reinstate shown
+	Design:
+	  - Clean card-style table: no background shading, hairline row dividers
+	  - "＋ New Entry" opens a naming dialog (not an immediate create)
+	  - Entry names editable inline — pencil affordance on hover
+	  - Completion column: three compact color-coded chips (Groups / Knockout / Bonus)
+	  - All per-row actions in a single ⋮ kebab dropdown
+	  - Clicking a row navigates into the entry
+	  - Mobile-first: works equally well at 375 px and 1280 px+
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -19,7 +21,8 @@
 		editableEntries,
 		submittedEntries,
 		entrySettings,
-		loadEntries
+		loadEntries,
+		refreshEntries
 	} from '$stores/entries';
 	import { isPhase1Locked } from '$stores/phase';
 	import {
@@ -30,6 +33,7 @@
 	} from '$lib/utils/entryStatusBadge';
 	import {
 		createEntry,
+		renameEntry,
 		duplicateEntry,
 		withdrawEntry,
 		reinstateEntry,
@@ -41,8 +45,6 @@
 		goto('/login');
 	}
 
-	// Hydrate when $user.id resolves — reactive (not onMount) because
-	// initAuth() can complete AFTER this page mounts on a fresh reload.
 	let entriesLoadStarted = false;
 	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted && $entries.length === 0 && !$entriesLoading) {
 		entriesLoadStarted = true;
@@ -51,7 +53,7 @@
 
 	$: deadlinePassed = $isPhase1Locked;
 
-	// ---- Completion data ----
+	// ── Completion data ──────────────────────────────────────────────────────
 	let completionMap = new Map<string, CompletionSummary>();
 	let completionLoading = true;
 
@@ -61,7 +63,7 @@
 			const summaries = await getCompletionSummary();
 			completionMap = new Map(summaries.map((s) => [s.entry_id, s]));
 		} catch {
-			// Non-fatal — completion dots just won't show
+			// Non-fatal — chips just stay hidden
 		} finally {
 			completionLoading = false;
 		}
@@ -71,29 +73,63 @@
 		void loadCompletion();
 	});
 
-	// ---- Action state ----
+	// ── Action state ─────────────────────────────────────────────────────────
 	let actionBusy: string | null = null;
 	let confirmWithdrawId: string | null = null;
 
+	// ── New-entry modal ──────────────────────────────────────────────────────
+	let newEntryModalOpen = false;
+	let newEntryName = '';
+	let newEntryBusy = false;
+
+	function openNewEntryModal(): void {
+		newEntryName = '';
+		newEntryModalOpen = true;
+	}
+
 	async function handleCreate(): Promise<void> {
-		actionBusy = 'new';
+		newEntryBusy = true;
 		try {
-			await createEntry({});
-			await loadEntries($user!.id);
-			await loadCompletion();
+			await createEntry({ display_name: newEntryName.trim() || undefined });
+			await Promise.all([loadEntries($user!.id), loadCompletion()]);
+			newEntryModalOpen = false;
+			newEntryName = '';
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to create entry');
 		} finally {
-			actionBusy = null;
+			newEntryBusy = false;
 		}
 	}
 
+	// ── Inline rename ────────────────────────────────────────────────────────
+	let editingEntryId: string | null = null;
+	let editingName = '';
+
+	function startEdit(entryId: string, currentName: string): void {
+		editingEntryId = entryId;
+		editingName = currentName;
+	}
+
+	async function commitRename(entryId: string): Promise<void> {
+		const trimmed = editingName.trim();
+		editingEntryId = null;
+		if (!trimmed) return;
+		const existing = $entries.find((e) => e.id === entryId);
+		if (trimmed === existing?.display_name) return;
+		try {
+			await renameEntry(entryId, { display_name: trimmed });
+			await refreshEntries();
+		} catch {
+			// Silent — stale name shows until next load
+		}
+	}
+
+	// ── Row actions ──────────────────────────────────────────────────────────
 	async function handleDuplicate(entryId: string): Promise<void> {
 		actionBusy = entryId + ':dup';
 		try {
 			await duplicateEntry(entryId);
-			await loadEntries($user!.id);
-			await loadCompletion();
+			await Promise.all([loadEntries($user!.id), loadCompletion()]);
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to duplicate entry');
 		} finally {
@@ -118,8 +154,7 @@
 		actionBusy = entryId + ':reinstate';
 		try {
 			await reinstateEntry(entryId);
-			await loadEntries($user!.id);
-			await loadCompletion();
+			await Promise.all([loadEntries($user!.id), loadCompletion()]);
 		} catch (e) {
 			alert(e instanceof Error ? e.message : 'Failed to reinstate entry');
 		} finally {
@@ -133,65 +168,75 @@
 
 	function formatUpdated(iso: string): string {
 		try {
-			return new Date(iso).toLocaleString(undefined, {
-				dateStyle: 'medium',
-				timeStyle: 'short'
-			});
+			return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 		} catch {
 			return iso;
 		}
 	}
 
-	// Completion dot colour: success when full, warning when partial, ghost when empty
-	function dotColor(done: number, total: number): string {
-		if (total === 0 || done === 0) return 'bg-base-content/15';
-		if (done >= total) return 'bg-success';
-		return 'bg-warning';
-	}
-
 	$: maxEntries = $entrySettings?.max_entries_per_user ?? 1;
 	$: activeEntries = $entries.filter((e) => e.withdrawn_at === null);
 	$: canCreate = activeEntries.length < maxEntries;
+
+	// ── Chip colour helpers ──────────────────────────────────────────────────
+	function chipClass(done: number, total: number): string {
+		if (total === 0) return 'bg-base-300/30 text-base-content/30 border-base-300';
+		if (done === 0) return 'bg-base-300/30 text-base-content/30 border-base-300';
+		if (done >= total) return 'bg-success/15 text-success border-success/30';
+		return 'bg-warning/10 text-warning border-warning/30';
+	}
 </script>
 
 <svelte:head>
 	<title>Entries - Predictor v2</title>
 </svelte:head>
 
-<!-- Withdraw confirmation dialog -->
-{#if confirmWithdrawId !== null}
-	{@const entry = $entries.find((e) => e.id === confirmWithdrawId)}
+<!-- ── New Entry modal ─────────────────────────────────────────────────────── -->
+{#if newEntryModalOpen}
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
 		role="dialog"
 		aria-modal="true"
-		aria-label="Confirm withdrawal"
+		aria-label="Create new entry"
+		on:click|self={() => { newEntryModalOpen = false; }}
+		on:keydown={(e) => { if (e.key === 'Escape') newEntryModalOpen = false; }}
 	>
-		<div class="card bg-base-100 shadow-xl max-w-sm mx-4 w-full">
-			<div class="card-body">
-				<h2 class="card-title text-base">Withdraw this entry?</h2>
-				<p class="text-sm text-base-content/70">
-					<strong>{entry?.display_name ?? 'This entry'}</strong> will be marked as withdrawn.
-					You can reinstate it any time before the deadline.
-				</p>
-				<div class="card-actions justify-end gap-2 mt-2">
+		<div class="card bg-base-100 shadow-2xl w-full max-w-sm">
+			<div class="card-body gap-4">
+				<h2 class="card-title text-base font-semibold">New entry</h2>
+				<div>
+					<input
+						type="text"
+						class="input input-bordered w-full"
+						placeholder="e.g. My Picks, Entry A…"
+						bind:value={newEntryName}
+						maxlength={40}
+						autofocus
+						on:keydown={(e) => {
+							if (e.key === 'Enter' && !newEntryBusy) handleCreate();
+							if (e.key === 'Escape') { newEntryModalOpen = false; }
+						}}
+					/>
+					<p class="text-xs text-base-content/50 mt-1.5">Optional — you can rename it any time.</p>
+				</div>
+				<div class="card-actions justify-end gap-2">
 					<button
 						type="button"
 						class="btn btn-ghost btn-sm"
-						on:click={() => (confirmWithdrawId = null)}
-					>
-						Cancel
-					</button>
+						on:click={() => { newEntryModalOpen = false; }}
+					>Cancel</button>
 					<button
 						type="button"
-						class="btn btn-error btn-sm"
-						disabled={actionBusy !== null}
-						on:click={() => { if (confirmWithdrawId) handleWithdraw(confirmWithdrawId); }}
+						class="btn btn-primary btn-sm min-w-[80px]"
+						on:click={handleCreate}
+						disabled={newEntryBusy}
 					>
-						{#if actionBusy?.endsWith(':withdraw')}
+						{#if newEntryBusy}
 							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							Create
 						{/if}
-						Withdraw
 					</button>
 				</div>
 			</div>
@@ -199,79 +244,127 @@
 	</div>
 {/if}
 
-<div class="container mx-auto px-4 py-6 max-w-5xl">
+<!-- ── Withdraw confirmation ───────────────────────────────────────────────── -->
+{#if confirmWithdrawId !== null}
+	{@const entry = $entries.find((e) => e.id === confirmWithdrawId)}
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Confirm withdrawal"
+		on:click|self={() => (confirmWithdrawId = null)}
+		on:keydown={(e) => { if (e.key === 'Escape') confirmWithdrawId = null; }}
+	>
+		<div class="card bg-base-100 shadow-2xl w-full max-w-sm">
+			<div class="card-body gap-3">
+				<h2 class="card-title text-base font-semibold">Withdraw this entry?</h2>
+				<p class="text-sm text-base-content/70">
+					<strong>{entry?.display_name ?? 'This entry'}</strong> will be marked as withdrawn.
+					You can reinstate it any time before the deadline.
+				</p>
+				<div class="card-actions justify-end gap-2 mt-1">
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm"
+						on:click={() => (confirmWithdrawId = null)}
+					>Cancel</button>
+					<button
+						type="button"
+						class="btn btn-error btn-sm min-w-[90px]"
+						disabled={actionBusy !== null}
+						on:click={() => { if (confirmWithdrawId) handleWithdraw(confirmWithdrawId); }}
+					>
+						{#if actionBusy?.endsWith(':withdraw')}
+							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							Withdraw
+						{/if}
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- ── Page ───────────────────────────────────────────────────────────────── -->
+<div class="container mx-auto px-4 py-6 max-w-4xl">
+
 	<!-- Header -->
 	<header class="flex items-center justify-between mb-6 gap-4">
 		<div>
 			<h1 class="text-2xl font-bold">Entries</h1>
-			<p class="text-sm text-base-content/60 mt-1">
+			<p class="text-sm text-base-content/50 mt-0.5">
 				{#if $entriesLoading}
 					Loading…
 				{:else}
-					{$entries.length}
-					{$entries.length === 1 ? 'entry' : 'entries'} ·
-					{$submittedEntries.length} submitted, {$editableEntries.length} draft
+					{$entries.length} {$entries.length === 1 ? 'entry' : 'entries'}
+					{#if $submittedEntries.length > 0}
+						· {$submittedEntries.length} submitted
+					{/if}
+					{#if $editableEntries.length > 0}
+						· {$editableEntries.length} draft
+					{/if}
 				{/if}
 			</p>
 		</div>
-
-		<!-- New Entry button -->
 		<button
 			type="button"
 			class="btn btn-primary btn-sm gap-1.5 flex-shrink-0"
-			disabled={!canCreate || actionBusy === 'new' || $entriesLoading}
+			disabled={!canCreate || $entriesLoading}
 			title={!canCreate
-				? `Maximum of ${maxEntries} active ${maxEntries === 1 ? 'entry' : 'entries'} allowed`
+				? `Maximum of ${maxEntries} active ${maxEntries === 1 ? 'entry' : 'entries'} reached`
 				: undefined}
-			on:click={handleCreate}
+			on:click={openNewEntryModal}
 		>
-			{#if actionBusy === 'new'}
-				<span class="loading loading-spinner loading-xs"></span>
-			{:else}
-				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-				</svg>
-			{/if}
+			<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+			</svg>
 			New Entry
 		</button>
 	</header>
 
 	{#if $entriesError}
-		<div class="alert alert-error mb-4">
-			<span>{$entriesError}</span>
-		</div>
+		<div class="alert alert-error mb-4"><span>{$entriesError}</span></div>
 	{/if}
 
 	{#if $entriesLoading && $entries.length === 0}
-		<div class="space-y-2">
+		<!-- Loading skeletons -->
+		<div class="rounded-xl border border-base-300/50 overflow-hidden">
 			{#each Array(3) as _}
-				<div class="skeleton h-14 w-full"></div>
+				<div class="flex items-center gap-4 px-4 py-3.5 border-b border-base-300/40 last:border-0">
+					<div class="skeleton w-2 h-2 rounded-full flex-shrink-0"></div>
+					<div class="skeleton h-4 w-32 rounded"></div>
+					<div class="skeleton h-5 w-16 rounded-full ml-auto"></div>
+				</div>
 			{/each}
 		</div>
+
 	{:else if $entries.length === 0}
-		<div class="card bg-base-200 border border-base-300/50">
-			<div class="card-body items-center text-center py-12">
-				<h2 class="card-title">No entries yet</h2>
-				<p class="text-sm text-base-content/60">
-					Click "New Entry" above to get started, or contact your competition admin if one
-					should have been created automatically.
+		<div class="rounded-xl border border-base-300/50 bg-base-200/40">
+			<div class="flex flex-col items-center text-center py-14 px-6 gap-3">
+				<div class="text-3xl">📋</div>
+				<h2 class="font-semibold text-base">No entries yet</h2>
+				<p class="text-sm text-base-content/50 max-w-xs">
+					Click "New Entry" above to create your first prediction entry.
 				</p>
 			</div>
 		</div>
+
 	{:else}
-		<div class="overflow-x-auto rounded-xl border border-base-300/50 bg-base-200">
-			<table class="table table-hover">
+		<!-- Table — no shading, hairline row separators -->
+		<div class="rounded-xl border border-base-300/50 overflow-hidden bg-base-100">
+			<table class="w-full text-sm">
 				<thead>
-					<tr class="text-xs uppercase tracking-wider text-base-content/60">
-						<th>Name</th>
-						<th class="hidden sm:table-cell">Reference</th>
-						<th>Status</th>
-						<th class="hidden sm:table-cell">Completion</th>
-						<th class="hidden md:table-cell">Updated</th>
-						<th class="text-right">Actions</th>
+					<tr class="border-b border-base-300/50">
+						<th class="text-left text-[11px] font-semibold uppercase tracking-wider text-base-content/40 px-4 py-2.5">Name</th>
+						<th class="text-left text-[11px] font-semibold uppercase tracking-wider text-base-content/40 px-4 py-2.5">Status</th>
+						<th class="text-left text-[11px] font-semibold uppercase tracking-wider text-base-content/40 px-4 py-2.5 hidden sm:table-cell">Completion</th>
+						<th class="text-left text-[11px] font-semibold uppercase tracking-wider text-base-content/40 px-4 py-2.5 hidden lg:table-cell">Updated</th>
+						<th class="w-10 px-2 py-2.5"></th>
 					</tr>
 				</thead>
-				<tbody>
+				<tbody class="divide-y divide-base-300/40">
 					{#each $entries as entry (entry.id)}
 						{@const ui = entryUiStatus(entry, { deadlinePassed })}
 						{@const badge = entryStatusBadge(ui)}
@@ -283,247 +376,262 @@
 							(completion.groups.done === 0 &&
 								completion.bracket.done === 0 &&
 								completion.bonus.done === 0)}
-						<tr class="hover:bg-base-300/40 {isWithdrawn ? 'opacity-50' : ''}">
-							<!-- Name cell — click navigates to wizard (non-withdrawn only) -->
-							<td>
-								<button
-									type="button"
-									class="flex items-center gap-2 min-w-0 text-left w-full"
-									disabled={isWithdrawn}
-									on:click={() => !isWithdrawn && openEntry(entry.id)}
-								>
-									<span
-										class="w-2.5 h-2.5 rounded-full {entryStatusDot(ui)} flex-shrink-0"
-										aria-hidden="true"
-									></span>
-									<div class="min-w-0">
-										<div class="font-medium truncate">
-											{entry.display_name || `Entry #${entry.entry_number}`}
-										</div>
-										<div class="text-xs font-mono text-base-content/50 sm:hidden">
-											{entry.reference}
+
+						<tr
+							class="group/row transition-colors duration-100 cursor-pointer
+								hover:bg-base-200/40
+								{isWithdrawn ? 'opacity-50' : ''}"
+							on:click={() => { if (editingEntryId !== entry.id) openEntry(entry.id); }}
+						>
+
+							<!-- Name cell: inline edit or display+pencil -->
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
+							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+							<td
+								class="px-4 py-3 min-w-0"
+								on:click|stopPropagation
+								role="cell"
+							>
+								{#if editingEntryId === entry.id}
+									<input
+										type="text"
+										class="input input-bordered input-sm w-full max-w-[200px] font-medium"
+										bind:value={editingName}
+										autofocus
+										on:blur={() => commitRename(entry.id)}
+										on:keydown={(e) => {
+											if (e.key === 'Enter') e.currentTarget.blur();
+											if (e.key === 'Escape') { editingEntryId = null; }
+										}}
+									/>
+								{:else}
+									<div class="flex items-center gap-2 min-w-0">
+										<span
+											class="w-2 h-2 rounded-full flex-shrink-0 {entryStatusDot(ui)}"
+											aria-hidden="true"
+										></span>
+										<div class="min-w-0 flex-1">
+											<div class="flex items-center gap-1.5 group/name min-w-0">
+												<span
+													class="font-medium truncate cursor-pointer hover:text-primary transition-colors"
+													on:click={() => openEntry(entry.id)}
+												>
+													{entry.display_name || `Entry #${entry.entry_number}`}
+												</span>
+												<!-- Pencil — visible on row hover or touch -->
+												<button
+													type="button"
+													class="opacity-0 group-hover/row:opacity-50 hover:!opacity-100 transition-opacity flex-shrink-0 p-0.5 rounded hover:bg-base-300/60"
+													title="Rename"
+													aria-label="Rename {entry.display_name}"
+													on:click|stopPropagation={() => startEdit(entry.id, entry.display_name)}
+												>
+													<svg class="w-3 h-3 text-base-content" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z"/>
+													</svg>
+												</button>
+											</div>
+											<!-- Reference + date sub-line (mobile) -->
+											<div class="flex items-center gap-1.5 mt-0.5 sm:hidden">
+												<span class="text-[10px] font-mono text-base-content/35">{entry.reference}</span>
+											</div>
 										</div>
 									</div>
-								</button>
+									<!-- Reference sub-line (sm+, under the name) -->
+									<div class="hidden sm:block text-[10px] font-mono text-base-content/35 mt-0.5 ml-4">
+										{entry.reference}
+									</div>
+								{/if}
 							</td>
 
-							<!-- Reference (hidden < sm) -->
-							<td class="hidden sm:table-cell">
-								<span class="text-xs font-mono text-base-content/60">{entry.reference}</span>
-							</td>
-
-							<!-- Status badge -->
-							<td>
+							<!-- Status -->
+							<td class="px-4 py-3">
 								<span class="inline-flex items-center gap-1.5 flex-wrap">
 									<span class="badge badge-sm {badge.class} whitespace-nowrap">{badge.label}</span>
 									{#if showNoPrize}
-										<span
-											class="badge badge-ghost badge-sm whitespace-nowrap"
-											title="This entry is not eligible for the prize pool"
-										>NO PRIZE</span>
+										<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Not eligible for the prize pool">NO PRIZE</span>
 									{/if}
 								</span>
 							</td>
 
-							<!-- Completion (hidden < sm) -->
-							<td class="hidden sm:table-cell">
+							<!-- Completion chips (hidden < sm) -->
+							<td class="px-4 py-3 hidden sm:table-cell">
 								{#if completionLoading}
 									<div class="flex gap-1.5">
 										{#each Array(3) as _}
-											<div class="skeleton w-10 h-3 rounded"></div>
+											<div class="skeleton w-10 h-5 rounded"></div>
 										{/each}
 									</div>
 								{:else if completion}
-									<div class="flex items-center gap-2 text-xs font-mono tabular-nums">
-										<!-- Groups dot -->
+									<div class="flex gap-1 flex-wrap">
+										<!-- Groups chip -->
 										<span
-											class="flex items-center gap-0.5"
-											title="Group stage: {completion.groups.done}/{completion.groups.total} predictions"
+											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
+												{chipClass(completion.groups.done, completion.groups.total)}"
+											title="Group stage: {completion.groups.done}/{completion.groups.total}"
 										>
-											<span
-												class="w-2 h-2 rounded-full {dotColor(
-													completion.groups.done,
-													completion.groups.total
-												)}"
-												aria-hidden="true"
-											></span>
-											<span class="text-base-content/60">{completion.groups.done}/{completion.groups.total}</span>
+											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 3c0 0 3 4 3 9s-3 9-3 9M12 3c0 0-3 4-3 9s3 9 3 9M3 12h18"/>
+											</svg>
+											{completion.groups.done}/{completion.groups.total}
 										</span>
-										<!-- Bracket dot -->
+										<!-- Knockout chip -->
 										<span
-											class="flex items-center gap-0.5"
-											title="Bracket: {completion.bracket.done}/{completion.bracket.total} picks"
+											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
+												{chipClass(completion.bracket.done, completion.bracket.total)}"
+											title="Knockout bracket: {completion.bracket.done}/{completion.bracket.total}"
 										>
-											<span
-												class="w-2 h-2 rounded-full {dotColor(
-													completion.bracket.done,
-													completion.bracket.total
-												)}"
-												aria-hidden="true"
-											></span>
-											<span class="text-base-content/60">{completion.bracket.done}/{completion.bracket.total}</span>
+											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M8 21l4-4 4 4M12 17V3M4 9l8-6 8 6"/>
+											</svg>
+											{completion.bracket.done}/{completion.bracket.total}
 										</span>
-										<!-- Bonus dot -->
+										<!-- Bonus chip -->
 										<span
-											class="flex items-center gap-0.5"
-											title="Bonus: {completion.bonus.done}/{completion.bonus.total} answered"
+											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
+												{chipClass(completion.bonus.done, completion.bonus.total)}"
+											title="Bonus questions: {completion.bonus.done}/{completion.bonus.total}"
 										>
-											<span
-												class="w-2 h-2 rounded-full {dotColor(
-													completion.bonus.done,
-													completion.bonus.total
-												)}"
-												aria-hidden="true"
-											></span>
-											<span class="text-base-content/60">{completion.bonus.done}/{completion.bonus.total}</span>
+											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+											</svg>
+											{completion.bonus.done}/{completion.bonus.total}
 										</span>
 									</div>
 								{:else}
-									<span class="text-xs text-base-content/30">—</span>
+									<span class="text-xs text-base-content/25">—</span>
 								{/if}
 							</td>
 
-							<!-- Updated (hidden < md) -->
-							<td class="hidden md:table-cell">
-								<span class="text-xs text-base-content/60">{formatUpdated(entry.updated_at)}</span>
+							<!-- Updated (hidden < lg) -->
+							<td class="px-4 py-3 hidden lg:table-cell">
+								<span class="text-xs text-base-content/50">{formatUpdated(entry.updated_at)}</span>
 							</td>
 
-							<!-- Actions -->
-							<td class="text-right">
-								<div class="flex items-center justify-end gap-1">
-									<!-- Open (desktop: always visible; hidden on withdrawn) -->
-									{#if !isWithdrawn}
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm"
-											on:click={() => openEntry(entry.id)}
-											aria-label="Open {entry.display_name}"
-										>
-											Open
-											<svg
-												class="w-4 h-4"
-												fill="none"
-												viewBox="0 0 24 24"
-												stroke="currentColor"
-												stroke-width="2"
-												aria-hidden="true"
-											>
-												<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-											</svg>
-										</button>
-									{/if}
+							<!-- Kebab ⋮ — all row actions -->
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
+							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+							<td
+								class="px-2 py-3 w-10"
+								on:click|stopPropagation
+								role="cell"
+							>
+								<details class="relative">
+									<summary
+										class="btn btn-ghost btn-sm btn-square list-none"
+										aria-label="Actions for {entry.display_name || `Entry #${entry.entry_number}`}"
+									>
+										<!-- Vertical dots -->
+										<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+											<circle cx="12" cy="5"  r="1.5"/>
+											<circle cx="12" cy="12" r="1.5"/>
+											<circle cx="12" cy="19" r="1.5"/>
+										</svg>
+									</summary>
+									<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+									<ul
+										class="absolute right-0 top-full mt-1 min-w-44 bg-base-100 border border-base-300/60 rounded-xl shadow-xl z-30 overflow-hidden py-1"
+										on:click={(e) => {
+											const det = e.currentTarget.closest('details');
+											if (det) det.removeAttribute('open');
+										}}
+									>
+										{#if !isWithdrawn}
+											<!-- Open -->
+											<li>
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-base-200/70 transition-colors"
+													on:click={() => openEntry(entry.id)}
+												>
+													<svg class="w-4 h-4 text-base-content/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+													</svg>
+													Open
+												</button>
+											</li>
+											<!-- Rename -->
+											<li>
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-base-200/70 transition-colors"
+													on:click={() => startEdit(entry.id, entry.display_name)}
+												>
+													<svg class="w-4 h-4 text-base-content/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z"/>
+													</svg>
+													Rename
+												</button>
+											</li>
+											<!-- Duplicate -->
+											<li>
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-base-200/70 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+													disabled={noPredictions || actionBusy !== null}
+													title={noPredictions ? 'Add predictions before duplicating' : undefined}
+													on:click={() => handleDuplicate(entry.id)}
+												>
+													{#if actionBusy === entry.id + ':dup'}
+														<span class="loading loading-spinner loading-xs w-4 h-4 flex-shrink-0"></span>
+													{:else}
+														<svg class="w-4 h-4 text-base-content/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+															<path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+														</svg>
+													{/if}
+													Duplicate
+												</button>
+											</li>
+											<!-- Print -->
+											<li>
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-base-200/70 transition-colors"
+													on:click={() => goto(`/entries/${entry.id}?print=1`)}
+												>
+													<svg class="w-4 h-4 text-base-content/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+													</svg>
+													Print
+												</button>
+											</li>
+											<!-- Separator + Withdraw -->
+											<li class="border-t border-base-300/40 mt-1 pt-1">
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-error/5 text-error/80 transition-colors"
+													disabled={actionBusy !== null}
+													on:click={() => (confirmWithdrawId = entry.id)}
+												>
+													<svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+														<path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+													</svg>
+													Withdraw
+												</button>
+											</li>
 
-									<!-- Desktop secondary actions (hidden on mobile) -->
-									{#if !isWithdrawn}
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm hidden md:inline-flex"
-											disabled={noPredictions || actionBusy === entry.id + ':dup'}
-											title={noPredictions
-												? 'Nothing to duplicate — add predictions first'
-												: 'Duplicate this entry'}
-											on:click={() => handleDuplicate(entry.id)}
-										>
-											{#if actionBusy === entry.id + ':dup'}
-												<span class="loading loading-spinner loading-xs"></span>
-											{:else}
-												Copy
-											{/if}
-										</button>
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm text-error/70 hidden md:inline-flex"
-											disabled={actionBusy !== null}
-											on:click={() => (confirmWithdrawId = entry.id)}
-										>
-											Withdraw
-										</button>
-									{:else}
-										<!-- Reinstate (desktop) -->
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm hidden md:inline-flex"
-											disabled={actionBusy === entry.id + ':reinstate'}
-											on:click={() => handleReinstate(entry.id)}
-										>
-											{#if actionBusy === entry.id + ':reinstate'}
-												<span class="loading loading-spinner loading-xs"></span>
-											{:else}
-												Reinstate
-											{/if}
-										</button>
-									{/if}
-
-									<!-- Mobile ⋯ overflow menu (<details> dropdown) -->
-									<details class="relative md:hidden">
-										<summary
-											class="btn btn-ghost btn-sm btn-square list-none"
-											aria-label="More actions for {entry.display_name}"
-										>
-											<svg
-												class="w-4 h-4"
-												fill="currentColor"
-												viewBox="0 0 20 20"
-												aria-hidden="true"
-											>
-												<circle cx="10" cy="4" r="1.5" />
-												<circle cx="10" cy="10" r="1.5" />
-												<circle cx="10" cy="16" r="1.5" />
-											</svg>
-										</summary>
-										<ul
-											class="absolute right-0 mt-1 min-w-36 bg-base-100 border border-base-300/60 rounded-xl shadow-lg z-20 overflow-hidden"
-										>
-											{#if !isWithdrawn}
-												<li>
-													<button
-														type="button"
-														class="w-full px-4 py-2.5 text-sm text-left hover:bg-base-200 disabled:opacity-40 disabled:cursor-not-allowed"
-														disabled={noPredictions || actionBusy !== null}
-														title={noPredictions
-															? 'Nothing to duplicate — add predictions first'
-															: undefined}
-														on:click={() => handleDuplicate(entry.id)}
-													>
-														Copy / Duplicate
-													</button>
-												</li>
-												<li>
-													<button
-														type="button"
-														class="w-full px-4 py-2.5 text-sm text-left text-error/80 hover:bg-base-200 disabled:opacity-40"
-														disabled={actionBusy !== null}
-														on:click={() => (confirmWithdrawId = entry.id)}
-													>
-														Withdraw
-													</button>
-												</li>
-											{:else}
-												<li>
-													<button
-														type="button"
-														class="w-full px-4 py-2.5 text-sm text-left hover:bg-base-200 disabled:opacity-40"
-														disabled={actionBusy !== null}
-														on:click={() => handleReinstate(entry.id)}
-													>
-														Reinstate
-													</button>
-												</li>
-											{/if}
-											{#if !isWithdrawn}
-												<li>
-													<button
-														type="button"
-														class="w-full px-4 py-2.5 text-sm text-left hover:bg-base-200"
-														on:click={() => goto(`/entries/${entry.id}?print=1`)}
-													>
-														🖨 Print
-													</button>
-												</li>
-											{/if}
-										</ul>
-									</details>
-								</div>
+										{:else}
+											<!-- Reinstate only (withdrawn rows) -->
+											<li>
+												<button
+													type="button"
+													class="w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 hover:bg-base-200/70 transition-colors disabled:opacity-40"
+													disabled={actionBusy !== null}
+													on:click={() => handleReinstate(entry.id)}
+												>
+													{#if actionBusy === entry.id + ':reinstate'}
+														<span class="loading loading-spinner loading-xs w-4 h-4 flex-shrink-0"></span>
+													{:else}
+														<svg class="w-4 h-4 text-base-content/50 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+															<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+														</svg>
+													{/if}
+													Reinstate
+												</button>
+											</li>
+										{/if}
+									</ul>
+								</details>
 							</td>
 						</tr>
 					{/each}
