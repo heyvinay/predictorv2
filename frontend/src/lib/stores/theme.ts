@@ -2,8 +2,8 @@ import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
 export const THEMES = [
-	'predictor',
-	'premium',
+	'premium-day',
+	'premium-night',
 	'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
 	'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween',
 	'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy',
@@ -14,7 +14,7 @@ export const THEMES = [
 
 export type Theme = (typeof THEMES)[number];
 
-export const DEFAULT_THEME: Theme = 'predictor';
+export const DEFAULT_THEME: Theme = 'premium-day';
 const STORAGE_KEY = 'predictor:theme';
 
 function readInitial(): Theme {

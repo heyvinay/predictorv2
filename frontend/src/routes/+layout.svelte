@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
-	import { fetchPhaseStatus } from '$stores/phase';
+	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
 	import { theme, THEMES } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
 	import {
@@ -12,6 +12,7 @@
 		stopAdminAttentionPolling
 	} from '$stores/adminAttention';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 
 	let hasLoadedPhase = false;
 
@@ -54,6 +55,13 @@
 					{ label: $activeEntry.display_name || `Entry #${$activeEntry.entry_number}` }
 				]
 			: [];
+
+	// Live deadline visibility — the Phase 1 deadline lives in the
+	// topbar / mobile navbar globally so users see lock pressure on every
+	// page, not just the wizard. Hide once the deadline has passed so the
+	// chrome doesn't carry a stale "Locked" pill forever.
+	$: hasLiveDeadline =
+		!!$phase1Deadline && new Date($phase1Deadline).getTime() > $currentTime.getTime();
 </script>
 
 <div class="min-h-screen bg-base-100 flex flex-col noise">
@@ -197,14 +205,23 @@
 			</div>
 		</aside>
 
-		<!-- Desktop topbar: thin strip that holds the breadcrumb when on a
-		     wizard route. Only renders on desktop ≥700px AND only when a
-		     breadcrumb exists — otherwise the rail is the entire chrome. -->
-		{#if isWizardRoute && wizardCrumbs.length > 0}
+		<!-- Desktop topbar: thin strip that holds the breadcrumb (when on a
+		     wizard route) and the global Phase 1 deadline countdown (when
+		     the deadline is live). Renders on desktop ≥700px whenever at
+		     least one of those slots has content — otherwise the rail is
+		     the entire chrome. -->
+		{#if (isWizardRoute && wizardCrumbs.length > 0) || hasLiveDeadline}
 			<div
-				class="hidden min-[700px]:flex sticky top-0 z-40 h-12 items-center px-4 bg-base-100/95 backdrop-blur-md border-b border-base-300/50 min-[700px]:ml-16"
+				class="hidden min-[700px]:flex sticky top-0 z-40 h-12 items-center justify-between gap-4 px-4 bg-base-100/95 backdrop-blur-md border-b border-base-300/50 min-[700px]:ml-16"
 			>
-				<Breadcrumb crumbs={wizardCrumbs} />
+				<div class="flex items-center min-w-0">
+					{#if isWizardRoute && wizardCrumbs.length > 0}
+						<Breadcrumb crumbs={wizardCrumbs} />
+					{/if}
+				</div>
+				{#if hasLiveDeadline}
+					<CountdownTimer deadline={$phase1Deadline} />
+				{/if}
 			</div>
 		{/if}
 
@@ -247,7 +264,10 @@
 				</div>
 			{/if}
 
-			<div class="navbar-end">
+			<div class="navbar-end gap-1">
+				{#if hasLiveDeadline}
+					<CountdownTimer deadline={$phase1Deadline} compact />
+				{/if}
 				<div class="dropdown dropdown-end">
 					<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 						<div class="relative">

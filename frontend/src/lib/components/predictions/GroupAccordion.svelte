@@ -2,16 +2,21 @@
 	GroupAccordion — collapsible section for one group's fixtures.
 
 	Header:
-	    [▾] Group X   [flag] [flag] [flag] [flag]   N/M
+	    Group X   [flag][flag][flag][flag]   [⚠ Tie break needed]   N/M   ▾
 	    └─ chevron rotates 180° on open
+	    └─ tie-break chip appears only when the parent says so
+	       (all games predicted AND standings have an unresolved tie)
+	    └─ progress badge: ghost (0), warning (1..N-1), success (N/N)
+	    └─ flag cluster hides on mobile (<sm:640px) to make room; the
+	       tie chip stays visible since it's an actionable alert
 
 	Body (rendered only when `open` is true):
-	    [muted "Mon 15 Jun" label]
-	    <FixtureRow ... />  × n fixtures on that date
-	    [subtle top border]
-	    [muted "Tue 16 Jun" label]
-	    <FixtureRow ... />
+	    [tied-teams warning if any]
+	    <FixtureCard ... />  × all fixtures, sorted by kickoff time
 	    ...
+
+	Date subheaders were removed when fixtures became self-describing
+	cards (each card carries its own date + time + match # in the header).
 
 	The flag cluster is the *deduplicated home teams* of the group. In a
 	4-team round-robin (6 matches), each team is home in ~3 matches, so
@@ -32,9 +37,8 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
-	import type { Fixture, FixturesByGroup } from '$lib/types';
-	import type { TeamStanding } from '$lib/utils/standings';
-	import FixtureRow from './FixtureRow.svelte';
+	import type { FixturesByGroup } from '$lib/types';
+	import FixtureCard from './FixtureCard.svelte';
 
 	export let group: FixturesByGroup;
 	export let open: boolean = false;
@@ -43,24 +47,23 @@
 		null;
 	export let onScore: (fixtureId: string, home: number, away: number) => void = () => {};
 	export let onToggle: () => void = () => {};
-
 	/**
-	 * Optional predicted standings for this group. When provided, renders
-	 * a compact 4-row table at the top of the body (above the fixtures).
-	 * Top 2 = advances (success), 3rd = best-third candidate (warning),
-	 * 4th = out (error). Mirrors the legacy `.standings-table-v2` semantics.
+	 * True when the parent has detected an unresolved tie in this group's
+	 * standings AND every fixture has a (saved or unsaved) prediction.
+	 * Renders a small "⚠ Tie break needed" chip in the header so the user
+	 * sees the call-to-action even when the accordion is collapsed.
 	 */
-	export let standings: TeamStanding[] = [];
-
+	export let tieBreakNeeded: boolean = false;
 	/**
-	 * Tied-teams groups (alphabetical fallback in effect). Each inner array
-	 * is the alphabetically-sorted set of tied team names. When non-empty,
-	 * a warning alert appears above the standings.
+	 * Called when the user taps the tie-chip or the "View live standings"
+	 * link inside the accordion body. The parent opens the StandingsPanel
+	 * drawer focused on this group. Mobile-only path (the docked desktop
+	 * panel is always visible at ≥xl viewports).
 	 */
-	export let tiedTeams: string[][] = [];
+	export let onOpenStandings: () => void = () => {};
 
 	// Unique home teams (in fixture order). In a 4-team group's 6 matches,
-	// the four group teams each appear as "home" in 3 of the 6, so the
+	// the four teams each appear as "home" in ~3 of the 6, so the
 	// deduplicated home set typically covers all four teams.
 	$: uniqueHomeTeams = (() => {
 		const seen = new Set<string>();
@@ -76,217 +79,150 @@
 
 	$: predictedCount = group.fixtures.filter((f) => getPrediction(f.id) !== null).length;
 	$: totalCount = group.fixtures.length;
-	$: complete = totalCount > 0 && predictedCount === totalCount;
 
-	// Group fixtures by their local kickoff date for the date sub-groups.
-	// Sort each date's fixtures by kickoff time, then sort the date groups
-	// themselves chronologically.
-	$: fixturesByDate = (() => {
-		const byKey = new Map<string, Fixture[]>();
-		for (const f of group.fixtures) {
-			const d = new Date(f.kickoff);
-			const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-			if (!byKey.has(key)) byKey.set(key, []);
-			byKey.get(key)!.push(f);
-		}
-		const sections = Array.from(byKey.values()).map((fxs) => {
-			const sorted = [...fxs].sort(
-				(a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
-			);
-			return { date: new Date(sorted[0].kickoff), fixtures: sorted };
-		});
-		sections.sort((a, b) => a.date.getTime() - b.date.getTime());
-		return sections;
-	})();
+	// Tri-state progress badge. Ghost for untouched, warning while in
+	// progress, success once every fixture has a prediction.
+	$: badgeClass =
+		totalCount > 0 && predictedCount === totalCount
+			? 'badge-success'
+			: predictedCount > 0
+				? 'badge-warning'
+				: 'badge-ghost';
 
-	// Static class lookup for standings position highlighting. Tailwind's JIT
-	// can't see dynamic class strings (`bg-${tone}/15`) so we materialize all
-	// three variants here as full class strings.
-	const POS_CLASS = {
-		advance: 'bg-success/15 text-success',
-		best3rd: 'bg-warning/15 text-warning',
-		out: 'bg-error/15 text-error'
-	} as const;
-	function posTone(i: number): 'advance' | 'best3rd' | 'out' {
-		if (i < 2) return 'advance';
-		if (i === 2) return 'best3rd';
-		return 'out';
-	}
-
-	function fmtDate(d: Date): string {
-		// "Mon 15 Jun" — short weekday + day + month
-		return d.toLocaleDateString('en-GB', {
-			weekday: 'short',
-			day: 'numeric',
-			month: 'short'
-		});
-	}
+	// Fixtures sorted by kickoff time. Single flat list — date subheaders
+	// were removed when fixtures became self-describing FixtureCards.
+	$: sortedFixtures = [...group.fixtures].sort(
+		(a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
+	);
 </script>
 
 <div class="rounded-xl border border-base-content/10 bg-base-200/30 overflow-hidden">
-	<!-- Header (always rendered) -->
-	<button
-		type="button"
-		class="flex items-center gap-3 w-full px-4 py-3 hover:bg-base-300/30 min-h-12 text-left"
-		on:click={onToggle}
-		aria-expanded={open}
-		aria-controls="group-{group.group}-body"
-	>
-		<span class="font-display font-bold text-base sm:text-lg whitespace-nowrap">
-			Group {group.group}
-		</span>
-
-		<!-- Flag cluster: deduplicated home teams -->
-		<div class="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
-			{#each uniqueHomeTeams as team (team)}
-				{#if hasFlag(team)}
-					<img
-						src={getFlagUrl(team, 'sm')}
-						alt=""
-						class="w-5 h-auto rounded-sm flex-shrink-0"
-						title={team}
-					/>
-				{/if}
-			{/each}
-		</div>
-
-		<!-- Completion badge -->
-		<span
-			class="badge badge-sm {complete ? 'badge-success' : 'badge-ghost'} font-mono tabular-nums"
+	<!-- Header row. Non-button wrapper so the chip CAN be a sibling button
+	     (nested <button> is invalid HTML). Three click regions inside:
+	       1. Main toggle (group name + flag cluster + spacer)
+	       2. Tie-chip (when present) — opens the standings drawer
+	       3. Trailing toggle (badge + chevron) — also toggles the body -->
+	<div class="flex items-center gap-3 w-full px-4 py-3 hover:bg-base-300/30 min-h-12">
+		<!-- 1. Main toggle: group name + flag cluster + mobile spacer -->
+		<button
+			type="button"
+			class="flex-1 flex items-center gap-3 min-w-0 text-left"
+			on:click={onToggle}
+			aria-expanded={open}
+			aria-controls="group-{group.group}-body"
 		>
-			{predictedCount}/{totalCount}
-		</span>
+			<span class="font-display font-bold text-base sm:text-lg whitespace-nowrap">
+				Group {group.group}
+			</span>
 
-		<!-- Chevron (rotates on open) -->
-		<svg
-			class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
-			class:rotate-180={open}
-			viewBox="0 0 20 20"
-			fill="currentColor"
-			aria-hidden="true"
+			<!-- Flag cluster: deduplicated home teams. `flex-1` claims the
+			     middle of the header so trailing content sits right. Hidden
+			     below sm: (640px) so the chip + badge still fit on phones. -->
+			<div class="hidden sm:flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+				{#each uniqueHomeTeams as team (team)}
+					{#if hasFlag(team)}
+						<img
+							src={getFlagUrl(team, 'sm')}
+							alt=""
+							class="w-5 h-auto rounded-sm flex-shrink-0"
+							title={team}
+						/>
+					{/if}
+				{/each}
+			</div>
+
+			<!-- Mobile-only spacer. Takes over the `flex-1` role when the
+			     flag cluster is hidden, so badge + chevron stay right-aligned. -->
+			<span class="flex-1 sm:hidden" aria-hidden="true"></span>
+		</button>
+
+		<!-- 2. Standings-trigger chip. Single slot, two label variants:
+		       - Tied  → yellow "⚠ Tie break needed" (visible on all
+		                  viewports; on desktop the docked panel also
+		                  shows the warning, so the tap is a no-op there)
+		       - Not tied → neutral "View Table" (mobile only — desktop
+		                    has the docked panel so a per-group trigger
+		                    would be redundant)
+		     Both call onOpenStandings; the parent opens the drawer
+		     focused on this group via activeGroupPill. -->
+		{#if tieBreakNeeded}
+			<button
+				type="button"
+				class="badge badge-warning badge-sm gap-1 font-medium whitespace-nowrap hover:brightness-110 transition-[filter]"
+				on:click={onOpenStandings}
+				title="View standings — at least two teams tied on points, GD, GF + head-to-head"
+			>⚠ Tie break needed</button>
+		{:else}
+			<button
+				type="button"
+				class="badge badge-ghost badge-sm gap-1 font-medium whitespace-nowrap xl:hidden hover:brightness-110 transition-[filter]"
+				on:click={onOpenStandings}
+				title="View live standings for this group"
+			>View Table</button>
+		{/if}
+
+		<!-- 3. Trailing toggle: badge + chevron. Also toggles the body so
+		     the chevron remains a natural tap target. `tabindex="-1"` so
+		     keyboard users don't hit two tabs for the same toggle action. -->
+		<button
+			type="button"
+			class="flex items-center gap-3"
+			on:click={onToggle}
+			aria-label="Toggle Group {group.group}"
+			tabindex="-1"
 		>
-			<path
-				fill-rule="evenodd"
-				d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-				clip-rule="evenodd"
-			/>
-		</svg>
-	</button>
+			<!-- Tri-state completion badge: ghost (0/M), warning (1..M-1/M),
+			     success (M/M). -->
+			<span class="badge badge-sm {badgeClass} font-mono tabular-nums">
+				{predictedCount}/{totalCount}
+			</span>
+
+			<!-- Chevron (rotates on open) -->
+			<svg
+				class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
+				class:rotate-180={open}
+				viewBox="0 0 20 20"
+				fill="currentColor"
+				aria-hidden="true"
+			>
+				<path
+					fill-rule="evenodd"
+					d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+					clip-rule="evenodd"
+				/>
+			</svg>
+		</button>
+	</div>
 
 	<!-- Body (only when open) -->
 	{#if open}
 		<div id="group-{group.group}-body" transition:slide={{ duration: 200, easing: cubicOut }}>
-			<!-- Tied-teams warning(s) (if any) -->
-			{#if tiedTeams.length > 0}
-				<div class="px-4 pt-3 pb-1">
-					<div class="alert alert-warning text-xs py-2">
-						<div>
-							<div class="font-semibold mb-0.5">⚠ Tied teams in Group {group.group}</div>
-							{#each tiedTeams as set (set.join('-'))}
-								<p class="text-[11px] opacity-90">
-									{set.join(', ')} — tied on points, GD, GF + head-to-head; ranked
-									alphabetically as fallback. Adjust scores to break the tie.
-								</p>
-							{/each}
-						</div>
-					</div>
-				</div>
-			{/if}
+			<!-- Tied-teams warning moved to the StandingsPanel sidebar, where
+			     it sits next to the table whose ordering it explains. The
+			     accordion is now strictly a fixture editor. -->
 
-			<!-- Predicted standings (compact, scoped to this group) -->
-			{#if standings.length > 0}
-				<div class="px-4 pt-3">
-					<div class="text-[10px] uppercase tracking-wider text-base-content/50 font-semibold mb-1.5">
-						Predicted standings
-					</div>
-					<div class="overflow-x-auto">
-						<table class="w-full text-xs">
-							<thead class="text-base-content/40 uppercase tracking-wider">
-								<tr>
-									<th class="text-left font-normal pb-1 w-6">#</th>
-									<th class="text-left font-normal pb-1">Team</th>
-									<th class="text-center font-normal pb-1">P</th>
-									<th class="text-center font-normal pb-1">W</th>
-									<th class="text-center font-normal pb-1">D</th>
-									<th class="text-center font-normal pb-1">L</th>
-									<th class="text-center font-normal pb-1">GD</th>
-									<th class="text-center font-normal pb-1">Pts</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each standings as t, i (t.team)}
-									<tr class="border-t border-base-content/5">
-										<td class="py-1">
-											<span
-												class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {POS_CLASS[
-													posTone(i)
-												]}">{i + 1}</span
-											>
-										</td>
-										<td class="py-1">
-											<span class="flex items-center gap-1.5">
-												{#if hasFlag(t.team)}
-													<img
-														src={getFlagUrl(t.team, 'sm')}
-														alt=""
-														class="w-4 h-auto rounded-sm flex-shrink-0"
-													/>
-												{/if}
-												<span class="truncate">{t.team}</span>
-											</span>
-										</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.won}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.drawn}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.lost}</td>
-										<td class="text-center font-mono tabular-nums py-1">
-											<span
-												class={t.goalDifference > 0
-													? 'text-success'
-													: t.goalDifference < 0
-														? 'text-error'
-														: 'opacity-60'}
-												>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span
-											>
-										</td>
-										<td class="text-center font-mono tabular-nums font-bold py-1">{t.points}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-					<div class="flex gap-3 text-[10px] text-base-content/50 mt-2 mb-1 flex-wrap">
-						<span class="flex items-center gap-1"
-							><span class="w-1 h-2.5 bg-success rounded"></span>Advances (top 2)</span
-						>
-						<span class="flex items-center gap-1"
-							><span class="w-1 h-2.5 bg-warning rounded"></span>Best 3rd candidate</span
-						>
-						<span class="flex items-center gap-1"
-							><span class="w-1 h-2.5 bg-error rounded"></span>Out</span
-						>
-					</div>
-				</div>
-			{/if}
+			<!-- Fixture cards. Each carries its own date + time + match # in
+			     the card header, so no surrounding date subheaders are
+			     needed. Responsive grid: 1 column on small screens, 2
+			     columns from md: (≥768px) up — at that width the wizard
+			     column is wide enough that side-by-side cards stop
+			     looking sparse and don't compress the stepper. `gap-3`
+			     instead of `space-y-3` so column gap works too. -->
+			<div class="px-3 py-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+				{#each sortedFixtures as f (f.id)}
+					<FixtureCard
+						fixture={f}
+						prediction={getPrediction(f.id)}
+						editable={editable && !f.is_locked}
+						onScore={(home, away) => onScore(f.id, home, away)}
+					/>
+				{/each}
+			</div>
 
-			<!-- Date-grouped fixtures -->
-			{#each fixturesByDate as section, idx (section.date.getTime())}
-				<div class:border-t={idx > 0} class="border-base-content/10">
-					<div
-						class="text-xs text-base-content/50 px-4 pt-2 pb-1 font-mono uppercase tracking-wider"
-					>
-						{fmtDate(section.date)}
-					</div>
-					{#each section.fixtures as f (f.id)}
-						<FixtureRow
-							fixture={f}
-							prediction={getPrediction(f.id)}
-							editable={editable && !f.is_locked}
-							onScore={(home, away) => onScore(f.id, home, away)}
-						/>
-					{/each}
-				</div>
-			{/each}
+			<!-- Body link removed — the standings trigger now lives in the
+			     accordion header as a "View Table" / "⚠ Tie break needed"
+			     chip (single slot, two label variants). Single CTA, one
+			     spatial home. -->
 		</div>
 	{/if}
 </div>

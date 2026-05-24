@@ -27,7 +27,8 @@
 	import {
 		entryUiStatus,
 		entryStatusBadge,
-		entryStatusDot
+		entryStatusDot,
+		shouldShowPrizeModifier
 	} from '$lib/utils/entryStatusBadge';
 
 	$: if (!$isAuthenticated) {
@@ -114,8 +115,9 @@
 				</thead>
 				<tbody>
 					{#each $entries as entry (entry.id)}
-						{@const ui = entryUiStatus(entry, deadlinePassed)}
+						{@const ui = entryUiStatus(entry, { deadlinePassed })}
 						{@const badge = entryStatusBadge(ui)}
+						{@const showNoPrize = shouldShowPrizeModifier(entry, ui)}
 						<tr
 							class="cursor-pointer hover:bg-base-300/40"
 							on:click={() => openEntry(entry.id)}
@@ -140,7 +142,15 @@
 								<span class="text-xs font-mono text-base-content/60">{entry.reference}</span>
 							</td>
 							<td>
-								<span class="badge badge-sm {badge.class} whitespace-nowrap">{badge.label}</span>
+								<span class="inline-flex items-center gap-1.5 flex-wrap">
+									<span class="badge badge-sm {badge.class} whitespace-nowrap">{badge.label}</span>
+									{#if showNoPrize}
+										<span
+											class="badge badge-ghost badge-sm whitespace-nowrap"
+											title="This entry is not eligible for the prize pool"
+										>NO PRIZE</span>
+									{/if}
+								</span>
 							</td>
 							<td class="hidden md:table-cell">
 								<span class="text-xs text-base-content/60">{formatUpdated(entry.updated_at)}</span>

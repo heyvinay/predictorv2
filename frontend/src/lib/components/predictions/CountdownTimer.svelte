@@ -36,6 +36,14 @@
 	/** Left-side label. Defaults to "Deadline". */
 	export let label: string = 'Deadline';
 
+	/**
+	 * Compact rendering for tight chrome (mobile navbar, dense topbars).
+	 * Hides the label and reduces padding/font, keeping only the timer
+	 * digits. The pill background + border stay so the chip is still
+	 * visually scannable next to other navbar controls.
+	 */
+	export let compact: boolean = false;
+
 	$: deadlineMs = deadline ? new Date(deadline).getTime() : 0;
 	$: remainingMs = deadlineMs ? deadlineMs - $currentTime.getTime() : -1;
 	$: visible = remainingMs > 0;
@@ -59,11 +67,13 @@
 		role="timer"
 		aria-live={critical ? 'polite' : 'off'}
 		aria-label="{label}: {display} remaining"
-		class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors {critical
+		class="inline-flex items-center {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border transition-colors {critical
 			? 'bg-error/10 border-error/40 text-error'
 			: 'bg-base-300/40 border-base-content/10 text-base-content/80'}"
 	>
-		<span class="text-[10px] uppercase tracking-wider opacity-70 font-semibold">{label}</span>
-		<span class="font-mono text-sm tabular-nums">{display}</span>
+		{#if !compact}
+			<span class="text-[10px] uppercase tracking-wider opacity-70 font-semibold">{label}</span>
+		{/if}
+		<span class="font-mono {compact ? 'text-xs' : 'text-sm'} tabular-nums">{display}</span>
 	</div>
 {/if}

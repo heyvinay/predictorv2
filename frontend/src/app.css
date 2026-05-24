@@ -633,62 +633,62 @@
 	}
 
 	/* ----- Premium-theme tuning for the selector ----- */
-	[data-theme="premium"] .group-selector {
+	[data-theme="premium-day"] .group-selector {
 		border-color: rgba(var(--premium-ink) / 0.12);
 		background-color: rgba(var(--premium-cream) / 0.55);
 	}
-	[data-theme="premium"] .group-stepper-btn {
+	[data-theme="premium-day"] .group-stepper-btn {
 		background-color: rgba(var(--premium-cream) / 0.6);
 		border-color: rgba(var(--premium-ink) / 0.15);
 		color: rgba(var(--premium-ink) / 0.65);
 	}
-	[data-theme="premium"] .group-stepper-btn:hover {
+	[data-theme="premium-day"] .group-stepper-btn:hover {
 		background-color: rgba(var(--premium-cream) / 0.85);
 		border-color: rgba(var(--premium-bordeaux) / 0.35);
 		color: rgba(var(--premium-bordeaux) / 1);
 	}
-	[data-theme="premium"] .group-focus-badge {
+	[data-theme="premium-day"] .group-focus-badge {
 		border-color: rgba(var(--premium-bordeaux) / 0.55);
 		background-color: rgba(var(--premium-cream) / 0.75);
 	}
-	[data-theme="premium"] .group-focus-badge span {
+	[data-theme="premium-day"] .group-focus-badge span {
 		color: rgba(var(--premium-bordeaux) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill {
+	[data-theme="premium-day"] .group-mini-pill {
 		background-color: rgba(var(--premium-cream) / 0.55);
 		border-color: rgba(var(--premium-ink) / 0.12);
 		color: rgba(var(--premium-ink) / 0.6);
 	}
-	[data-theme="premium"] .group-mini-pill:hover {
+	[data-theme="premium-day"] .group-mini-pill:hover {
 		border-color: rgba(var(--premium-bordeaux) / 0.30);
 		color: rgba(var(--premium-bordeaux) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-active {
+	[data-theme="premium-day"] .group-mini-pill.is-active {
 		background-color: rgba(var(--premium-bordeaux) / 0.10);
 		border-color: rgba(var(--premium-bordeaux) / 0.55);
 		color: rgba(var(--premium-bordeaux) / 1);
 		box-shadow: 0 0 0 2px rgba(var(--premium-bordeaux) / 0.18);
 	}
-	[data-theme="premium"] .group-mini-pill .progress-fill {
+	[data-theme="premium-day"] .group-mini-pill .progress-fill {
 		background-color: rgba(var(--premium-bordeaux) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-complete {
+	[data-theme="premium-day"] .group-mini-pill.is-complete {
 		background-color: rgba(61, 107, 78, 0.10);   /* muted forest */
 		border-color: rgba(61, 107, 78, 0.55);
 		color: rgba(61, 107, 78, 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-complete .progress-fill {
+	[data-theme="premium-day"] .group-mini-pill.is-complete .progress-fill {
 		background-color: rgba(61, 107, 78, 1);
 	}
 
 	/* ============ Premium theme polish ============
-	 * Scoped to [data-theme="premium"] only. Cool ice-white canvas,
+	 * Scoped to [data-theme="premium-day"] only. Cool ice-white canvas,
 	 * midnight-navy ink, champagne-gold CTAs, mint-green success.
 	 * Editorial-meets-broadcast — Premier League programme guide,
 	 * not casino. Card topology: rounded-xl + slate-200/60 micro-
 	 * borders + inset shadow for tactile depth (per spec).
 	 */
-	[data-theme="premium"] {
+	[data-theme="premium-day"] {
 		--premium-gold:  212 175  55;  /* #D4AF37 — champagne gold (CTAs) */
 		--premium-navy:   11  19  41;  /* #0B1329 — midnight navy (ink, hero) */
 		--premium-ice:   248 250 252;  /* #F8FAFC — crisp ice white (canvas) */
@@ -702,7 +702,7 @@
 	}
 
 	/* Typography swap — Inter for body, Manrope for scores & display. */
-	[data-theme="premium"] body {
+	[data-theme="premium-day"] body {
 		font-family: 'Inter', system-ui, sans-serif;
 		background-image:
 			radial-gradient(ellipse 90% 60% at 50% 0%, rgba(var(--premium-gold) / 0.07) 0%, transparent 55%),
@@ -710,21 +710,21 @@
 		background-attachment: fixed;
 	}
 
-	[data-theme="premium"] h1,
-	[data-theme="premium"] h2,
-	[data-theme="premium"] h3,
-	[data-theme="premium"] .font-display {
+	[data-theme="premium-day"] h1,
+	[data-theme="premium-day"] h2,
+	[data-theme="premium-day"] h3,
+	[data-theme="premium-day"] .font-display {
 		font-family: 'Manrope', system-ui, sans-serif;
 		font-weight: 700;
 		letter-spacing: 0.02em;
 	}
 
-	[data-theme="premium"] .score-box,
-	[data-theme="premium"] .rank-pill,
-	[data-theme="premium"] .pts-badge,
-	[data-theme="premium"] .group-focus-badge span,
-	[data-theme="premium"] .group-mini-pill .letter,
-	[data-theme="premium"] .nav-brand {
+	[data-theme="premium-day"] .score-box,
+	[data-theme="premium-day"] .rank-pill,
+	[data-theme="premium-day"] .pts-badge,
+	[data-theme="premium-day"] .group-focus-badge span,
+	[data-theme="premium-day"] .group-mini-pill .letter,
+	[data-theme="premium-day"] .nav-brand {
 		font-family: 'Manrope', system-ui, sans-serif;
 		font-weight: 700;
 	}
@@ -732,10 +732,10 @@
 	/* Card topology — slate-200/60 micro-border + inset shadow.
 	   The inset gives tactile depth without lifting the card off the
 	   page; hover adds an outer lift shadow so users feel the affordance. */
-	[data-theme="premium"] .stadium-card,
-	[data-theme="premium"] .standings-card,
-	[data-theme="premium"] .match-card-v2,
-	[data-theme="premium"] .group-selector {
+	[data-theme="premium-day"] .stadium-card,
+	[data-theme="premium-day"] .standings-card,
+	[data-theme="premium-day"] .match-card-v2,
+	[data-theme="premium-day"] .group-selector {
 		border-radius: var(--premium-card-radius);
 		border-color: var(--premium-card-border);
 		box-shadow: var(--premium-card-inset);
@@ -743,15 +743,15 @@
 		transition: border-color 280ms ease, box-shadow 280ms ease, transform 280ms ease;
 	}
 
-	[data-theme="premium"] .match-card-v2:hover:not(.is-locked),
-	[data-theme="premium"] .stadium-card:hover {
+	[data-theme="premium-day"] .match-card-v2:hover:not(.is-locked),
+	[data-theme="premium-day"] .stadium-card:hover {
 		border-color: rgba(var(--premium-navy) / 0.15);
 		box-shadow:
 			var(--premium-card-inset),
 			0 6px 18px -10px rgba(var(--premium-navy) / 0.25);
 	}
 
-	[data-theme="premium"] .match-card-v2.is-editing {
+	[data-theme="premium-day"] .match-card-v2.is-editing {
 		border-color: rgba(var(--premium-gold) / 0.65);
 		box-shadow:
 			var(--premium-card-inset),
@@ -759,26 +759,26 @@
 	}
 
 	/* Primary CTA — vertical champagne-gold gradient with navy ink. */
-	[data-theme="premium"] .btn-primary {
+	[data-theme="premium-day"] .btn-primary {
 		background-image: linear-gradient(180deg, #E0BE4A 0%, #B8941F 100%);
 		border-color: rgba(var(--premium-gold) / 0.7);
 		color: #0B1329;
 		font-weight: 600;
 		transition: filter 220ms ease, box-shadow 220ms ease;
 	}
-	[data-theme="premium"] .btn-primary:hover {
+	[data-theme="premium-day"] .btn-primary:hover {
 		filter: brightness(1.06);
 		box-shadow: 0 6px 16px -8px rgba(var(--premium-gold) / 0.55);
 	}
 
 	/* Score box — ice fill, slate border, gold focus ring. */
-	[data-theme="premium"] .score-box {
+	[data-theme="premium-day"] .score-box {
 		background-color: rgba(var(--premium-ice) / 1);
 		border-color: rgba(var(--premium-navy) / 0.12);
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 		color: rgba(var(--premium-navy) / 1);
 	}
-	[data-theme="premium"] .score-box:focus {
+	[data-theme="premium-day"] .score-box:focus {
 		border-color: rgba(var(--premium-gold) / 0.80);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.04),
@@ -786,41 +786,41 @@
 	}
 
 	/* Countdown chip — gold ink on a soft gold wash. */
-	[data-theme="premium"] .countdown-chip {
+	[data-theme="premium-day"] .countdown-chip {
 		background-color: rgba(var(--premium-gold) / 0.12);
 		color: #8A6B14;
 		border-color: rgba(var(--premium-gold) / 0.35);
 		letter-spacing: 0.04em;
 		font-weight: 600;
 	}
-	[data-theme="premium"] .countdown-chip.is-locked {
+	[data-theme="premium-day"] .countdown-chip.is-locked {
 		background-color: rgba(var(--premium-navy) / 0.05);
 		color: rgba(var(--premium-navy) / 0.45);
 		border-color: rgba(var(--premium-navy) / 0.12);
 	}
 
-	[data-theme="premium"] .group-tag {
+	[data-theme="premium-day"] .group-tag {
 		background-color: rgba(var(--premium-navy) / 0.05);
 		color: rgba(var(--premium-navy) / 0.55);
 		font-weight: 500;
 	}
 
-	[data-theme="premium"] .rank-pill,
-	[data-theme="premium"] .pts-badge {
+	[data-theme="premium-day"] .rank-pill,
+	[data-theme="premium-day"] .pts-badge {
 		letter-spacing: 0.04em;
 	}
-	[data-theme="premium"] .pts-badge {
+	[data-theme="premium-day"] .pts-badge {
 		background-color: rgba(var(--premium-navy) / 0.05);
 		border-color: rgba(var(--premium-navy) / 0.10);
 		color: rgba(var(--premium-navy) / 1);
 	}
-	[data-theme="premium"] .rank-pill {
+	[data-theme="premium-day"] .rank-pill {
 		background-color: rgba(var(--premium-navy) / 0.05);
 		border-color: rgba(var(--premium-navy) / 0.12);
 		color: rgba(var(--premium-navy) / 0.6);
 	}
 
-	[data-theme="premium"] .section-label {
+	[data-theme="premium-day"] .section-label {
 		letter-spacing: 0.24em;
 		color: rgba(var(--premium-navy) / 0.7);
 		font-weight: 600;
@@ -828,7 +828,7 @@
 	}
 
 	/* Brand mark on auth pages — editorial sweep navy → gold → navy. */
-	[data-theme="premium"] .text-gradient {
+	[data-theme="premium-day"] .text-gradient {
 		background-image: linear-gradient(135deg, #0B1329 0%, #D4AF37 50%, #0B1329 100%);
 		-webkit-background-clip: text;
 		background-clip: text;
@@ -836,48 +836,48 @@
 	}
 
 	/* Scrollbars — slate gutter, gold hover. */
-	[data-theme="premium"] ::-webkit-scrollbar-track {
+	[data-theme="premium-day"] ::-webkit-scrollbar-track {
 		background-color: rgba(var(--premium-slate) / 0.40);
 	}
-	[data-theme="premium"] ::-webkit-scrollbar-thumb {
+	[data-theme="premium-day"] ::-webkit-scrollbar-thumb {
 		background-color: rgba(var(--premium-navy) / 0.20);
 	}
-	[data-theme="premium"] ::-webkit-scrollbar-thumb:hover {
+	[data-theme="premium-day"] ::-webkit-scrollbar-thumb:hover {
 		background-color: rgba(var(--premium-gold) / 0.70);
 	}
 
 	/* ----- Selector overrides (sport-broadcast variant) ----- */
-	[data-theme="premium"] .group-selector {
+	[data-theme="premium-day"] .group-selector {
 		background-color: rgba(var(--premium-ice) / 1);
 	}
-	[data-theme="premium"] .group-stepper-btn {
+	[data-theme="premium-day"] .group-stepper-btn {
 		background-color: rgba(var(--premium-ice) / 1);
 		border-color: var(--premium-card-border);
 		color: rgba(var(--premium-navy) / 0.7);
 	}
-	[data-theme="premium"] .group-stepper-btn:hover {
+	[data-theme="premium-day"] .group-stepper-btn:hover {
 		background-color: rgba(var(--premium-gold) / 0.10);
 		border-color: rgba(var(--premium-gold) / 0.45);
 		color: rgba(var(--premium-navy) / 1);
 	}
-	[data-theme="premium"] .group-focus-badge {
+	[data-theme="premium-day"] .group-focus-badge {
 		border-color: rgba(var(--premium-gold) / 0.65);
 		background-color: rgba(var(--premium-gold) / 0.08);
 	}
-	[data-theme="premium"] .group-focus-badge span {
+	[data-theme="premium-day"] .group-focus-badge span {
 		color: rgba(var(--premium-navy) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill {
+	[data-theme="premium-day"] .group-mini-pill {
 		background-color: rgba(var(--premium-ice) / 1);
 		border-color: var(--premium-card-border);
 		color: rgba(var(--premium-navy) / 0.55);
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 	}
-	[data-theme="premium"] .group-mini-pill:hover {
+	[data-theme="premium-day"] .group-mini-pill:hover {
 		border-color: rgba(var(--premium-gold) / 0.45);
 		color: rgba(var(--premium-navy) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-active {
+	[data-theme="premium-day"] .group-mini-pill.is-active {
 		background-color: rgba(var(--premium-gold) / 0.12);
 		border-color: rgba(var(--premium-gold) / 0.70);
 		color: rgba(var(--premium-navy) / 1);
@@ -885,20 +885,20 @@
 			inset 0 1px 2px rgba(0, 0, 0, 0.04),
 			0 0 0 2px rgba(var(--premium-gold) / 0.22);
 	}
-	[data-theme="premium"] .group-mini-pill .progress-fill {
+	[data-theme="premium-day"] .group-mini-pill .progress-fill {
 		background-color: rgba(var(--premium-gold) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-complete {
+	[data-theme="premium-day"] .group-mini-pill.is-complete {
 		background-color: rgba(var(--premium-mint) / 0.10);
 		border-color: rgba(var(--premium-mint) / 0.55);
 		color: rgba(var(--premium-mint) / 1);
 	}
-	[data-theme="premium"] .group-mini-pill.is-complete .progress-fill {
+	[data-theme="premium-day"] .group-mini-pill.is-complete .progress-fill {
 		background-color: rgba(var(--premium-mint) / 1);
 	}
 
 	/* ----- Top navbar — midnight navy executive chrome ----- */
-	[data-theme="premium"] .navbar {
+	[data-theme="premium-day"] .navbar {
 		background-color: rgba(var(--premium-navy) / 1);
 		border-bottom-color: rgba(var(--premium-gold) / 0.25);
 		color: rgba(var(--premium-ice) / 0.85);
@@ -907,11 +907,11 @@
 	   reads beautifully on navy. No override needed here. */
 
 	/* Desktop nav-center list items — ice-white text on the navy bar. */
-	[data-theme="premium"] .navbar-center > ul > li > a {
+	[data-theme="premium-day"] .navbar-center > ul > li > a {
 		color: rgba(var(--premium-ice) / 0.75);
 		transition: color 180ms ease, background-color 180ms ease;
 	}
-	[data-theme="premium"] .navbar-center > ul > li > a:hover {
+	[data-theme="premium-day"] .navbar-center > ul > li > a:hover {
 		color: rgba(var(--premium-ice) / 1);
 		background-color: rgba(var(--premium-ice) / 0.08) !important;
 	}
@@ -919,7 +919,7 @@
 	   the correct premium read; no override needed. */
 
 	/* Avatar button hover (ghost) — keep the bg subtle on navy. */
-	[data-theme="premium"] .navbar .btn-ghost:hover {
+	[data-theme="premium-day"] .navbar .btn-ghost:hover {
 		background-color: rgba(var(--premium-ice) / 0.08);
 	}
 
@@ -931,9 +931,9 @@
 	   Standings team names go from font-medium (500) to Manrope 700.
 	   Match-card team labels go from font-semibold (600) to Manrope 700.
 	   Lighter weight on other themes is preserved (these rules are
-	   scoped to [data-theme="premium"]). */
-	[data-theme="premium"] .standing-row-v2 .team-cell .team-name,
-	[data-theme="premium"] .team-block .team-label {
+	   scoped to [data-theme="premium-day"]). */
+	[data-theme="premium-day"] .standing-row-v2 .team-cell .team-name,
+	[data-theme="premium-day"] .team-block .team-label {
 		font-family: 'Manrope', system-ui, sans-serif;
 		font-weight: 700;
 		letter-spacing: 0.005em;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { fade } from 'svelte/transition';
+	import { fade, fly, slide } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
@@ -37,11 +38,6 @@
 	import * as entriesApi from '$api/entries';
 	import { canSubmit, canEdit, isPhaseEditable, computeDisplayStatus } from '$lib/types/entry';
 	import {
-		entryUiStatus,
-		entryStatusBadge,
-		entryStatusDot
-	} from '$lib/utils/entryStatusBadge';
-	import {
 		fetchGroupFixtures,
 		groupFixtures,
 		fetchActualKnockoutFixtures,
@@ -71,16 +67,14 @@
 
 	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
 	import EntrySelector from '$components/EntrySelector.svelte';
-	import SheetStatusDots from '$components/predictions/SheetStatusDots.svelte';
-	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
-	import FixtureRow from '$components/predictions/FixtureRow.svelte';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
-	import GroupQuickNav from '$components/predictions/GroupQuickNav.svelte';
 	import ProgressSection from '$components/predictions/ProgressSection.svelte';
 	import StatusBanner from '$components/predictions/StatusBanner.svelte';
 	import BottomActionBar from '$components/predictions/BottomActionBar.svelte';
 	import SmartFillModal from '$components/predictions/SmartFillModal.svelte';
+	import StandingsPanel from '$components/predictions/StandingsPanel.svelte';
+	import { standingsPanelOpen } from '$stores/uiPreferences';
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
 	import { tick } from 'svelte';
 
@@ -263,24 +257,58 @@
 		!!$activeEntry &&
 		canEdit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null);
 
-	$: activeEntryUi = $activeEntry ? entryUiStatus($activeEntry, $isPhase1Locked) : 'draft';
-	$: activeEntryBadge = $activeEntry ? entryStatusBadge(activeEntryUi) : null;
-
 	// ConfirmModal state — one boolean per modal usage on this page.
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
+	// Discard modal = "Discard unsaved changes" from BottomActionBar.
 	let lockModalOpen = false;
 	let unlockModalOpen = false;
+	let discardModalOpen = false;
 
-	// GroupAccordion open-set. Multiple accordions can be open
-	// simultaneously (per the resolved no-single-expanded rule).
-	// All groups start closed.
-	let openGroups: Set<string> = new Set();
+	function openDiscardDialog() {
+		discardModalOpen = true;
+	}
+
+	async function confirmDiscard() {
+		discardModalOpen = false;
+		// Revert in-memory unsaved state and re-fetch the server snapshot
+		// so the user is reset to exactly what's persisted.
+		resetPredictions();
+		const tasks: Promise<unknown>[] = [
+			fetchMatchPredictions(),
+			fetchBracketPredictions()
+		];
+		if ($isPhase2Active) tasks.push(fetchPhase2BracketPredictions());
+		try {
+			await Promise.all(tasks);
+		} catch (e) {
+			console.error('Discard refetch failed', e);
+		}
+	}
+
+	// At most one GroupAccordion is open at a time. Clicking the open
+	// group closes it; clicking any other group switches focus and
+	// collapses the previous one. Opening also pushes `activeGroupPill`
+	// to the right-hand StandingsPanel so the panel mirrors the user's
+	// current editing focus. `null` = all closed (initial state).
+	let openGroup: string | null = null;
 	function toggleGroupAccordion(letter: string): void {
-		// Re-assign to trigger Svelte reactivity (Set mutations aren't reactive)
-		const next = new Set(openGroups);
-		if (next.has(letter)) next.delete(letter);
-		else next.add(letter);
-		openGroups = next;
+		if (openGroup === letter) {
+			openGroup = null;
+			return;
+		}
+		openGroup = letter;
+		activeGroupPill = letter;
+	}
+
+	// Mobile/tablet standings-drawer helpers. The drawer is rendered
+	// alongside the desktop docked panel (different responsive visibility
+	// classes); both gated on the same `standingsPanelOpen` store.
+	function openStandingsForGroup(letter: string): void {
+		activeGroupPill = letter;
+		standingsPanelOpen.set(true);
+	}
+	function closeStandingsDrawer(): void {
+		standingsPanelOpen.set(false);
 	}
 
 	// Shared UI-status for the active sheet — used by ProgressSection
@@ -419,6 +447,13 @@
 	}
 
 	function handleSelectorKeydown(e: KeyboardEvent) {
+		// Escape closes the standings drawer whenever it's open — separate
+		// from the arrow-key handling because we want Esc to work even
+		// when the user is in another section / typing.
+		if (e.key === 'Escape' && $standingsPanelOpen) {
+			closeStandingsDrawer();
+			return;
+		}
 		// Only steal arrow keys when the user isn't editing a score.
 		if (activeSection !== 'groups') return;
 		if (isTypingInInput(e.target)) return;
@@ -682,7 +717,7 @@
 	$: predictionState = (f: Fixture): FixtureState =>
 		predictionStateMap.get(f.id) ?? (f.is_locked ? 'locked' : 'empty');
 
-	// Typed-prediction helper for FixtureRow. Returns null when either
+	// Typed-prediction helper for FixtureCard. Returns null when either
 	// side is empty (no prediction at all); returns the numeric pair
 	// when both home and away are set. Mirrors the truthy/falsy logic
 	// the legacy `predictionState` reactive uses.
@@ -987,7 +1022,15 @@
 <svelte:window on:keydown={handleSelectorKeydown} />
 
 {#if $isAuthenticated}
-	<div class="container mx-auto mobile-padding py-6">
+	<!-- xl:pr makes room for the live-standings panel docked at the right
+	     edge ≥1280px. Below that, the panel is hidden (drawer pattern is a
+	     follow-up). -->
+	<!-- pt-6 pb-40: extra bottom padding so the last accordion (Third
+	     Place) — and its expanded body — can scroll above the fixed
+	     BottomActionBar (which is ~120–140px tall on mobile when the
+	     Save Draft / Submit buttons are showing). Without this the user
+	     can scroll to Third Place but its tap zone sits behind the bar. -->
+	<div class="container mx-auto mobile-padding pt-6 pb-40 xl:pr-[26rem]">
 		{#if restorationBanner}
 			<div class="alert bg-info/10 border border-info/30 text-sm mb-4" transition:fade={{ duration: 400 }}>
 				<span>✦</span>
@@ -1002,93 +1045,70 @@
 			</div>
 		{/if}
 
-		<!-- Hero: title + progress + entry selector + toggles -->
-		<div class="stadium-card no-glow p-5 mb-6">
-			<div class="flex items-start justify-between flex-wrap gap-4">
-				<div>
-					<p class="text-xs uppercase tracking-wider text-base-content/50">
-						Group Stage · Knockout · Bonus
-					</p>
-					<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Predict</h1>
-				</div>
-				<div class="flex items-center gap-4">
-					<div class="text-right">
-						<div class="font-display text-3xl tracking-wide leading-none">
-							{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span>
+		<!-- Hero. Top row = tabs (left) + doughnut (right corner) on every
+		     viewport. Smart Fill drops to its own row below so the top row
+		     stays compact even on 375px screens. The deadline countdown
+		     lives in the global topbar — not here.
+		     Padding: tighter on mobile (12px) than desktop (16px). -->
+		<div class="stadium-card no-glow p-3 sm:p-4 mb-6">
+			<!-- TOP ROW: nav toggles on the left, doughnut on the right.
+			     items-center so the tabs and doughnut share a baseline;
+			     flex-wrap only kicks in if BOTH Phase I/II + section tabs
+			     are wider than the viewport (Phase 2 case only). -->
+			<div class="flex items-center justify-between gap-3 flex-wrap">
+				<div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+					{#if $isPhase2Active}
+						<div class="tabs tabs-boxed bg-base-300/40">
+							<button class="tab {activePhase === 'phase1' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase1')}>Phase I</button>
+							<button class="tab {activePhase === 'phase2' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase2')}>Phase II</button>
 						</div>
-						<div class="text-xs text-base-content/50">{phaseProgress.pct}% predicted</div>
-					</div>
-					<SheetStatusDots />
+					{/if}
+					{#if activePhase === 'phase1'}
+						<div class="tabs tabs-boxed bg-base-300/40">
+							<button class="tab {activeSection === 'groups' ? 'tab-active' : ''}" on:click={() => (activeSection = 'groups')}>Groups</button>
+							<button
+								class="tab {activeSection === 'knockout' ? 'tab-active' : ''} {phase1BracketGated ? 'opacity-50' : ''}"
+								on:click={() => (activeSection = 'knockout')}
+								title={phase1BracketGated ? 'Complete all group predictions to unlock' : ''}
+							>Knockout</button>
+							<button class="tab {activeSection === 'bonus' ? 'tab-active' : ''}" on:click={() => (activeSection = 'bonus')}>Bonus</button>
+						</div>
+					{/if}
 				</div>
-			</div>
 
-			<!-- Live countdown badge (DDd HH:MM:SS; hides past deadline; red <6h) -->
-			<div class="mt-3">
-				<CountdownTimer deadline={$phase1Deadline} />
-			</div>
-
-			<!-- Progress section: combined completion bar (groups + bracket
-			     + bonus) + sub-breakdown line + Smart Fill button -->
-			<div class="mt-4">
 				<ProgressSection
 					groupProgress={{ done: phaseProgress.done, total: phaseProgress.total }}
 					bracketProgress={bracketSubProgress}
 					bonusProgress={bonusSubProgress}
-					canSmartFill={uiStatus === 'draft'}
 					status={uiStatus}
-					on:smartfill={() => (smartFillModalOpen = true)}
 				/>
-				<div class="text-[10px] text-base-content/40 text-right mt-1 font-mono">
-					{$unsavedChangesCount} unsaved
-				</div>
 			</div>
 
-			<!-- Entry context + lifecycle. The back-link previously rendered
-			     here was lifted into the topbar breadcrumb (see +layout.svelte). -->
-			<div class="flex items-center gap-3 flex-wrap mt-4">
-				{#if $activeEntry && activeEntryBadge}
-					<span class="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-300/40 border border-base-content/10">
-						<span
-							class="w-2.5 h-2.5 rounded-full {entryStatusDot(activeEntryUi)} flex-shrink-0"
-							aria-hidden="true"
-						></span>
-						<span class="text-[10px] uppercase tracking-wider opacity-50 font-semibold">Entry</span>
-						<span class="font-semibold truncate max-w-[10rem] sm:max-w-[14rem]"
-							>{$activeEntry.display_name || `Entry #${$activeEntry.entry_number}`}</span
-						>
-						<span class="badge badge-sm {activeEntryBadge.class}">{activeEntryBadge.label}</span>
-					</span>
-				{/if}
-				{#if lifecycleError}
+			<!-- Smart Fill row. Full-width on mobile (touch-friendly), auto-
+			     width on sm: and up (less dominant). Responsive label: the
+			     "from FIFA Rankings" suffix only shows at sm: and up. -->
+			{#if uiStatus === 'draft'}
+				<button
+					type="button"
+					class="mt-3 w-full sm:w-auto px-3 rounded-lg border border-dashed border-base-content/30 bg-base-200/30 hover:bg-base-200/60 text-sm font-medium text-base-content/80 min-h-10 transition-colors whitespace-nowrap"
+					on:click={() => (smartFillModalOpen = true)}
+				>
+					⚡ Smart Fill<span class="hidden sm:inline"> from FIFA Rankings</span>
+				</button>
+			{/if}
+
+			<!-- Entry name + READY/LOCKED badge + NO PRIZE chip removed from
+			     the hero — entry name lives in the topbar breadcrumb (desktop)
+			     and the mobile navbar-center, status is conveyed by the
+			     doughnut + BottomActionBar, and NO PRIZE is also rendered in
+			     the SheetSelector dropdown rows. Only lifecycle error feedback
+			     remains here (rare path; surfaces on submit/unlock failures). -->
+			{#if lifecycleError}
+				<div class="mt-4">
 					<span class="text-error text-xs">{lifecycleError}</span>
-				{/if}
-				<!-- The legacy Submit / Edit buttons were removed here — both
-				     actions live on the BottomActionBar (Submit + Unlock).
-				     The submitVisible / editVisible reactives + canSubmit /
-				     canEdit imports remain in the script as legacy guards
-				     until the next janitor pass. -->
-			</div>
+				</div>
+			{/if}
 
-			<!-- Phase + section toggles -->
-			<div class="flex items-center gap-3 flex-wrap mt-4">
-				{#if $isPhase2Active}
-					<div class="tabs tabs-boxed bg-base-300/40">
-						<button class="tab {activePhase === 'phase1' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase1')}>Phase I</button>
-						<button class="tab {activePhase === 'phase2' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase2')}>Phase II</button>
-					</div>
-				{/if}
-				{#if activePhase === 'phase1'}
-					<div class="tabs tabs-boxed bg-base-300/40">
-						<button class="tab {activeSection === 'groups' ? 'tab-active' : ''}" on:click={() => (activeSection = 'groups')}>Groups</button>
-						<button
-							class="tab {activeSection === 'knockout' ? 'tab-active' : ''} {phase1BracketGated ? 'opacity-50' : ''}"
-							on:click={() => (activeSection = 'knockout')}
-							title={phase1BracketGated ? 'Complete all group predictions to unlock' : ''}
-						>Knockout</button>
-						<button class="tab {activeSection === 'bonus' ? 'tab-active' : ''}" on:click={() => (activeSection = 'bonus')}>Bonus</button>
-					</div>
-				{/if}
-			</div>
 		</div>
 
 		<!-- ============================== PHASE 1 ============================== -->
@@ -1107,132 +1127,120 @@
 				     deadline hasn't passed — wires into the existing Edit flow. -->
 				<StatusBanner status={uiStatus} canUnlock={uiStatus === 'locked'} on:unlock={handleEdit} />
 
-				<!-- A-L quick-nav strip: tap to scroll + auto-open the target accordion -->
-				<div class="mb-3">
-					<GroupQuickNav
-						groups={$groupFixtures}
-						getPrediction={fixturePrediction}
-						on:navigate={(e) => {
-							const next = new Set(openGroups);
-							next.add(e.detail.groupLetter);
-							openGroups = next;
-						}}
-					/>
-				</div>
-
 				<div class="space-y-3 mb-6">
 					{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g (g.group)}
+						{@const gp = groupProgress(g)}
 						<GroupAccordion
 							group={g}
-							open={openGroups.has(g.group)}
+							open={openGroup === g.group}
 							editable={$activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1')}
 							getPrediction={fixturePrediction}
 							onScore={(fid, home, away) => updateLocalPrediction(fid, home, away)}
 							onToggle={() => toggleGroupAccordion(g.group)}
-							standings={standingsMap[g.group] ?? []}
-							tiedTeams={groupStandingsWarnings
-								.filter((w) => w.group === g.group)
-								.map((w) => w.tiedTeams)}
+							tieBreakNeeded={gp.total > 0 &&
+								gp.done === gp.total &&
+								groupStandingsWarnings.some((w) => w.group === g.group)}
+							onOpenStandings={() => openStandingsForGroup(g.group)}
 						/>
 					{/each}
 				</div>
 
-				<!-- Third-place qualifying table (always visible — was previously
-				     gated behind the dropped pill-strip's "3rd" pill). -->
-				<section class="stadium-card no-glow p-4 sm:p-5 mb-6">
-					{#if allGroupsComplete && thirdPlaceWarnings.length > 0}
-						<div class="alert alert-warning text-xs py-2 mb-3">
-							<div>
-								<div class="font-semibold mb-0.5">
-									⚠ Tied teams · alphabetical fallback in effect
-								</div>
-								{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
-									<p class="text-[11px] opacity-90">
-										{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place teams
-										come from different groups so head-to-head isn't applicable; ranked
-										alphabetically. Adjust scores to change qualification.
-									</p>
+				<!-- Third-place qualifying accordion. Mirrors the GroupAccordion
+				     header chrome (clickable name + chip + chevron). The body
+				     is lightweight (caption + small flag preview) because the
+				     actual standings table lives in the StandingsPanel — same
+				     pattern as the regular groups. Chip variants:
+				       - tied → ⚠ Tie break needed (both viewports)
+				       - not tied → View Table (mobile only via xl:hidden) -->
+				{@const thirdPlaceTieBreakNeeded =
+					allGroupsComplete && thirdPlaceWarnings.length > 0}
+				<div class="rounded-xl border border-base-content/10 bg-base-200/30 overflow-hidden mb-6">
+					<div class="flex items-center gap-3 w-full px-4 py-3 hover:bg-base-300/30 min-h-12">
+						<button
+							type="button"
+							class="flex-1 flex items-center gap-3 min-w-0 text-left"
+							on:click={() => toggleGroupAccordion('thirdplace')}
+							aria-expanded={openGroup === 'thirdplace'}
+							aria-controls="group-thirdplace-body"
+						>
+							<span class="font-display font-bold text-base sm:text-lg whitespace-nowrap">
+								Third Place
+							</span>
+							<!-- Flag preview: top-4 currently-qualifying third-placed teams. -->
+							<div class="hidden sm:flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+								{#each thirdPlaceStandings.slice(0, 4) as t (t.team)}
+									{#if hasFlag(t.team)}
+										<img
+											src={getFlagUrl(t.team, 'sm')}
+											alt=""
+											class="w-5 h-auto rounded-sm flex-shrink-0"
+											title={t.team}
+										/>
+									{/if}
 								{/each}
 							</div>
+							<span class="flex-1 sm:hidden" aria-hidden="true"></span>
+						</button>
+
+						<!-- Standings-trigger chip — same pattern as GroupAccordion. -->
+						{#if thirdPlaceTieBreakNeeded}
+							<button
+								type="button"
+								class="badge badge-warning badge-sm gap-1 font-medium whitespace-nowrap hover:brightness-110 transition-[filter]"
+								on:click={() => openStandingsForGroup('thirdplace')}
+								title="View standings — third-place teams tied on points, GD, GF"
+							>⚠ Tie break needed</button>
+						{:else if thirdPlaceStandings.length > 0}
+							<button
+								type="button"
+								class="badge badge-ghost badge-sm gap-1 font-medium whitespace-nowrap xl:hidden hover:brightness-110 transition-[filter]"
+								on:click={() => openStandingsForGroup('thirdplace')}
+								title="View third-place qualifying standings"
+							>View Table</button>
+						{/if}
+
+						<button
+							type="button"
+							class="flex items-center gap-3"
+							on:click={() => toggleGroupAccordion('thirdplace')}
+							aria-label="Toggle Third Place"
+							tabindex="-1"
+						>
+							<svg
+								class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
+								class:rotate-180={openGroup === 'thirdplace'}
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								aria-hidden="true"
+							>
+								<path
+									fill-rule="evenodd"
+									d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+									clip-rule="evenodd"
+								/>
+							</svg>
+						</button>
+					</div>
+
+					{#if openGroup === 'thirdplace'}
+						<div
+							id="group-thirdplace-body"
+							transition:slide={{ duration: 200, easing: cubicOut }}
+							class="px-4 py-3 text-sm text-base-content/70"
+						>
+							{#if thirdPlaceStandings.length === 0}
+								<p>Fill in some group predictions to see third-place qualifying.</p>
+							{:else}
+								<p>
+									★ Top 8 of 12 third-placed teams qualify for the Round of 32
+									(FIFA 2026 format). Tap
+									<span class="font-semibold">View Table</span>
+									to see the live ranking.
+								</p>
+							{/if}
 						</div>
 					{/if}
-					<h2 class="text-base sm:text-lg font-display tracking-wide mb-3">
-						Third-place qualifying · top 8 advance to R32
-					</h2>
-					<div class="overflow-x-auto">
-						<table class="w-full text-xs">
-							<thead class="text-base-content/40 uppercase tracking-wider">
-								<tr>
-									<th class="text-left font-normal pb-1 w-6">#</th>
-									<th class="text-center font-normal pb-1 w-10">Grp</th>
-									<th class="text-left font-normal pb-1">Team</th>
-									<th class="text-center font-normal pb-1">P</th>
-									<th class="text-center font-normal pb-1">W</th>
-									<th class="text-center font-normal pb-1">D</th>
-									<th class="text-center font-normal pb-1">L</th>
-									<th class="text-center font-normal pb-1">GD</th>
-									<th class="text-center font-normal pb-1">Pts</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each thirdPlaceStandings as t, i (t.team)}
-									<tr
-										class="border-t border-base-content/5 {i < 8
-											? 'bg-success/5'
-											: ''}"
-									>
-										<td class="py-1">
-											<span
-												class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {i < 8
-													? 'bg-success/20 text-success'
-													: 'bg-base-300/40 text-base-content/50'}">{i + 1}</span
-											>
-										</td>
-										<td class="text-center text-[11px] font-mono py-1">{t.group}</td>
-										<td class="py-1">
-											<span class="flex items-center gap-1.5">
-												{#if hasFlag(t.team)}
-													<img
-														src={getFlagUrl(t.team, 'sm')}
-														alt=""
-														class="w-4 h-auto rounded-sm flex-shrink-0"
-													/>
-												{/if}
-												<span class="truncate">{t.team}</span>
-											</span>
-										</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.won}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.drawn}</td>
-										<td class="text-center font-mono tabular-nums py-1">{t.lost}</td>
-										<td class="text-center font-mono tabular-nums py-1">
-											<span
-												class={t.goalDifference > 0
-													? 'text-success'
-													: t.goalDifference < 0
-														? 'text-error'
-														: 'opacity-60'}
-												>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span
-											>
-										</td>
-										<td class="text-center font-mono tabular-nums font-bold py-1"
-											>{t.points}</td
-										>
-									</tr>
-								{:else}
-									<tr>
-										<td colspan="9" class="text-center py-4 text-base-content/40 text-xs">
-											No third-place standings yet — fill in some group predictions.
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-					<p class="text-[10px] text-base-content/50 mt-2 uppercase tracking-wider">
-						★ Top 8 third-placed teams qualify for the Round of 32 (FIFA 2026 format)
-					</p>
-				</section>
+				</div>
 			{:else if activeSection === 'knockout'}
 				{#if phase1BracketGated}
 					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
@@ -1367,16 +1375,20 @@
 		{/if}
 
 		<!-- Sticky bottom action bar — state-driven CTA strip. Sits above
-		     the layout's mobile bottom nav (pb-16). -->
+		     the layout's mobile bottom nav (pb-16). Gold-glows when there
+		     are unsaved changes; the Save Draft label carries the count;
+		     a Discard button (with confirmation) lets the user revert. -->
 		<BottomActionBar
 			status={uiStatus}
 			canSubmit={phase1AllComplete}
 			incompleteSummary={incompleteSummary}
 			hasUnsavedChanges={hasAnyUnsaved}
+			unsavedCount={$unsavedChangesCount}
 			savingDraft={saveStatus === 'saving'}
 			on:saveDraft={handleSaveAll}
 			on:submit={handleSubmit}
 			on:unlock={handleEdit}
+			on:discard={openDiscardDialog}
 		/>
 
 		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
@@ -1407,6 +1419,19 @@
 			onCancel={() => (unlockModalOpen = false)}
 		/>
 
+		<ConfirmModal
+			open={discardModalOpen}
+			icon="🗑️"
+			title="Discard unsaved changes?"
+			message={$unsavedChangesCount === 1
+				? 'Your 1 unsaved prediction will be reverted to the last saved state. This cannot be undone.'
+				: `Your ${$unsavedChangesCount} unsaved predictions will be reverted to the last saved state. This cannot be undone.`}
+			confirmLabel="Discard"
+			confirmVariant="warning"
+			onConfirm={confirmDiscard}
+			onCancel={() => (discardModalOpen = false)}
+		/>
+
 		<!-- Smart Fill modal — checkbox form (overwrite, fill blanks, fill
 		     bracket). The fill-bracket checkbox is gated on having every
 		     group fixture predicted (or selecting fill-blanks). -->
@@ -1419,4 +1444,67 @@
 			on:cancel={() => (smartFillModalOpen = false)}
 		/>
 	</div>
+
+	<!-- Live-standings panel — split layout at ≥1280px. Docks to the
+	     right edge between the topbar (top-12) and bottom of the
+	     viewport; the BottomActionBar overlays its lower edge by design,
+	     and the panel itself scrolls so nothing is hidden behind. -->
+	{#if $standingsPanelOpen}
+		<aside class="hidden xl:flex flex-col fixed top-12 right-0 bottom-0 w-[26rem] z-20">
+			<StandingsPanel
+				activeGroup={activeGroupPill || 'A'}
+				{activeSection}
+				mode="split"
+				{bonusQuestions}
+				{bonusAnswers}
+				{thirdPlaceStandings}
+				{thirdPlaceWarnings}
+				{allGroupsComplete}
+			/>
+		</aside>
+
+		<!-- Mobile/tablet drawer overlay (<1280px). Reuses the same panel
+		     in `mode="drawer"`. Backdrop click + Done button + ESC close
+		     it. activeGroupPill is shared state, so the panel content
+		     stays in sync as the user opens different accordions while
+		     the drawer is open. -->
+		<div
+			class="xl:hidden fixed inset-0 z-40"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Live standings"
+			transition:fade={{ duration: 150 }}
+		>
+			<div
+				class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+				on:click={closeStandingsDrawer}
+				on:keydown={(e) => e.key === 'Enter' && closeStandingsDrawer()}
+				role="button"
+				tabindex="-1"
+				aria-label="Close standings drawer"
+			></div>
+			<!-- Drawer panel. `top-16 bottom-0` clears the mobile navbar
+			     (which is z-50 and would otherwise overlay the panel's
+			     own header + Done button). The backdrop above stays
+			     `inset-0` so page content behind it is dimmed; the
+			     navbar stays bright above the backdrop (iOS-sheet
+			     pattern). -->
+			<div
+				class="absolute top-16 bottom-0 right-0 w-full max-w-[24rem] bg-base-200 shadow-2xl flex flex-col"
+				transition:fly={{ x: 400, duration: 250, easing: cubicOut }}
+			>
+				<StandingsPanel
+					activeGroup={activeGroupPill || 'A'}
+					{activeSection}
+					mode="drawer"
+					{bonusQuestions}
+					{bonusAnswers}
+					{thirdPlaceStandings}
+					{thirdPlaceWarnings}
+					{allGroupsComplete}
+					on:close={closeStandingsDrawer}
+				/>
+			</div>
+		</div>
+	{/if}
 {/if}

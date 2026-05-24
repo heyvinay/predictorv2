@@ -60,6 +60,9 @@ export interface Fixture {
 	is_locked: boolean;
 	time_until_lock: number | null;
 	score: FixtureScore | null;
+	venue_city: string | null;
+	venue_country: string | null;
+	venue_country_code: string | null;
 }
 
 export interface FixturesByGroup {

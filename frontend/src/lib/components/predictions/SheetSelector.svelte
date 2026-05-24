@@ -44,7 +44,8 @@
 	import {
 		entryUiStatus,
 		entryStatusBadge,
-		entryStatusDot
+		entryStatusDot,
+		shouldShowPrizeModifier
 	} from '$lib/utils/entryStatusBadge';
 
 	/**
@@ -111,8 +112,19 @@
 		? $entries.length < $entrySettings.max_entries_per_user
 		: false;
 	$: canRename = $entrySettings?.allow_user_rename ?? false;
-	$: activeUi = $activeEntry ? entryUiStatus($activeEntry, deadlinePassed) : null;
+	// Active-row gets counts (from the parent's activeProgress prop) so the
+	// READY state can surface when the user has filled all picks but not yet
+	// submitted. Inactive rows can't get counts cheaply.
+	$: activeUi = $activeEntry
+		? entryUiStatus($activeEntry, {
+				deadlinePassed,
+				totalRequired: activeProgress?.total,
+				totalFilled: activeProgress?.done
+			})
+		: null;
 	$: activeBadge = activeUi ? entryStatusBadge(activeUi) : null;
+	$: activeShowNoPrize =
+		$activeEntry && activeUi ? shouldShowPrizeModifier($activeEntry, activeUi) : false;
 </script>
 
 <div class="relative inline-block">
@@ -135,6 +147,12 @@
 				>{$activeEntry.display_name}</span
 			>
 			<span class="badge badge-sm {activeBadge.class}">{activeBadge.label}</span>
+			{#if activeShowNoPrize}
+				<span
+					class="badge badge-ghost badge-sm whitespace-nowrap"
+					title="This entry is not eligible for the prize pool"
+				>NO PRIZE</span>
+			{/if}
 			<svg
 				class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
 				class:rotate-180={open}
@@ -159,9 +177,14 @@
 		>
 			<ul class="max-h-72 overflow-y-auto py-1">
 				{#each $entries as e (e.id)}
-					{@const ui = entryUiStatus(e, deadlinePassed)}
-					{@const badge = entryStatusBadge(ui)}
 					{@const isActive = e.id === $activeEntryId}
+					{@const ui = entryUiStatus(e, {
+						deadlinePassed,
+						totalRequired: isActive ? activeProgress?.total : undefined,
+						totalFilled: isActive ? activeProgress?.done : undefined
+					})}
+					{@const badge = entryStatusBadge(ui)}
+					{@const rowShowNoPrize = shouldShowPrizeModifier(e, ui)}
 					<li class="flex items-center gap-1 px-1.5 py-0.5">
 						<!-- Row-select button (fills most of the row) -->
 						<button
@@ -180,6 +203,12 @@
 							<span class="badge badge-xs {badge.class} whitespace-nowrap"
 								>{badge.label}</span
 							>
+							{#if rowShowNoPrize}
+								<span
+									class="badge badge-ghost badge-xs whitespace-nowrap"
+									title="Not eligible for prize"
+								>NO PRIZE</span>
+							{/if}
 							{#if isActive && activeProgress}
 								<span class="text-xs font-mono opacity-60 ml-1 whitespace-nowrap"
 									>{activeProgress.done}/{activeProgress.total}</span

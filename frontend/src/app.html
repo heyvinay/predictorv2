@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="predictor">
+<html lang="en" data-theme="premium-day">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
@@ -7,11 +7,14 @@
 		<meta name="description" content="Football prediction competition for World Cup 2026" />
 		<meta name="robots" content="noindex, nofollow" />
 		<!-- Google Fonts:
-		     - Bebas Neue + DM Sans  → default predictor (and most other) themes.
-		     - Inter + Manrope       → premium theme (Inter for body,
-		       Manrope for scores / brand mark / display). Loaded
-		       unconditionally; the premium scoped CSS layer in app.css
-		       activates them only when data-theme="premium". -->
+		     - Bebas Neue + DM Sans  → fallback themes (any of the legacy
+		       DaisyUI ones in tailwind.config.js).
+		     - Inter + Manrope       → premium-day + premium-night themes
+		       (Inter for body, Manrope for scores / brand mark / display).
+		       Loaded unconditionally; the premium-scoped CSS layer in
+		       app.css activates them only when data-theme="premium-day"
+		       (and the same overrides cover premium-night via the
+		       [data-theme*="premium"] selector in the future if needed). -->
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@300..900&family=Manrope:wght@200..800&display=swap" rel="stylesheet" />
