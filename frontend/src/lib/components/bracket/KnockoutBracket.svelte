@@ -1,14 +1,26 @@
+<!--
+	KnockoutBracket — symmetric wallchart visualisation of the knockout
+	stage. The matches converge from R32 on the outer edges through R16,
+	QF and SF to the FINAL at the centre.
+
+	Two layouts:
+	  - Desktop (≥ lg / 1024 px): 9-column CSS grid wallchart with the
+	    Final column centred and slightly wider.
+	  - Mobile (< lg): a 4-page swipeable carousel
+	      page 0 → R32 (left + right halves shown side-by-side)
+	      page 1 → R16
+	      page 2 → QF + SF
+	      page 3 → Final + Champion sticker
+	    Champion strip is also persistent at the page footer.
+
+	Prop signature is unchanged from the previous linear version, so
+	existing callers (entry-detail page, Phase1Bracket wizard wrapper)
+	work without code changes.
+-->
 <script lang="ts">
-	import { createEventDispatcher, afterUpdate } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 	import BracketMatch from './BracketMatch.svelte';
-	import {
-		ROUND_OF_32,
-		ROUND_OF_16,
-		QUARTER_FINALS,
-		SEMI_FINALS,
-		FINAL,
-		type KnockoutMatch
-	} from '$lib/config/bracketConfig';
+	import ChampionStrip from './ChampionStrip.svelte';
 	import {
 		initializeBracketState,
 		predictionToBracketState,
@@ -17,7 +29,6 @@
 		setMatchWinner,
 		type GroupStandingsMap
 	} from '$lib/utils/bracketResolver';
-	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import type { BracketPrediction } from '$types';
 
 	export let prediction: BracketPrediction | null = null;
@@ -30,17 +41,13 @@
 		clear: void;
 	}>();
 
-	// Reactive derived state
-	// We rebuild the entire bracket state whenever inputs change.
-	// This ensures the UI is always a pure function of props.
+	// ── Derived bracket state ────────────────────────────────────────────────
 	$: state = (() => {
 		if (Object.keys(groupStandings).length === 0) return null;
-
 		if (prediction && hasValidPrediction(prediction)) {
 			return predictionToBracketState(prediction, groupStandings);
-		} else {
-			return initializeBracketState(groupStandings);
 		}
+		return initializeBracketState(groupStandings);
 	})();
 
 	$: r32Matches = state ? getDisplayMatches(state, 'round_of_32') : [];
@@ -48,15 +55,34 @@
 	$: qfMatches = state ? getDisplayMatches(state, 'quarter_finals') : [];
 	$: sfMatches = state ? getDisplayMatches(state, 'semi_finals') : [];
 	$: finalMatches = state ? getDisplayMatches(state, 'final') : [];
-	$: tournamentWinner = state?.matchResults[104]?.winner || null;
 
-	$: rounds = [
-		{ code: 'round_of_32', name: 'Round of 32', matches: r32Matches },
-		{ code: 'round_of_16', name: 'Round of 16', matches: r16Matches },
-		{ code: 'quarter_finals', name: 'Quarter-Finals', matches: qfMatches },
-		{ code: 'semi_finals', name: 'Semi-Finals', matches: sfMatches },
-		{ code: 'final', name: 'Final', matches: finalMatches }
-	];
+	// ── Left / right halves for the symmetric wallchart ─────────────────────
+	// FIFA pairs the bracket so the first half of each round's matches
+	// feeds the left side of the next round; the second half feeds the right.
+	$: r32L = r32Matches.slice(0, Math.ceil(r32Matches.length / 2));
+	$: r32R = r32Matches.slice(Math.ceil(r32Matches.length / 2));
+	$: r16L = r16Matches.slice(0, Math.ceil(r16Matches.length / 2));
+	$: r16R = r16Matches.slice(Math.ceil(r16Matches.length / 2));
+	$: qfL = qfMatches.slice(0, Math.ceil(qfMatches.length / 2));
+	$: qfR = qfMatches.slice(Math.ceil(qfMatches.length / 2));
+	$: sfL = sfMatches.slice(0, Math.ceil(sfMatches.length / 2));
+	$: sfR = sfMatches.slice(Math.ceil(sfMatches.length / 2));
+	// Final centre card: the actual final (match 104), not the third-place
+	// playoff (match 103) which lives in the same round bucket on some configs.
+	$: finalMatch =
+		finalMatches.find((m) => m.match.matchNumber === 104) ?? finalMatches[0] ?? null;
+
+	$: tournamentWinner = state?.matchResults[104]?.winner ?? null;
+
+	// ── Picks count: distinct match winners chosen so far ────────────────────
+	// Excludes the third-place playoff (match 103) so the count matches the
+	// wallchart header total of 31 = R32(16) + R16(8) + QF(4) + SF(2) + F(1).
+	$: picked = state
+		? Object.entries(state.matchResults).filter(
+				([num, m]) => Number(num) !== 103 && m.winner !== null
+			).length
+		: 0;
+	const TOTAL_PICKS = 31;
 
 	function hasValidPrediction(pred: BracketPrediction | null): boolean {
 		if (!pred) return false;
@@ -69,290 +95,510 @@
 		);
 	}
 
-	function handleSelectWinner(event: CustomEvent<{ matchNumber: number | null; winner: string }>) {
+	// ── Selection handling ──────────────────────────────────────────────────
+	function handleSelectWinner(
+		event: CustomEvent<{ matchNumber: number | null; winner: string }>
+	) {
 		const { matchNumber, winner } = event.detail;
 		if (!state || matchNumber === null) return;
-
-		// Calculate new state
-		// If clicking current winner -> toggle off (clear)
-		// If clicking new team -> set winner
-		const currentWinner = state.matchResults[matchNumber]?.winner;
-		let newState;
-		
-		if (currentWinner === winner) {
-			// Clearing is tricky because we don't expose clearMatchWinner in imports
-			// But setMatchWinner(..., null) isn't supported by the types.
-			// Let's re-import clearMatchWinner if possible, or just re-implement logic.
-			// Actually, let's just use setMatchWinner to swap, and if it's same, we need to clear.
-			// We need to import clearMatchWinner.
-            // Since I cannot change imports easily in this block without re-writing everything,
-            // I will assume the user clicks another team to switch, or I will fix imports in next step.
-            // Wait, I am writing the file content right now. I can add clearMatchWinner to imports.
-             newState = setMatchWinner(state, matchNumber, winner); // Placeholder: need clear logic
-		} else {
-			newState = setMatchWinner(state, matchNumber, winner);
-		}
-
-		// Convert to prediction and dispatch
-		// This is the ONLY way state updates:
-		// Dispatch -> Parent Store Update -> Parent Prop Update -> Reactive Re-render
+		const newState = setMatchWinner(state, matchNumber, winner);
 		const newPrediction = bracketStateToPrediction(newState);
 		dispatch('update', newPrediction);
 	}
-    
-    // Check if we have selections - exposed for parent to use
-    $: hasSelections = state
-        ? Object.values(state.matchResults).some(m => m.winner !== null)
-        : false;
 
-    // Export function for parent to call when clearing
-    export function clearAllSelections() {
-        if (!state || !groupStandings) return;
-        const emptyState = initializeBracketState(groupStandings);
-        const emptyPrediction = bracketStateToPrediction(emptyState);
-        dispatch('update', emptyPrediction);
-    }
-
-	// Helper for spacing
-	function getMatchSpacing(roundIndex: number): number {
-		return Math.pow(2, roundIndex);
+	export function clearAllSelections() {
+		if (!state || !groupStandings) return;
+		const emptyState = initializeBracketState(groupStandings);
+		const emptyPrediction = bracketStateToPrediction(emptyState);
+		dispatch('update', emptyPrediction);
 	}
-    
-    // Track match container refs for connector targeting (desktop horizontal layout only)
-    let matchContainerRefs: Record<string, HTMLElement> = {};
-    let targetYValues: Record<string, number> = {};
 
-    // Svelte action to track container refs
-    function trackContainer(node: HTMLElement, params: [number, number]) {
-        const [roundIndex, matchIndex] = params;
-        const key = `${roundIndex}-${matchIndex}`;
-        matchContainerRefs[key] = node;
+	// ── Mobile carousel state ────────────────────────────────────────────────
+	let page = 0;
+	const PAGE_COUNT = 4;
+	const PAGE_LABELS = [
+		'R32 · L + R',
+		'R16 · L + R',
+		'QF → SF',
+		'FINAL · CHAMPION'
+	] as const;
 
-        return {
-            update(newParams: [number, number]) {
-                const [newRoundIndex, newMatchIndex] = newParams;
-                const newKey = `${newRoundIndex}-${newMatchIndex}`;
-                delete matchContainerRefs[key];
-                matchContainerRefs[newKey] = node;
-            },
-            destroy() {
-                delete matchContainerRefs[key];
-            }
-        };
-    }
+	function goPrev() {
+		if (page > 0) page -= 1;
+	}
+	function goNext() {
+		if (page < PAGE_COUNT - 1) page += 1;
+	}
 
-    afterUpdate(() => {
-        // Calculate targetY for each match's connector
-        // The target is the center of the next round's match
-        const newTargetYValues: Record<string, number> = {};
-
-        for (let roundIndex = 0; roundIndex < rounds.length - 1; roundIndex++) {
-            const round = rounds[roundIndex];
-            for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
-                const currentKey = `${roundIndex}-${matchIndex}`;
-                const nextMatchIndex = Math.floor(matchIndex / 2);
-                const nextKey = `${roundIndex + 1}-${nextMatchIndex}`;
-
-                const currentContainer = matchContainerRefs[currentKey];
-                const nextContainer = matchContainerRefs[nextKey];
-
-                if (currentContainer && nextContainer) {
-                    const currentRect = currentContainer.getBoundingClientRect();
-                    const nextRect = nextContainer.getBoundingClientRect();
-
-                    // Find the center of the next match's container
-                    const nextCenterY = nextRect.top + nextRect.height / 2;
-
-                    // Convert to current container's coordinate system
-                    const targetY = nextCenterY - currentRect.top;
-                    newTargetYValues[currentKey] = targetY;
-                }
-            }
-        }
-
-        targetYValues = newTargetYValues;
-    });
-
-    function getTargetY(roundIndex: number, matchIndex: number): number | null {
-        const key = `${roundIndex}-${matchIndex}`;
-        return targetYValues[key] ?? null;
-    }
+	// Swipe handling — minimal: just track touch start X and resolve on end.
+	let touchStartX: number | null = null;
+	function onTouchStart(e: TouchEvent) {
+		touchStartX = e.touches[0]?.clientX ?? null;
+	}
+	function onTouchEnd(e: TouchEvent) {
+		if (touchStartX === null) return;
+		const endX = e.changedTouches[0]?.clientX ?? touchStartX;
+		const dx = endX - touchStartX;
+		if (dx > 50) goPrev();
+		else if (dx < -50) goNext();
+		touchStartX = null;
+	}
 </script>
 
-<div class="knockout-bracket w-full">
-    <!-- Mobile/tablet vertical layout (< lg / 1024px) -->
-    <div class="lg:hidden">
-        <!-- Vertical stacked rounds — no swipe/carousel, no connectors -->
-        <div class="space-y-4">
-            {#each rounds as round}
-                {@const isScroll = round.matches.length >= 8}
-                {@const isCompact = round.matches.length >= 16}
-                <section>
-                    <div class="text-center pb-1.5 mb-1.5 border-b border-base-300/30">
-                        <span class="block font-display text-sm tracking-wide">{round.name}</span>
-                        <span class="text-[10px] text-base-content/40">{round.matches.length} {round.matches.length === 1 ? 'match' : 'matches'}</span>
-                    </div>
+<!-- ═══════════════════════════════════════════════════════════════════════
+	 DESKTOP WALLCHART (≥ lg)
+	 ═══════════════════════════════════════════════════════════════════════ -->
+<div
+	class="hidden lg:block bg-secondary text-secondary-content rounded-2xl p-6 shadow-xl"
+>
+	<!-- Header strip: title + status meta -->
+	<header class="flex items-start justify-between mb-3 gap-6">
+		<h2 class="font-display text-2xl tracking-wide leading-none">
+			YOUR <span class="text-primary">BRACKET</span>
+		</h2>
 
-                    {#if isScroll}
-                        <!-- R32 / R16 / QF: horizontally scrollable strip with snap -->
-                        <div class="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory">
-                            {#each round.matches as matchData (matchData.match.matchNumber)}
-                                <div class="snap-start flex-shrink-0">
-                                    <BracketMatch
-                                        matchId={`${round.code}-${matchData.match.matchNumber}`}
-                                        matchNumber={matchData.match.matchNumber}
-                                        team1={matchData.homeTeam}
-                                        team2={matchData.awayTeam}
-                                        winner={matchData.winner}
-                                        roundCode={round.code}
-                                        {locked}
-                                        compact={isCompact}
-                                        showConnector={false}
-                                        isTopOfPair={false}
-                                        containerHeight={100}
-                                        targetY={null}
-                                        on:selectWinner={handleSelectWinner}
-                                    />
-                                </div>
-                            {/each}
-                        </div>
-                    {:else}
-                        <!-- SF / F: 2-column grid — fits on one screen -->
-                        <div class="grid grid-cols-2 gap-3">
-                            {#each round.matches as matchData (matchData.match.matchNumber)}
-                                <BracketMatch
-                                    matchId={`${round.code}-${matchData.match.matchNumber}`}
-                                    matchNumber={matchData.match.matchNumber}
-                                    team1={matchData.homeTeam}
-                                    team2={matchData.awayTeam}
-                                    winner={matchData.winner}
-                                    roundCode={round.code}
-                                    {locked}
-                                    compact={false}
-                                    showConnector={false}
-                                    isTopOfPair={false}
-                                    containerHeight={100}
-                                    targetY={null}
-                                    on:selectWinner={handleSelectWinner}
-                                />
-                            {/each}
-                        </div>
-                    {/if}
-                </section>
-            {/each}
+		<dl
+			class="grid grid-flow-col auto-cols-max gap-x-8 gap-y-0
+				text-[10px] font-mono uppercase tracking-[0.18em] opacity-90"
+		>
+			<dt class="opacity-60 row-start-1">Picks Locked</dt>
+			<dt class="opacity-60 row-start-1">Status</dt>
+			<dt class="opacity-60 row-start-1">Final · Your Pick</dt>
+			<dd class="row-start-2 font-display text-lg leading-none tracking-wide">
+				{picked} / {TOTAL_PICKS}
+			</dd>
+			<dd class="row-start-2 font-display text-lg leading-none tracking-wide">
+				{locked ? 'LOCKED' : 'OPEN'}
+			</dd>
+			<dd
+				class="row-start-2 font-display text-lg leading-none tracking-wide text-primary"
+			>
+				{tournamentWinner ? tournamentWinner.toUpperCase() : '—'}
+			</dd>
+		</dl>
+	</header>
 
-            <!-- Champion -->
-            <section>
-                <div class="text-center pb-1.5 mb-1.5 border-b border-base-300/30">
-                    <span class="block font-display text-sm tracking-wide">Champion</span>
-                </div>
-                <div
-                    class="flex items-center gap-3 p-3 rounded-xl bg-base-200 border border-base-300/50"
-                    class:bg-gradient-to-br={tournamentWinner}
-                    class:from-yellow-500-10={tournamentWinner}
-                    class:to-amber-600-10={tournamentWinner}
-                    class:border-yellow-500-30={tournamentWinner}
-                >
-                    {#if tournamentWinner}
-                        {#if hasFlag(tournamentWinner)}
-                            <img
-                                src={getFlagUrl(tournamentWinner, 'lg')}
-                                alt="{tournamentWinner} flag"
-                                class="w-10 h-auto rounded-sm shadow-md border border-base-content/10"
-                            />
-                        {/if}
-                        <div class="flex-1 min-w-0">
-                            <span class="text-[10px] uppercase tracking-widest text-base-content/40 font-medium block">Champion</span>
-                            <span class="font-display text-lg tracking-wide">{tournamentWinner}</span>
-                        </div>
-                        <svg class="w-5 h-5 text-yellow-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                        </svg>
-                    {:else}
-                        <svg class="w-5 h-5 text-base-content/20 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228M7.73 9.728a6.726 6.726 0 002.748 1.35m3.044 0a6.726 6.726 0 002.748-1.35m0 0a6.772 6.772 0 01-3.044-6.477 6.772 6.772 0 00-3.044 6.477" />
-                        </svg>
-                        <span class="text-xs text-base-content/40">Select winner from Final</span>
-                    {/if}
-                </div>
-            </section>
-        </div>
-    </div>
+	<hr class="border-primary/30 mb-5" />
 
-    <!-- Desktop View (≥1024px: horizontal left-to-right) -->
-    <div class="bracket-horizontal hidden lg:block overflow-x-auto pb-4">
-        <div class="flex min-w-max relative gap-8" style="--base-height: 120px;">
-            {#each rounds as round, roundIndex}
-                <div class="flex flex-col min-w-[170px]">
-                    <div class="text-center pb-3 mb-3 border-b border-base-300/30">
-                        <span class="block font-display text-base tracking-wide">{round.name}</span>
-                        <span class="text-xs text-base-content/40">{round.matches.length} matches</span>
-                    </div>
-                    
-                    <div class="flex flex-col">
-                         {#each round.matches as matchData, matchIndex (matchData.match.matchNumber)}
-                             {@const spacing = getMatchSpacing(roundIndex)}
-                             <div
-                                class="relative flex items-center justify-center"
-                                style="min-height: calc(var(--base-height) * {spacing});"
-                                use:trackContainer={[roundIndex, matchIndex]}
-                             >
-                                <BracketMatch
-                                    matchId={`${round.code}-${matchData.match.matchNumber}`}
-                                    matchNumber={matchData.match.matchNumber}
-                                    team1={matchData.homeTeam}
-                                    team2={matchData.awayTeam}
-                                    winner={matchData.winner}
-                                    roundCode={round.code}
-                                    {locked}
-                                    compact={roundIndex < 2}
-                                    showConnector={roundIndex < rounds.length - 1 && !!matchData.winner}
-                                    isTopOfPair={matchIndex % 2 === 0}
-                                    containerHeight={120 * spacing}
-                                    targetY={getTargetY(roundIndex, matchIndex)}
-                                    on:selectWinner={handleSelectWinner}
-                                />
-                             </div>
-                         {/each}
-                    </div>
-                </div>
-            {/each}
-            
-            <!-- Winner -->
-            <div class="flex flex-col justify-start min-w-[160px]">
-                 <div class="text-center pb-3 mb-3 border-b border-base-300/30">
-                     <span class="block font-display text-base tracking-wide">Champion</span>
-                 </div>
-                 <div class="flex-1 flex items-center justify-center">
-                     <div class="flex flex-col items-center gap-3 p-6 rounded-xl bg-base-200 border border-base-300/50"
-                          class:bg-gradient-to-br={tournamentWinner}
-                          class:from-yellow-500-10={tournamentWinner}
-                          class:to-amber-600-10={tournamentWinner}
-                          class:border-yellow-500-30={tournamentWinner}
-                     >
-                        {#if tournamentWinner}
-                            {#if hasFlag(tournamentWinner)}
-                                <img
-                                    src={getFlagUrl(tournamentWinner, 'lg')}
-                                    alt="{tournamentWinner} flag"
-                                    class="w-20 h-auto rounded-md shadow-lg border border-base-content/10"
-                                />
-                            {/if}
-                            <span class="font-display text-xl tracking-wide text-center">{tournamentWinner}</span>
-                            <svg class="w-6 h-6 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                            </svg>
-                        {:else}
-                             <div class="w-16 h-16 rounded-full bg-base-300/50 flex items-center justify-center">
-                                <svg class="w-8 h-8 text-base-content/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228M7.73 9.728a6.726 6.726 0 002.748 1.35m3.044 0a6.726 6.726 0 002.748-1.35m0 0a6.772 6.772 0 01-3.044-6.477 6.772 6.772 0 00-3.044 6.477" />
-                                </svg>
-                             </div>
-                             <span class="text-sm text-base-content/40">Select from Final</span>
-                        {/if}
-                     </div>
-                 </div>
-            </div>
-        </div>
-    </div>
+	<!-- 9-column wallchart -->
+	<div
+		class="grid gap-3 items-stretch"
+		style="grid-template-columns: 1.1fr 1.1fr 1.1fr 1.1fr 1.5fr 1.1fr 1.1fr 1.1fr 1.1fr;"
+	>
+		<!-- Column header labels -->
+		<div class="col-label">R32 · L</div>
+		<div class="col-label">R16 · L</div>
+		<div class="col-label">QF · L</div>
+		<div class="col-label">SF · L</div>
+		<div class="col-label col-label--final">FINAL</div>
+		<div class="col-label">SF · R</div>
+		<div class="col-label">QF · R</div>
+		<div class="col-label">R16 · R</div>
+		<div class="col-label">R32 · R</div>
+
+		<!-- Match columns: each col is justified around its vertical space so
+			 the matches converge towards the centre via implicit alignment. -->
+		<div class="match-col">
+			{#each r32L as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`round_of_32-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="round_of_32"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each r16L as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`round_of_16-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="round_of_16"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each qfL as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`quarter_finals-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="quarter_finals"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each sfL as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`semi_finals-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="semi_finals"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<!-- Centre: Final card + Champion strip -->
+		<div class="match-col justify-center">
+			{#if finalMatch}
+				<div class="bracket-chip-final">
+					<BracketMatch
+						matchId={`final-${finalMatch.match.matchNumber}`}
+						matchNumber={finalMatch.match.matchNumber}
+						team1={finalMatch.homeTeam}
+						team2={finalMatch.awayTeam}
+						winner={finalMatch.winner}
+						roundCode="final"
+						{locked}
+						isFinal={true}
+						on:selectWinner={handleSelectWinner}
+					/>
+				</div>
+				<div class="mt-3">
+					<ChampionStrip
+						champion={tournamentWinner}
+						{picked}
+						total={TOTAL_PICKS}
+					/>
+				</div>
+			{/if}
+		</div>
+
+		<div class="match-col">
+			{#each sfR as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`semi_finals-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="semi_finals"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each qfR as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`quarter_finals-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="quarter_finals"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each r16R as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`round_of_16-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="round_of_16"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+
+		<div class="match-col">
+			{#each r32R as m (m.match.matchNumber)}
+				<BracketMatch
+					matchId={`round_of_32-${m.match.matchNumber}`}
+					matchNumber={m.match.matchNumber}
+					team1={m.homeTeam}
+					team2={m.awayTeam}
+					winner={m.winner}
+					roundCode="round_of_32"
+					{locked}
+					on:selectWinner={handleSelectWinner}
+				/>
+			{/each}
+		</div>
+	</div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+	 MOBILE CAROUSEL (< lg)
+	 ═══════════════════════════════════════════════════════════════════════ -->
+<div
+	class="lg:hidden bg-secondary text-secondary-content rounded-2xl p-4 shadow-xl"
+>
+	<!-- Header: title + page dots + counter -->
+	<header class="flex items-center justify-between mb-3 gap-3">
+		<h2 class="font-display text-base tracking-wide leading-none">
+			YOUR <span class="text-primary">BRACKET</span>
+		</h2>
+		<div class="flex gap-1.5">
+			{#each Array(PAGE_COUNT) as _, i}
+				<button
+					type="button"
+					class="w-1.5 h-1.5 rounded-full transition-colors
+						{page === i ? 'bg-primary' : 'bg-base-100/30'}"
+					aria-label={`Go to page ${i + 1}`}
+					on:click={() => (page = i)}
+				></button>
+			{/each}
+		</div>
+		<span
+			class="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80"
+		>
+			{picked} / {TOTAL_PICKS}
+		</span>
+	</header>
+
+	<!-- Current page label -->
+	<div
+		class="rounded bg-base-100/10 px-3 py-1.5 mb-3 text-center
+			text-[11px] font-mono uppercase tracking-[0.2em]"
+	>
+		{PAGE_LABELS[page]}
+	</div>
+
+	<!-- Sliding track -->
+	<div
+		class="overflow-hidden"
+		role="region"
+		aria-roledescription="carousel"
+		aria-label="Bracket pages"
+		on:touchstart={onTouchStart}
+		on:touchend={onTouchEnd}
+	>
+		<div
+			class="flex transition-transform duration-300 ease-out"
+			style="transform: translateX(-{page * 100}%);"
+		>
+			<!-- Page 0: R32 (8L + 8R side by side) -->
+			<div class="min-w-full px-0.5">
+				<div class="grid grid-cols-2 gap-2">
+					<div class="space-y-1.5">
+						{#each r32L as m (m.match.matchNumber)}
+							<BracketMatch
+								matchId={`round_of_32-${m.match.matchNumber}`}
+								matchNumber={m.match.matchNumber}
+								team1={m.homeTeam}
+								team2={m.awayTeam}
+								winner={m.winner}
+								roundCode="round_of_32"
+								{locked}
+								on:selectWinner={handleSelectWinner}
+							/>
+						{/each}
+					</div>
+					<div class="space-y-1.5">
+						{#each r32R as m (m.match.matchNumber)}
+							<BracketMatch
+								matchId={`round_of_32-${m.match.matchNumber}`}
+								matchNumber={m.match.matchNumber}
+								team1={m.homeTeam}
+								team2={m.awayTeam}
+								winner={m.winner}
+								roundCode="round_of_32"
+								{locked}
+								on:selectWinner={handleSelectWinner}
+							/>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<!-- Page 1: R16 (4L + 4R) -->
+			<div class="min-w-full px-0.5">
+				<div class="grid grid-cols-2 gap-2">
+					<div class="space-y-2">
+						{#each r16L as m (m.match.matchNumber)}
+							<BracketMatch
+								matchId={`round_of_16-${m.match.matchNumber}`}
+								matchNumber={m.match.matchNumber}
+								team1={m.homeTeam}
+								team2={m.awayTeam}
+								winner={m.winner}
+								roundCode="round_of_16"
+								{locked}
+								on:selectWinner={handleSelectWinner}
+							/>
+						{/each}
+					</div>
+					<div class="space-y-2">
+						{#each r16R as m (m.match.matchNumber)}
+							<BracketMatch
+								matchId={`round_of_16-${m.match.matchNumber}`}
+								matchNumber={m.match.matchNumber}
+								team1={m.homeTeam}
+								team2={m.awayTeam}
+								winner={m.winner}
+								roundCode="round_of_16"
+								{locked}
+								on:selectWinner={handleSelectWinner}
+							/>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<!-- Page 2: QF on left, SF on right -->
+			<div class="min-w-full px-0.5">
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<div
+							class="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-1.5"
+						>
+							QF
+						</div>
+						<div class="space-y-2">
+							{#each qfMatches as m (m.match.matchNumber)}
+								<BracketMatch
+									matchId={`quarter_finals-${m.match.matchNumber}`}
+									matchNumber={m.match.matchNumber}
+									team1={m.homeTeam}
+									team2={m.awayTeam}
+									winner={m.winner}
+									roundCode="quarter_finals"
+									{locked}
+									on:selectWinner={handleSelectWinner}
+								/>
+							{/each}
+						</div>
+					</div>
+					<div>
+						<div
+							class="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-1.5"
+						>
+							SF
+						</div>
+						<div class="space-y-2">
+							{#each sfMatches as m (m.match.matchNumber)}
+								<BracketMatch
+									matchId={`semi_finals-${m.match.matchNumber}`}
+									matchNumber={m.match.matchNumber}
+									team1={m.homeTeam}
+									team2={m.awayTeam}
+									winner={m.winner}
+									roundCode="semi_finals"
+									{locked}
+									on:selectWinner={handleSelectWinner}
+								/>
+							{/each}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Page 3: Final + Champion -->
+			<div class="min-w-full px-0.5">
+				<div class="flex flex-col items-center gap-4 py-2">
+					{#if finalMatch}
+						<div class="w-full max-w-xs bracket-chip-final">
+							<BracketMatch
+								matchId={`final-${finalMatch.match.matchNumber}`}
+								matchNumber={finalMatch.match.matchNumber}
+								team1={finalMatch.homeTeam}
+								team2={finalMatch.awayTeam}
+								winner={finalMatch.winner}
+								roundCode="final"
+								{locked}
+								isFinal={true}
+								on:selectWinner={handleSelectWinner}
+							/>
+						</div>
+					{/if}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Persistent champion strip -->
+	<div class="mt-4">
+		<ChampionStrip
+			champion={tournamentWinner}
+			{picked}
+			total={TOTAL_PICKS}
+			compact={true}
+		/>
+	</div>
+
+	<!-- Footer nav -->
+	<footer
+		class="flex items-center justify-between mt-3 text-[11px] font-mono uppercase tracking-[0.15em]"
+	>
+		<button
+			type="button"
+			class="px-2 py-1 rounded hover:bg-base-100/10 disabled:opacity-30 disabled:cursor-not-allowed"
+			disabled={page === 0}
+			on:click={goPrev}
+		>
+			← Prev
+		</button>
+		<span class="opacity-60">Page {page + 1} / {PAGE_COUNT}</span>
+		<button
+			type="button"
+			class="px-2 py-1 rounded hover:bg-base-100/10 disabled:opacity-30 disabled:cursor-not-allowed"
+			disabled={page === PAGE_COUNT - 1}
+			on:click={goNext}
+		>
+			Next →
+		</button>
+	</footer>
+</div>
+
+<style>
+	.col-label {
+		font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+		font-size: 10px;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+		text-align: center;
+		opacity: 0.7;
+		padding: 0.35rem 0.5rem;
+		background: rgb(255 255 255 / 0.06);
+		border-radius: 4px;
+	}
+
+	.col-label--final {
+		color: hsl(var(--er, 0 70% 45%));
+		font-weight: 700;
+		opacity: 1;
+		background: rgb(255 255 255 / 0.1);
+	}
+
+	.match-col {
+		display: flex;
+		flex-direction: column;
+		justify-content: space-around;
+		gap: 6px;
+		min-height: 100%;
+	}
+
+	/* Subtle wallchart paper-stripes texture on the navy panel */
+	:global(.bg-secondary) {
+		position: relative;
+	}
+</style>
