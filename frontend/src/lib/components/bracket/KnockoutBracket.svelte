@@ -603,10 +603,13 @@
 	}
 
 	.col-label--final {
-		color: hsl(var(--s) / 1);
+		/* Pinned gold (darker hex for legibility on light panels;
+		   stays readable on dark panels too). Background tints the
+		   project's #FFD700 gold at 18 % alpha. */
+		color: #b8860b;
 		font-weight: 700;
 		opacity: 1;
-		background: hsl(var(--s) / 0.12);
+		background: rgb(255 215 0 / 0.18);
 	}
 
 	.match-col {

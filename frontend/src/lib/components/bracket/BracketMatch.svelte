@@ -7,16 +7,17 @@
 
 	The card uses neutral DaisyUI base tokens so the wallchart reads as
 	a clean light-canvas chart in any theme:
-	  bg-base-200 / text-base-content     → chip surface + text (subtle
-	                                         gray on near-white panel,
-	                                         charcoal text)
-	  bg-secondary / text-secondary-content → FINAL accent strip (the
-	                                         theme's vibrant focal hue)
-	  border-secondary                    → FINAL chip outline
-
-	Vibrant theme colours (primary, secondary, success) are reserved for
-	accent roles only — title, FINAL pill, champion frame — so the
-	wallchart itself stays calm and the highlights stand out.
+	  bg-base-200 / text-base-content    → chip surface + text (subtle
+	                                        gray on near-white panel,
+	                                        charcoal text)
+	  bg-gold / border-gold              → FINAL accent strip + outline,
+	                                        pinned to the project's gold
+	                                        token (#FFD700) so the final
+	                                        always reads as "trophy gold"
+	                                        regardless of active theme
+	  is-winner background hsl(--su/.22) → green wash on the picked team
+	                                        row, theme-aware via DaisyUI's
+	                                        success token
 
 	No SVG connectors — the bracket shape is implicit in the parent
 	grid's column alignment.
@@ -60,13 +61,13 @@
 <div
 	class="bracket-chip relative overflow-hidden rounded-md border
 		{isFinal
-			? 'border-secondary/70 bg-base-200 text-base-content shadow-lg'
+			? 'border-gold/80 bg-base-200 text-base-content shadow-lg'
 			: 'border-base-content/15 bg-base-200 text-base-content shadow-sm'}
 		{locked ? 'opacity-80' : ''}"
 >
 	{#if isFinal}
 		<div
-			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-secondary text-secondary-content py-0.5"
+			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-gold text-base-content py-0.5"
 			aria-hidden="true"
 		>
 			Final
@@ -139,8 +140,15 @@
 		opacity: 0.45;
 	}
 
+	/* Winner row: theme-aware green wash via the success token, deepened
+	   on hover so the wash isn't replaced by the generic hover overlay. */
 	.team-row.is-winner {
 		font-weight: 700;
+		background: hsl(var(--su) / 0.22);
+	}
+
+	.team-row.is-winner:hover:not(:disabled) {
+		background: hsl(var(--su) / 0.32);
 	}
 
 	.team-row.no-pick {
