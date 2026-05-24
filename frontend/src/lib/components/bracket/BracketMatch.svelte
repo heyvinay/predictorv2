@@ -5,16 +5,18 @@
 	team gets a leading "•" bullet and bolder weight; the unpicked
 	row dims slightly. A locked card disables clicks.
 
-	The card uses DaisyUI theme tokens so it harmonises with whatever
-	theme is active:
-	  bg-primary / text-primary-content  → chip surface + text
-	  bg-error                            → FINAL accent strip (top edge)
-	  border-error                        → FINAL chip outline
+	The card uses neutral DaisyUI base tokens so the wallchart reads as
+	a clean light-canvas chart in any theme:
+	  bg-base-200 / text-base-content     → chip surface + text (subtle
+	                                         gray on near-white panel,
+	                                         charcoal text)
+	  bg-secondary / text-secondary-content → FINAL accent strip (the
+	                                         theme's vibrant focal hue)
+	  border-secondary                    → FINAL chip outline
 
-	On premium-day/premium-night that resolves to Champagne Gold chips
-	with Midnight Navy text and a Wine Red FINAL pill — the reference
-	look. On other themes the chip swaps to whatever the theme defines
-	as primary, so the wallchart follows the rest of the chrome.
+	Vibrant theme colours (primary, secondary, success) are reserved for
+	accent roles only — title, FINAL pill, champion frame — so the
+	wallchart itself stays calm and the highlights stand out.
 
 	No SVG connectors — the bracket shape is implicit in the parent
 	grid's column alignment.
@@ -58,13 +60,13 @@
 <div
 	class="bracket-chip relative overflow-hidden rounded-md border
 		{isFinal
-			? 'border-error/70 bg-primary text-primary-content shadow-lg'
-			: 'border-primary-content/15 bg-primary text-primary-content shadow-sm'}
+			? 'border-secondary/70 bg-base-200 text-base-content shadow-lg'
+			: 'border-base-content/15 bg-base-200 text-base-content shadow-sm'}
 		{locked ? 'opacity-80' : ''}"
 >
 	{#if isFinal}
 		<div
-			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-error text-error-content py-0.5"
+			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-secondary text-secondary-content py-0.5"
 			aria-hidden="true"
 		>
 			Final
@@ -90,7 +92,7 @@
 	</button>
 
 	<!-- Divider hairline -->
-	<div class="border-t border-primary-content/15" aria-hidden="true"></div>
+	<div class="border-t border-base-content/15" aria-hidden="true"></div>
 
 	<!-- Team 2 row -->
 	<button
@@ -126,7 +128,7 @@
 	}
 
 	.team-row:hover:not(:disabled) {
-		background: rgb(0 0 0 / 0.08);
+		background: hsl(var(--bc) / 0.08);
 	}
 
 	.team-row:disabled {
@@ -158,13 +160,13 @@
 		height: 9px;
 		flex-shrink: 0;
 		border-radius: 1px;
-		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1);
+		box-shadow: 0 0 0 1px hsl(var(--bc) / 0.15);
 		object-fit: cover;
 	}
 
 	.flag-placeholder {
 		display: inline-block;
-		background: rgb(0 0 0 / 0.12);
+		background: hsl(var(--bc) / 0.12);
 	}
 
 	.code {

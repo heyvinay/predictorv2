@@ -6,9 +6,10 @@
 	  2. Mobile: persistent footer above the prev/next nav
 	     (set showPicks={true})
 
-	Uses DaisyUI theme tokens (bg-primary gold sticker, border-error
-	red frame, text-primary-content for body text) so the strip swaps
-	colours with the active theme.
+	Uses neutral DaisyUI tokens for the pill (bg-base-200 surface,
+	text-base-content body) with a celebratory border-success green
+	frame to make the champion stand out — the only "celebratory"
+	colour in the whole wallchart.
 -->
 <script lang="ts">
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
@@ -24,8 +25,8 @@
 </script>
 
 <div
-	class="flex items-center gap-3 rounded-lg border-2 border-error
-		bg-primary text-primary-content
+	class="flex items-center gap-3 rounded-lg border-2 border-success
+		bg-base-200 text-base-content
 		{compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}"
 >
 	<span

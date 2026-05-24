@@ -147,15 +147,13 @@
 
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 DESKTOP WALLCHART (≥ lg)
-	 Panel uses DaisyUI theme tokens — bg-secondary as the panel surface,
-	 text-secondary-content for body, primary as the gold/accent role,
-	 error as the red FINAL accent. On premium-day/premium-night this
-	 resolves to the reference wallchart (Midnight Navy panel, Champagne
-	 Gold chips, Wine Red FINAL). Other themes follow accordingly.
+	 Neutral DaisyUI token palette — bg-base-100 canvas, bg-base-200 chips,
+	 text-base-content body, with primary as the title accent, secondary
+	 as the FINAL vibrant focal hue, and success as the champion frame.
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="wallchart-panel hidden lg:block bg-secondary text-secondary-content
-		rounded-2xl p-6 shadow-2xl border border-primary/25"
+	class="wallchart-panel hidden lg:block bg-base-100 text-base-content
+		rounded-2xl p-6 shadow-2xl border border-base-content/15"
 >
 	<!-- Header strip: title + status meta -->
 	<header class="flex items-start justify-between mb-3 gap-6">
@@ -184,7 +182,7 @@
 		</dl>
 	</header>
 
-	<hr class="border-primary/30 mb-5" />
+	<hr class="border-base-content/15 mb-5" />
 
 	<!-- 9-column wallchart -->
 	<div
@@ -357,8 +355,8 @@
 	 MOBILE CAROUSEL (< lg)
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="wallchart-panel lg:hidden bg-secondary text-secondary-content
-		rounded-2xl p-4 shadow-2xl border border-primary/25"
+	class="wallchart-panel lg:hidden bg-base-100 text-base-content
+		rounded-2xl p-4 shadow-2xl border border-base-content/15"
 >
 	<!-- Header: title + page dots + counter -->
 	<header class="flex items-center justify-between mb-3 gap-3">
@@ -370,7 +368,7 @@
 				<button
 					type="button"
 					class="w-1.5 h-1.5 rounded-full transition-colors
-						{page === i ? 'bg-primary' : 'bg-secondary-content/30'}"
+						{page === i ? 'bg-primary' : 'bg-base-content/30'}"
 					aria-label={`Go to page ${i + 1}`}
 					on:click={() => (page = i)}
 				></button>
@@ -383,7 +381,7 @@
 
 	<!-- Current page label -->
 	<div
-		class="rounded bg-secondary-content/10 px-3 py-1.5 mb-3 text-center
+		class="rounded bg-base-content/10 px-3 py-1.5 mb-3 text-center
 			text-[11px] font-mono uppercase tracking-[0.2em]"
 	>
 		{PAGE_LABELS[page]}
@@ -557,7 +555,7 @@
 	>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-secondary-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+			class="px-2 py-1 rounded hover:bg-base-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === 0}
 			on:click={goPrev}
 		>
@@ -566,7 +564,7 @@
 		<span class="opacity-60">Page {page + 1} / {PAGE_COUNT}</span>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-secondary-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+			class="px-2 py-1 rounded hover:bg-base-content/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === PAGE_COUNT - 1}
 			on:click={goNext}
 		>
@@ -576,18 +574,17 @@
 </div>
 
 <style>
-	/* Wallchart panel — the surface colour comes from bg-secondary on
-	   the parent element (theme-driven). Here we only paint a faint
-	   diagonal pinstripe on top so the panel reads as a piece of
-	   "wallchart paper" rather than a flat slab. The stripe is barely
-	   visible (alpha 0.04), enough to give texture without competing
-	   with the chips, and stays neutral so it works on light themes
-	   too where the secondary surface is darker. */
+	/* Wallchart panel — surface colour comes from bg-base-100 on the
+	   parent element. Here we paint a faint diagonal pinstripe on top
+	   so the panel reads as a piece of "wallchart paper" rather than a
+	   flat slab. The stripe uses base-content at 4% alpha so it stays
+	   visible on light themes (dark stripes on white) AND dark themes
+	   (light stripes on dark base) without re-tinting. */
 	.wallchart-panel {
 		background-image: repeating-linear-gradient(
 			45deg,
-			rgba(255, 255, 255, 0.04) 0,
-			rgba(255, 255, 255, 0.04) 1px,
+			hsl(var(--bc) / 0.04) 0,
+			hsl(var(--bc) / 0.04) 1px,
 			transparent 1px,
 			transparent 6px
 		);
@@ -601,15 +598,15 @@
 		text-align: center;
 		opacity: 0.7;
 		padding: 0.35rem 0.5rem;
-		background: rgb(255 255 255 / 0.06);
+		background: hsl(var(--bc) / 0.06);
 		border-radius: 4px;
 	}
 
 	.col-label--final {
-		color: hsl(var(--er) / 1);
+		color: hsl(var(--s) / 1);
 		font-weight: 700;
 		opacity: 1;
-		background: rgb(255 255 255 / 0.1);
+		background: hsl(var(--s) / 0.12);
 	}
 
 	.match-col {
