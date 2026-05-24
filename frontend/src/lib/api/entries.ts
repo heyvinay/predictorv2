@@ -67,7 +67,7 @@ export async function reinstateEntry(entryId: string): Promise<Entry> {
 
 /** Per-entry completion counts for all entries in the active competition. */
 export async function getCompletionSummary(): Promise<CompletionSummary[]> {
-	return api.get<CompletionSummary[]>('/entries/completion-summary');
+	return api.get<CompletionSummary[]>('/entries/completion');
 }
 
 // ---- Admin-only endpoints (called from the admin entries table) ----

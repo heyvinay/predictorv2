@@ -160,7 +160,7 @@ async def get_user_entry_settings(
     return EntrySettingsRead.model_validate(competition)
 
 
-@user_router.get("/completion-summary", response_model=list[EntryCompletionSummary])
+@user_router.get("/completion", response_model=list[EntryCompletionSummary])
 async def get_completion_summary(
     session: DbSession, current_user: CurrentUser
 ) -> list[EntryCompletionSummary]:
