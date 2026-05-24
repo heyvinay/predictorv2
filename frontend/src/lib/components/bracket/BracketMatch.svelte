@@ -1,9 +1,14 @@
 <!--
-	BracketMatch — gold sticker chip showing two teams stacked.
+	BracketMatch — chip showing two teams stacked.
 
 	Visual: a single card containing two clickable rows. The picked
-	team gets a leading "•" bullet and bolder weight; the unpicked
-	row dims slightly. A locked card disables clicks.
+	team gets a leading "•" bullet, bolder weight and a green wash;
+	the unpicked row dims slightly. A locked card disables clicks.
+
+	Each row shows the full country name (e.g. "GERMANY") by default,
+	falling back to the 3-letter FIFA code ("GER") if the full name
+	would overflow the chip's width. A ResizeObserver re-evaluates the
+	fallback per chip whenever its container width changes.
 
 	The card uses neutral DaisyUI base tokens so the wallchart reads as
 	a clean light-canvas chart in any theme:
@@ -25,8 +30,9 @@
 	grid's column alignment.
 -->
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount, onDestroy, tick } from 'svelte';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let matchId: string;
@@ -58,9 +64,64 @@
 	$: team1Selected = winner !== null && winner === team1;
 	$: team2Selected = winner !== null && winner === team2;
 	$: hasPick = winner !== null;
+
+	// ── Full-name-or-code rendering ───────────────────────────────────────
+	// Render the full country name (e.g. "Germany") by default. After
+	// layout, measure each .code span — if scrollWidth exceeds clientWidth
+	// the name would overflow / clip, so fall back to the 3-letter code
+	// ("GER"). A ResizeObserver watches the chip so the decision re-runs
+	// when the parent column resizes.
+	let chipEl: HTMLDivElement | undefined;
+	let team1CodeEl: HTMLSpanElement | undefined;
+	let team2CodeEl: HTMLSpanElement | undefined;
+	let team1UseCode = false;
+	let team2UseCode = false;
+	let resizeObserver: ResizeObserver | null = null;
+
+	async function reEvaluate(): Promise<void> {
+		// Reset to the full name first so we always measure the longest
+		// desired text against the available width — never the shorter
+		// fallback (which would loop us back to "fits, use full name").
+		team1UseCode = false;
+		team2UseCode = false;
+		await tick();
+		if (team1CodeEl && team1CodeEl.scrollWidth > team1CodeEl.clientWidth + 1) {
+			team1UseCode = true;
+		}
+		if (team2CodeEl && team2CodeEl.scrollWidth > team2CodeEl.clientWidth + 1) {
+			team2UseCode = true;
+		}
+	}
+
+	onMount(() => {
+		if (typeof ResizeObserver !== 'undefined' && chipEl) {
+			resizeObserver = new ResizeObserver(() => {
+				void reEvaluate();
+			});
+			resizeObserver.observe(chipEl);
+		}
+		void reEvaluate();
+	});
+
+	onDestroy(() => {
+		resizeObserver?.disconnect();
+	});
+
+	// Re-evaluate when either team prop changes (different names = different
+	// lengths). The reactive statement references team1/team2 only so it
+	// does NOT loop when reEvaluate flips the *useCode flags.
+	$: team1, team2, void reEvaluate();
+
+	/** Display text for a team slot — full name if it fits, else 3-letter code. */
+	function nameOrCode(team: string | null, useCode: boolean): string {
+		if (!team) return 'TBD';
+		if (useCode) return teamCode(team);
+		return displayTeamName(team).toUpperCase();
+	}
 </script>
 
 <div
+	bind:this={chipEl}
 	class="bracket-chip relative overflow-hidden rounded-md border
 		{isFinal
 			? 'border-gold/80 bg-base-200 text-base-content shadow-lg'
@@ -82,6 +143,7 @@
 		class="team-row {team1Selected ? 'is-winner' : hasPick ? 'is-loser' : ''}"
 		class:no-pick={!team1}
 		disabled={locked || !team1}
+		title={team1 ?? ''}
 		on:click={() => selectTeam(team1)}
 		aria-label={team1 ? `Pick ${team1}` : 'Team 1 to be decided'}
 	>
@@ -91,7 +153,7 @@
 		{:else}
 			<span class="flag flag-placeholder" aria-hidden="true"></span>
 		{/if}
-		<span class="code">{team1 ? teamCode(team1) : 'TBD'}</span>
+		<span class="code" bind:this={team1CodeEl}>{nameOrCode(team1, team1UseCode)}</span>
 	</button>
 
 	<!-- Divider hairline -->
@@ -103,6 +165,7 @@
 		class="team-row {team2Selected ? 'is-winner' : hasPick ? 'is-loser' : ''}"
 		class:no-pick={!team2}
 		disabled={locked || !team2}
+		title={team2 ?? ''}
 		on:click={() => selectTeam(team2)}
 		aria-label={team2 ? `Pick ${team2}` : 'Team 2 to be decided'}
 	>
@@ -112,7 +175,7 @@
 		{:else}
 			<span class="flag flag-placeholder" aria-hidden="true"></span>
 		{/if}
-		<span class="code">{team2 ? teamCode(team2) : 'TBD'}</span>
+		<span class="code" bind:this={team2CodeEl}>{nameOrCode(team2, team2UseCode)}</span>
 	</button>
 </div>
 
