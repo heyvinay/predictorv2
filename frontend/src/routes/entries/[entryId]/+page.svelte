@@ -73,6 +73,7 @@
 	import StatusBanner from '$components/predictions/StatusBanner.svelte';
 	import BottomActionBar from '$components/predictions/BottomActionBar.svelte';
 	import SmartFillModal from '$components/predictions/SmartFillModal.svelte';
+	import PrintPreviewModal from '$components/predictions/PrintPreviewModal.svelte';
 	import StandingsPanel from '$components/predictions/StandingsPanel.svelte';
 	import { standingsPanelOpen } from '$stores/uiPreferences';
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
@@ -138,6 +139,9 @@
 			await Promise.all(tasks);
 		}
 		window.addEventListener('beforeunload', handleBeforeUnload);
+		if ($page.url.searchParams.get('print') === '1') {
+			printPreviewOpen = true;
+		}
 	});
 
 	// Sync the active entry with the URL param. The entries store is
@@ -323,6 +327,7 @@
 
 	// Smart Fill modal state.
 	let smartFillModalOpen = false;
+	let printPreviewOpen = false;
 	$: smartFillBlanksOnly = $groupFixtures
 		.flatMap((g) => g.fixtures)
 		.filter((f) => !f.is_locked && fixturePrediction(f.id) === null);
@@ -1030,7 +1035,7 @@
 	     BottomActionBar (which is ~120–140px tall on mobile when the
 	     Save Draft / Submit buttons are showing). Without this the user
 	     can scroll to Third Place but its tap zone sits behind the bar. -->
-	<div class="container mx-auto mobile-padding pt-6 pb-40 xl:pr-[26rem]">
+	<div class="container mx-auto mobile-padding pt-6 pb-40 {activeSection === 'groups' ? 'xl:pr-[26rem]' : ''}">
 		{#if restorationBanner}
 			<div class="alert bg-info/10 border border-info/30 text-sm mb-4" transition:fade={{ duration: 400 }}>
 				<span>✦</span>
@@ -1084,18 +1089,25 @@
 				/>
 			</div>
 
-			<!-- Smart Fill row. Full-width on mobile (touch-friendly), auto-
-			     width on sm: and up (less dominant). Responsive label: the
-			     "from FIFA Rankings" suffix only shows at sm: and up. -->
-			{#if uiStatus === 'draft'}
+			<!-- Smart Fill + Print row. Smart Fill only on drafts. Print always visible. -->
+			<div class="mt-3 flex items-center gap-2 flex-wrap">
+				{#if uiStatus === 'draft'}
+					<button
+						type="button"
+						class="w-full sm:w-auto px-3 rounded-lg border border-dashed border-base-content/30 bg-base-200/30 hover:bg-base-200/60 text-sm font-medium text-base-content/80 min-h-10 transition-colors whitespace-nowrap"
+						on:click={() => (smartFillModalOpen = true)}
+					>
+						⚡ Smart Fill<span class="hidden sm:inline"> from FIFA Rankings</span>
+					</button>
+				{/if}
 				<button
 					type="button"
-					class="mt-3 w-full sm:w-auto px-3 rounded-lg border border-dashed border-base-content/30 bg-base-200/30 hover:bg-base-200/60 text-sm font-medium text-base-content/80 min-h-10 transition-colors whitespace-nowrap"
-					on:click={() => (smartFillModalOpen = true)}
+					class="btn btn-ghost btn-sm gap-1"
+					on:click={() => (printPreviewOpen = true)}
 				>
-					⚡ Smart Fill<span class="hidden sm:inline"> from FIFA Rankings</span>
+					🖨 Print
 				</button>
-			{/if}
+			</div>
 
 			<!-- Entry name + READY/LOCKED badge + NO PRIZE chip removed from
 			     the hero — entry name lives in the topbar breadcrumb (desktop)
@@ -1250,6 +1262,14 @@
 						<div class="font-display text-3xl tracking-wide">{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span></div>
 						<div class="text-xs text-base-content/50 mb-3">matches predicted · {phaseProgress.pct}%</div>
 						<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden mb-4"><div class="h-full bg-primary" style="width: {phaseProgress.pct}%;"></div></div>
+						<div class="flex flex-wrap justify-center gap-2 mb-4">
+							{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g}
+								{@const gDone = groupProgress(g).done === groupProgress(g).total && groupProgress(g).total > 0}
+								<span class="badge badge-sm font-mono {gDone ? 'badge-success' : 'badge-ghost opacity-50'}">
+									{gDone ? '✓ ' : ''}{g.group}
+								</span>
+							{/each}
+						</div>
 						<button class="btn btn-primary btn-sm" type="button" on:click={() => (activeSection = 'groups')}>← Back to Groups</button>
 					</div>
 				{:else}
@@ -1267,11 +1287,18 @@
 			{:else if activeSection === 'bonus'}
 				{#each Object.entries(bonusByCategory) as [cat, qs] (cat)}
 					{#if qs.length > 0}
-						<h2 class="text-lg font-display tracking-wide mt-5 mb-3">{CATEGORY_LABEL[cat]} <span class="text-sm text-base-content/40">· {qs.length} question{qs.length === 1 ? '' : 's'}</span></h2>
+						{@const catDone = qs.filter((q) => bonusAnswer(q.id)).length}
+						<div class="flex items-center gap-2 mt-5 mb-3">
+							<h2 class="text-lg font-display tracking-wide">{CATEGORY_LABEL[cat]} <span class="text-sm text-base-content/40">· {qs.length} question{qs.length === 1 ? '' : 's'}</span></h2>
+							<span class="badge badge-sm {catDone === qs.length ? 'badge-success' : 'badge-ghost'}">{catDone}/{qs.length}</span>
+						</div>
 						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{#each qs as bq (bq.id)}
 								{@const answer = bonusAnswer(bq.id)}
-								<div class="stadium-card no-glow p-4">
+								<div class="stadium-card no-glow p-4 relative">
+									{#if answer}
+										<span class="badge badge-xs badge-success absolute top-2 right-2">✓</span>
+									{/if}
 									<div class="text-sm font-medium mb-2">{bq.label}</div>
 									{#if bq.input_type === 'team'}
 										<select class="select select-bordered select-sm w-full" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
@@ -1443,13 +1470,26 @@
 			on:apply={(e) => runSmartFill(e.detail)}
 			on:cancel={() => (smartFillModalOpen = false)}
 		/>
+
+		<!-- Print Preview modal — always available so user can review before or after submit -->
+		<PrintPreviewModal
+			open={printPreviewOpen}
+			entryName={$activeEntry?.display_name ?? ''}
+			entryRef={$activeEntry?.reference ?? ''}
+			playerName={$user?.name ?? ''}
+			groupFixtures={$groupFixtures.filter((g) => g.group !== 'thirdplace')}
+			{scoreValueMap}
+			displayBracket={displayBracket}
+			{bonusQuestions}
+			{bonusAnswers}
+			onClose={() => (printPreviewOpen = false)}
+		/>
 	</div>
 
-	<!-- Live-standings panel — split layout at ≥1280px. Docks to the
-	     right edge between the topbar (top-12) and bottom of the
-	     viewport; the BottomActionBar overlays its lower edge by design,
-	     and the panel itself scrolls so nothing is hidden behind. -->
-	{#if $standingsPanelOpen}
+	<!-- Desktop docked panel — always visible at xl+ when in Groups section.
+	     Decoupled from the mobile-drawer store so SSR's false default
+	     does not hide it on first render. -->
+	{#if activeSection === 'groups'}
 		<aside class="hidden xl:flex flex-col fixed top-12 right-0 bottom-0 w-[26rem] z-20">
 			<StandingsPanel
 				activeGroup={activeGroupPill || 'A'}
@@ -1462,12 +1502,11 @@
 				{allGroupsComplete}
 			/>
 		</aside>
+	{/if}
 
-		<!-- Mobile/tablet drawer overlay (<1280px). Reuses the same panel
-		     in `mode="drawer"`. Backdrop click + Done button + ESC close
-		     it. activeGroupPill is shared state, so the panel content
-		     stays in sync as the user opens different accordions while
-		     the drawer is open. -->
+	<!-- Mobile/tablet drawer overlay (<1280px). User-triggered via chip taps.
+	     Also gated on groups section — pointless in knockout/bonus. -->
+	{#if $standingsPanelOpen && activeSection === 'groups'}
 		<div
 			class="xl:hidden fixed inset-0 z-40"
 			role="dialog"

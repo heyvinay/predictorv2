@@ -14,20 +14,10 @@ import { browser } from '$app/environment';
 
 const STANDINGS_KEY = 'predictor.ui.standings_panel_open';
 
-function readStandingsInitial(): boolean {
-	if (!browser) return false;
-	const stored = localStorage.getItem(STANDINGS_KEY);
-	if (stored === null) {
-		// First-load default: open on wide screens, closed on narrow.
-		// 1280px = Tailwind `xl` and the threshold where split layout is
-		// comfortable; below that we fall back to drawer-on-demand.
-		return window.matchMedia('(min-width: 1280px)').matches;
-	}
-	return stored === 'true';
-}
-
-/** Whether the live-standings side panel is open on the wizard page. */
-export const standingsPanelOpen = writable<boolean>(readStandingsInitial());
+/** Whether the mobile standings drawer is open on the wizard page.
+ *  The desktop docked panel is always visible at xl+ and does NOT use
+ *  this store — it's decoupled so SSR's false default doesn't hide it. */
+export const standingsPanelOpen = writable<boolean>(false);
 
 if (browser) {
 	standingsPanelOpen.subscribe((v) => {

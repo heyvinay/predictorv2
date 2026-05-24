@@ -24,6 +24,7 @@ from app.models.entry import EntryStatus
 from app.models.prediction import PredictionPhase
 from app.schemas.entry import (
     AdminEntriesPage,
+    EntryCompletionSummary,
     EntryCreate,
     EntryDisable,
     EntryEventRead,
@@ -159,6 +160,23 @@ async def get_user_entry_settings(
     return EntrySettingsRead.model_validate(competition)
 
 
+@user_router.get("/completion-summary", response_model=list[EntryCompletionSummary])
+async def get_completion_summary(
+    session: DbSession, current_user: CurrentUser
+) -> list[EntryCompletionSummary]:
+    """Per-entry completion counts for the current user's entries.
+
+    Returns one object per entry with group / bracket / bonus done+total
+    counts. Used by the /entries list page to render progress indicators
+    without fetching every prediction row.
+    """
+    competition = await _get_competition(session)
+    rows = await entries_service.get_completion_summary(
+        session, user=current_user, competition=competition
+    )
+    return [EntryCompletionSummary.model_validate(r) for r in rows]
+
+
 @user_router.get("/{entry_id}", response_model=EntryRead)
 async def get_entry(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser
@@ -285,6 +303,66 @@ async def edit_entry(
             session, entry_id=entry_id, requesting_user=current_user
         )
         await entries_service.edit_entry(
+            session,
+            entry=entry,
+            user=current_user,
+            competition=competition,
+            ctx=ctx,
+        )
+        await session.commit()
+        entry = await entries_service.get_entry(
+            session, entry_id=entry_id, requesting_user=current_user
+        )
+    except Exception as exc:
+        await session.rollback()
+        _raise_for(exc)
+    return EntryRead.model_validate(entry)
+
+
+@user_router.post("/{entry_id}/withdraw", response_model=EntryRead)
+async def withdraw_entry(
+    entry_id: uuid.UUID,
+    session: DbSession,
+    current_user: CurrentUser,
+    ctx: AuditCtx,
+) -> EntryRead:
+    """DRAFT → WITHDRAWN. User-initiated, before competition start."""
+    competition = await _get_competition(session)
+    try:
+        entry = await entries_service.get_entry(
+            session, entry_id=entry_id, requesting_user=current_user
+        )
+        entry = await entries_service.withdraw_entry(
+            session,
+            entry=entry,
+            user=current_user,
+            competition=competition,
+            ctx=ctx,
+        )
+        await session.commit()
+        entry = await entries_service.get_entry(
+            session, entry_id=entry_id, requesting_user=current_user
+        )
+    except Exception as exc:
+        await session.rollback()
+        _raise_for(exc)
+    return EntryRead.model_validate(entry)
+
+
+@user_router.post("/{entry_id}/reinstate", response_model=EntryRead)
+async def reinstate_entry(
+    entry_id: uuid.UUID,
+    session: DbSession,
+    current_user: CurrentUser,
+    ctx: AuditCtx,
+) -> EntryRead:
+    """WITHDRAWN → DRAFT. User-initiated, before competition start."""
+    competition = await _get_competition(session)
+    try:
+        entry = await entries_service.get_entry(
+            session, entry_id=entry_id, requesting_user=current_user
+        )
+        entry = await entries_service.reinstate_entry(
             session,
             entry=entry,
             user=current_user,

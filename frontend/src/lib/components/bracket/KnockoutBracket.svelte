@@ -118,67 +118,7 @@
 		return Math.pow(2, roundIndex);
 	}
     
-    // Mobile swipe state
-    let currentPage = 0;
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let dragOffset = 0;
-    let isDragging = false;
-    $: totalPages = Math.max(1, rounds.length - 1);
-
-    $: mobilePageLabels = Array.from({ length: totalPages }, (_, i) => [
-        rounds[i]?.name ?? '',
-        rounds[i + 1]?.name ?? ''
-    ]);
-
-    function handleTouchStart(e: TouchEvent) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        isDragging = false;
-        dragOffset = 0;
-    }
-
-    function handleTouchMove(e: TouchEvent) {
-        const deltaX = e.touches[0].clientX - touchStartX;
-        const deltaY = e.touches[0].clientY - touchStartY;
-
-        if (!isDragging && Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > 10) {
-            isDragging = true;
-        }
-
-        if (isDragging) {
-            e.preventDefault();
-            dragOffset = deltaX;
-        }
-    }
-
-    function handleTouchEnd() {
-        if (isDragging) {
-            if (dragOffset > 50 && currentPage > 0) {
-                currentPage--;
-            } else if (dragOffset < -50 && currentPage < totalPages - 1) {
-                currentPage++;
-            }
-        }
-        isDragging = false;
-        dragOffset = 0;
-    }
-
-    function goToPage(page: number) {
-        currentPage = page;
-        isDragging = false;
-        dragOffset = 0;
-    }
-
-    function getMobileTargetY(roundIndex: number, matchIndex: number): number {
-        const baseHeight = 100;
-        const currentContainerH = baseHeight * Math.pow(2, roundIndex);
-        const nextContainerH = baseHeight * Math.pow(2, roundIndex + 1);
-        const targetMatchIndex = Math.floor(matchIndex / 2);
-        return (targetMatchIndex + 0.5) * nextContainerH - matchIndex * currentContainerH;
-    }
-
-    // Track match container refs for connector targeting
+    // Track match container refs for connector targeting (desktop horizontal layout only)
     let matchContainerRefs: Record<string, HTMLElement> = {};
     let targetYValues: Record<string, number> = {};
 
@@ -240,120 +180,107 @@
 </script>
 
 <div class="knockout-bracket w-full">
-    <!-- Mobile Bracket View (swipeable) -->
-    <div class="sm:hidden">
-        <!-- Page indicator: round labels + dot navigation -->
-        <div class="flex items-center justify-between px-4 mb-3">
-            <div class="flex items-center gap-1.5">
-                <span class="font-display text-sm tracking-wide text-base-content/70">{mobilePageLabels[currentPage][0]}</span>
-                <svg class="w-3 h-3 text-base-content/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-                <span class="font-display text-sm tracking-wide text-base-content/70">{mobilePageLabels[currentPage][1]}</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-                {#each Array(totalPages) as _, page}
-                    <button
-                        class="h-2 rounded-full transition-all duration-200 {page === currentPage ? 'w-5 bg-primary' : 'w-2 bg-base-content/20'}"
-                        on:click={() => goToPage(page)}
-                        aria-label="Go to bracket page {page + 1}"
-                    />
-                {/each}
-            </div>
-        </div>
+    <!-- Mobile/tablet vertical layout (< lg / 1024px) -->
+    <div class="lg:hidden">
+        <!-- Vertical stacked rounds — no swipe/carousel, no connectors -->
+        <div class="space-y-4">
+            {#each rounds as round}
+                {@const isScroll = round.matches.length >= 8}
+                {@const isCompact = round.matches.length >= 16}
+                <section>
+                    <div class="text-center pb-1.5 mb-1.5 border-b border-base-300/30">
+                        <span class="block font-display text-sm tracking-wide">{round.name}</span>
+                        <span class="text-[10px] text-base-content/40">{round.matches.length} {round.matches.length === 1 ? 'match' : 'matches'}</span>
+                    </div>
 
-        <!-- Vertically scrollable bracket viewport -->
-        <div class="overflow-y-auto rounded-lg" style="max-height: calc(100dvh - 200px);">
-            <div style="overflow-x: hidden;">
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
-                <div
-                    class="flex"
-                    style="
-                        gap: 32px;
-                        padding: 0 4px;
-                        touch-action: pan-y pinch-zoom;
-                        transform: translateX(calc({-currentPage} * (50vw + 12px) + {dragOffset}px));
-                        transition: {isDragging ? 'none' : 'transform 300ms ease-out'};
-                    "
-                    on:touchstart={handleTouchStart}
-                    on:touchmove|nonpassive={handleTouchMove}
-                    on:touchend={handleTouchEnd}
-                >
-                    {#each rounds as round, roundIndex}
-                        <div class="flex-shrink-0" style="width: calc(50vw - 20px);">
-                            <!-- Round header -->
-                            <div class="text-center pb-2 mb-2 border-b border-base-300/30">
-                                <span class="block font-display text-xs tracking-wide">{round.name}</span>
-                                <span class="text-[10px] text-base-content/40">{round.matches.length} {round.matches.length === 1 ? 'match' : 'matches'}</span>
-                            </div>
-
-                            <!-- Match containers (exponential spacing for bracket alignment) -->
-                            <div class="flex flex-col">
-                                {#each round.matches as matchData, matchIndex (matchData.match.matchNumber)}
-                                    {@const spacing = getMatchSpacing(roundIndex)}
-                                    {@const mobileContainerHeight = 100 * spacing}
-                                    <div
-                                        class="relative flex items-center justify-center"
-                                        style="min-height: {mobileContainerHeight}px;"
-                                    >
-                                        <BracketMatch
-                                            matchId={`${round.code}-${matchData.match.matchNumber}`}
-                                            matchNumber={matchData.match.matchNumber}
-                                            team1={matchData.homeTeam}
-                                            team2={matchData.awayTeam}
-                                            winner={matchData.winner}
-                                            roundCode={round.code}
-                                            {locked}
-                                            compact={roundIndex === 0}
-                                            showConnector={roundIndex < rounds.length - 1 && !!matchData.winner}
-                                            isTopOfPair={matchIndex % 2 === 0}
-                                            containerHeight={mobileContainerHeight}
-                                            targetY={getMobileTargetY(roundIndex, matchIndex)}
-                                            on:selectWinner={handleSelectWinner}
-                                        />
-                                    </div>
-                                {/each}
-                            </div>
+                    {#if isScroll}
+                        <!-- R32 / R16 / QF: horizontally scrollable strip with snap -->
+                        <div class="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory">
+                            {#each round.matches as matchData (matchData.match.matchNumber)}
+                                <div class="snap-start flex-shrink-0">
+                                    <BracketMatch
+                                        matchId={`${round.code}-${matchData.match.matchNumber}`}
+                                        matchNumber={matchData.match.matchNumber}
+                                        team1={matchData.homeTeam}
+                                        team2={matchData.awayTeam}
+                                        winner={matchData.winner}
+                                        roundCode={round.code}
+                                        {locked}
+                                        compact={isCompact}
+                                        showConnector={false}
+                                        isTopOfPair={false}
+                                        containerHeight={100}
+                                        targetY={null}
+                                        on:selectWinner={handleSelectWinner}
+                                    />
+                                </div>
+                            {/each}
                         </div>
-                    {/each}
-                </div>
-            </div>
-        </div>
+                    {:else}
+                        <!-- SF / F: 2-column grid — fits on one screen -->
+                        <div class="grid grid-cols-2 gap-3">
+                            {#each round.matches as matchData (matchData.match.matchNumber)}
+                                <BracketMatch
+                                    matchId={`${round.code}-${matchData.match.matchNumber}`}
+                                    matchNumber={matchData.match.matchNumber}
+                                    team1={matchData.homeTeam}
+                                    team2={matchData.awayTeam}
+                                    winner={matchData.winner}
+                                    roundCode={round.code}
+                                    {locked}
+                                    compact={false}
+                                    showConnector={false}
+                                    isTopOfPair={false}
+                                    containerHeight={100}
+                                    targetY={null}
+                                    on:selectWinner={handleSelectWinner}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
+                </section>
+            {/each}
 
-        <!-- Champion card (always visible below bracket) -->
-        <div
-            class="mt-3 mx-4 flex items-center gap-3 p-3 rounded-xl bg-base-200 border border-base-300/50"
-            class:bg-gradient-to-br={tournamentWinner}
-            class:from-yellow-500-10={tournamentWinner}
-            class:to-amber-600-10={tournamentWinner}
-            class:border-yellow-500-30={tournamentWinner}
-        >
-            {#if tournamentWinner}
-                {#if hasFlag(tournamentWinner)}
-                    <img
-                        src={getFlagUrl(tournamentWinner, 'lg')}
-                        alt="{tournamentWinner} flag"
-                        class="w-10 h-auto rounded-sm shadow-md border border-base-content/10"
-                    />
-                {/if}
-                <div class="flex-1 min-w-0">
-                    <span class="text-[10px] uppercase tracking-widest text-base-content/40 font-medium block">Champion</span>
-                    <span class="font-display text-lg tracking-wide">{tournamentWinner}</span>
+            <!-- Champion -->
+            <section>
+                <div class="text-center pb-1.5 mb-1.5 border-b border-base-300/30">
+                    <span class="block font-display text-sm tracking-wide">Champion</span>
                 </div>
-                <svg class="w-5 h-5 text-yellow-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                </svg>
-            {:else}
-                <svg class="w-5 h-5 text-base-content/20 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228M7.73 9.728a6.726 6.726 0 002.748 1.35m3.044 0a6.726 6.726 0 002.748-1.35m0 0a6.772 6.772 0 01-3.044-6.477 6.772 6.772 0 00-3.044 6.477" />
-                </svg>
-                <span class="text-xs text-base-content/40">Select winner from Final</span>
-            {/if}
+                <div
+                    class="flex items-center gap-3 p-3 rounded-xl bg-base-200 border border-base-300/50"
+                    class:bg-gradient-to-br={tournamentWinner}
+                    class:from-yellow-500-10={tournamentWinner}
+                    class:to-amber-600-10={tournamentWinner}
+                    class:border-yellow-500-30={tournamentWinner}
+                >
+                    {#if tournamentWinner}
+                        {#if hasFlag(tournamentWinner)}
+                            <img
+                                src={getFlagUrl(tournamentWinner, 'lg')}
+                                alt="{tournamentWinner} flag"
+                                class="w-10 h-auto rounded-sm shadow-md border border-base-content/10"
+                            />
+                        {/if}
+                        <div class="flex-1 min-w-0">
+                            <span class="text-[10px] uppercase tracking-widest text-base-content/40 font-medium block">Champion</span>
+                            <span class="font-display text-lg tracking-wide">{tournamentWinner}</span>
+                        </div>
+                        <svg class="w-5 h-5 text-yellow-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                        </svg>
+                    {:else}
+                        <svg class="w-5 h-5 text-base-content/20 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228M7.73 9.728a6.726 6.726 0 002.748 1.35m3.044 0a6.726 6.726 0 002.748-1.35m0 0a6.772 6.772 0 01-3.044-6.477 6.772 6.772 0 00-3.044 6.477" />
+                        </svg>
+                        <span class="text-xs text-base-content/40">Select winner from Final</span>
+                    {/if}
+                </div>
+            </section>
         </div>
     </div>
 
-    <!-- Desktop View -->
-    <div class="bracket-horizontal hidden sm:block overflow-x-auto pb-4">
+    <!-- Desktop View (≥1024px: horizontal left-to-right) -->
+    <div class="bracket-horizontal hidden lg:block overflow-x-auto pb-4">
         <div class="flex min-w-max relative gap-8" style="--base-height: 120px;">
             {#each rounds as round, roundIndex}
                 <div class="flex flex-col min-w-[170px]">

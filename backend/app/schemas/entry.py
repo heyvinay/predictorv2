@@ -178,3 +178,15 @@ class DuplicateConflict(BaseModel):
 
     detail: str
     conflict_reference: str
+
+
+class CompletionCount(BaseModel):
+    done: int
+    total: int
+
+
+class EntryCompletionSummary(BaseModel):
+    entry_id: uuid.UUID
+    groups: CompletionCount
+    bracket: CompletionCount
+    bonus: CompletionCount

@@ -9,6 +9,7 @@
 
 import { api } from './client';
 import type {
+	CompletionSummary,
 	Entry,
 	EntrySettings,
 	EntryCreate,
@@ -52,6 +53,21 @@ export async function submitEntry(entryId: string): Promise<Entry> {
 /** SUBMITTED → DRAFT. Allowed only before competition.phase1_deadline. */
 export async function editEntry(entryId: string): Promise<Entry> {
 	return api.post<Entry>(`/entries/${entryId}/edit`);
+}
+
+/** DRAFT → WITHDRAWN. User-initiated, before competition start. */
+export async function withdrawEntry(entryId: string): Promise<Entry> {
+	return api.post<Entry>(`/entries/${entryId}/withdraw`);
+}
+
+/** WITHDRAWN → DRAFT. User-initiated, before competition start. */
+export async function reinstateEntry(entryId: string): Promise<Entry> {
+	return api.post<Entry>(`/entries/${entryId}/reinstate`);
+}
+
+/** Per-entry completion counts for all entries in the active competition. */
+export async function getCompletionSummary(): Promise<CompletionSummary[]> {
+	return api.get<CompletionSummary[]>('/entries/completion-summary');
 }
 
 // ---- Admin-only endpoints (called from the admin entries table) ----

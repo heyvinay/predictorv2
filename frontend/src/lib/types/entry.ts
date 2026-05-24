@@ -54,6 +54,18 @@ export interface EntrySettings {
 	phase_scoped_status_enabled: boolean;
 }
 
+export interface CompletionCount {
+	done: number;
+	total: number;
+}
+
+export interface CompletionSummary {
+	entry_id: string;
+	groups: CompletionCount;
+	bracket: CompletionCount;
+	bonus: CompletionCount;
+}
+
 export interface EntryCreate {
 	display_name?: string;
 }

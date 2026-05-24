@@ -2,6 +2,7 @@
 	import { createEventDispatcher, afterUpdate } from 'svelte';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let matchId: string;
 	export let matchNumber: number | null = null; // FIFA official match number
@@ -78,7 +79,7 @@
 			{:else}
 				<div class="team-slot-flag-placeholder"></div>
 			{/if}
-			<span class="team-slot-name">{displayTeamName(team1)}</span>
+			<span class="team-slot-name">{compact ? teamCode(team1) : displayTeamName(team1)}</span>
 		{:else}
 			<span class="team-slot-placeholder">TBD</span>
 		{/if}
@@ -115,7 +116,7 @@
 			{:else}
 				<div class="team-slot-flag-placeholder"></div>
 			{/if}
-			<span class="team-slot-name">{displayTeamName(team2)}</span>
+			<span class="team-slot-name">{compact ? teamCode(team2) : displayTeamName(team2)}</span>
 		{:else}
 			<span class="team-slot-placeholder">TBD</span>
 		{/if}
@@ -156,8 +157,8 @@
 		position: relative;
 	}
 
-	/* Fixed width + border only on desktop for bracket alignment */
-	@media (min-width: 640px) {
+	/* Fixed width + border only on wide desktop (horizontal bracket layout) */
+	@media (min-width: 1024px) {
 		.bracket-match {
 			@apply border border-base-300;
 			width: 170px;
@@ -249,8 +250,8 @@
 		overflow: visible;
 	}
 
-	/* Mobile: force compact sizing on all bracket cards */
-	@media (max-width: 639px) {
+	/* Mobile/tablet: force compact sizing on all bracket cards */
+	@media (max-width: 1023px) {
 		.bracket-match {
 			@apply p-1 gap-0.5;
 		}

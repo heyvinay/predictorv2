@@ -18,7 +18,7 @@
 -->
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { predictionsByFixture, bracketPrediction, unsavedChanges } from '$stores/predictions';
+	import { predictionsByFixture, bracketPrediction, workingBracketPrediction, unsavedChanges } from '$stores/predictions';
 	import { groupFixtures } from '$stores/fixtures';
 	import {
 		computeGroupStandingsMapWithWarnings,
@@ -241,9 +241,18 @@
 					{/if}
 				{/if}
 			{:else if groupStandings.length === 0}
-				<p class="text-sm text-base-content/50 py-6 text-center">
-					Add a prediction to see the standings update.
-				</p>
+				{#if activeGroupFixtures.length === 0}
+					<!-- Fixtures still loading — brief skeleton before first fetch -->
+					<div class="space-y-2 py-4 animate-pulse">
+						{#each Array(4) as _}
+							<div class="h-6 bg-base-300/60 rounded w-full"></div>
+						{/each}
+					</div>
+				{:else}
+					<p class="text-sm text-base-content/50 py-6 text-center">
+						Add a prediction to see the standings update.
+					</p>
+				{/if}
 			{:else}
 				<!-- Predicted standings — richer variant migrated from the
 				     in-accordion table. Position chip in success/warning/error
@@ -341,7 +350,7 @@
 			{/if}
 		{:else if activeSection === 'knockout'}
 			<KnockoutBracket
-				prediction={$bracketPrediction}
+				prediction={$workingBracketPrediction}
 				groupStandings={standingsMap}
 				locked={true}
 				phase="phase_1"

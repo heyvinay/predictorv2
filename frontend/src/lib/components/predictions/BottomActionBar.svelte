@@ -90,75 +90,80 @@
 				? 'shadow-[0_-2px_18px_-2px_rgba(212,175,55,0.55)] border-primary/40'
 				: ''}"
 	>
-		<div class="max-w-3xl mx-auto flex gap-2">
+		<div class="max-w-3xl mx-auto flex items-center justify-between gap-3">
 			{#if status === 'draft'}
-				<button
-					type="button"
-					class="btn flex-1 min-h-12 {savedFlash ? 'btn-success' : 'btn-outline'}"
-					on:click={handleSaveDraft}
-					disabled={savingDraft || (!hasUnsavedChanges && !savedFlash)}
-				>
-					{#if savingDraft}
-						Saving…
-					{:else if savedFlash}
-						✓ Saved
+				<!-- Left: status text -->
+				<span class="text-sm text-base-content/60 truncate">
+					{#if savedFlash}
+						<span class="text-success font-medium">✓ Saved</span>
+					{:else if savingDraft}
+						<span class="text-base-content/40">Saving…</span>
 					{:else if unsavedCount > 0}
-						Save Draft ({unsavedCount})
-					{:else}
-						Save Draft
+						{unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}
 					{/if}
-				</button>
-
-				{#if hasUnsavedChanges && !savingDraft && !savedFlash}
+				</span>
+				<!-- Right: action buttons -->
+				<div class="flex items-center gap-2 flex-shrink-0">
+					{#if hasUnsavedChanges && !savingDraft && !savedFlash}
+						<button
+							type="button"
+							class="btn btn-ghost btn-sm"
+							on:click={handleDiscard}
+							title="Discard unsaved changes"
+							aria-label="Discard {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}"
+						>
+							Discard
+						</button>
+					{/if}
 					<button
 						type="button"
-						class="btn btn-ghost min-h-12 shrink-0"
-						on:click={handleDiscard}
-						title="Discard unsaved changes"
-						aria-label="Discard {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}"
+						class="btn {savedFlash ? 'btn-success' : 'btn-outline'} btn-sm"
+						on:click={handleSaveDraft}
+						disabled={savingDraft || (!hasUnsavedChanges && !savedFlash)}
 					>
-						Discard{#if unsavedCount > 0}&nbsp;({unsavedCount}){/if}
+						{#if savingDraft}
+							Saving…
+						{:else if savedFlash}
+							✓ Saved
+						{:else}
+							Save Draft
+						{/if}
 					</button>
-				{/if}
-
-				<button
-					type="button"
-					class="btn flex-1 min-h-12 {canSubmit ? 'btn-success' : 'btn-disabled'}"
-					on:click={() => canSubmit && dispatch('submit')}
-					disabled={!canSubmit}
-					title={canSubmit
-						? 'Submit your predictions'
-						: incompleteSummary
-							? `Complete to submit: ${incompleteSummary}`
-							: 'Complete all predictions to submit'}
-				>
-					Submit
-				</button>
+					<button
+						type="button"
+						class="btn {canSubmit ? 'btn-success' : ''} btn-sm"
+						on:click={() => canSubmit && dispatch('submit')}
+						disabled={!canSubmit}
+						title={canSubmit
+							? 'Submit your predictions'
+							: incompleteSummary
+								? `Complete to submit: ${incompleteSummary}`
+								: 'Complete all predictions to submit'}
+					>
+						Submit
+					</button>
+				</div>
 			{:else if status === 'locked'}
-				<div
-					class="flex-1 flex items-center justify-center gap-2 min-h-12 rounded-lg bg-success/10 border border-success/40 text-success font-semibold"
-				>
+				<div class="flex items-center gap-2 text-success font-semibold text-sm">
 					🔒 Locked In
 				</div>
 				<button
 					type="button"
-					class="btn btn-outline flex-1 min-h-12"
+					class="btn btn-outline btn-sm"
 					on:click={() => dispatch('unlock')}
 				>
 					Unlock
 				</button>
 			{:else if status === 'scored'}
-				<div
-					class="flex-1 flex items-center justify-center gap-2 min-h-12 rounded-lg bg-success/10 border border-success/40 text-success font-semibold"
-				>
+				<div class="flex items-center gap-2 text-success font-semibold text-sm">
 					✓ On Leaderboard
 				</div>
+				<span></span>
 			{:else if status === 'missed'}
-				<div
-					class="flex-1 flex items-center justify-center gap-2 min-h-12 rounded-lg bg-error/10 border border-error/40 text-error font-semibold"
-				>
+				<div class="flex items-center gap-2 text-error font-semibold text-sm">
 					Not Submitted
 				</div>
+				<span></span>
 			{/if}
 		</div>
 	</div>

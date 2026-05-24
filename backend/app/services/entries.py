@@ -95,9 +95,11 @@ class EntryConfigError(EntryError):
 _ALLOWED_TRANSITIONS: dict[tuple[EntryStatus, EntryStatus], set[ActorRole]] = {
     (EntryStatus.DRAFT, EntryStatus.SUBMITTED): {ActorRole.USER, ActorRole.ADMIN},
     (EntryStatus.SUBMITTED, EntryStatus.DRAFT): {ActorRole.USER, ActorRole.ADMIN},
-    (EntryStatus.DRAFT, EntryStatus.WITHDRAWN): {ActorRole.ADMIN, ActorRole.SYSTEM},
+    (EntryStatus.DRAFT, EntryStatus.WITHDRAWN): {ActorRole.USER, ActorRole.ADMIN, ActorRole.SYSTEM},
     (EntryStatus.SUBMITTED, EntryStatus.WITHDRAWN): {ActorRole.ADMIN},
     (EntryStatus.WITHDRAWN, EntryStatus.SUBMITTED): {ActorRole.ADMIN},
+    # User reinstate: goes back to DRAFT (not SUBMITTED) so they can review before re-submitting.
+    (EntryStatus.WITHDRAWN, EntryStatus.DRAFT): {ActorRole.USER},
     # `is_disabled` is an orthogonal admin flag — never changes status.
     # WITHDRAWN is non-terminal: admins can reinstate via `admin_reinstate_entry`.
 }
@@ -886,6 +888,118 @@ async def admin_reinstate_entry(
     return entry
 
 
+async def withdraw_entry(
+    session: AsyncSession,
+    *,
+    entry: PredictionEntry,
+    user: User,
+    competition: Competition,
+    reason: str | None = None,
+    ctx: AuditContext | None = None,
+) -> PredictionEntry:
+    """User-initiated withdrawal. All active phases → WITHDRAWN.
+
+    Gated by the `allow_user_withdrawal` competition setting. Only allowed
+    before the phase deadline (same guard as submit/edit). The user can
+    reinstate at any time before the deadline via `reinstate_entry`.
+    `reason` is optional — stored as `withdrawn_reason` when provided.
+    """
+    await _ensure_owner(entry, user)
+    if not competition.allow_user_withdrawal:
+        raise EntryValidationError("User withdrawal is not enabled for this competition")
+    if entry.withdrawn_at is not None:
+        raise EntryStateError("Entry is already withdrawn")
+    if entry.is_disabled:
+        raise EntryStateError("Cannot withdraw a disabled entry")
+
+    # Use phase 1 as the guard for deadline check — if it's locked no withdraws.
+    phase1_row = _phase_record(entry, PredictionPhase.PHASE_1)
+    if _phase_is_locked(phase1_row, competition):
+        raise EntryStateError("Competition has started — withdrawal no longer possible")
+
+    now = utc_now()
+    stored_reason = reason.strip() if reason else "user_requested"
+    entry.withdrawn_at = now
+    entry.withdrawn_reason = stored_reason
+    entry.updated_at = now
+
+    # Mark every phase row as WITHDRAWN (both PHASE_1 and PHASE_2).
+    for phase_row in entry.phases:
+        _check_transition_allowed(phase_row.status, EntryStatus.WITHDRAWN, ActorRole.USER)
+        prev = phase_row.status
+        phase_row.status = EntryStatus.WITHDRAWN
+        phase_row.updated_at = now
+        await _write_transition_event(
+            session,
+            entry=entry,
+            phase=phase_row.phase,
+            from_status=prev,
+            to_status=EntryStatus.WITHDRAWN,
+            actor_user_id=user.id,
+            actor_role=ActorRole.USER,
+            reason=stored_reason,
+            audit_event_type="entry.withdrawn_user",
+            ctx=ctx,
+        )
+
+    await session.flush()
+    return entry
+
+
+async def reinstate_entry(
+    session: AsyncSession,
+    *,
+    entry: PredictionEntry,
+    user: User,
+    competition: Competition,
+    ctx: AuditContext | None = None,
+) -> PredictionEntry:
+    """User-initiated reinstatement. `WITHDRAWN → DRAFT`.
+
+    Returns the entry to DRAFT (not SUBMITTED) so the user can review
+    their predictions and explicitly re-submit before the deadline.
+    Blocked once the phase deadline has passed.
+    """
+    await _ensure_owner(entry, user)
+    if entry.withdrawn_at is None:
+        raise EntryStateError("Entry is not withdrawn — nothing to reinstate")
+    if entry.is_disabled:
+        raise EntryStateError("Cannot reinstate a disabled entry")
+
+    phase1_row = _phase_record(entry, PredictionPhase.PHASE_1)
+    if _phase_is_locked(phase1_row, competition):
+        raise EntryStateError("Competition has started — reinstatement no longer possible")
+
+    now = utc_now()
+    entry.withdrawn_at = None
+    entry.withdrawn_reason = None
+    entry.updated_at = now
+
+    # Restore every WITHDRAWN phase row back to DRAFT.
+    for phase_row in entry.phases:
+        if phase_row.status != EntryStatus.WITHDRAWN:
+            continue
+        _check_transition_allowed(phase_row.status, EntryStatus.DRAFT, ActorRole.USER)
+        prev = phase_row.status
+        phase_row.status = EntryStatus.DRAFT
+        phase_row.updated_at = now
+        await _write_transition_event(
+            session,
+            entry=entry,
+            phase=phase_row.phase,
+            from_status=prev,
+            to_status=EntryStatus.DRAFT,
+            actor_user_id=user.id,
+            actor_role=ActorRole.USER,
+            reason=None,
+            audit_event_type="entry.reinstated_user",
+            ctx=ctx,
+        )
+
+    await session.flush()
+    return entry
+
+
 async def flip_drafts_past_deadline(session: AsyncSession) -> int:
     """`DRAFT → WITHDRAWN` for every entry whose phase deadline has passed.
 
@@ -948,6 +1062,120 @@ async def flip_drafts_past_deadline(session: AsyncSession) -> int:
     if flipped > 0:
         await session.flush()
     return flipped
+
+
+# ---------------------------------------------------------------------------
+# Completion summary — how many predictions has each entry filled in?
+# ---------------------------------------------------------------------------
+async def get_completion_summary(
+    session: AsyncSession,
+    *,
+    user: User,
+    competition: Competition,
+) -> list[dict]:
+    """Return per-entry completion counts for all entries owned by `user`.
+
+    Three buckets:
+    - groups:  match predictions for group-stage fixtures
+    - bracket: team advancement picks (R32 excluded — those are derived)
+    - bonus:   answered bonus questions (non-empty answer strings)
+
+    Group total is the global fixture count (same for every entry).
+    Bracket total is hardcoded 31: R16(16)+QF(8)+SF(4)+F(2)+winner(1).
+    Bonus total is the length of the YAML-loaded question list.
+    """
+    from app.models.fixture import Fixture
+    from app.services.bonus import get_questions as get_bonus_questions
+
+    # All entries for this user in this competition.
+    entries = await list_user_entries(session, user=user, competition=competition)
+    if not entries:
+        return []
+
+    entry_ids = [e.id for e in entries]
+
+    # ---------- group totals (global — identical for every entry) ----------
+    groups_total = int(
+        (
+            await session.execute(
+                select(func.count(Fixture.id)).where(Fixture.stage == "group")
+            )
+        ).scalar_one()
+    )
+
+    # ---------- group done: one row per entry ----------
+    group_done_rows = (
+        await session.execute(
+            select(
+                MatchPrediction.entry_id,
+                func.count(MatchPrediction.id).label("done"),
+            )
+            .join(Fixture, Fixture.id == MatchPrediction.fixture_id)
+            .where(
+                MatchPrediction.entry_id.in_(entry_ids),
+                Fixture.stage == "group",
+            )
+            .group_by(MatchPrediction.entry_id)
+        )
+    ).all()
+    group_done_map: dict[uuid.UUID, int] = {r[0]: r[1] for r in group_done_rows}
+
+    # ---------- bracket total (hardcoded — R32 picks are auto-derived) -----
+    bracket_total = 31  # R16=16 + QF=8 + SF=4 + F=2 + winner=1
+
+    # ---------- bracket done: one row per entry ----------------------------
+    bracket_done_rows = (
+        await session.execute(
+            select(
+                TeamPrediction.entry_id,
+                func.count(TeamPrediction.id).label("done"),
+            )
+            .where(
+                TeamPrediction.entry_id.in_(entry_ids),
+                TeamPrediction.stage != "round_of_32",
+            )
+            .group_by(TeamPrediction.entry_id)
+        )
+    ).all()
+    bracket_done_map: dict[uuid.UUID, int] = {r[0]: r[1] for r in bracket_done_rows}
+
+    # ---------- bonus totals -----------------------------------------------
+    bonus_total = len(get_bonus_questions())
+
+    # ---------- bonus done: one row per entry (non-empty answers only) -----
+    bonus_done_rows = (
+        await session.execute(
+            select(
+                BonusPrediction.entry_id,
+                func.count(BonusPrediction.id).label("done"),
+            )
+            .where(
+                BonusPrediction.entry_id.in_(entry_ids),
+                BonusPrediction.answer != "",
+            )
+            .group_by(BonusPrediction.entry_id)
+        )
+    ).all()
+    bonus_done_map: dict[uuid.UUID, int] = {r[0]: r[1] for r in bonus_done_rows}
+
+    return [
+        {
+            "entry_id": e.id,
+            "groups": {
+                "done": group_done_map.get(e.id, 0),
+                "total": groups_total,
+            },
+            "bracket": {
+                "done": bracket_done_map.get(e.id, 0),
+                "total": bracket_total,
+            },
+            "bonus": {
+                "done": bonus_done_map.get(e.id, 0),
+                "total": bonus_total,
+            },
+        }
+        for e in entries
+    ]
 
 
 # ---------------------------------------------------------------------------
