@@ -105,10 +105,12 @@
 	// ── Inline rename ────────────────────────────────────────────────────────
 	let editingEntryId: string | null = null;
 	let editingName = '';
+	let editingOriginalName = '';
 
 	function startEdit(entryId: string, currentName: string): void {
 		editingEntryId = entryId;
 		editingName = currentName;
+		editingOriginalName = currentName;
 	}
 
 	async function commitRename(entryId: string): Promise<void> {
@@ -385,25 +387,23 @@
 						>
 
 							<!-- Name cell: inline edit or display+pencil -->
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-							<td
-								class="px-4 py-3 min-w-0"
-								on:click|stopPropagation
-								role="cell"
-							>
+							<td class="px-4 py-3 min-w-0">
 								{#if editingEntryId === entry.id}
-									<input
-										type="text"
-										class="input input-bordered input-sm w-full max-w-[200px] font-medium"
-										bind:value={editingName}
-										autofocus
-										on:blur={() => commitRename(entry.id)}
-										on:keydown={(e) => {
-											if (e.key === 'Enter') e.currentTarget.blur();
-											if (e.key === 'Escape') { editingEntryId = null; }
-										}}
-									/>
+									<!-- svelte-ignore a11y-click-events-have-key-events -->
+									<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+									<div on:click|stopPropagation>
+										<input
+											type="text"
+											class="input input-bordered input-sm w-full max-w-[200px] font-medium"
+											bind:value={editingName}
+											autofocus
+											on:blur={() => commitRename(entry.id)}
+											on:keydown={(e) => {
+												if (e.key === 'Enter') e.currentTarget.blur();
+												if (e.key === 'Escape') { editingName = editingOriginalName; editingEntryId = null; }
+											}}
+										/>
+									</div>
 								{:else}
 									<div class="flex items-center gap-2 min-w-0">
 										<span
@@ -412,10 +412,7 @@
 										></span>
 										<div class="min-w-0 flex-1">
 											<div class="flex items-center gap-1.5 group/name min-w-0">
-												<span
-													class="font-medium truncate cursor-pointer hover:text-primary transition-colors"
-													on:click={() => openEntry(entry.id)}
-												>
+												<span class="font-medium truncate">
 													{entry.display_name || `Entry #${entry.entry_number}`}
 												</span>
 												<!-- Pencil — visible on row hover or touch -->
