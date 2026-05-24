@@ -40,6 +40,7 @@
 		getCompletionSummary
 	} from '$lib/api/entries';
 	import type { CompletionSummary } from '$lib/types/entry';
+	import ProgressSection from '$lib/components/predictions/ProgressSection.svelte';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -178,12 +179,11 @@
 	$: activeEntries = $entries.filter((e) => e.withdrawn_at === null);
 	$: canCreate = activeEntries.length < maxEntries;
 
-	// ── Chip colour helpers ──────────────────────────────────────────────────
-	function chipClass(done: number, total: number): string {
-		if (total === 0) return 'bg-base-300/30 text-base-content/30 border-base-300';
-		if (done === 0) return 'bg-base-300/30 text-base-content/30 border-base-300';
-		if (done >= total) return 'bg-success/15 text-success border-success/30';
-		return 'bg-warning/10 text-warning border-warning/30';
+	/** Map any UI status string to the 4-value union ProgressSection accepts. */
+	function toProgressStatus(uiStatus: string, withdrawn: boolean): 'draft' | 'locked' | 'scored' | 'missed' {
+		if (withdrawn) return 'missed';
+		if (uiStatus === 'locked' || uiStatus === 'scored' || uiStatus === 'missed') return uiStatus;
+		return 'draft';
 	}
 </script>
 
@@ -454,50 +454,18 @@
 								</span>
 							</td>
 
-							<!-- Completion chips (hidden < sm) -->
+							<!-- Completion doughnut (hidden < sm) -->
 							<td class="px-4 py-3 hidden sm:table-cell">
 								{#if completionLoading}
-									<div class="flex gap-1.5">
-										{#each Array(3) as _}
-											<div class="skeleton w-10 h-5 rounded"></div>
-										{/each}
-									</div>
+									<div class="skeleton w-10 h-10 rounded-full"></div>
 								{:else if completion}
-									<div class="flex gap-1 flex-wrap">
-										<!-- Groups chip -->
-										<span
-											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
-												{chipClass(completion.groups.done, completion.groups.total)}"
-											title="Group stage: {completion.groups.done}/{completion.groups.total}"
-										>
-											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 3c0 0 3 4 3 9s-3 9-3 9M12 3c0 0-3 4-3 9s3 9 3 9M3 12h18"/>
-											</svg>
-											{completion.groups.done}/{completion.groups.total}
-										</span>
-										<!-- Knockout chip -->
-										<span
-											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
-												{chipClass(completion.bracket.done, completion.bracket.total)}"
-											title="Knockout bracket: {completion.bracket.done}/{completion.bracket.total}"
-										>
-											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M8 21l4-4 4 4M12 17V3M4 9l8-6 8 6"/>
-											</svg>
-											{completion.bracket.done}/{completion.bracket.total}
-										</span>
-										<!-- Bonus chip -->
-										<span
-											class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono tabular-nums
-												{chipClass(completion.bonus.done, completion.bonus.total)}"
-											title="Bonus questions: {completion.bonus.done}/{completion.bonus.total}"
-										>
-											<svg class="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-											</svg>
-											{completion.bonus.done}/{completion.bonus.total}
-										</span>
-									</div>
+									<ProgressSection
+										groupProgress={completion.groups}
+										bracketProgress={completion.bracket}
+										bonusProgress={completion.bonus}
+										status={toProgressStatus(ui, isWithdrawn)}
+										sizeClass="w-10 h-10"
+									/>
 								{:else}
 									<span class="text-xs text-base-content/25">—</span>
 								{/if}

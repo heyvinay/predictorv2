@@ -21,6 +21,8 @@
 	export let bracketProgress: { done: number; total: number } = { done: 0, total: 0 };
 	export let bonusProgress: { done: number; total: number } = { done: 0, total: 0 };
 	export let status: 'draft' | 'locked' | 'scored' | 'missed' = 'draft';
+	/** Tailwind size classes for the SVG, e.g. "w-12 h-12" or "w-10 h-10" */
+	export let sizeClass: string = 'w-12 h-12';
 
 	$: done = groupProgress.done + bracketProgress.done + bonusProgress.done;
 	$: total = groupProgress.total + bracketProgress.total + bonusProgress.total;
@@ -123,7 +125,7 @@
 <div class="relative group inline-block flex-shrink-0">
 		<svg
 			viewBox="0 0 100 100"
-			class="w-12 h-12"
+			class={sizeClass}
 			role="img"
 			aria-label="Predictions {pct}% complete. {groupProgress.done} of {groupProgress.total} group picks, {bracketProgress.done} of {bracketProgress.total} knockout picks, {bonusProgress.done} of {bonusProgress.total} bonus picks."
 		>
