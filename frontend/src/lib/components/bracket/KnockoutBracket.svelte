@@ -262,7 +262,8 @@
 			{/each}
 		</div>
 
-		<!-- Centre: Final card + Champion strip -->
+		<!-- Centre: Final card (champion is already shown in the desktop
+		     header status meta, so no separate champion strip here) -->
 		<div class="match-col justify-center">
 			{#if finalMatch}
 				<div class="bracket-chip-final">
@@ -276,14 +277,6 @@
 						{locked}
 						isFinal={true}
 						on:selectWinner={handleSelectWinner}
-					/>
-				</div>
-				<div class="mt-3">
-					<ChampionStrip
-						champion={tournamentWinner}
-						{picked}
-						total={TOTAL_PICKS}
-						showPicks={false}
 					/>
 				</div>
 			{/if}
