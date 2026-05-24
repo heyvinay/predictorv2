@@ -574,22 +574,9 @@
 </div>
 
 <style>
-	/* Wallchart panel — surface colour comes from bg-base-100 on the
-	   parent element. Here we paint a faint diagonal pinstripe on top
-	   so the panel reads as a piece of "wallchart paper" rather than a
-	   flat slab. Uses color-mix on currentColor so the stripe stays
-	   visible on light themes (dark stripes on white) AND dark themes
-	   (light stripes on dark base) — currentColor is the parent's
-	   text-base-content which already contrasts with the panel. */
-	.wallchart-panel {
-		background-image: repeating-linear-gradient(
-			45deg,
-			color-mix(in srgb, currentColor 4%, transparent) 0,
-			color-mix(in srgb, currentColor 4%, transparent) 1px,
-			transparent 1px,
-			transparent 6px
-		);
-	}
+	/* .wallchart-panel — semantic class kept on the panel divs for
+	   future styling hooks. Surface colour comes from bg-base-100 on
+	   the parent element; no extra texture. */
 
 	.col-label {
 		font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
