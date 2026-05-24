@@ -15,9 +15,11 @@
 	                                        token (#FFD700) so the final
 	                                        always reads as "trophy gold"
 	                                        regardless of active theme
-	  is-winner background hsl(--su/.22) → green wash on the picked team
-	                                        row, theme-aware via DaisyUI's
-	                                        success token
+	  is-winner background rgb(34 197 94) → green wash on the picked team
+	                                        row, pinned to Tailwind green-500
+	                                        at 28 % alpha so the highlight
+	                                        renders identically in every
+	                                        theme. Deepens to 42 % on hover.
 
 	No SVG connectors — the bracket shape is implicit in the parent
 	grid's column alignment.
@@ -129,7 +131,7 @@
 	}
 
 	.team-row:hover:not(:disabled) {
-		background: hsl(var(--bc) / 0.08);
+		background: color-mix(in srgb, currentColor 8%, transparent);
 	}
 
 	.team-row:disabled {
@@ -140,15 +142,17 @@
 		opacity: 0.45;
 	}
 
-	/* Winner row: theme-aware green wash via the success token, deepened
-	   on hover so the wash isn't replaced by the generic hover overlay. */
+	/* Winner row: literal Tailwind green-500 wash so the highlight is
+	   guaranteed to render regardless of how the active DaisyUI theme
+	   serialises its --su variable. Deepened on hover so the wash
+	   isn't replaced by the generic hover overlay. */
 	.team-row.is-winner {
 		font-weight: 700;
-		background: hsl(var(--su) / 0.22);
+		background: rgb(34 197 94 / 0.28) !important;
 	}
 
 	.team-row.is-winner:hover:not(:disabled) {
-		background: hsl(var(--su) / 0.32);
+		background: rgb(34 197 94 / 0.42) !important;
 	}
 
 	.team-row.no-pick {
@@ -168,13 +172,13 @@
 		height: 9px;
 		flex-shrink: 0;
 		border-radius: 1px;
-		box-shadow: 0 0 0 1px hsl(var(--bc) / 0.15);
+		box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent);
 		object-fit: cover;
 	}
 
 	.flag-placeholder {
 		display: inline-block;
-		background: hsl(var(--bc) / 0.12);
+		background: color-mix(in srgb, currentColor 12%, transparent);
 	}
 
 	.code {

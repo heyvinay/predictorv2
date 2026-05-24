@@ -577,14 +577,15 @@
 	/* Wallchart panel — surface colour comes from bg-base-100 on the
 	   parent element. Here we paint a faint diagonal pinstripe on top
 	   so the panel reads as a piece of "wallchart paper" rather than a
-	   flat slab. The stripe uses base-content at 4% alpha so it stays
+	   flat slab. Uses color-mix on currentColor so the stripe stays
 	   visible on light themes (dark stripes on white) AND dark themes
-	   (light stripes on dark base) without re-tinting. */
+	   (light stripes on dark base) — currentColor is the parent's
+	   text-base-content which already contrasts with the panel. */
 	.wallchart-panel {
 		background-image: repeating-linear-gradient(
 			45deg,
-			hsl(var(--bc) / 0.04) 0,
-			hsl(var(--bc) / 0.04) 1px,
+			color-mix(in srgb, currentColor 4%, transparent) 0,
+			color-mix(in srgb, currentColor 4%, transparent) 1px,
 			transparent 1px,
 			transparent 6px
 		);
@@ -598,7 +599,7 @@
 		text-align: center;
 		opacity: 0.7;
 		padding: 0.35rem 0.5rem;
-		background: hsl(var(--bc) / 0.06);
+		background: color-mix(in srgb, currentColor 6%, transparent);
 		border-radius: 4px;
 	}
 
