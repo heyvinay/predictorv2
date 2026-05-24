@@ -149,10 +149,13 @@
 	 DESKTOP WALLCHART (≥ lg)
 	 The wallchart hardcodes its palette (Midnight Navy panel, Champagne
 	 Gold chips, Wine Red FINAL accent) so it reads the same regardless
-	 of which DaisyUI theme is active.
+	 of which DaisyUI theme is active. The panel uses a lifted navy
+	 (#142042) so it stays distinct from the page surround in dark
+	 themes, framed by a subtle gold border.
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="hidden lg:block bg-[#0B1329] text-[#F8FAFC] rounded-2xl p-6 shadow-xl"
+	class="wallchart-panel hidden lg:block text-[#F8FAFC] rounded-2xl p-6 shadow-2xl
+		border border-[#D4AF37]/25"
 >
 	<!-- Header strip: title + status meta -->
 	<header class="flex items-start justify-between mb-3 gap-6">
@@ -353,7 +356,10 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 MOBILE CAROUSEL (< lg)
 	 ═══════════════════════════════════════════════════════════════════════ -->
-<div class="lg:hidden bg-[#0B1329] text-[#F8FAFC] rounded-2xl p-4 shadow-xl">
+<div
+	class="wallchart-panel lg:hidden text-[#F8FAFC] rounded-2xl p-4 shadow-2xl
+		border border-[#D4AF37]/25"
+>
 	<!-- Header: title + page dots + counter -->
 	<header class="flex items-center justify-between mb-3 gap-3">
 		<h2 class="font-display text-base tracking-wide leading-none">
@@ -570,6 +576,21 @@
 </div>
 
 <style>
+	/* Wallchart panel — lifted navy with a faint diagonal pinstripe so
+	   the surface reads as a piece of "wallchart paper" rather than a
+	   flat slab. The stripe is barely visible (alpha 0.025), enough to
+	   give texture without competing with the chips. */
+	.wallchart-panel {
+		background-color: #142042;
+		background-image: repeating-linear-gradient(
+			45deg,
+			rgba(255, 255, 255, 0.025) 0,
+			rgba(255, 255, 255, 0.025) 1px,
+			transparent 1px,
+			transparent 6px
+		);
+	}
+
 	.col-label {
 		font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 		font-size: 10px;
