@@ -147,14 +147,17 @@
 
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 DESKTOP WALLCHART (≥ lg)
+	 The wallchart hardcodes its palette (Midnight Navy panel, Champagne
+	 Gold chips, Wine Red FINAL accent) so it reads the same regardless
+	 of which DaisyUI theme is active.
 	 ═══════════════════════════════════════════════════════════════════════ -->
 <div
-	class="hidden lg:block bg-secondary text-secondary-content rounded-2xl p-6 shadow-xl"
+	class="hidden lg:block bg-[#0B1329] text-[#F8FAFC] rounded-2xl p-6 shadow-xl"
 >
 	<!-- Header strip: title + status meta -->
 	<header class="flex items-start justify-between mb-3 gap-6">
 		<h2 class="font-display text-2xl tracking-wide leading-none">
-			YOUR <span class="text-primary">BRACKET</span>
+			YOUR <span class="text-[#D4AF37]">BRACKET</span>
 		</h2>
 
 		<dl
@@ -171,14 +174,14 @@
 				{locked ? 'LOCKED' : 'OPEN'}
 			</dd>
 			<dd
-				class="row-start-2 font-display text-lg leading-none tracking-wide text-primary"
+				class="row-start-2 font-display text-lg leading-none tracking-wide text-[#D4AF37]"
 			>
 				{tournamentWinner ? tournamentWinner.toUpperCase() : '—'}
 			</dd>
 		</dl>
 	</header>
 
-	<hr class="border-primary/30 mb-5" />
+	<hr class="border-[#D4AF37]/30 mb-5" />
 
 	<!-- 9-column wallchart -->
 	<div
@@ -279,6 +282,7 @@
 						champion={tournamentWinner}
 						{picked}
 						total={TOTAL_PICKS}
+						showPicks={false}
 					/>
 				</div>
 			{/if}
@@ -349,35 +353,31 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
 	 MOBILE CAROUSEL (< lg)
 	 ═══════════════════════════════════════════════════════════════════════ -->
-<div
-	class="lg:hidden bg-secondary text-secondary-content rounded-2xl p-4 shadow-xl"
->
+<div class="lg:hidden bg-[#0B1329] text-[#F8FAFC] rounded-2xl p-4 shadow-xl">
 	<!-- Header: title + page dots + counter -->
 	<header class="flex items-center justify-between mb-3 gap-3">
 		<h2 class="font-display text-base tracking-wide leading-none">
-			YOUR <span class="text-primary">BRACKET</span>
+			YOUR <span class="text-[#D4AF37]">BRACKET</span>
 		</h2>
 		<div class="flex gap-1.5">
 			{#each Array(PAGE_COUNT) as _, i}
 				<button
 					type="button"
 					class="w-1.5 h-1.5 rounded-full transition-colors
-						{page === i ? 'bg-primary' : 'bg-base-100/30'}"
+						{page === i ? 'bg-[#D4AF37]' : 'bg-white/30'}"
 					aria-label={`Go to page ${i + 1}`}
 					on:click={() => (page = i)}
 				></button>
 			{/each}
 		</div>
-		<span
-			class="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80"
-		>
+		<span class="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80">
 			{picked} / {TOTAL_PICKS}
 		</span>
 	</header>
 
 	<!-- Current page label -->
 	<div
-		class="rounded bg-base-100/10 px-3 py-1.5 mb-3 text-center
+		class="rounded bg-white/10 px-3 py-1.5 mb-3 text-center
 			text-[11px] font-mono uppercase tracking-[0.2em]"
 	>
 		{PAGE_LABELS[page]}
@@ -551,7 +551,7 @@
 	>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-base-100/10 disabled:opacity-30 disabled:cursor-not-allowed"
+			class="px-2 py-1 rounded hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === 0}
 			on:click={goPrev}
 		>
@@ -560,7 +560,7 @@
 		<span class="opacity-60">Page {page + 1} / {PAGE_COUNT}</span>
 		<button
 			type="button"
-			class="px-2 py-1 rounded hover:bg-base-100/10 disabled:opacity-30 disabled:cursor-not-allowed"
+			class="px-2 py-1 rounded hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
 			disabled={page === PAGE_COUNT - 1}
 			on:click={goNext}
 		>
@@ -583,7 +583,7 @@
 	}
 
 	.col-label--final {
-		color: hsl(var(--er, 0 70% 45%));
+		color: #ff7d6e; /* lighter wine-red so it reads on the navy panel */
 		font-weight: 700;
 		opacity: 1;
 		background: rgb(255 255 255 / 0.1);
@@ -597,8 +597,4 @@
 		min-height: 100%;
 	}
 
-	/* Subtle wallchart paper-stripes texture on the navy panel */
-	:global(.bg-secondary) {
-		position: relative;
-	}
 </style>

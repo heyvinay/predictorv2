@@ -2,14 +2,15 @@
 	ChampionStrip — gold sticker strip showing the user's predicted
 	tournament winner. Used in two places:
 	  1. Desktop: directly under the Final column inside the wallchart
+	     (set showPicks={false} — the count is already in the header)
 	  2. Mobile: persistent footer above the prev/next nav
+	     (set showPicks={true})
 
-	Purely display. Falls back to a "not selected" italic when no winner
-	has been chosen yet.
+	Hardcoded Midnight Navy + Champagne Gold + Wine Red so the strip
+	looks correct regardless of which DaisyUI theme is active.
 -->
 <script lang="ts">
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
-	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let champion: string | null = null;
 	/** Number of match winners picked so far (out of `total`). */
@@ -17,11 +18,13 @@
 	export let total: number = 31;
 	/** Compact variant for tight spaces (smaller padding, smaller name). */
 	export let compact: boolean = false;
+	/** Show the "picked/total" counter. Hide on desktop where the header carries it. */
+	export let showPicks: boolean = true;
 </script>
 
 <div
-	class="flex items-center gap-3 rounded-lg border-2 border-error
-		bg-primary text-primary-content
+	class="flex items-center gap-3 rounded-lg border-2 border-[#B91C1C]
+		bg-[#D4AF37] text-[#0B1329]
 		{compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}"
 >
 	<span
@@ -34,25 +37,27 @@
 			<img
 				src={getFlagUrl(champion, 'sm')}
 				alt=""
-				class="rounded-sm shadow-sm {compact ? 'w-5 h-3.5' : 'w-6 h-4'}"
+				class="rounded-sm shadow-sm flex-shrink-0 {compact ? 'w-5 h-3.5' : 'w-6 h-4'}"
 			/>
 		{/if}
-		<span
-			class="font-display tracking-wide truncate {compact ? 'text-base' : 'text-lg'}"
-		>
+		<span class="font-display tracking-wide {compact ? 'text-base' : 'text-lg'}">
 			{champion.toUpperCase()}
 		</span>
-		<span
-			class="text-[10px] font-mono uppercase tracking-widest opacity-60 ml-auto flex-shrink-0"
-		>
-			{picked}/{total}
-		</span>
+		{#if showPicks}
+			<span
+				class="text-[10px] font-mono uppercase tracking-widest opacity-60 ml-auto flex-shrink-0"
+			>
+				{picked}/{total}
+			</span>
+		{/if}
 	{:else}
 		<span class="italic opacity-60 text-sm">Not selected</span>
-		<span
-			class="text-[10px] font-mono uppercase tracking-widest opacity-60 ml-auto flex-shrink-0"
-		>
-			{picked}/{total}
-		</span>
+		{#if showPicks}
+			<span
+				class="text-[10px] font-mono uppercase tracking-widest opacity-60 ml-auto flex-shrink-0"
+			>
+				{picked}/{total}
+			</span>
+		{/if}
 	{/if}
 </div>
