@@ -46,57 +46,68 @@
 	<title>Welcome — Predictor</title>
 </svelte:head>
 
-<div class="pn">
-	<div class="pn-auth-page">
-		<div class="pn-auth-card">
-			<div class="pn-auth-crest">
-				<div class="crest">P</div>
-				<div class="nm">The Predictor<span class="sub">Vol. I — WC 2026</span></div>
+<div class="min-h-screen flex items-center justify-center mobile-padding py-12 bg-base-100">
+	<div class="w-full max-w-md">
+		<!-- Brand header -->
+		<div class="flex items-center gap-3 justify-center mb-8">
+			<div
+				class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20 shadow-glow-gold"
+			>
+				<span
+					class="text-2xl font-bold text-primary-content leading-none translate-y-0.5"
+					>P</span
+				>
 			</div>
+			<div class="flex flex-col leading-tight">
+				<span class="font-display text-xl tracking-wide">The Predictor</span>
+				<span
+					class="text-[10px] font-mono uppercase tracking-[0.18em] text-base-content/50"
+					>Vol. I — WC 2026</span
+				>
+			</div>
+		</div>
 
-			<h1 class="pn-auth-h">What should we <em>call you?</em></h1>
-
-			<p class="pn-auth-info">
+		<!-- Onboarding card -->
+		<div class="stadium-card no-glow p-7">
+			<h1 class="font-display text-2xl tracking-wide mb-1">What should we call you?</h1>
+			<p class="text-sm text-base-content/60 mb-6">
 				This is the name your friends will see on the leaderboard.
 			</p>
 
 			{#if localError || $authError}
-				<div class="pn-form-error">{localError || $authError}</div>
+				<div class="alert alert-error mb-4 py-2">
+					<span class="text-sm">{localError || $authError}</span>
+				</div>
 			{/if}
 
-			<form class="pn-form" on:submit|preventDefault={handleSubmit}>
-				<div class="pn-field">
-					<label for="name">Display name</label>
+			<form class="space-y-4" on:submit|preventDefault={handleSubmit}>
+				<div class="form-control">
+					<label class="label py-1" for="name">
+						<span class="label-text text-xs uppercase tracking-wider text-base-content/60"
+							>Display name</span
+						>
+					</label>
 					<input
 						id="name"
 						type="text"
+						class="input input-bordered w-full"
 						placeholder="Your name"
 						bind:value={name}
 						disabled={saving}
 						autocomplete="name"
-						maxlength="100"
+						maxlength={100}
+						autofocus
 					/>
 				</div>
-				<button
-					type="submit"
-					class="pn-btn"
-					style="justify-content: center; margin-top: 6px;"
-					disabled={saving}
-				>
-					{saving ? 'Saving…' : "Let's go"}
+				<button type="submit" class="btn btn-primary w-full" disabled={saving}>
+					{#if saving}
+						<span class="loading loading-spinner loading-sm"></span>
+						Saving…
+					{:else}
+						Let's go
+					{/if}
 				</button>
 			</form>
 		</div>
 	</div>
 </div>
-
-<style>
-	.pn-auth-info {
-		font-family: var(--body);
-		font-size: 14px;
-		color: var(--ink-2);
-		line-height: 1.6;
-		text-align: center;
-		margin: 0 0 16px;
-	}
-</style>
