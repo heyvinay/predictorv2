@@ -104,7 +104,7 @@ async def get_user_profile(
 
     return PublicProfile(
         id=user.id,
-        name=user.name,
+        name=user.name or user.email.split("@")[0],
         created_at=user.created_at,
         stats=stats,
     )
@@ -144,7 +144,7 @@ async def get_user_predictions(
         # User has no eligible entry — return an empty payload.
         return UserPredictionsResponse(
             user_id=user.id,
-            user_name=user.name,
+            user_name=user.name or user.email.split("@")[0],
             match_predictions=[],
             bracket_summary=BracketSummary(
                 stages={}, phase1_stages={}, phase2_stages={}
@@ -227,7 +227,7 @@ async def get_user_predictions(
 
     return UserPredictionsResponse(
         user_id=user.id,
-        user_name=user.name,
+        user_name=user.name or user.email.split("@")[0],
         match_predictions=match_predictions,
         bracket_summary=BracketSummary(
             stages=stages,

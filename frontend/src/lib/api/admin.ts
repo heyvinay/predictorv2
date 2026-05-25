@@ -33,7 +33,9 @@ export interface CompetitionAdminView {
 export interface UserAdminView {
 	id: string;
 	email: string;
-	name: string;
+	/** Nullable: magic-link sign-ups that haven't completed /onboarding
+	 *  yet have name === null. Render with an email-prefix fallback. */
+	name: string | null;
 	auth_provider: string;
 	is_admin: boolean;
 	is_active: boolean;

@@ -52,6 +52,13 @@
 	$: if ($isAuthenticated && !$user?.is_admin) goto('/');
 	$: if (!$isAuthenticated) goto('/login');
 
+	/** Display name for an admin-view user. Falls back to the email-prefix
+	 *  for magic-link sign-ups that haven't completed /onboarding yet
+	 *  (where `name === null`). */
+	function userDisplayName(u: UserAdminView): string {
+		return u.name ?? u.email.split('@')[0];
+	}
+
 	let stats: AdminStats | null = null;
 	let competitions: CompetitionAdminView[] = [];
 	let users: UserAdminView[] = [];
@@ -630,7 +637,7 @@
 
 	async function handleToggleAdmin(u: UserAdminView) {
 		const action = u.is_admin ? 'remove admin from' : 'grant admin to';
-		if (!confirm(`Are you sure you want to ${action} ${u.name}?`)) return;
+		if (!confirm(`Are you sure you want to ${action} ${userDisplayName(u)}?`)) return;
 		togglingUserId = u.id;
 		userActionError = null;
 		try {
@@ -663,7 +670,7 @@
 
 	async function handleToggleActive(u: UserAdminView) {
 		const action = u.is_active ? 'deactivate' : 'reactivate';
-		if (!confirm(`Are you sure you want to ${action} ${u.name}?`)) return;
+		if (!confirm(`Are you sure you want to ${action} ${userDisplayName(u)}?`)) return;
 		togglingUserId = u.id;
 		userActionError = null;
 		try {
@@ -679,7 +686,7 @@
 	$: filteredUsers = userSearch.trim()
 		? users.filter((u) => {
 				const q = userSearch.toLowerCase();
-				return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+				return userDisplayName(u).toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
 			})
 		: users;
 
@@ -1137,7 +1144,7 @@
 								<span class="text-xs">{isPaid ? 'Paid' : 'Unpaid'}</span>
 							</label>
 							<div class="flex-1 min-w-0">
-								<div class="font-semibold">{u.name}</div>
+								<div class="font-semibold" class:italic={u.name === null} class:opacity-70={u.name === null} title={u.name === null ? 'No display name set' : ''}>{userDisplayName(u)}</div>
 								<div class="text-xs text-base-content/50">{u.email} · {u.auth_provider === 'google' ? 'GOOGLE' : 'EMAIL'}</div>
 							</div>
 							<div class="flex items-center gap-1.5">

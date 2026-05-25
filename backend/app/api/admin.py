@@ -43,7 +43,9 @@ class UserAdminView(BaseModel):
 
     id: uuid.UUID
     email: str
-    name: str
+    # Nullable because magic-link sign-ups before /onboarding completion
+    # have name=None. Admin UI shows the email as a fallback.
+    name: str | None
     auth_provider: str
     is_admin: bool
     is_active: bool

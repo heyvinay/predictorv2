@@ -179,7 +179,14 @@ async def calculate_leaderboard(
                 entry_reference=entry.reference,
                 entry_name=entry.display_name,
                 user_id=entry.user_id,
-                user_name=entry.user.name if entry.user else "Unknown",
+                # Magic-link sign-ups may still have name=None until they
+                # complete /onboarding. Fall back to the email-prefix so
+                # the leaderboard never renders a blank cell.
+                user_name=(
+                    (entry.user.name or entry.user.email.split("@")[0])
+                    if entry.user
+                    else "Unknown"
+                ),
                 position=0,  # Set after sorting
                 total_points=phase_points,
                 breakdown=breakdown,

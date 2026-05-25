@@ -87,6 +87,7 @@ async def get_community_predictions(
                 MatchPrediction,
                 PredictionEntry,
                 User.name,
+                User.email,
             )
             .join(
                 PredictionEntry,
@@ -107,13 +108,15 @@ async def get_community_predictions(
 
     predictions = [
         CommunityPrediction(
-            user_name=user_name,
+            # Fall back to the email-prefix for magic-link sign-ups that
+            # haven't completed /onboarding (user_name may be None).
+            user_name=user_name or user_email.split("@")[0],
             entry_reference=entry.reference,
             entry_name=entry.display_name,
             home_score=pred.home_score,
             away_score=pred.away_score,
         )
-        for pred, entry, user_name in rows
+        for pred, entry, user_name, user_email in rows
     ]
 
     actual = None

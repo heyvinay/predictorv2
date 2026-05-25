@@ -308,7 +308,12 @@ async def get_climbers(
             .where(PredictionEntry.id.in_(entry_ids))
         )
         for entry in result.scalars().all():
-            owner_name = entry.user.name if entry.user else "Unknown"
+            # Fall back to email-prefix for magic-link sign-ups that
+            # haven't picked a display name on /onboarding yet.
+            if entry.user:
+                owner_name = entry.user.name or entry.user.email.split("@")[0]
+            else:
+                owner_name = "Unknown"
             name_by_entry[entry.id] = (entry.display_name, entry.user_id, owner_name)
 
     entries = []
