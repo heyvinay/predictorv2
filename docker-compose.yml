@@ -28,6 +28,10 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-dev-key-change-in-prod}
       - DEBUG=${DEBUG:-false}
       - CORS_ORIGINS_STR=${CORS_ORIGINS_STR:-http://localhost:5173,http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-The Predictor <noreply@resend.dev>}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - MAGIC_LINK_EXPIRE_MINUTES=${MAGIC_LINK_EXPIRE_MINUTES:-15}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/auth/google/callback}

@@ -10,7 +10,7 @@ export * from './entry';
 export interface User {
 	id: string;
 	email: string;
-	name: string;
+	name: string | null;
 	auth_provider: 'email' | 'google';
 	is_admin: boolean;
 	is_active: boolean;
@@ -23,15 +23,8 @@ export interface Token {
 	token_type: string;
 }
 
-export interface UserCreate {
+export interface MagicLinkRequest {
 	email: string;
-	name: string;
-	password: string;
-}
-
-export interface UserLogin {
-	email: string;
-	password: string;
 }
 
 // Fixture types
@@ -338,9 +331,8 @@ export interface ActualStandingsResponse {
 }
 
 // Profile types
-export interface PasswordChange {
-	current_password: string;
-	new_password: string;
+export interface UserUpdate {
+	name: string;
 }
 
 export interface UserStats {

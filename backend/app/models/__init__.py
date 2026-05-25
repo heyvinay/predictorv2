@@ -13,6 +13,7 @@ from app.models.entry import (
 )
 from app.models.fixture import Fixture, MatchStatus
 from app.models.leaderboard_snapshot import LeaderboardSnapshot
+from app.models.magic_link_token import MagicLinkToken
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.score import Score
 from app.models.user import AuthProvider, User
@@ -29,6 +30,7 @@ __all__ = [
     "Fixture",
     "MatchStatus",
     "LeaderboardSnapshot",
+    "MagicLinkToken",
     "MatchPrediction",
     "PaymentMode",
     "PredictionEntry",

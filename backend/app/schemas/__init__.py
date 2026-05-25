@@ -2,6 +2,8 @@
 
 from app.schemas.auth import (
     GoogleAuthCallback,
+    MagicLinkRequest,
+    MagicLinkResponse,
     Token,
     TokenPayload,
     UserCreate,
@@ -29,6 +31,8 @@ __all__ = [
     "Token",
     "TokenPayload",
     "GoogleAuthCallback",
+    "MagicLinkRequest",
+    "MagicLinkResponse",
     # Fixtures
     "FixtureRead",
     "FixturesByGroup",

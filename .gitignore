@@ -87,3 +87,6 @@ credentials.json
 # Git worktrees (isolated workspaces, never tracked)
 worktrees/
 .worktrees/
+# Local docker-compose overrides (worktree mounts, dev tweaks)
+docker-compose.override.yml
+docker-compose.override.yaml

@@ -29,7 +29,8 @@ class UserRead(BaseModel):
 
     id: uuid.UUID
     email: str
-    name: str
+    # Magic-link users start without a name (they pick one on /onboarding).
+    name: str | None
     auth_provider: AuthProvider
     is_admin: bool
     is_active: bool
@@ -43,10 +44,31 @@ class UserRead(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    """Schema for updating user profile."""
+    """Schema for updating user profile.
+
+    Used by ``PATCH /api/auth/me`` — primarily by the /onboarding page
+    to set a name for new magic-link users, and by admin profile edits.
+    """
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     email: EmailStr | None = None
+
+
+class MagicLinkRequest(BaseModel):
+    """Payload for ``POST /api/auth/request-magic-link``."""
+
+    email: EmailStr
+
+
+class MagicLinkResponse(BaseModel):
+    """Response for ``POST /api/auth/request-magic-link``.
+
+    The same message is returned whether or not the email maps to an
+    existing user — but in this app every email-submission is also an
+    implicit account creation, so the response is purely informational.
+    """
+
+    message: str
 
 
 class PasswordChange(BaseModel):

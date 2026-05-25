@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
@@ -31,6 +32,11 @@
 		startAdminAttentionPolling();
 	} else if (!$isAuthenticated) {
 		stopAdminAttentionPolling();
+	}
+
+	// New magic-link users have no name yet — send them to onboarding
+	$: if ($isAuthenticated && $user && $user.name === null && $page.url.pathname !== '/onboarding') {
+		goto('/onboarding');
 	}
 
 	const navItems = [

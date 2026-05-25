@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user, logout } from '$stores/auth';
-	import { getUserStats, changePassword } from '$api/auth';
+	import { getUserStats } from '$api/auth';
 	import {
 		loadEntries,
 		activeEntryId,
@@ -21,12 +21,6 @@
 	let statsLoading = true;
 	let statsError: string | null = null;
 
-	let currentPassword = '';
-	let newPassword = '';
-	let confirmPassword = '';
-	let passwordChanging = false;
-	let passwordError: string | null = null;
-	let passwordSuccess: string | null = null;
 
 	onMount(async () => {
 		if ($isAuthenticated) {
@@ -98,35 +92,6 @@
 			statsError = e instanceof Error ? e.message : 'Failed to load stats';
 		} finally {
 			statsLoading = false;
-		}
-	}
-
-	async function handleChangePassword() {
-		passwordError = null;
-		passwordSuccess = null;
-		if (!currentPassword || !newPassword || !confirmPassword) {
-			passwordError = 'All fields are required';
-			return;
-		}
-		if (newPassword.length < 8) {
-			passwordError = 'New password must be at least 8 characters';
-			return;
-		}
-		if (newPassword !== confirmPassword) {
-			passwordError = 'New passwords do not match';
-			return;
-		}
-		passwordChanging = true;
-		try {
-			const r = await changePassword({ current_password: currentPassword, new_password: newPassword });
-			passwordSuccess = r.message;
-			currentPassword = '';
-			newPassword = '';
-			confirmPassword = '';
-		} catch (e) {
-			passwordError = e instanceof Error ? e.message : 'Failed to change password';
-		} finally {
-			passwordChanging = false;
 		}
 	}
 
@@ -214,7 +179,7 @@
 						</div>
 					</div>
 				{/if}
-			</div>
+			</div><!-- /stats stadium-card -->
 
 			<!-- Your entries -->
 			{#if $entries.length > 0}
@@ -292,42 +257,23 @@
 				</div>
 			</div>
 
-			<!-- Password -->
+			<!-- Sign-in method (replaces the legacy password card now that
+			     the project uses magic-link auth). -->
 			<div class="stadium-card no-glow p-6">
-				<h2 class="text-lg font-display tracking-wide mb-6">Password</h2>
+				<h2 class="text-lg font-display tracking-wide mb-6">Sign-in method</h2>
 				{#if $user.auth_provider === 'google'}
 					<div class="p-4 rounded-xl bg-info/10 border border-info/20">
 						<p class="text-sm font-medium text-info">Google Account</p>
 						<p class="text-xs text-base-content/60 mt-1">
-							Your password is managed by Google. To change it, visit your Google Account settings.
+							You sign in with Google. Manage your account via your Google settings.
 						</p>
 					</div>
 				{:else}
-					{#if passwordError}
-						<div class="alert alert-error mb-4"><span>{passwordError}</span></div>
-					{/if}
-					{#if passwordSuccess}
-						<div class="alert alert-success mb-4"><span>{passwordSuccess}</span></div>
-					{/if}
-					<div class="space-y-4">
-						<div class="form-control">
-							<label class="label" for="current-password"><span class="label-text">Current Password</span></label>
-							<input id="current-password" type="password" class="input input-bordered w-full max-w-md" bind:value={currentPassword} autocomplete="current-password" />
-						</div>
-						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md sm:max-w-none">
-							<div class="form-control">
-								<label class="label" for="new-password"><span class="label-text">New Password</span></label>
-								<input id="new-password" type="password" class="input input-bordered w-full" bind:value={newPassword} autocomplete="new-password" minlength={8} />
-							</div>
-							<div class="form-control">
-								<label class="label" for="confirm-password"><span class="label-text">Confirm New Password</span></label>
-								<input id="confirm-password" type="password" class="input input-bordered w-full" bind:value={confirmPassword} autocomplete="new-password" />
-							</div>
-						</div>
-						<button class="btn btn-primary w-full sm:w-auto" on:click={handleChangePassword} disabled={passwordChanging}>
-							{#if passwordChanging}<span class="loading loading-spinner loading-sm"></span>{/if}
-							Update Password
-						</button>
+					<div class="p-4 rounded-xl bg-primary/10 border border-primary/20">
+						<p class="text-sm font-medium text-primary">★ Passwordless</p>
+						<p class="text-xs text-base-content/60 mt-1">
+							You sign in via a magic link sent to your email — no password needed.
+						</p>
 					</div>
 				{/if}
 			</div>
@@ -341,6 +287,6 @@
 					Sign Out
 				</button>
 			</div>
-		</div>
-	</div>
+		</div><!-- /space-y-8 -->
+	</div><!-- /container -->
 {/if}

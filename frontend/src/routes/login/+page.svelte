@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { login, isAuthenticated, loading, error as authError } from '$stores/auth';
-	import ErrorAlert from '$components/ErrorAlert.svelte';
+	import { requestMagicLink, isAuthenticated, loading, error as authError } from '$stores/auth';
 	import GoogleLoginButton from '$components/GoogleLoginButton.svelte';
 
 	let email = '';
-	let password = '';
+	let sent = false;
 	let localError = '';
+	let cooldown = 0;
+	let cooldownTimer: ReturnType<typeof setInterval> | null = null;
 
 	$: if ($isAuthenticated) {
 		goto('/');
@@ -14,95 +15,139 @@
 
 	async function handleSubmit() {
 		localError = '';
-
-		if (!email || !password) {
-			localError = 'Please fill in all fields';
+		if (!email) {
+			localError = 'Please enter your email address';
 			return;
 		}
-
-		const success = await login({ email, password });
+		const success = await requestMagicLink(email);
 		if (success) {
-			goto('/');
+			sent = true;
+			startCooldown();
+		}
+	}
+
+	async function handleResend() {
+		if (cooldown > 0) return;
+		const success = await requestMagicLink(email);
+		if (success) startCooldown();
+	}
+
+	function startCooldown() {
+		cooldown = 60;
+		if (cooldownTimer) clearInterval(cooldownTimer);
+		cooldownTimer = setInterval(() => {
+			cooldown--;
+			if (cooldown <= 0 && cooldownTimer) {
+				clearInterval(cooldownTimer);
+				cooldownTimer = null;
+			}
+		}, 1000);
+	}
+
+	function reset() {
+		sent = false;
+		localError = '';
+		cooldown = 0;
+		if (cooldownTimer) {
+			clearInterval(cooldownTimer);
+			cooldownTimer = null;
 		}
 	}
 </script>
 
 <svelte:head>
-	<title>Login - Predictor v2</title>
+	<title>Sign in — Predictor</title>
 </svelte:head>
 
-<div class="auth-bg flex items-center justify-center px-4 py-12">
-	<div class="w-full max-w-md animate-slide-up">
-		<!-- Logo/Brand -->
-		<div class="text-center mb-8">
-			<h1 class="text-5xl font-display tracking-wider text-gradient mb-2">PREDICTOR</h1>
-			<p class="text-base-content/50 text-sm">World Cup 2026 Predictions</p>
-		</div>
-
-		<!-- Login Card -->
-		<div class="stadium-card p-6 sm:p-8">
-			<h2 class="text-2xl font-display tracking-wide text-center mb-6">Welcome Back</h2>
-
-			<ErrorAlert message={localError || $authError} />
-
-			<form on:submit|preventDefault={handleSubmit} class="space-y-4">
-				<div>
-					<label class="block text-sm font-medium text-base-content/70 mb-2" for="email">
-						Email
-					</label>
-					<input
-						id="email"
-						type="email"
-						placeholder="your@email.com"
-						class="auth-input"
-						bind:value={email}
-						disabled={$loading}
-					/>
-				</div>
-
-				<div>
-					<label class="block text-sm font-medium text-base-content/70 mb-2" for="password">
-						Password
-					</label>
-					<input
-						id="password"
-						type="password"
-						placeholder="••••••••"
-						class="auth-input"
-						bind:value={password}
-						disabled={$loading}
-					/>
-				</div>
-
-				<button
-					type="submit"
-					class="w-full btn btn-primary btn-lg font-semibold gap-2"
-					disabled={$loading}
-				>
-					{#if $loading}
-						<span class="loading loading-spinner loading-sm"></span>
-					{/if}
-					Sign In
-				</button>
-			</form>
-
-			<div class="relative my-6">
-				<div class="absolute inset-0 flex items-center">
-					<div class="w-full border-t border-base-300"></div>
-				</div>
-				<div class="relative flex justify-center">
-					<span class="px-4 text-sm text-base-content/40 bg-base-200">or continue with</span>
-				</div>
+<div class="pn">
+	<div class="pn-auth-page">
+		<div class="pn-auth-card">
+			<div class="pn-auth-crest">
+				<div class="crest">P</div>
+				<div class="nm">The Predictor<span class="sub">Vol. I — WC 2026</span></div>
 			</div>
 
-			<GoogleLoginButton disabled={$loading} />
+			{#if !sent}
+				<!-- State 1: Email form -->
+				<h1 class="pn-auth-h">Sign <em>in</em></h1>
 
-			<p class="text-center text-sm text-base-content/50 mt-6">
-				Don't have an account?
-				<a href="/register" class="text-primary hover:text-primary/80 transition-colors font-medium">
-					Sign up
-				</a>
-			</p>
+				{#if localError || $authError}
+					<div class="pn-form-error">{localError || $authError}</div>
+				{/if}
+
+				<form class="pn-form" on:submit|preventDefault={handleSubmit}>
+					<div class="pn-field">
+						<label for="email">Email</label>
+						<input
+							id="email"
+							type="email"
+							placeholder="your@email.com"
+							bind:value={email}
+							disabled={$loading}
+						/>
+					</div>
+					<button
+						type="submit"
+						class="pn-btn"
+						style="justify-content: center; margin-top: 6px;"
+						disabled={$loading}
+					>
+						{$loading ? 'Sending…' : 'Send me a link'}
+					</button>
+				</form>
+
+				<div class="pn-auth-divider">or continue with</div>
+				<GoogleLoginButton disabled={$loading} />
+			{:else}
+				<!-- State 2: Check email -->
+				<h1 class="pn-auth-h">Check your <em>email</em></h1>
+
+				<p class="pn-auth-info">
+					We sent a sign-in link to <strong>{email}</strong>.<br />
+					Click it to sign in — the link expires in 15 minutes.
+				</p>
+
+				<button
+					class="pn-btn"
+					style="justify-content: center; width: 100%; margin-top: 16px;"
+					disabled={cooldown > 0 || $loading}
+					on:click={handleResend}
+				>
+					{cooldown > 0 ? `Resend in ${cooldown}s` : $loading ? 'Sending…' : "Didn't get it? Resend"}
+				</button>
+
+				<p class="pn-auth-footer" style="margin-top: 16px;">
+					<button class="pn-link-btn" on:click={reset}>Use a different email</button>
+				</p>
+			{/if}
 		</div>
 	</div>
 </div>
+
+<style>
+	.pn-auth-info {
+		font-family: var(--body);
+		font-size: 14px;
+		color: var(--ink-2);
+		line-height: 1.6;
+		text-align: center;
+		margin: 0 0 8px;
+	}
+
+	.pn-link-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		font-family: var(--mono);
+		font-size: 11px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--ink-3);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+
+	.pn-link-btn:hover {
+		color: var(--ink);
+	}
+</style>

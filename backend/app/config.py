@@ -34,6 +34,20 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
 
+    # Magic-link (passwordless) auth
+    # Frontend URL used both as the redirect target after verify, AND as the
+    # base for the link in the outgoing email (link goes to
+    # {frontend_url}/api/auth/verify-magic-link?token=... which the Vite
+    # proxy / nginx forwards to the backend).
+    frontend_url: str = "http://localhost:5173"
+    magic_link_expire_minutes: int = 15
+
+    # Resend (email delivery for magic links).
+    # Leave resend_api_key empty in dev — the service will log the link to
+    # stdout instead of sending an email.
+    resend_api_key: str = ""
+    resend_from_email: str = "The Predictor <noreply@resend.dev>"
+
     # Football-Data.org
     football_data_token: str = ""
     football_data_base_url: str = "https://api.football-data.org/v4"
