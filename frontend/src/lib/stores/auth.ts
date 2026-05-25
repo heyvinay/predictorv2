@@ -8,7 +8,8 @@ import { goto } from '$app/navigation';
 import { api } from '$api/client';
 import * as authApi from '$api/auth';
 import { clearAllForUser } from '$stores/unsavedPersistence';
-import type { User, UserCreate, UserLogin } from '$types';
+import { resetEntries } from '$stores/entries';
+import type { User } from '$types';
 
 const TOKEN_KEY = 'predictor_token';
 
@@ -44,34 +45,15 @@ token.subscribe((value) => {
 });
 
 // Actions
-export async function register(data: UserCreate): Promise<boolean> {
+export async function requestMagicLink(email: string): Promise<boolean> {
 	loading.set(true);
 	error.set(null);
 
 	try {
-		const result = await authApi.register(data);
-		token.set(result.access_token);
-		await fetchUser();
+		await authApi.requestMagicLink({ email });
 		return true;
 	} catch (e) {
-		error.set(e instanceof Error ? e.message : 'Registration failed');
-		return false;
-	} finally {
-		loading.set(false);
-	}
-}
-
-export async function login(data: UserLogin): Promise<boolean> {
-	loading.set(true);
-	error.set(null);
-
-	try {
-		const result = await authApi.login(data);
-		token.set(result.access_token);
-		await fetchUser();
-		return true;
-	} catch (e) {
-		error.set(e instanceof Error ? e.message : 'Login failed');
+		error.set(e instanceof Error ? e.message : 'Failed to send sign-in link');
 		return false;
 	} finally {
 		loading.set(false);
@@ -95,6 +77,7 @@ export async function fetchUser(): Promise<User | null> {
 		// on the same browser.
 		const prevId = get(user)?.id;
 		if (prevId) clearAllForUser(prevId);
+		resetEntries();
 		token.set(null);
 		user.set(null);
 		return null;
@@ -104,6 +87,7 @@ export async function fetchUser(): Promise<User | null> {
 export function logout() {
 	const prevId = get(user)?.id;
 	if (prevId) clearAllForUser(prevId);
+	resetEntries();
 	token.set(null);
 	user.set(null);
 	error.set(null);

@@ -5,7 +5,7 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models._datetime import utc_now
+from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.models.fixture import Fixture
 from app.models.prediction import MatchPrediction, PredictionPhase
@@ -36,8 +36,12 @@ def check_fixture_locked(fixture: Fixture, lock_minutes: int = LOCK_MINUTES) -> 
     Returns:
         True if predictions are locked, False otherwise
     """
-    lock_time = fixture.kickoff - timedelta(minutes=lock_minutes)
-    return utc_now() >= lock_time
+    # aware_utc() guards against aiosqlite dropping tzinfo on read (the
+    # SQLite quirk noted in CLAUDE.md). Postgres preserves tzinfo so this
+    # is a defensive no-op in production.
+    kickoff = aware_utc(fixture.kickoff)
+    lock_time = kickoff - timedelta(minutes=lock_minutes)
+    return aware_utc(utc_now()) >= lock_time
 
 
 def get_time_until_lock(fixture: Fixture, lock_minutes: int = LOCK_MINUTES) -> timedelta | None:
@@ -50,8 +54,9 @@ def get_time_until_lock(fixture: Fixture, lock_minutes: int = LOCK_MINUTES) -> t
     Returns:
         Time remaining as timedelta, or None if already locked
     """
-    lock_time = fixture.kickoff - timedelta(minutes=lock_minutes)
-    remaining = lock_time - utc_now()
+    kickoff = aware_utc(fixture.kickoff)
+    lock_time = kickoff - timedelta(minutes=lock_minutes)
+    remaining = lock_time - aware_utc(utc_now())
     return remaining if remaining.total_seconds() > 0 else None
 
 
@@ -84,7 +89,7 @@ async def is_phase1_locked(session: AsyncSession) -> bool:
     competition = await get_active_competition(session)
     if not competition or not competition.phase1_deadline:
         return False
-    return utc_now() >= competition.phase1_deadline
+    return aware_utc(utc_now()) >= aware_utc(competition.phase1_deadline)
 
 
 async def is_phase2_bracket_locked(session: AsyncSession) -> bool:
@@ -106,7 +111,7 @@ async def is_phase2_bracket_locked(session: AsyncSession) -> bool:
         return False
     if not competition.phase2_bracket_deadline:
         return False
-    return utc_now() >= competition.phase2_bracket_deadline
+    return aware_utc(utc_now()) >= aware_utc(competition.phase2_bracket_deadline)
 
 
 async def lock_predictions(session: AsyncSession, fixture_id: str) -> int:

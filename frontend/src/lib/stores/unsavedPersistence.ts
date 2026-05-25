@@ -5,6 +5,10 @@
  * - Hydrates on mount; drops kicked-off match entries and locked-phase brackets.
  * - Listens for `storage` events so multiple tabs of the same user stay in sync.
  * - Per-key dedup cache breaks the cross-tab write/echo loop.
+ *
+ * Keys are scoped to `(userId, entryId)`. Switching active entry tears
+ * down the previous subscriber set and registers a fresh one — drafts
+ * never bleed across entries.
  */
 
 import { writable, type Readable, type Unsubscriber } from 'svelte/store';
@@ -35,17 +39,27 @@ interface Envelope<T> {
 const _lastLocalSave = writable<Date | null>(null);
 export const lastLocalSave: Readable<Date | null> = _lastLocalSave;
 
-const initializedUserIds = new Set<string>();
+// Tracks live subscriber sets keyed by `${userId}|${entryId}` so we can
+// tear down cleanly when the active entry changes or the user logs out.
 const subscribers = new Map<string, Unsubscriber[]>();
 
-function keyMatches(userId: string): string {
-	return `predictor_unsaved_${userId}_matches`;
+function contextKey(userId: string, entryId: string): string {
+	return `${userId}|${entryId}`;
 }
-function keyP1(userId: string): string {
-	return `predictor_unsaved_${userId}_bracket_phase1`;
+
+function keyMatches(userId: string, entryId: string): string {
+	return `predictor_unsaved_${userId}_${entryId}_matches`;
 }
-function keyP2(userId: string): string {
-	return `predictor_unsaved_${userId}_bracket_phase2`;
+function keyP1(userId: string, entryId: string): string {
+	return `predictor_unsaved_${userId}_${entryId}_bracket_phase1`;
+}
+function keyP2(userId: string, entryId: string): string {
+	return `predictor_unsaved_${userId}_${entryId}_bracket_phase2`;
+}
+
+/** Prefix of every key written by the current schema for a `(userId, entryId)` pair. */
+function userEntryKeyPrefix(userId: string, entryId: string): string {
+	return `predictor_unsaved_${userId}_${entryId}_`;
 }
 
 function safeParse<T>(raw: string): Envelope<T> | null {
@@ -78,9 +92,29 @@ function isEmpty(data: unknown): boolean {
 	return false;
 }
 
-export function initPersistence(userId: string): void {
-	if (!browser || initializedUserIds.has(userId)) return;
-	initializedUserIds.add(userId);
+/**
+ * Drop any legacy `predictor_unsaved_{userId}_{type}` keys (no entry
+ * segment). Drafts are local-only — if we can't tell which entry they
+ * belonged to, the safer move is to discard them rather than guess.
+ */
+function discardLegacyKeys(userId: string): void {
+	if (!browser) return;
+	const legacyPrefix = `predictor_unsaved_${userId}_`;
+	const legacySuffixes = ['matches', 'bracket_phase1', 'bracket_phase2'];
+	for (const suffix of legacySuffixes) {
+		const exactLegacy = `${legacyPrefix}${suffix}`;
+		try {
+			localStorage.removeItem(exactLegacy);
+		} catch {
+			// no-op
+		}
+	}
+}
+
+export function initPersistence(userId: string, entryId: string): void {
+	if (!browser) return;
+	const ctx = contextKey(userId, entryId);
+	if (subscribers.has(ctx)) return;
 
 	// Per-key dedup cache. Stores JSON.stringify(data) so identical follow-ups
 	// (including echoes from cross-tab `storage` events) don't bounce-write.
@@ -105,15 +139,15 @@ export function initPersistence(userId: string): void {
 	}
 
 	const writeMatches = debounce((data: MatchesData) => {
-		writeOrRemove(keyMatches(userId), data);
+		writeOrRemove(keyMatches(userId, entryId), data);
 	}, DEBOUNCE_MS);
 
 	const writeP1 = debounce((data: BracketPrediction | null) => {
-		writeOrRemove(keyP1(userId), data);
+		writeOrRemove(keyP1(userId, entryId), data);
 	}, DEBOUNCE_MS);
 
 	const writeP2 = debounce((data: BracketPrediction | null) => {
-		writeOrRemove(keyP2(userId), data);
+		writeOrRemove(keyP2(userId, entryId), data);
 	}, DEBOUNCE_MS);
 
 	const subs: Unsubscriber[] = [];
@@ -146,7 +180,7 @@ export function initPersistence(userId: string): void {
 	);
 
 	function onStorage(e: StorageEvent) {
-		if (!e.key || !e.key.startsWith(`predictor_unsaved_${userId}_`)) return;
+		if (!e.key || !e.key.startsWith(userEntryKeyPrefix(userId, entryId))) return;
 
 		const env = e.newValue ? safeParse<unknown>(e.newValue) : null;
 		const data = env && env.v === CURRENT_VERSION ? env.data : null;
@@ -158,17 +192,17 @@ export function initPersistence(userId: string): void {
 
 		// Prime the cache with the same shape the local subscriber will compute
 		// after .set(), so the resulting subscription fire skips the bounce-write.
-		if (e.key === keyMatches(userId)) {
+		if (e.key === keyMatches(userId, entryId)) {
 			const next: MatchesData = (data as MatchesData) ?? {};
 			lastWritten.matches = JSON.stringify(next);
 			unsavedChanges.set(next);
 			if (remoteCommitted) void fetchMatchPredictions();
-		} else if (e.key === keyP1(userId)) {
+		} else if (e.key === keyP1(userId, entryId)) {
 			const next: BracketPrediction | null = (data as BracketPrediction) ?? null;
 			lastWritten.p1 = JSON.stringify(next);
 			unsavedBracketPrediction.set(next);
 			if (remoteCommitted) void fetchBracketPredictions();
-		} else if (e.key === keyP2(userId)) {
+		} else if (e.key === keyP2(userId, entryId)) {
 			const next: BracketPrediction | null = (data as BracketPrediction) ?? null;
 			lastWritten.p2 = JSON.stringify(next);
 			unsavedPhase2BracketPrediction.set(next);
@@ -184,11 +218,26 @@ export function initPersistence(userId: string): void {
 		writeP2.cancel();
 	});
 
-	subscribers.set(userId, subs);
+	subscribers.set(ctx, subs);
+}
+
+/**
+ * Tear down the subscriber set for one `(userId, entryId)` pair. Called
+ * by the wizard when the active entry changes — the new entry then calls
+ * `initPersistence` with its own context.
+ */
+export function teardownPersistence(userId: string, entryId: string): void {
+	const ctx = contextKey(userId, entryId);
+	const subs = subscribers.get(ctx);
+	if (subs) {
+		for (const unsub of subs) unsub();
+		subscribers.delete(ctx);
+	}
 }
 
 export function hydrateFromStorage(
 	userId: string,
+	entryId: string,
 	groupFixtures: FixturesByGroup[],
 	isPhase1Locked: boolean,
 	isPhase2BracketLocked: boolean
@@ -199,6 +248,10 @@ export function hydrateFromStorage(
 } | null {
 	if (!browser) return null;
 
+	// One-time cleanup — drafts saved before Task E (no entry segment)
+	// can't be safely reassigned, so drop them.
+	discardLegacyKeys(userId);
+
 	const result = {
 		matchCount: 0,
 		bracketPhase1Restored: false,
@@ -206,7 +259,7 @@ export function hydrateFromStorage(
 	};
 
 	// --- Match scores: drop kicked-off fixtures ---
-	const matchesEnv = readEnvelope<MatchesData>(keyMatches(userId));
+	const matchesEnv = readEnvelope<MatchesData>(keyMatches(userId, entryId));
 	if (matchesEnv) {
 		const lockedIds = new Set<string>();
 		for (const group of groupFixtures) {
@@ -230,9 +283,9 @@ export function hydrateFromStorage(
 
 	// --- Phase 1 bracket: drop if phase is locked ---
 	if (isPhase1Locked) {
-		if (browser) localStorage.removeItem(keyP1(userId));
+		if (browser) localStorage.removeItem(keyP1(userId, entryId));
 	} else {
-		const p1Env = readEnvelope<BracketPrediction>(keyP1(userId));
+		const p1Env = readEnvelope<BracketPrediction>(keyP1(userId, entryId));
 		if (p1Env) {
 			unsavedBracketPrediction.set(p1Env.data);
 			result.bracketPhase1Restored = true;
@@ -241,9 +294,9 @@ export function hydrateFromStorage(
 
 	// --- Phase 2 bracket: drop if phase is locked ---
 	if (isPhase2BracketLocked) {
-		if (browser) localStorage.removeItem(keyP2(userId));
+		if (browser) localStorage.removeItem(keyP2(userId, entryId));
 	} else {
-		const p2Env = readEnvelope<BracketPrediction>(keyP2(userId));
+		const p2Env = readEnvelope<BracketPrediction>(keyP2(userId, entryId));
 		if (p2Env) {
 			unsavedPhase2BracketPrediction.set(p2Env.data);
 			result.bracketPhase2Restored = true;
@@ -260,19 +313,43 @@ export function hydrateFromStorage(
 	return result;
 }
 
+/**
+ * Wipe every persisted draft key for this user across ALL entries.
+ * Called on logout — we walk localStorage looking for the user's key
+ * prefix rather than tracking entry ids.
+ */
 export function clearAllForUser(userId: string): void {
 	if (!browser) return;
+	const legacyPrefix = `predictor_unsaved_${userId}_`;
+	// Active-entry key is exact-match (no competition segment after Task F.x);
+	// we keep the legacy-prefix match below in case an old per-competition
+	// variant survives from before the refactor.
+	const activeExactKey = `predictor_active_entry_${userId}`;
+	const activeLegacyPrefix = `predictor_active_entry_${userId}_`;
 	try {
-		localStorage.removeItem(keyMatches(userId));
-		localStorage.removeItem(keyP1(userId));
-		localStorage.removeItem(keyP2(userId));
+		const keysToRemove: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (
+				key &&
+				(key.startsWith(legacyPrefix) ||
+					key === activeExactKey ||
+					key.startsWith(activeLegacyPrefix))
+			) {
+				keysToRemove.push(key);
+			}
+		}
+		for (const key of keysToRemove) localStorage.removeItem(key);
 	} catch {
 		// no-op
 	}
-	const subs = subscribers.get(userId);
-	if (subs) {
-		for (const unsub of subs) unsub();
-		subscribers.delete(userId);
+	// Tear down every subscriber set for this user (any entry).
+	const prefix = `${userId}|`;
+	for (const ctx of Array.from(subscribers.keys())) {
+		if (ctx.startsWith(prefix)) {
+			const subs = subscribers.get(ctx);
+			if (subs) for (const unsub of subs) unsub();
+			subscribers.delete(ctx);
+		}
 	}
-	initializedUserIds.delete(userId);
 }

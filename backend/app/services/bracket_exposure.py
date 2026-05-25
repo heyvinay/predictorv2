@@ -73,13 +73,13 @@ class BracketExposureResult:
 
 async def compute_bracket_exposure(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    entry_id: uuid.UUID,
     phase: PredictionPhase = PredictionPhase.PHASE_1,
 ) -> BracketExposureResult:
-    """Compute the user's bracket exposure for the given phase."""
+    """Compute the entry's bracket exposure for the given phase."""
     result = await session.execute(
         select(TeamPrediction)
-        .where(TeamPrediction.user_id == user_id)
+        .where(TeamPrediction.entry_id == entry_id)
         .where(TeamPrediction.phase == phase)
     )
     preds = list(result.scalars().all())

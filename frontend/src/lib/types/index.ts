@@ -3,11 +3,14 @@
  * Mirrors backend Pydantic schemas.
  */
 
+// Re-export entry types so consumers can `import { Entry, EntryStatus } from '$types'`
+export * from './entry';
+
 // Auth types
 export interface User {
 	id: string;
 	email: string;
-	name: string;
+	name: string | null;
 	auth_provider: 'email' | 'google';
 	is_admin: boolean;
 	is_active: boolean;
@@ -20,15 +23,8 @@ export interface Token {
 	token_type: string;
 }
 
-export interface UserCreate {
+export interface MagicLinkRequest {
 	email: string;
-	name: string;
-	password: string;
-}
-
-export interface UserLogin {
-	email: string;
-	password: string;
 }
 
 // Fixture types
@@ -57,6 +53,9 @@ export interface Fixture {
 	is_locked: boolean;
 	time_until_lock: number | null;
 	score: FixtureScore | null;
+	venue_city: string | null;
+	venue_country: string | null;
+	venue_country_code: string | null;
 }
 
 export interface FixturesByGroup {
@@ -76,6 +75,7 @@ export type PredictionPhase = 'phase_1' | 'phase_2';
 
 export interface MatchPrediction {
 	id: string;
+	entry_id: string;
 	fixture_id: string;
 	home_score: number;
 	away_score: number;
@@ -272,6 +272,9 @@ export function getGroupTotal(p: PhaseBreakdown): number {
 }
 
 export interface LeaderboardEntry {
+	entry_id: string;
+	entry_reference: string;
+	entry_name: string;
 	user_id: string;
 	user_name: string;
 	position: number;
@@ -328,9 +331,8 @@ export interface ActualStandingsResponse {
 }
 
 // Profile types
-export interface PasswordChange {
-	current_password: string;
-	new_password: string;
+export interface UserUpdate {
+	name: string;
 }
 
 export interface UserStats {
@@ -349,6 +351,8 @@ export interface UserStats {
 // Community predictions (for scatter plot on results page)
 export interface CommunityPrediction {
 	user_name: string;
+	entry_reference: string;
+	entry_name: string;
 	home_score: number;
 	away_score: number;
 }

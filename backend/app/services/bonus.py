@@ -120,13 +120,13 @@ def answer_in(user_answer: str, correct_answers: list[str]) -> bool:
 
 async def calculate_bonus_points(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    entry_id: uuid.UUID,
     competition_id: uuid.UUID | None = None,
 ) -> int:
-    """Total bonus points earned by a user.
+    """Total bonus points earned by a single prediction entry.
 
     For each question with a recorded correct answer (in `bonus_answers`),
-    check whether the user's prediction matches via answers_match() and
+    check whether the entry's prediction matches via answers_match() and
     award the question's category points if so. Returns the sum.
     """
     # Load all bonus answers (optionally filtered by competition). Each
@@ -142,11 +142,11 @@ async def calculate_bonus_points(
     for a in ans_rows:
         correct_by_qid.setdefault(a.question_id, []).append(a.correct_answer)
 
-    # User's predictions for those questions.
+    # Entry's predictions for those questions.
     pred_rows = (
         await session.execute(
             select(BonusPrediction)
-            .where(BonusPrediction.user_id == user_id)
+            .where(BonusPrediction.entry_id == entry_id)
             .where(BonusPrediction.question_id.in_(list(correct_by_qid.keys())))
         )
     ).scalars().all()

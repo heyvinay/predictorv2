@@ -95,3 +95,7 @@ worktrees/
 panini-files/
 # scratch state from manual UI tests
 backend/scripts/.test_match_detail_state.json
+
+# Local docker-compose overrides (worktree mounts, dev tweaks)
+docker-compose.override.yml
+docker-compose.override.yaml

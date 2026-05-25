@@ -163,8 +163,18 @@ class UserPoints(BaseModel):
 
 
 class LeaderboardEntry(BaseModel):
-    """Single entry in the leaderboard."""
+    """Single row in the leaderboard.
 
+    Each row is one `PredictionEntry`. Both entry- and user-level identity
+    are surfaced — the entry is the unit of ranking, the user is for
+    display (avatar, YOU badge, etc.). `entry_reference` may be suppressed
+    in the API layer when the requesting user isn't the owner and the
+    competition has `show_entry_reference_publicly=False`.
+    """
+
+    entry_id: uuid.UUID
+    entry_reference: str | None = None
+    entry_name: str
     user_id: uuid.UUID
     user_name: str
     position: int

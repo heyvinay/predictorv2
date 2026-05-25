@@ -20,10 +20,10 @@ Current focus: **World Cup 2026**
 
 **Frontend:**
 - SvelteKit with TypeScript
-- Tailwind CSS + DaisyUI (DaisyUI's tokens still drive auth-gated layouts; the user-facing surface uses the **Panini** design system — see "UI Guidelines" below)
-- Panini design system: cream-paper sticker-album theme, fonts Archivo Black + Archivo + IBM Plex Sans/Mono, CSS-variable-scoped under `.pn`
+- Tailwind CSS + DaisyUI — the dark **predictor** theme defined in `frontend/tailwind.config.js` (primary `#0D9748`, secondary `#1E3A5F`, accent `#F5A623`, base-100 `#0A0E13`)
+- Fonts: **Bebas Neue** (display) and **DM Sans** (body), loaded in `frontend/src/app.html`
 - Svelte stores for state management
-- Vitest for unit tests (pure utilities + stub generators)
+- Vitest for unit tests (pure utilities + widget fallbacks)
 - svelte-motion for animations (planned)
 
 **Infrastructure:**
@@ -46,22 +46,18 @@ Current focus: **World Cup 2026**
 │   ├── /src
 │   │   ├── /lib
 │   │   │   ├── /api         # API client functions
-│   │   │   ├── /components
-│   │   │   │   ├── /panini  # Panini design components (PnPageShell, PnMast,
-│   │   │   │   │            #   PnBottomNav, PnFlag, PnIcon, PnKnockoutBracket,
-│   │   │   │   │            #   PnBracketMatch, PnSparkline, PnStrip)
-│   │   │   │   └── /bracket # Legacy interactive bracket (still imported by
-│   │   │   │                #   PnKnockoutBracket for its state machine)
+│   │   │   ├── /components  # Shared UI: MatchCard, GroupTable, ResultCard,
+│   │   │   │                #   SaveButton, ErrorAlert, Icon, ScatterPlot,
+│   │   │   │                #   EntrySelector, Sparkline, GoogleLoginButton …
+│   │   │   │   ├── /bracket # Interactive knockout bracket (KnockoutBracket,
+│   │   │   │   │            #   BracketMatch) — state machine in bracketResolver
+│   │   │   │   └── /predictions # Wizard sub-views (Phase1Groups, Phase1Bracket,
+│   │   │   │                    #   Phase2Content, DeadlineBanner, ProgressBar)
 │   │   │   ├── /stores      # Svelte stores
-│   │   │   ├── /styles      # Panini CSS modules (panini-base.css, panini-
-│   │   │   │                #   dashboard.css, panini-leaderboard.css,
-│   │   │   │                #   panini-wizard.css, panini-bracket.css,
-│   │   │   │                #   panini-results.css, panini-profile.css,
-│   │   │   │                #   panini-admin.css, panini-auth.css)
-│   │   │   ├── /stubs       # Deterministic stubs for backend-pending widgets
-│   │   │   ├── /types       # TypeScript interfaces (incl. types/panini.ts)
+│   │   │   ├── /types       # TypeScript interfaces
 │   │   │   └── /utils       # Helper functions (incl. teamCodes.ts,
-│   │   │                    #   bracketResolver.ts, standings.ts)
+│   │   │                    #   bracketResolver.ts, standings.ts,
+│   │   │                    #   widgetFallbacks.ts)
 │   │   └── /routes          # SvelteKit pages
 ├── /config                  # Tournament YAML configuration
 ├── /docs                    # Documentation
@@ -126,17 +122,18 @@ The rule was established in commit `c6089cc`. The original conversion migration 
 | `backend/app/services/locking.py` | Prediction locking logic |
 | `backend/app/services/standings.py` | Group standings calculation |
 | `backend/app/api/admin.py` | Admin endpoints (users, paid status, phase ops, score sync) |
-| `frontend/src/app.css` | Top-level stylesheet — order-sensitive `@import`s for Panini CSS modules go **before** `@tailwind` directives |
-| `frontend/src/routes/+layout.svelte` | Root layout — `PANINI_ROUTES` list controls which routes render their own Panini chrome vs the legacy DaisyUI navbar |
-| `frontend/src/lib/components/panini/PnPageShell.svelte` | Wraps every Panini page (masthead + bottom nav + paper grain) |
-| `frontend/src/lib/components/panini/PnKnockoutBracket.svelte` | Final-in-the-middle bracket (wall chart desktop / swipeable mobile) |
-| `frontend/src/lib/components/panini/PnBracketMatch.svelte` | Single match card inside the bracket |
-| `frontend/src/lib/styles/panini-base.css` | Panini tokens, masthead, mobile chrome, primitive classes (`pn-card`, `pn-sticker`, `pn-tag`, `pn-btn`, `pn-banner`) |
+| `frontend/tailwind.config.js` | DaisyUI `predictor` theme tokens, custom utilities (pitch-pattern, stadium-glow, glow-*, noise) |
+| `frontend/src/app.css` | Global styles — `stadium-card`, `match-card`, `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, font setup |
+| `frontend/src/app.html` | Sets `data-theme="predictor"` and loads Bebas Neue + DM Sans |
+| `frontend/src/routes/+layout.svelte` | Root layout — dark navbar + mobile bottom nav, mounted on every route |
+| `frontend/src/lib/components/bracket/KnockoutBracket.svelte` | Interactive knockout bracket (wall chart desktop / swipeable mobile) |
+| `frontend/src/lib/components/bracket/BracketMatch.svelte` | Single match card inside the bracket |
+| `frontend/src/lib/components/EntrySelector.svelte` | Multi-entry switcher used in the wizard, profile, and leaderboard |
+| `frontend/src/lib/components/Sparkline.svelte` | Rank-trajectory sparkline (leaderboard + dashboard) |
 | `frontend/src/lib/stores/predictions.ts` | Prediction state management |
-| `frontend/src/lib/stubs/panini.ts` | Deterministic stub data generators for backend-pending widgets (sparklines, social signals, hot pick, etc.) |
+| `frontend/src/lib/utils/widgetFallbacks.ts` | Deterministic fallbacks for backend-pending dashboard/leaderboard widgets |
 | `frontend/src/lib/utils/bracketResolver.ts` | FIFA 2026 knockout bracket logic |
-| `frontend/src/lib/utils/teamCodes.ts` | Team name → FIFA 3-letter code mapping for `PnFlag` |
-| `docs/superpowers/panini-redesign-decisions.md` | Decisions log for the Panini redesign + every deferred follow-up |
+| `frontend/src/lib/utils/teamCodes.ts` | Team name → FIFA 3-letter code mapping for flag swatches |
 
 ## Development
 
@@ -217,7 +214,8 @@ docker-compose exec backend pytest tests/test_scoring.py -v
 cd frontend && npm run check                           # or via container:
 docker-compose exec frontend-dev npm run check
 
-# Frontend unit tests (Panini stubs + sparkline path generator, vitest)
+# Frontend unit tests (vitest — widget fallbacks, sparkline path, standings,
+# bracketResolver, leaderboard helpers, entry selector logic)
 docker-compose exec frontend-dev npx vitest run
 
 # Manual testing with test data
@@ -228,31 +226,29 @@ docker-compose exec backend python scripts/seed_phase2_test.py
 
 ## UI Guidelines
 
-The site uses the **Panini** design system — a sticker-album-inspired theme on cream paper with navy ink, red accents, and gold highlights. Every user-visible page (Dashboard, Predictions, Leaderboard, Results, Profile, Admin, Login/Register/Auth callback) renders inside `<PnPageShell>`, which establishes the `.pn` CSS scope.
+The site uses the DaisyUI **predictor** theme — a dark sports-broadcast palette with green primary, navy secondary, gold accent, near-black background, and subtle noise/pitch-pattern texture overlays. The root `<html>` tag sets `data-theme="predictor"` (`app.html`); all routes render inside the dark `<nav>` + mobile bottom nav defined in `routes/+layout.svelte`.
 
-**Design tokens** (CSS variables on `.pn`, defined in `frontend/src/lib/styles/panini-base.css`):
-- `--paper` `#f1ebde` (canvas) · `--paper-2` `#e9e1cf` · `--paper-3` `#dfd4ba`
-- `--ink` `#0e1d40` (navy text) · `--ink-2` `#514a3d` · `--ink-3` `#8a826f` (subdued)
-- `--red` `#c8281f` (signals, "you", urgency) · `--red-deep` `#8a1610`
-- `--gold` `#d49a2e` (highlights, hot picks, exact scores)
-- `--green` `#1b6c3e` (correct outcomes) · `--navy` `#1a3168` (deep panels)
+**Theme tokens** (in `frontend/tailwind.config.js`):
+- `primary` `#0D9748` (action / accents / "you" highlights)
+- `secondary` `#1E3A5F` (deep navy panels)
+- `accent` `#F5A623` (gold — exact-score & rare-pick highlights)
+- `base-100` `#0A0E13` (near-black canvas) · `base-200` `#11161D` · `base-300` `#1A2028`
+- `success` / `warning` / `error` for outcome states
 
 **Typography:**
-- `var(--display)` — Archivo Black (uppercase, tight) for numbers, titles, big stats
-- `var(--display2)` — Archivo (regular display for medium-weight headings)
-- `var(--body)` — IBM Plex Sans
-- `var(--mono)` — IBM Plex Mono (labels, metadata, kickoffs)
+- **Bebas Neue** (display) — uppercase numerals, hero titles, big stats, brand mark
+- **DM Sans** (body) — UI text, labels, captions
 
-**Sticker shadows:** all cards use offset hard shadows (`box-shadow: 5px 5px 0 var(--ink)`). **Do not apply `transform: rotate(...)` to card-level containers** (sticker, KPI, match, profile-hero) — only small decorative accents (the crest logo, corner-tag pills, avatar chips) may carry a slight rotation. Soft drop shadows are out of style.
+**Global classes** (in `frontend/src/app.css`): `stadium-card`, `match-card`, `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, plus DaisyUI's `btn`, `card`, `navbar`, `dropdown`, `menu`, `tabs`, etc. Custom utilities `pitch-pattern`, `stadium-glow`, `glow-primary` / `glow-accent` live in `tailwind.config.js`.
 
-**Component primitives** (in `panini-base.css`): `pn-card`, `pn-sticker`, `pn-tag`, `pn-btn`, `pn-banner`. Page-specific stylesheets live under `frontend/src/lib/styles/panini-*.css` and are imported by `app.css` ahead of the `@tailwind` directives (the import position is load-bearing; PostCSS drops `@import` rules that appear after other at-rules).
+**Card shadows:** prefer DaisyUI's `shadow`/`shadow-xl` plus the custom `glow-*` utilities for emphasis. Avoid hand-rolled box-shadow hacks unless the theme tokens can't express it.
 
-**Save actions** still show feedback only after the backend confirms.
-**Mobile** still: one logical group at a time, avoid grid-of-cards on small screens.
-**Phase tabs** still: switch between Phase 1 and Phase 2 predictions. The Phase I/II toggle and the Groups/Knockout/Bonus section toggle live as a stacked pair in the wizard hero.
-**Bracket** gating: in Phase 1 the Knockout sub-section is locked until every group prediction is filled in (uses predicted standings to seed R32 — would otherwise show TBD slots).
+**Save actions** show feedback only after the backend confirms.
+**Mobile**: one logical group at a time; avoid grid-of-cards on small screens.
+**Phase tabs**: switch between Phase 1 and Phase 2 predictions. The Phase I/II toggle and the Groups / Knockout / Bonus section toggle live as a stacked pair in the wizard hero.
+**Bracket gating**: in Phase 1 the Knockout sub-section is locked until every group prediction is filled in (uses predicted standings to seed R32 — would otherwise show TBD slots).
 **Score inputs** are capped at 15 goals per side, enforced live in the input event so the user sees the cap immediately.
 
-**Flag swatches** are 2/3-stripe gradient placeholders (`PnFlag.svelte`) — earmarked for a real flag library in a follow-up plan.
+**Flag swatches** are 2/3-stripe gradient placeholders driven by `lib/utils/teamCodes.ts` — earmarked for a real flag library in a follow-up plan.
 
-**Backend-dependent widgets** (sparklines, social signals, hot pick, bracket exposure, underdog hits, steepest climb) use deterministic stubs in `frontend/src/lib/stubs/panini.ts` until the backend supports them. Each stub logs `[panini:stub] <name>` in dev so they're greppable.
+**Backend-dependent widgets** (rank sparklines, social signals, hot pick, bracket exposure, underdog hits, steepest climb) fall back to deterministic stub data via `frontend/src/lib/utils/widgetFallbacks.ts` when the relevant endpoint is empty, unavailable, or newly deployed.

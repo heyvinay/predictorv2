@@ -13,15 +13,15 @@ class MatchPredictionCreate(BaseModel):
     """Schema for creating a match prediction."""
 
     fixture_id: uuid.UUID
-    home_score: int = Field(ge=0, le=20)
-    away_score: int = Field(ge=0, le=20)
+    home_score: int = Field(ge=0, le=15)
+    away_score: int = Field(ge=0, le=15)
 
 
 class MatchPredictionUpdate(BaseModel):
     """Schema for updating a match prediction."""
 
-    home_score: int = Field(ge=0, le=20)
-    away_score: int = Field(ge=0, le=20)
+    home_score: int = Field(ge=0, le=15)
+    away_score: int = Field(ge=0, le=15)
 
 
 class MatchPredictionRead(BaseModel):
@@ -84,9 +84,17 @@ class BracketPredictionUpdate(BaseModel):
 
 
 class CommunityPrediction(BaseModel):
-    """A single user's prediction for a match (anonymized to name only)."""
+    """A single entry's prediction for a match.
+
+    Identified by entry_reference + entry_name + user_name — one row per
+    eligible entry, not per user (a user with two entries appears twice
+    with distinct references). Visibility is gated by fixture lock /
+    finish at the API layer.
+    """
 
     user_name: str
+    entry_reference: str
+    entry_name: str
     home_score: int
     away_score: int
 

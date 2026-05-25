@@ -3,6 +3,8 @@
  */
 
 import { api } from './client';
+import type { Entry, EntrySettings, PaymentMode } from '$lib/types/entry';
+import type { PredictionPhase } from '$types';
 
 export interface AdminStats {
 	total_users: number;
@@ -31,7 +33,9 @@ export interface CompetitionAdminView {
 export interface UserAdminView {
 	id: string;
 	email: string;
-	name: string;
+	/** Nullable: magic-link sign-ups that haven't completed /onboarding
+	 *  yet have name === null. Render with an email-prefix fallback. */
+	name: string | null;
 	auth_provider: string;
 	is_admin: boolean;
 	is_active: boolean;
@@ -117,4 +121,140 @@ export async function toggleUserPaid(userId: string): Promise<boolean> {
 
 export async function syncScores(): Promise<SyncScoresResponse> {
 	return api.post<SyncScoresResponse>('/admin/scores/sync');
+}
+
+// ---------------------------------------------------------------------------
+// Entry administration (Task F.2)
+// ---------------------------------------------------------------------------
+
+/** One audit row from `prediction_entry_events`. */
+export interface EntryEvent {
+	id: string;
+	entry_id: string;
+	phase: PredictionPhase | null;
+	from_status: string;
+	to_status: string;
+	actor_user_id: string;
+	actor_role: string;
+	reason: string | null;
+	created_at: string;
+}
+
+/** Result of `POST /admin/competition/phase2/open`. */
+export interface Phase2OpenResponse {
+	entries_opened: number;
+	entries_skipped_withdrawn: number;
+	entries_skipped_disabled: number;
+	entries_already_open: number;
+}
+
+/** Filters mirror the backend `GET /admin/entries` query params. */
+export interface AdminEntryFilters {
+	user_id?: string;
+	reference?: string;
+	status?: string; // 'draft' | 'ready' | 'submitted' | 'locked' | 'withdrawn' | 'disabled'
+	paid?: boolean;
+	disabled?: boolean;
+}
+
+/** Pagination options. Omit both for "give me everything" (CSV export). */
+export interface AdminEntriesPageOpts {
+	limit?: number;
+	offset?: number;
+}
+
+/** Paginated response from `GET /admin/entries`. */
+export interface AdminEntriesPage {
+	items: Entry[];
+	total: number;
+}
+
+/** Partial update — only included keys are PATCHed. */
+export interface EntrySettingsUpdate {
+	max_entries_per_user?: number;
+	auto_create_first_entry?: boolean;
+	allow_duplicate_from_existing?: boolean;
+	allow_user_rename?: boolean;
+	allow_user_withdrawal?: boolean;
+	require_ready_before_submit?: boolean;
+	payment_mode?: PaymentMode;
+	block_unpaid_entry_submission?: boolean;
+	show_entry_reference_publicly?: boolean;
+	phase_scoped_status_enabled?: boolean;
+	bonus_questions_required_for_ready?: boolean;
+}
+
+// --- Competition entry settings (admin) ---
+
+export async function getAdminEntrySettings(): Promise<EntrySettings> {
+	return api.get<EntrySettings>('/admin/competition/entry-settings');
+}
+
+export async function updateAdminEntrySettings(
+	patch: EntrySettingsUpdate
+): Promise<EntrySettings> {
+	return api.patch<EntrySettings>('/admin/competition/entry-settings', patch);
+}
+
+// --- Phase II open ---
+
+export async function openPhase2(): Promise<Phase2OpenResponse> {
+	return api.post<Phase2OpenResponse>('/admin/competition/phase2/open');
+}
+
+// --- Entries listing + per-row actions ---
+
+export async function adminListEntries(
+	filters: AdminEntryFilters = {},
+	opts: AdminEntriesPageOpts = {}
+): Promise<AdminEntriesPage> {
+	const params = new URLSearchParams();
+	if (filters.user_id) params.set('user_id', filters.user_id);
+	if (filters.reference) params.set('reference', filters.reference);
+	if (filters.status) params.set('status', filters.status);
+	if (filters.paid !== undefined) params.set('paid', String(filters.paid));
+	if (filters.disabled !== undefined) params.set('disabled', String(filters.disabled));
+	if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+	if (opts.offset !== undefined) params.set('offset', String(opts.offset));
+	const qs = params.toString();
+	const url = qs ? `/admin/entries?${qs}` : '/admin/entries';
+	const raw = await api.get<unknown>(url);
+	// Tolerate both shapes during rollout: the new backend returns
+	// {items, total}; the old backend returns a bare Entry[]. Once the
+	// backend change lands everywhere, drop the array branch.
+	if (Array.isArray(raw)) {
+		return { items: raw as Entry[], total: (raw as Entry[]).length };
+	}
+	return raw as AdminEntriesPage;
+}
+
+export async function getAdminEntryEvents(entryId: string): Promise<EntryEvent[]> {
+	return api.get<EntryEvent[]>(`/admin/entries/${entryId}/events`);
+}
+
+export async function adminDisableEntry(
+	entryId: string,
+	reason: string
+): Promise<Entry> {
+	return api.post<Entry>(`/admin/entries/${entryId}/disable`, { reason });
+}
+
+export async function adminEnableEntry(entryId: string): Promise<Entry> {
+	return api.post<Entry>(`/admin/entries/${entryId}/enable`);
+}
+
+export async function adminSetEntryPaid(
+	entryId: string,
+	paid: boolean
+): Promise<Entry> {
+	return api.patch<Entry>(`/admin/entries/${entryId}/paid`, { paid });
+}
+
+export async function adminSetEntryPrizeEligible(
+	entryId: string,
+	prize_eligible: boolean
+): Promise<Entry> {
+	return api.patch<Entry>(`/admin/entries/${entryId}/prize-eligible`, {
+		prize_eligible
+	});
 }

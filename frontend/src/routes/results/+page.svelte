@@ -1,760 +1,430 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
-	import { browser } from '$app/environment';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated } from '$stores/auth';
-	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
+	import { fetchAllFixtures, finishedFixtures } from '$stores/fixtures';
 	import { fetchMatchPredictions, predictionsByFixture } from '$stores/predictions';
-	import { getAgreements, type FixtureAgreement } from '$api/predictions';
-	import { getScoringConfig, type ScoringConfig } from '$api/competition';
-	import {
-		computeBreakdown,
-		matchState,
-		stageLabel,
-		stageShort,
-		type MatchState,
-		type MatchBreakdown
-	} from '$lib/utils/matchBreakdown';
-	import { teamCode } from '$lib/utils/teamCodes';
-	import PnPageShell from '$components/panini/PnPageShell.svelte';
-	import PnFlag from '$components/panini/PnFlag.svelte';
-	import PnResultsCard from '$components/panini/PnResultsCard.svelte';
-	import PnResultsCardMobile from '$components/panini/PnResultsCardMobile.svelte';
-	import type { Fixture } from '$types';
+	import { getPredictionResult, type PredictionResult } from '$lib/utils/predictionResult';
+	import { getCommunityPredictions } from '$api/predictions';
+	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { displayTeamName } from '$lib/utils/teamName';
+	import ScatterPlot from '$lib/components/ScatterPlot.svelte';
+	import type { Fixture, CommunityPredictionsResponse } from '$types';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
 	}
 
 	let loading = true;
-	let agreementsByFixture = new Map<string, FixtureAgreement>();
-	let scoringConfig: ScoringConfig = {
-		mode: 'logarithmic',
-		outcome_points: 5,
-		exact_points: 10,
-		rarity_cap: 10
-	};
 
 	onMount(async () => {
-		if (!$isAuthenticated) return;
-		const [, , agreements, cfg] = await Promise.all([
-			fetchAllFixtures(),
-			fetchMatchPredictions(),
-			getAgreements().catch(() => [] as FixtureAgreement[]),
-			getScoringConfig().catch(() => scoringConfig)
-		]);
-		const m = new Map<string, FixtureAgreement>();
-		for (const a of agreements) m.set(a.fixture_id, a);
-		agreementsByFixture = m;
-		scoringConfig = cfg;
-		loading = false;
+		if ($isAuthenticated) {
+			await Promise.all([fetchAllFixtures(), fetchMatchPredictions()]);
+			loading = false;
+		}
 	});
 
-	type SortMode = 'date' | 'group';
-	type FilterMode = 'all' | MatchState;
+	// Filters
+	let groupFilter = 'all';
+	let resultFilter: 'all' | PredictionResult = 'all';
 
-	let sort: SortMode = 'date';
-	let filter: FilterMode = 'all';
+	// Derive sorted finished fixtures (newest first)
+	$: sorted = [...$finishedFixtures].sort(
+		(a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime()
+	);
 
-	$: filtered = $fixtures.filter((f) => {
-		if (filter === 'all') return true;
-		return matchState(f) === filter;
-	});
-
-	$: counts = (() => {
-		const c = { all: $fixtures.length, finished: 0, live: 0, locked: 0, open: 0 };
-		for (const f of $fixtures) c[matchState(f)]++;
-		return c;
+	// Collect available groups for filter
+	$: availableGroups = (() => {
+		const groups = new Set<string>();
+		for (const f of $finishedFixtures) {
+			if (f.group) groups.add(f.group);
+			else groups.add('knockout');
+		}
+		return Array.from(groups).sort();
 	})();
 
-	// Precompute every fixture's MatchBreakdown ONCE per data change. Cards,
-	// KPIs, and day/group tallies all read from this Map — they were
-	// previously calling computeBreakdown() inline per render, which
-	// recomputed identical work every time sort/filter/searchTerm flipped.
-	// Dependencies: $fixtures, $predictionsByFixture, agreementsByFixture,
-	// scoringConfig — anything else can change without rebuilding the map.
-	$: breakdownsByFixture = (() => {
-		const map = new Map<string, MatchBreakdown>();
-		for (const f of $fixtures) {
-			map.set(
-				f.id,
-				computeBreakdown(
-					f,
-					$predictionsByFixture.get(f.id),
-					agreementsByFixture.get(f.id),
-					scoringConfig
-				)
-			);
-		}
-		return map;
-	})();
-
-	$: kpis = (() => {
-		let banked = 0;
-		let exactHits = 0;
-		let outcomeHits = 0;
-		for (const f of $fixtures) {
-			if (matchState(f) !== 'finished') continue;
-			const bd = breakdownsByFixture.get(f.id);
-			if (!bd) continue;
-			banked += bd.totalPts;
-			if (bd.outcomePill.state === 'hit-outcome') {
-				if (bd.scorePill.state === 'hit-exact') exactHits++;
-				else outcomeHits++;
-			}
-		}
-		const upcomingPicked = $fixtures.filter((f) => {
-			const s = matchState(f);
-			return (s === 'open' || s === 'locked') && $predictionsByFixture.get(f.id);
-		}).length;
-		const upcomingTotal = counts.open + counts.locked;
-		return {
-			banked,
-			exactHits,
-			outcomeHits,
-			playedTotal: counts.finished,
-			liveTotal: counts.live,
-			upcomingPicked,
-			upcomingTotal,
-			ahead: upcomingTotal // alias used in mobile hero
-		};
-	})();
-
-	// ───────────────── Date buckets ─────────────────
-	interface DayBucket {
-		key: string;
-		dow: string;
-		dateLabel: string;
-		isToday: boolean;
-		items: Fixture[];
-	}
-
-	function dayKey(iso: string): string {
-		const d = new Date(iso);
-		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-	}
-	function dayDow(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short' }).toUpperCase();
-	}
-	function dayDateLabel(iso: string): string {
-		return new Date(iso)
-			.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-			.toUpperCase();
-	}
-	function isSameDay(a: Date, b: Date): boolean {
-		return (
-			a.getFullYear() === b.getFullYear() &&
-			a.getMonth() === b.getMonth() &&
-			a.getDate() === b.getDate()
-		);
-	}
-
-	$: dayBuckets = (() => {
-		const today = new Date();
-		const buckets = new Map<string, DayBucket>();
-		for (const f of filtered) {
-			const key = dayKey(f.kickoff);
-			let b = buckets.get(key);
-			if (!b) {
-				b = {
-					key,
-					dow: dayDow(f.kickoff),
-					dateLabel: dayDateLabel(f.kickoff),
-					isToday: isSameDay(new Date(f.kickoff), today),
-					items: []
-				};
-				buckets.set(key, b);
-			}
-			b.items.push(f);
-		}
-		const sorted = Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
-		for (const b of sorted) {
-			b.items.sort((x, y) => new Date(x.kickoff).getTime() - new Date(y.kickoff).getTime());
-		}
-		return sorted;
-	})();
-
-	// ───────────────── Group/Stage buckets ─────────────────
-	interface GroupBucket {
-		key: string;
-		kind: 'group' | 'stage';
-		letter: string;
-		ttl: string;
-		teams: string[];
-		items: Fixture[];
-	}
-
-	const STAGE_ORDER: Record<string, number> = {
-		round_of_32: 100,
-		round_of_16: 101,
-		quarter_final: 102,
-		semi_final: 103,
-		third_place: 104,
-		final: 105
-	};
-
-	$: groupBuckets = (() => {
-		const buckets = new Map<string, GroupBucket>();
-		for (const f of filtered) {
-			let key: string;
-			let kind: 'group' | 'stage';
-			let letter: string;
-			let ttl: string;
-			if (f.group) {
-				key = f.group;
-				kind = 'group';
-				letter = f.group;
-				ttl = `Group ${f.group}`;
+	// Apply filters
+	$: filtered = sorted.filter((f) => {
+		if (groupFilter !== 'all') {
+			if (groupFilter === 'knockout') {
+				if (f.group) return false;
 			} else {
-				key = f.stage || 'other';
-				kind = 'stage';
-				letter = stageShort(f.stage || '');
-				ttl = stageLabel(f.stage || 'Other');
+				if (f.group !== groupFilter) return false;
 			}
-			let b = buckets.get(key);
-			if (!b) {
-				b = { key, kind, letter, ttl, teams: [], items: [] };
-				buckets.set(key, b);
-			}
-			b.items.push(f);
 		}
-		for (const b of buckets.values()) {
-			if (b.kind !== 'group') continue;
-			const seen = new Set<string>();
-			for (const f of b.items) {
-				if (f.home_team) seen.add(f.home_team);
-				if (f.away_team) seen.add(f.away_team);
-			}
-			b.teams = Array.from(seen).sort();
+		if (resultFilter !== 'all') {
+			const pred = $predictionsByFixture.get(f.id);
+			const result = getPredictionResult(f, pred);
+			if (result !== resultFilter) return false;
 		}
-		return Array.from(buckets.values()).sort((a, b) => {
-			const aw = a.kind === 'group' ? a.letter.charCodeAt(0) : STAGE_ORDER[a.key] ?? 999;
-			const bw = b.kind === 'group' ? b.letter.charCodeAt(0) : STAGE_ORDER[b.key] ?? 999;
-			return aw - bw;
-		});
-	})();
-
-	// ───────────────── Helpers ─────────────────
-	function fmtTime(iso: string): string {
-		return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-	}
-	function ptsForDay(items: Fixture[]): { live: number; pts: number } {
-		let live = 0;
-		let pts = 0;
-		for (const f of items) {
-			const s = matchState(f);
-			if (s === 'live') live++;
-			if (s !== 'finished') continue;
-			const bd = breakdownsByFixture.get(f.id);
-			if (bd) pts += bd.totalPts;
-		}
-		return { live, pts };
-	}
-	function ptsForGroup(items: Fixture[]): { earned: number; potential: number } {
-		let earned = 0;
-		for (const f of items) {
-			if (matchState(f) !== 'finished') continue;
-			const bd = breakdownsByFixture.get(f.id);
-			if (bd) earned += bd.totalPts;
-		}
-		const potential = items.length * (scoringConfig.outcome_points + scoringConfig.exact_points);
-		return { earned, potential };
-	}
-
-	// Per-card pieces (shared by desktop + mobile). bdFor reads from the
-	// precomputed map — falls back to a one-off compute only if the map
-	// hasn't been populated yet (shouldn't happen in practice).
-	function bdFor(f: Fixture): MatchBreakdown {
-		return (
-			breakdownsByFixture.get(f.id) ??
-			computeBreakdown(
-				f,
-				$predictionsByFixture.get(f.id),
-				agreementsByFixture.get(f.id),
-				scoringConfig
-			)
-		);
-	}
-	function predFor(f: Fixture) {
-		return $predictionsByFixture.get(f.id);
-	}
-	function dateMetaShort(iso: string): string {
-		return new Date(iso)
-			.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-			.toUpperCase();
-	}
-
-	// ───────────────── Auto-scroll to nearest matchday ─────────────────
-	// On first render after data lands, scroll the page to the most relevant
-	// day bucket — today if it has fixtures, otherwise the next future day,
-	// otherwise the last past day. The day headers carry scroll-margin-top:
-	// calc(var(--results-ribbon-h) + breathing-room), so the browser offsets
-	// the scroll target below the sticky ribbon automatically.
-	const desktopDayRefs: Record<string, HTMLElement> = {};
-	const mobileDayRefs: Record<string, HTMLElement> = {};
-	let stickyRibbonEl: HTMLElement | null = null;
-	let mobileStickyRibbonEl: HTMLElement | null = null;
-	let didAutoScroll = false;
-
-	function updateRibbonHeight() {
-		if (!browser) return;
-		// One of the two ribbons is display:none at any given viewport — its
-		// offsetHeight is 0. Math.max picks whichever is currently visible.
-		const dh = stickyRibbonEl?.offsetHeight ?? 0;
-		const mh = mobileStickyRibbonEl?.offsetHeight ?? 0;
-		const h = Math.max(dh, mh);
-		document.documentElement.style.setProperty('--results-ribbon-h', `${h}px`);
-	}
-
-	onMount(() => {
-		if (!browser) return;
-		const ro = new ResizeObserver(updateRibbonHeight);
-		// Defer observing until after the ribbons are bound (they live inside
-		// `{#if $isAuthenticated}` so they aren't always in the tree).
-		const id = setInterval(() => {
-			if (stickyRibbonEl || mobileStickyRibbonEl) {
-				if (stickyRibbonEl) ro.observe(stickyRibbonEl);
-				if (mobileStickyRibbonEl) ro.observe(mobileStickyRibbonEl);
-				updateRibbonHeight();
-				clearInterval(id);
-			}
-		}, 50);
-		const onResize = () => updateRibbonHeight();
-		window.addEventListener('resize', onResize);
-		return () => {
-			clearInterval(id);
-			ro.disconnect();
-			window.removeEventListener('resize', onResize);
-		};
+		return true;
 	});
 
-	$: nearestMatchDay = (() => {
-		if (!dayBuckets.length) return null;
-		const today = new Date();
-		const todayK = dayKey(today.toISOString());
-		const todays = dayBuckets.find((b) => b.key === todayK);
-		if (todays) return todays;
-		const future = dayBuckets.find((b) => b.key > todayK);
-		if (future) return future;
-		return dayBuckets[dayBuckets.length - 1];
+	// Stats
+	$: stats = (() => {
+		let exact = 0;
+		let outcome = 0;
+		let wrong = 0;
+		let pending = 0;
+		for (const f of $finishedFixtures) {
+			const pred = $predictionsByFixture.get(f.id);
+			const result = getPredictionResult(f, pred);
+			if (result === 'exact') exact++;
+			else if (result === 'outcome') outcome++;
+			else if (result === 'wrong') wrong++;
+			else pending++;
+		}
+		return { exact, outcome, wrong, pending, total: $finishedFixtures.length };
 	})();
 
-	$: if (
-		browser &&
-		!loading &&
-		!didAutoScroll &&
-		sort === 'date' &&
-		nearestMatchDay
-	) {
-		didAutoScroll = true;
-		const key = nearestMatchDay.key;
-		tick().then(() => {
-			// Make sure the ribbon height is fresh BEFORE the browser
-			// resolves the scroll-margin-top calc().
-			updateRibbonHeight();
-			// Calling scrollIntoView on the hidden one (display:none via the
-			// .pn-rs-only / .pn-rm-only toggle) is a no-op, so calling both
-			// is safe and avoids viewport-detection code.
-			desktopDayRefs[key]?.scrollIntoView({ block: 'start', behavior: 'auto' });
-			mobileDayRefs[key]?.scrollIntoView({ block: 'start', behavior: 'auto' });
-		});
+	// Group filtered matches by date
+	interface DayGroup {
+		date: string;
+		matches: Fixture[];
+		exact: number;
+		outcome: number;
+		wrong: number;
+		pending: number;
+	}
+	$: groupedByDate = (() => {
+		const groups: DayGroup[] = [];
+		let currentDate = '';
+		let current: DayGroup | null = null;
+
+		for (const f of filtered) {
+			const date = new Date(f.kickoff).toLocaleDateString('en-GB', {
+				weekday: 'short',
+				day: 'numeric',
+				month: 'short'
+			});
+			if (date !== currentDate) {
+				if (current) groups.push(current);
+				currentDate = date;
+				current = { date, matches: [], exact: 0, outcome: 0, wrong: 0, pending: 0 };
+			}
+			if (current) {
+				current.matches.push(f);
+				const pred = $predictionsByFixture.get(f.id);
+				const result = getPredictionResult(f, pred);
+				if (result === 'exact') current.exact++;
+				else if (result === 'outcome') current.outcome++;
+				else if (result === 'wrong') current.wrong++;
+				else current.pending++;
+			}
+		}
+		if (current) groups.push(current);
+		return groups;
+	})();
+
+	// Day-level accordion state
+	let expandedDays = new Set<string>();
+	let dayData = new Map<string, Map<string, CommunityPredictionsResponse>>();
+	let dayLoading = new Set<string>();
+	let dayErrors = new Map<string, string>();
+
+	async function toggleDay(date: string, matches: Fixture[]) {
+		if (expandedDays.has(date)) {
+			expandedDays.delete(date);
+			expandedDays = expandedDays;
+			return;
+		}
+
+		expandedDays.add(date);
+		expandedDays = expandedDays;
+
+		// Already loaded
+		if (dayData.has(date)) return;
+
+		dayLoading.add(date);
+		dayLoading = dayLoading;
+		dayErrors.delete(date);
+
+		try {
+			const results = await Promise.all(
+				matches.map(async (f) => {
+					const data = await getCommunityPredictions(f.id);
+					return { fixtureId: f.id, data };
+				})
+			);
+			const fixtureMap = new Map<string, CommunityPredictionsResponse>();
+			for (const r of results) {
+				fixtureMap.set(r.fixtureId, r.data);
+			}
+			dayData.set(date, fixtureMap);
+			dayData = dayData;
+		} catch (e) {
+			dayErrors.set(date, e instanceof Error ? e.message : 'Failed to load predictions');
+			dayErrors = dayErrors;
+		} finally {
+			dayLoading.delete(date);
+			dayLoading = dayLoading;
+		}
+	}
+
+	// Result border color helper
+	function resultBorderClass(result: PredictionResult): string {
+		if (result === 'exact') return 'border-success/60';
+		if (result === 'outcome') return 'border-warning/60';
+		if (result === 'wrong') return 'border-error/60';
+		return 'border-base-content/15';
 	}
 </script>
 
 <svelte:head>
-	<title>Results & Fixtures — Predictor</title>
+	<title>Results - Predictor v2</title>
 </svelte:head>
 
 {#if $isAuthenticated}
-	<PnPageShell>
-		<!-- ══════════════════ DESKTOP LAYOUT ══════════════════ -->
-		<div class="pn-rs-only">
-		<div class="pn-rs-sticky" bind:this={stickyRibbonEl}>
-			<section class="pn-rs-hero">
-				<div class="title">Results <em>&amp;</em> Fixtures</div>
-				<div class="kpis">
-					<span class="k">
-						<b class="green">{kpis.banked}</b>
-						<span class="l">pts</span>
-					</span>
-					<span class="sep">·</span>
-					<span class="k">
-						<b class="gold">{kpis.exactHits}·{kpis.outcomeHits}</b>
-						<span class="l">ex·out</span>
-					</span>
-					<span class="sep">·</span>
-					<span class="k">
-						<b class="red">{kpis.liveTotal}</b>
-						<span class="l">live</span>
-					</span>
-					<span class="sep">·</span>
-					<span class="k">
-						<b>{kpis.upcomingPicked}<span class="of">/{kpis.upcomingTotal}</span></b>
-						<span class="l">picked</span>
-					</span>
-				</div>
-			</section>
-
-			<section class="pn-rs-tools">
-				<div class="pn-rs-segtitle">SORT <b>BY</b></div>
-				<div class="pn-rs-seg">
-					<button class={sort === 'date' ? 'on' : ''} on:click={() => (sort = 'date')}>
-						Date <span class="ch">{counts.all}</span>
-					</button>
-					<button class={sort === 'group' ? 'on' : ''} on:click={() => (sort = 'group')}>
-						Group/Stage <span class="ch">A–F</span>
-					</button>
-				</div>
-				<div class="pn-rs-chips">
-					<button
-						data-k="all"
-						class={'pn-rs-chip' + (filter === 'all' ? ' on' : '')}
-						on:click={() => (filter = 'all')}
-					>
-						All <span class="ct">{counts.all}</span>
-					</button>
-					<button
-						data-k="played"
-						class={'pn-rs-chip' + (filter === 'finished' ? ' on' : '')}
-						on:click={() => (filter = 'finished')}
-					>
-						Played <span class="ct">{counts.finished}</span>
-					</button>
-					<button
-						data-k="live"
-						class={'pn-rs-chip' + (filter === 'live' ? ' on' : '')}
-						on:click={() => (filter = 'live')}
-					>
-						Live <span class="ct">{counts.live}</span>
-					</button>
-					<button
-						data-k="locked"
-						class={'pn-rs-chip' + (filter === 'locked' ? ' on' : '')}
-						on:click={() => (filter = 'locked')}
-					>
-						Locked <span class="ct">{counts.locked}</span>
-					</button>
-					<button
-						data-k="open"
-						class={'pn-rs-chip' + (filter === 'open' ? ' on' : '')}
-						on:click={() => (filter = 'open')}
-					>
-						Open <span class="ct">{counts.open}</span>
-					</button>
-				</div>
-			</section>
+	<div class="container mx-auto mobile-padding py-6">
+		<!-- Header -->
+		<div class="mb-4">
+			<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Results</h1>
+			<p class="text-sm text-base-content/50 mt-1">
+				{stats.total} finished matches — tap a matchday to see community predictions
+			</p>
 		</div>
 
-			{#if loading}
-				<p class="pn-rs-empty">Loading…</p>
-			{:else if filtered.length === 0}
-				<p class="pn-rs-empty">No matches for the current filter.</p>
-			{:else if sort === 'date'}
-				{#each dayBuckets as day (day.key)}
-					{@const tally = ptsForDay(day.items)}
-					<div>
-						<div
-							class="pn-rs-head"
-							class:is-today={day.isToday}
-							bind:this={desktopDayRefs[day.key]}
-						>
-							<div class="dow">
-								{day.dow}
-								<span class="dt">· {day.dateLabel}</span>
-							</div>
-							{#if day.isToday}
-								<span class="today-tag">● Today</span>
-							{:else}
-								<div />
-							{/if}
-							<div class="ct">
-								<b>{day.items.length}</b>
-								{day.items.length === 1 ? 'match' : 'matches'}
-								{#if tally.live > 0}
-									· <span class="live"><b>{tally.live}</b> LIVE</span>
-								{/if}
-								{#if tally.pts > 0}
-									· <span class="got">+<b>{tally.pts}</b> pts banked</span>
-								{/if}
-							</div>
-						</div>
-						<div class="pn-rs-grid">
-							{#each day.items as f (f.id)}
-								{#if matchState(f) === 'open'}
-									<div class="pn-md-card-blocked" aria-disabled="true" title="Predictions are blind until 5 minutes before kickoff">
-										<PnResultsCard
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={(f.group ? 'GROUPS' : 'KO') + ' · ' + fmtTime(f.kickoff)}
-										/>
-									</div>
-								{:else}
-									<a class="pn-md-card-link" href={`/results/${f.id}`}>
-										<PnResultsCard
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={(f.group ? 'GROUPS' : 'KO') + ' · ' + fmtTime(f.kickoff)}
-										/>
-									</a>
-								{/if}
-							{/each}
-						</div>
-					</div>
-				{/each}
+		{#if loading}
+			<div class="flex justify-center py-16">
+				<span class="loading loading-spinner loading-lg text-primary"></span>
+			</div>
+		{:else if $finishedFixtures.length === 0}
+			<div class="stadium-card no-glow p-8 text-center">
+				<svg class="w-16 h-16 mx-auto mb-4 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				<p class="text-base-content/50">No finished matches yet.</p>
+				<p class="text-base-content/30 text-sm mt-1">Results will appear here as matches are completed.</p>
+			</div>
+		{:else}
+			<!-- Stats summary -->
+			<div class="grid grid-cols-4 gap-2 sm:gap-3 mb-4">
+				<div class="stat-card !p-3">
+					<div class="stat-title text-[10px]">Exact</div>
+					<div class="stat-value !text-2xl text-success">{stats.exact}</div>
+				</div>
+				<div class="stat-card !p-3">
+					<div class="stat-title text-[10px]">Correct</div>
+					<div class="stat-value !text-2xl text-warning">{stats.outcome}</div>
+				</div>
+				<div class="stat-card !p-3">
+					<div class="stat-title text-[10px]">Wrong</div>
+					<div class="stat-value !text-2xl text-error">{stats.wrong}</div>
+				</div>
+				<div class="stat-card !p-3">
+					<div class="stat-title text-[10px]">No Pred</div>
+					<div class="stat-value !text-2xl text-base-content/40">{stats.pending}</div>
+				</div>
+			</div>
+
+			<!-- Filters -->
+			<div class="flex flex-wrap gap-2 mb-4">
+				<select
+					class="select select-sm bg-base-200 border-base-300/50 text-sm"
+					bind:value={groupFilter}
+				>
+					<option value="all">All Stages</option>
+					{#each availableGroups as g}
+						<option value={g}>{g === 'knockout' ? 'Knockout' : `Group ${g}`}</option>
+					{/each}
+				</select>
+
+				<div class="flex gap-1 p-0.5 bg-base-300/30 rounded-lg">
+					<button
+						class="px-3 py-1 rounded-md text-xs font-medium transition-all {resultFilter === 'all'
+							? 'bg-primary text-primary-content'
+							: 'hover:bg-base-300/50 text-base-content/70'}"
+						on:click={() => (resultFilter = 'all')}
+					>All</button>
+					<button
+						class="px-3 py-1 rounded-md text-xs font-medium transition-all {resultFilter === 'exact'
+							? 'bg-success text-success-content'
+							: 'hover:bg-base-300/50 text-base-content/70'}"
+						on:click={() => (resultFilter = 'exact')}
+					>Exact</button>
+					<button
+						class="px-3 py-1 rounded-md text-xs font-medium transition-all {resultFilter === 'outcome'
+							? 'bg-warning text-warning-content'
+							: 'hover:bg-base-300/50 text-base-content/70'}"
+						on:click={() => (resultFilter = 'outcome')}
+					>Correct</button>
+					<button
+						class="px-3 py-1 rounded-md text-xs font-medium transition-all {resultFilter === 'wrong'
+							? 'bg-error text-error-content'
+							: 'hover:bg-base-300/50 text-base-content/70'}"
+						on:click={() => (resultFilter = 'wrong')}
+					>Wrong</button>
+				</div>
+			</div>
+
+			<!-- Day cards -->
+			{#if filtered.length === 0}
+				<div class="text-center py-8 text-base-content/40 text-sm">
+					No matches match your filters.
+				</div>
 			{:else}
-				{#each groupBuckets as grp (grp.key)}
-					{@const tally = ptsForGroup(grp.items)}
-					<div class="pn-rs-group-panel">
-						<div class="gh">
-							<div class={'lt ' + (grp.kind === 'group' ? 'g-' + grp.letter : 'stage')}>
-								{grp.letter}
-							</div>
-							<div class="meta">
-								<div class="ttl">{grp.ttl}</div>
-								{#if grp.kind === 'group' && grp.teams.length}
-									<div class="teams">
-										{#each grp.teams as t}
-											<span class="t">
-												<PnFlag code={teamCode(t)} w={18} h={12} />
-												<b>{teamCode(t)}</b>
-											</span>
-										{/each}
+				<div class="space-y-3">
+					{#each groupedByDate as day (day.date)}
+						{@const isExpanded = expandedDays.has(day.date)}
+						{@const isLoading = dayLoading.has(day.date)}
+						{@const communityMap = dayData.get(day.date)}
+						{@const errorMsg = dayErrors.get(day.date)}
+
+						<div class="stadium-card no-glow overflow-hidden">
+							<!-- Clickable day header -->
+							<button
+								class="w-full p-4 text-left hover:bg-base-300/10 transition-colors"
+								on:click={() => toggleDay(day.date, day.matches)}
+							>
+								<!-- Date row -->
+								<div class="flex items-center justify-between mb-3">
+									<div class="flex items-center gap-2">
+										<span class="text-sm font-display tracking-wide text-base-content/70">{day.date}</span>
+										<span class="text-[10px] text-base-content/30">{day.matches.length} {day.matches.length === 1 ? 'match' : 'matches'}</span>
 									</div>
-								{/if}
-							</div>
-							<div class="pts-tally">
-								<div class="l">Points · this {grp.kind === 'group' ? 'group' : 'stage'}</div>
-								<div class="v">
-									+{tally.earned}<span class="of">/{tally.potential}</span>
+									<svg
+										class="w-4 h-4 text-base-content/30 transition-transform {isExpanded ? 'rotate-180' : ''}"
+										fill="none" viewBox="0 0 24 24" stroke="currentColor"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+									</svg>
 								</div>
-								<div class="l">
-									{grp.items.filter((f) => matchState(f) === 'finished').length} played ·
-									{grp.items.filter(
-										(f) => matchState(f) !== 'finished' && matchState(f) !== 'live'
-									).length} ahead
+
+								<!-- Mini match scores -->
+								<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+									{#each day.matches as fixture}
+										{@const pred = $predictionsByFixture.get(fixture.id)}
+										{@const result = getPredictionResult(fixture, pred)}
+										<div class="rounded-lg border {resultBorderClass(result)} px-2.5 py-1.5 bg-base-300/20">
+											<!-- Actual score row -->
+											<div class="flex items-center justify-center gap-1.5">
+												{#if hasFlag(fixture.home_team)}
+													<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
+												{/if}
+												<span class="truncate text-xs text-base-content/80">{displayTeamName(fixture.home_team)}</span>
+												{#if fixture.score}
+													<span class="font-display text-sm tracking-wide shrink-0 mx-0.5">
+														{fixture.score.home_score} - {fixture.score.away_score}
+													</span>
+												{/if}
+												<span class="truncate text-xs text-base-content/80">{displayTeamName(fixture.away_team)}</span>
+												{#if hasFlag(fixture.away_team)}
+													<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
+												{/if}
+											</div>
+											<!-- Your prediction underneath -->
+											<div class="text-center text-[10px] text-base-content/40 mt-0.5">
+												{#if pred}
+													You: {pred.home_score} - {pred.away_score}
+												{:else}
+													No prediction
+												{/if}
+											</div>
+										</div>
+									{/each}
 								</div>
-							</div>
-						</div>
-						<div class="pn-rs-grid">
-							{#each grp.items as f (f.id)}
-								{#if matchState(f) === 'open'}
-									<div class="pn-md-card-blocked" aria-disabled="true" title="Predictions are blind until 5 minutes before kickoff">
-										<PnResultsCard
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={dateMetaShort(f.kickoff)}
-										/>
+
+								<!-- Daily stats -->
+								<div class="flex items-center gap-3 mt-3 text-[10px] text-base-content/40">
+									{#if day.exact > 0}
+										<span class="flex items-center gap-1">
+											<span class="w-1.5 h-1.5 rounded-full bg-success"></span>
+											{day.exact} exact
+										</span>
+									{/if}
+									{#if day.outcome > 0}
+										<span class="flex items-center gap-1">
+											<span class="w-1.5 h-1.5 rounded-full bg-warning"></span>
+											{day.outcome} correct
+										</span>
+									{/if}
+									{#if day.wrong > 0}
+										<span class="flex items-center gap-1">
+											<span class="w-1.5 h-1.5 rounded-full bg-error/70"></span>
+											{day.wrong} wrong
+										</span>
+									{/if}
+									{#if day.pending > 0}
+										<span class="flex items-center gap-1">
+											<span class="w-1.5 h-1.5 rounded-full bg-base-content/25"></span>
+											{day.pending} no pred
+										</span>
+									{/if}
+								</div>
+							</button>
+
+							<!-- Expanded: Scatter plots -->
+							{#if isExpanded}
+								<div class="border-t border-base-300/30 p-4 bg-base-300/10">
+									{#if isLoading}
+										<div class="flex justify-center py-8">
+											<span class="loading loading-spinner loading-md text-primary"></span>
+										</div>
+									{:else if errorMsg}
+										<div class="text-center py-4 text-error text-sm">{errorMsg}</div>
+									{:else if communityMap}
+										<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+											{#each day.matches as fixture (fixture.id)}
+												{@const community = communityMap.get(fixture.id)}
+												{#if community}
+													{@const pred = $predictionsByFixture.get(fixture.id)}
+													<div>
+														<!-- Match header above plot -->
+														<div class="flex items-center justify-center gap-2 mb-2 text-sm">
+															{#if hasFlag(fixture.home_team)}
+																<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" />
+															{/if}
+															<span class="font-semibold text-xs">{displayTeamName(fixture.home_team)}</span>
+															{#if fixture.score}
+																<span class="font-display text-base tracking-wide">
+																	{fixture.score.home_score} - {fixture.score.away_score}
+																</span>
+															{/if}
+															<span class="font-semibold text-xs">{displayTeamName(fixture.away_team)}</span>
+															{#if hasFlag(fixture.away_team)}
+																<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" />
+															{/if}
+														</div>
+														<div class="text-center text-[10px] text-base-content/40 mb-1">
+															{community.predictions.length} predictions
+														</div>
+													<ScatterPlot
+															predictions={community.predictions}
+															actual={community.actual}
+															homeTeam={fixture.home_team}
+															awayTeam={fixture.away_team}
+															userPrediction={pred ? { home_score: pred.home_score, away_score: pred.away_score } : null}
+														/>
+													</div>
+												{/if}
+											{/each}
+										</div>
+
+										<!-- Shared legend -->
+										<div class="flex items-center justify-center gap-4 mt-4 text-[10px] text-base-content/40">
+											<div class="flex items-center gap-1">
+												<span class="w-2.5 h-2.5 bg-success" style="clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);"></span>
+												Exact
+											</div>
+											<div class="flex items-center gap-1">
+												<span class="w-2.5 h-2.5 rounded-full bg-warning"></span>
+												Correct
+											</div>
+											<div class="flex items-center gap-1">
+												<span class="w-2.5 h-2.5 rounded-full bg-error/70"></span>
+												Wrong
+											</div>
+										</div>
+									<div class="text-center mt-1.5 text-[9px] text-base-content/30">
+										Numbers show how many players predicted each score
 									</div>
-								{:else}
-									<a class="pn-md-card-link" href={`/results/${f.id}`}>
-										<PnResultsCard
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={dateMetaShort(f.kickoff)}
-										/>
-									</a>
-								{/if}
-							{/each}
-						</div>
-					</div>
-				{/each}
-			{/if}
-		</div>
-
-		<!-- ══════════════════ MOBILE LAYOUT ══════════════════ -->
-		<div class="pn-rm-only pn-rm">
-			<!-- Intro block (title + sub) — scrolls away on its own; the
-			     KPI tiles + tools below stick to viewport top. -->
-			<div class="pn-rm-hero pn-rm-intro">
-				<div class="ttl">Results <em>&amp;</em> Fixtures</div>
-				<div class="sub">Every score, every pick · <b>{counts.all}</b> matches</div>
-			</div>
-		<div class="pn-rm-sticky" bind:this={mobileStickyRibbonEl}>
-			<div class="pn-rm-hero pn-rm-stats-block">
-				<div class="stats">
-					<div class="stat green">
-						<div class="v">{kpis.banked}</div>
-						<div class="l">Pts</div>
-					</div>
-					<div class="stat gold">
-						<div class="v">{kpis.exactHits}</div>
-						<div class="l">Exact</div>
-					</div>
-					<div class="stat red">
-						<div class="v">{kpis.liveTotal}</div>
-						<div class="l">Live</div>
-					</div>
-					<div class="stat">
-						<div class="v">{kpis.ahead}</div>
-						<div class="l">Ahead</div>
-					</div>
-				</div>
-			</div>
-
-			<div class="pn-rm-tools">
-				<div class="pn-rm-seg">
-					<button class={sort === 'date' ? 'on' : ''} on:click={() => (sort = 'date')}>
-						Date
-					</button>
-					<button class={sort === 'group' ? 'on' : ''} on:click={() => (sort = 'group')}>
-						Group/Stage
-					</button>
-				</div>
-				<div class="pn-rm-chips">
-					<button class={filter === 'all' ? 'on' : ''} on:click={() => (filter = 'all')}>
-						All <span class="ct">{counts.all}</span>
-					</button>
-					<button
-						class={filter === 'finished' ? 'on' : ''}
-						on:click={() => (filter = 'finished')}
-					>
-						Played <span class="ct">{counts.finished}</span>
-					</button>
-					<button class={filter === 'live' ? 'on' : ''} on:click={() => (filter = 'live')}>
-						Live <span class="ct">{counts.live}</span>
-					</button>
-					<button class={filter === 'locked' ? 'on' : ''} on:click={() => (filter = 'locked')}>
-						Locked <span class="ct">{counts.locked}</span>
-					</button>
-					<button class={filter === 'open' ? 'on' : ''} on:click={() => (filter = 'open')}>
-						Open <span class="ct">{counts.open}</span>
-					</button>
-				</div>
-			</div>
-		</div>
-
-			<div class="pn-rm-body">
-				{#if loading}
-					<p class="pn-rs-empty">Loading…</p>
-				{:else if filtered.length === 0}
-					<p class="pn-rs-empty">No matches for the current filter.</p>
-				{:else if sort === 'date'}
-					{#each dayBuckets as day (day.key)}
-						{@const tally = ptsForDay(day.items)}
-						<div
-							class="pn-rm-day"
-							class:is-today={day.isToday}
-							bind:this={mobileDayRefs[day.key]}
-						>
-							<div class="dow">
-								{day.dow}
-								<span class="dt">{day.dateLabel}</span>
-							</div>
-							{#if day.isToday}
-								<span class="today-tag">● Today</span>
+									{/if}
+								</div>
 							{/if}
-							<div class="ct">
-								<b>{day.items.length}</b>
-								{day.items.length === 1 ? 'match' : 'matches'}
-								{#if tally.live > 0}· <span class="live"><b>{tally.live}</b> LIVE</span>{/if}
-								{#if tally.pts > 0}· <span class="got">+<b>{tally.pts}</b></span>{/if}
-							</div>
-						</div>
-						<div class="pn-rm-list">
-							{#each day.items as f (f.id)}
-								{#if matchState(f) === 'open'}
-									<div class="pn-md-card-blocked" aria-disabled="true">
-										<PnResultsCardMobile
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={fmtTime(f.kickoff)}
-										/>
-									</div>
-								{:else}
-									<a class="pn-md-card-link" href={`/results/${f.id}`}>
-										<PnResultsCardMobile
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={fmtTime(f.kickoff)}
-										/>
-									</a>
-								{/if}
-							{/each}
 						</div>
 					{/each}
-				{:else}
-					{#each groupBuckets as grp (grp.key)}
-						{@const tally = ptsForGroup(grp.items)}
-						<div class="pn-rm-grp">
-							<div class={'lt ' + (grp.kind === 'group' ? 'g-' + grp.letter : 'stage')}>
-								{grp.letter}
-							</div>
-							<div class="info">
-								<div class="ttl">{grp.ttl}</div>
-								{#if grp.kind === 'group' && grp.teams.length}
-									<div class="teams">
-										{#each grp.teams as t, idx}
-											{idx ? ' · ' : ''}<b>{teamCode(t)}</b>
-										{/each}
-									</div>
-								{/if}
-							</div>
-							<div class="pts">
-								+{tally.earned}
-								<div class="of">{grp.items.length} matches</div>
-							</div>
-						</div>
-						<div class="pn-rm-list">
-							{#each grp.items as f (f.id)}
-								{#if matchState(f) === 'open'}
-									<div class="pn-md-card-blocked" aria-disabled="true">
-										<PnResultsCardMobile
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={dateMetaShort(f.kickoff)}
-										/>
-									</div>
-								{:else}
-									<a class="pn-md-card-link" href={`/results/${f.id}`}>
-										<PnResultsCardMobile
-											fixture={f}
-											prediction={predFor(f)}
-											breakdown={bdFor(f)}
-											config={scoringConfig}
-											metaRight={dateMetaShort(f.kickoff)}
-										/>
-									</a>
-								{/if}
-							{/each}
-						</div>
-					{/each}
-				{/if}
-			</div>
-		</div>
-	</PnPageShell>
+				</div>
+			{/if}
+		{/if}
+	</div>
 {/if}
-
-<style>
-	/* Desktop/mobile layout toggle — inlined here (rather than in the
-	 * external panini-results.css) so the rule ships with the SSR'd HTML
-	 * and there's no first-paint flash in Vite dev mode where the
-	 * external stylesheet otherwise loads slightly after the markup. */
-	:global(.pn .pn-rs-only) {
-		display: none;
-	}
-	:global(.pn .pn-rm-only) {
-		display: block;
-	}
-	@media (min-width: 700px) {
-		:global(.pn .pn-rs-only) {
-			display: block;
-		}
-		:global(.pn .pn-rm-only) {
-			display: none;
-		}
-	}
-</style>

@@ -45,14 +45,17 @@ export async function getBonusQuestions(): Promise<BonusQuestion[]> {
 	return api.get<BonusQuestion[]>('/predictions/bonus/questions');
 }
 
-export async function getMyBonusPredictions(): Promise<BonusPrediction[]> {
-	return api.get<BonusPrediction[]>('/predictions/bonus');
+export async function getMyBonusPredictions(entryId: string): Promise<BonusPrediction[]> {
+	return api.get<BonusPrediction[]>(`/entries/${entryId}/predictions/bonus`);
 }
 
 export async function saveBonusPredictions(
+	entryId: string,
 	predictions: BonusPrediction[]
 ): Promise<BonusPrediction[]> {
-	return api.post<BonusPrediction[]>('/predictions/bonus', { predictions });
+	return api.post<BonusPrediction[]>(`/entries/${entryId}/predictions/bonus`, {
+		predictions
+	});
 }
 
 // Admin-side ---------------------------------------------------------------

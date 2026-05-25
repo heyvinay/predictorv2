@@ -5,12 +5,8 @@ All scoring rules are configurable via YAML.
 
 Supports multiple scoring modes:
 - "fixed": Flat points for correct outcome
-- "hybrid": Base points + integer-division rarity bonus (legacy, kept for
-  comparison)
-- "logarithmic": Base points + Shannon-surprisal rarity bonus
-  R = min(cap, round(alpha * log2(1 / (2f))))
-  where f = correct_predictors / total_predictors and
-  alpha = 10/log2(15) so f = 1/30 hits the cap of 10.
+- "hybrid": Base points + linear rarity bonus (legacy)
+- "logarithmic": Base points + Shannon-surprisal rarity bonus, capped
 
 Scoring modes are extensible via the SCORING_STRATEGIES dict.
 """
@@ -23,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.config import get_tournament_config
+from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.score import Score
@@ -35,8 +32,8 @@ DEFAULT_SCORING_CONFIG: dict[str, Any] = {
     "match": {
         "correct_outcome": 5,
         "exact_score": 10,
-        "hybrid_cap": 10,
         "rarity_cap": 10,
+        "hybrid_cap": 10,  # legacy alias retained for hybrid mode
     },
     "advancement": {
         "group_advance": 10,
@@ -102,9 +99,8 @@ class MatchScoringStrategy(Protocol):
             prediction: User's prediction
             score: Actual match result
             config: Match scoring config
-            total_predictors: Number of users who submitted a prediction for
-                this fixture
-            correct_predictors: Number of those who picked the actual outcome
+            total_predictors: Total players in competition
+            correct_predictors: Players who got correct outcome
 
         Returns:
             Tuple of (points, correct_outcome, exact_score)
@@ -145,12 +141,10 @@ class FixedScoring:
 
 
 class HybridScoring:
-    """Legacy hybrid scoring: base points + integer-division rarity bonus.
+    """Hybrid scoring: base points + rarity bonus.
 
-    Formula: outcome_points + min(cap, total_predictors // correct_predictors)
-
-    Superseded by LogarithmicScoring; kept registered for backward
-    compatibility with any deployment still configured with mode="hybrid".
+    Formula: outcome_points + min(cap, total_predictors / correct_predictors)
+    The fewer players who got it right, the higher the bonus.
     """
 
     def calculate(
@@ -177,6 +171,7 @@ class HybridScoring:
         points = 0
         if correct_outcome:
             points += outcome_points
+            # Hybrid bonus (capped)
             if correct_predictors > 0:
                 bonus = min(cap, total_predictors // correct_predictors)
                 points += bonus
@@ -273,7 +268,7 @@ def get_scoring_strategy(mode: str | None = None) -> MatchScoringStrategy:
     """
     if mode is None:
         config = get_scoring_config()
-        mode = config.get("mode", "logarithmic")
+        mode = config.get("mode", "hybrid")
 
     strategy = SCORING_STRATEGIES.get(mode)
     if strategy is None:
@@ -292,14 +287,13 @@ def calculate_match_points(
 ) -> tuple[int, bool, bool]:
     """Calculate points for a single match prediction.
 
-    Uses the configured scoring mode (fixed, hybrid, or logarithmic).
+    Uses the configured scoring mode (fixed or hybrid).
 
     Args:
         prediction: User's prediction
         score: Actual match result
-        total_predictors: Number of users who submitted a prediction for this
-            fixture (used by rarity-bonus modes)
-        correct_predictors: Number of those who picked the actual outcome
+        total_predictors: Total number of players (for hybrid calculation)
+        correct_predictors: Number of players with correct outcome (for hybrid)
         mode: Optional override for scoring mode. If None, uses config.
 
     Returns:
@@ -332,9 +326,10 @@ def calculate_advancement_points(
     config = get_scoring_config()
     adv_config = config.get("advancement", {})
 
-    # Get phase-specific multiplier
-    phase_multipliers = config.get("phase_multipliers", {"phase_1": 1.0, "phase_2": 0.7})
-    multiplier = phase_multipliers.get(phase.value, 1.0)
+    # Phase 2 is dormant — all entries are PHASE_1; multiplier is always 1.0.
+    # The 0.7 Phase 2 multiplier and the `phase_multipliers` config read are
+    # preserved in git history for future revival (see lifecycle simplification).
+    multiplier = 1.0
 
     team = team_prediction.team
     predicted_stage = team_prediction.stage
@@ -492,12 +487,32 @@ def _add_advancement_points_to_phase(
         phase_breakdown.winner_points += points
 
 
-async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> PointBreakdown:
-    """Calculate total points for a user.
+async def _count_eligible_entries(session: AsyncSession) -> int:
+    """Total competitors for hybrid-scoring rarity — number of entries that
+    have ever been submitted or locked (excluding withdrawn / disabled).
+    Replaces the old "active users" count now that scoring is entry-scoped.
+    """
+    result = await session.execute(
+        select(PredictionEntry.id)
+        .join(PredictionEntryPhase, PredictionEntryPhase.entry_id == PredictionEntry.id)
+        .where(
+            PredictionEntry.is_disabled == False,  # noqa: E712
+            PredictionEntry.withdrawn_at.is_(None),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
+        )
+        .distinct()
+    )
+    return len(result.all())
+
+
+async def calculate_entry_points(
+    session: AsyncSession, entry_id: uuid.UUID
+) -> PointBreakdown:
+    """Calculate total points for a single prediction entry.
 
     Args:
         session: Database session
-        user_id: User to calculate points for
+        entry_id: PredictionEntry to calculate points for
 
     Returns:
         PointBreakdown with detailed point categories by phase
@@ -507,22 +522,20 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
     base_outcome_points = match_config.get("correct_outcome", 5)
     exact_score_points = match_config.get("exact_score", 10)
 
-    # Create phase breakdowns
     phase1 = PhaseBreakdown()
     phase2 = PhaseBreakdown()
 
-    # Aggregate stats
     total_predictions = 0
     correct_outcomes = 0
     exact_scores = 0
 
-    # Get all match predictions with scores
+    # Match predictions joined to their fixture + actual score
     result = await session.execute(
         select(MatchPrediction, Score, Fixture)
         .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
         .outerjoin(Score, Fixture.id == Score.fixture_id)
         .where(
-            MatchPrediction.user_id == user_id,
+            MatchPrediction.entry_id == entry_id,
             Fixture.status == MatchStatus.FINISHED,
         )
     )
@@ -535,15 +548,15 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
         total_predictions += 1
 
         # Rarity bonus uses per-fixture predictor counts: "the room that
-        # showed up", not all active users. Sum of outcome buckets gives
+        # showed up", not all active entries. Sum of outcome buckets gives
         # the total predictors for this fixture.
         outcome_counts = await get_outcome_counts(session, fixture.id)
         total_predictors = sum(outcome_counts.values())
         correct_predictors = outcome_counts.get(score.outcome, 0)
 
-        # Calculate points using configured strategy
         points, is_correct_outcome, is_exact_score = calculate_match_points(
-            prediction, score,
+            prediction,
+            score,
             total_predictors=total_predictors,
             correct_predictors=correct_predictors,
         )
@@ -553,7 +566,6 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
         if is_exact_score:
             exact_scores += 1
 
-        # Add to appropriate phase breakdown
         phase_breakdown = phase1 if prediction.phase == PredictionPhase.PHASE_1 else phase2
         _add_match_points_to_phase(
             phase_breakdown,
@@ -564,20 +576,18 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
             is_exact_score,
         )
 
-    # Get team advancement predictions
+    # Team-advancement predictions
     result = await session.execute(
-        select(TeamPrediction).where(TeamPrediction.user_id == user_id)
+        select(TeamPrediction).where(TeamPrediction.entry_id == entry_id)
     )
     team_predictions = result.scalars().all()
 
-    # Calculate advancement points by stage
     actual_advancement = await get_actual_advancement(session)
     for pred in team_predictions:
         points = calculate_advancement_points(pred, actual_advancement, pred.phase)
         if points == 0:
             continue
 
-        # Add to appropriate phase breakdown
         phase_breakdown = phase1 if pred.phase == PredictionPhase.PHASE_1 else phase2
         _add_advancement_points_to_phase(
             phase_breakdown,
@@ -586,11 +596,10 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
             points,
         )
 
-    # Bonus-question points (cross-phase). Imported here to avoid a circular
-    # import at module load: services.bonus depends on the config layer
-    # already loaded by this file.
+    # Bonus-question points (cross-phase). Imported locally so this module
+    # can stay decoupled from services.bonus at import time.
     from app.services.bonus import calculate_bonus_points
-    bonus_points = await calculate_bonus_points(session, user_id)
+    bonus_points = await calculate_bonus_points(session, entry_id)
 
     return PointBreakdown(
         phase1=phase1,
@@ -600,6 +609,33 @@ async def calculate_user_points(session: AsyncSession, user_id: uuid.UUID) -> Po
         total_predictions=total_predictions,
         bonus_question_points=bonus_points,
     )
+
+
+async def resolve_default_entry_id(
+    session: AsyncSession, user_id: uuid.UUID
+) -> uuid.UUID | None:
+    """Return the entry_id of the user's most recently-updated eligible
+    entry, or None if they have none.
+
+    Used by API endpoints that historically took a `user_id` but must now
+    operate on a single entry (profile stats, /snapshots/me, etc.). The
+    caller may also accept an explicit `entry_id` query param — this is
+    just the default.
+    """
+    result = await session.execute(
+        select(PredictionEntry)
+        .join(PredictionEntryPhase, PredictionEntryPhase.entry_id == PredictionEntry.id)
+        .where(
+            PredictionEntry.user_id == user_id,
+            PredictionEntry.is_disabled == False,  # noqa: E712
+            PredictionEntry.withdrawn_at.is_(None),
+            PredictionEntryPhase.status == EntryStatus.SUBMITTED,
+        )
+        .order_by(PredictionEntry.updated_at.desc())
+        .limit(1)
+    )
+    row = result.scalars().first()
+    return row.id if row else None
 
 
 async def get_outcome_counts(session: AsyncSession, fixture_id: uuid.UUID) -> dict[str, int]:

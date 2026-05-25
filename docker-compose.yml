@@ -28,6 +28,10 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-dev-key-change-in-prod}
       - DEBUG=${DEBUG:-false}
       - CORS_ORIGINS_STR=${CORS_ORIGINS_STR:-http://localhost:5173,http://localhost:3000}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-The Predictor <noreply@resend.dev>}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - MAGIC_LINK_EXPIRE_MINUTES=${MAGIC_LINK_EXPIRE_MINUTES:-15}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/auth/google/callback}
@@ -77,7 +81,12 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      # Bind to 127.0.0.1 only — matches the other services. Without this,
+      # Docker Desktop on Windows also exposes [::]:5173 (IPv6) which
+      # accepts connections but resets them (Vite only listens on IPv4),
+      # causing browsers to fail with ERR_CONNECTION_RESET when Chrome's
+      # Happy Eyeballs algorithm tries ::1 first.
+      - "127.0.0.1:5173:5173"
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     profiles:
       - dev

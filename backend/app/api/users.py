@@ -3,18 +3,20 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.dependencies import DbSession, OptionalUser
+from app.models.entry import PredictionEntry
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.score import Score
 from app.models.user import User
 from app.schemas.auth import UserStats
 from app.services.profile import calculate_user_stats
+from app.services.scoring import resolve_default_entry_id
 
 router = APIRouter()
 
@@ -80,19 +82,29 @@ async def get_user_profile(
     user_id: uuid.UUID,
     session: DbSession,
     _user: OptionalUser,
+    entry_id: uuid.UUID | None = Query(
+        None,
+        description="Specific entry to report stats for. If omitted, picks the user's most recently-updated eligible entry.",
+    ),
 ) -> PublicProfile:
-    """Get public profile for a user."""
+    """Get public profile for a user.
+
+    Stats are entry-scoped — the response represents one of the user's
+    entries, not a user-level aggregate. Pass `entry_id` to target a
+    specific entry; otherwise the most recently-updated eligible one is
+    chosen.
+    """
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    stats = await calculate_user_stats(session, user.id)
+    stats = await calculate_user_stats(session, user.id, entry_id=entry_id)
 
     return PublicProfile(
         id=user.id,
-        name=user.name,
+        name=user.name or user.email.split("@")[0],
         created_at=user.created_at,
         stats=stats,
     )
@@ -103,8 +115,17 @@ async def get_user_predictions(
     user_id: uuid.UUID,
     session: DbSession,
     _user: OptionalUser,
+    entry_id: uuid.UUID | None = Query(
+        None,
+        description="Specific entry to read predictions from. If omitted, picks the user's most recently-updated eligible entry.",
+    ),
 ) -> UserPredictionsResponse:
-    """Get all visible predictions for a user.
+    """Get visible predictions for one of the user's entries.
+
+    Predictions are entry-scoped — a user with two entries has two
+    independent prediction sets. Pass `entry_id` to target a specific
+    entry; otherwise the user's most recently-updated eligible entry
+    is used.
 
     Blind pool enforced: only includes predictions for fixtures that are
     locked (5 min before kickoff) or finished.
@@ -116,12 +137,37 @@ async def get_user_predictions(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    if entry_id is None:
+        entry_id = await resolve_default_entry_id(session, user.id)
+
+    if entry_id is None:
+        # User has no eligible entry — return an empty payload.
+        return UserPredictionsResponse(
+            user_id=user.id,
+            user_name=user.name or user.email.split("@")[0],
+            match_predictions=[],
+            bracket_summary=BracketSummary(
+                stages={}, phase1_stages={}, phase2_stages={}
+            ),
+        )
+
+    # Verify the entry belongs to this user (don't leak cross-user
+    # predictions if a caller mismatches the params).
+    owner_check = await session.execute(
+        select(PredictionEntry.user_id).where(PredictionEntry.id == entry_id)
+    )
+    owner = owner_check.scalar_one_or_none()
+    if owner != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
+        )
+
     # Get match predictions with fixture and score data
     result = await session.execute(
         select(MatchPrediction, Fixture)
         .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
         .options(selectinload(Fixture.score))
-        .where(MatchPrediction.user_id == user_id)
+        .where(MatchPrediction.entry_id == entry_id)
         .order_by(Fixture.kickoff)
     )
     rows = result.all()
@@ -165,7 +211,7 @@ async def get_user_predictions(
 
     # Bracket summary: group team predictions by stage and phase
     result = await session.execute(
-        select(TeamPrediction).where(TeamPrediction.user_id == user_id)
+        select(TeamPrediction).where(TeamPrediction.entry_id == entry_id)
     )
     team_preds = result.scalars().all()
 
@@ -181,7 +227,7 @@ async def get_user_predictions(
 
     return UserPredictionsResponse(
         user_id=user.id,
-        user_name=user.name,
+        user_name=user.name or user.email.split("@")[0],
         match_predictions=match_predictions,
         bracket_summary=BracketSummary(
             stages=stages,
