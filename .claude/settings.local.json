@@ -44,7 +44,10 @@
       "Bash(echo \"sed_exit=$?\")",
       "Bash(git fetch *)",
       "Bash(docker --context predictor compose -f /Users/lukeaarohi/pyfiles/predictorv2/docker-compose.yml --profile prod ps)",
-      "Bash(docker --context predictor compose -f /Users/lukeaarohi/pyfiles/predictorv2/docker-compose.yml --profile prod logs --tail=60 cloudflared)"
+      "Bash(docker --context predictor compose -f /Users/lukeaarohi/pyfiles/predictorv2/docker-compose.yml --profile prod logs --tail=60 cloudflared)",
+      "Bash(git checkout *)",
+      "Bash(npm install *)",
+      "Bash(git ls-tree *)"
     ]
   },
   "outputStyle": "Explanatory"
