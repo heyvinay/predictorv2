@@ -359,13 +359,19 @@
 								</div>
 
 								<!-- Per-match breakdown cards (replaces the old mini-score rows;
-								     mirrors main's PnResultsCard structure in DaisyUI tokens). -->
+								     mirrors main's PnResultsCard structure in DaisyUI tokens).
+								     Each card links to /results/[fixture_id] for the drill-down view. -->
 								<div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
 									{#each day.matches as fixture (fixture.id)}
 										{@const pred = $predictionsByFixture.get(fixture.id)}
 										{@const bd = breakdownsByFixture.get(fixture.id)}
 										{#if bd}
-											<div on:click|stopPropagation role="presentation">
+											<a
+												href={`/results/${fixture.id}`}
+												on:click|stopPropagation
+												class="block transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-2xl"
+												aria-label="Open match detail for {displayTeamName(fixture.home_team)} vs {displayTeamName(fixture.away_team)}"
+											>
 												<BreakdownCard
 													{fixture}
 													prediction={pred}
@@ -373,7 +379,7 @@
 													config={scoringConfig}
 													metaRight={fmtTime(fixture.kickoff)}
 												/>
-											</div>
+											</a>
 										{/if}
 									{/each}
 								</div>
