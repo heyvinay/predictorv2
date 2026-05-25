@@ -6,7 +6,7 @@
 
 	let error = '';
 
-	onMount(() => {
+	onMount(async () => {
 		const token = $page.url.searchParams.get('token');
 		const errorParam = $page.url.searchParams.get('error');
 
@@ -16,7 +16,10 @@
 		}
 
 		if (token) {
-			handleOAuthCallback(token);
+			// Wait for user load so the next route mounts with $user populated
+			// (otherwise the dashboard's auth reactive can fire `goto('/login')`
+			// during the transient window between token-set and user-load).
+			await handleOAuthCallback(token);
 			goto('/');
 		} else {
 			error = 'No authentication token received';

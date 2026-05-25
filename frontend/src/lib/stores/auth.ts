@@ -94,9 +94,14 @@ export function logout() {
 	goto('/login');
 }
 
-export function handleOAuthCallback(accessToken: string) {
+export async function handleOAuthCallback(accessToken: string): Promise<void> {
 	token.set(accessToken);
-	fetchUser();
+	// Await so the user store is populated BEFORE the caller's goto() fires.
+	// Previously this was fire-and-forget, which let the dashboard mount
+	// while $user was still null — and any route that branched on $user
+	// (or any reactive that re-checked $isAuthenticated mid-load) would
+	// bounce the freshly-authenticated session back to /login.
+	await fetchUser();
 }
 
 // Initialize auth state on app load
