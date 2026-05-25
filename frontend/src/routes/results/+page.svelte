@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { isAuthenticated } from '$stores/auth';
-	import { fetchAllFixtures, finishedFixtures } from '$stores/fixtures';
+	import { isAuthenticated, user } from '$stores/auth';
+	import { fetchAllFixtures, finishedFixtures, fixtures } from '$stores/fixtures';
 	import { fetchMatchPredictions, predictionsByFixture } from '$stores/predictions';
 	import { getPredictionResult, type PredictionResult } from '$lib/utils/predictionResult';
-	import { getCommunityPredictions } from '$api/predictions';
+	import { getCommunityPredictions, getAgreements, type FixtureAgreement } from '$api/predictions';
+	import { getScoringConfig, type ScoringConfig } from '$api/competition';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { displayTeamName } from '$lib/utils/teamName';
+	import { computeBreakdown, type MatchBreakdown } from '$lib/utils/matchBreakdown';
+	import { entries, loadEntries, submittedEntries } from '$stores/entries';
 	import ScatterPlot from '$lib/components/ScatterPlot.svelte';
+	import BreakdownCard from '$lib/components/results/BreakdownCard.svelte';
 	import type { Fixture, CommunityPredictionsResponse } from '$types';
 
 	$: if (!$isAuthenticated) {
@@ -16,13 +20,77 @@
 	}
 
 	let loading = true;
+	let agreementsByFixture = new Map<string, FixtureAgreement>();
+	let scoringConfig: ScoringConfig = {
+		mode: 'logarithmic',
+		outcome_points: 5,
+		exact_points: 10,
+		rarity_cap: 10
+	};
+
+	/** Active entry for agreements scoping. Defaults to the user's most
+	 *  recently-updated submitted entry; falls back to first entry; null
+	 *  if the user has no entries yet (rarity pills then read as
+	 *  "potential" — no bonus data to project against). */
+	let activeEntryId: string | null = null;
 
 	onMount(async () => {
-		if ($isAuthenticated) {
-			await Promise.all([fetchAllFixtures(), fetchMatchPredictions()]);
-			loading = false;
+		if (!$isAuthenticated) return;
+
+		// Load fixtures + user-scoped predictions first (don't depend on entries).
+		await Promise.all([fetchAllFixtures(), fetchMatchPredictions()]);
+
+		// Pick an entry for agreements scoping. Skip silently if the user has
+		// no entries — agreements stay empty, breakdowns project "potential".
+		if ($user?.id) {
+			try {
+				await loadEntries($user.id);
+				const candidate =
+					$submittedEntries[0] ?? $entries[0] ?? null;
+				activeEntryId = candidate?.id ?? null;
+			} catch {
+				activeEntryId = null;
+			}
 		}
+
+		// Fetch agreements + scoring config in parallel. Both tolerate failure
+		// — breakdown cards degrade gracefully (rarity pill → potential/none).
+		const [agreementRows, cfg] = await Promise.all([
+			activeEntryId
+				? getAgreements(activeEntryId).catch(() => [] as FixtureAgreement[])
+				: Promise.resolve([] as FixtureAgreement[]),
+			getScoringConfig().catch(() => scoringConfig)
+		]);
+		const m = new Map<string, FixtureAgreement>();
+		for (const a of agreementRows) m.set(a.fixture_id, a);
+		agreementsByFixture = m;
+		scoringConfig = cfg;
+
+		loading = false;
 	});
+
+	/** Precompute every fixture's breakdown once per data change. Read by the
+	 *  cards and (in future) any per-day tallies. Recomputes only when one
+	 *  of: fixtures, predictionsByFixture, agreementsByFixture, scoringConfig. */
+	$: breakdownsByFixture = (() => {
+		const map = new Map<string, MatchBreakdown>();
+		for (const f of $fixtures) {
+			map.set(
+				f.id,
+				computeBreakdown(
+					f,
+					$predictionsByFixture.get(f.id),
+					agreementsByFixture.get(f.id),
+					scoringConfig
+				)
+			);
+		}
+		return map;
+	})();
+
+	function fmtTime(iso: string): string {
+		return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+	}
 
 	// Filters
 	let groupFilter = 'all';
@@ -290,37 +358,23 @@
 									</svg>
 								</div>
 
-								<!-- Mini match scores -->
-								<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-									{#each day.matches as fixture}
+								<!-- Per-match breakdown cards (replaces the old mini-score rows;
+								     mirrors main's PnResultsCard structure in DaisyUI tokens). -->
+								<div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+									{#each day.matches as fixture (fixture.id)}
 										{@const pred = $predictionsByFixture.get(fixture.id)}
-										{@const result = getPredictionResult(fixture, pred)}
-										<div class="rounded-lg border {resultBorderClass(result)} px-2.5 py-1.5 bg-base-300/20">
-											<!-- Actual score row -->
-											<div class="flex items-center justify-center gap-1.5">
-												{#if hasFlag(fixture.home_team)}
-													<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
-												{/if}
-												<span class="truncate text-xs text-base-content/80">{displayTeamName(fixture.home_team)}</span>
-												{#if fixture.score}
-													<span class="font-display text-sm tracking-wide shrink-0 mx-0.5">
-														{fixture.score.home_score} - {fixture.score.away_score}
-													</span>
-												{/if}
-												<span class="truncate text-xs text-base-content/80">{displayTeamName(fixture.away_team)}</span>
-												{#if hasFlag(fixture.away_team)}
-													<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
-												{/if}
+										{@const bd = breakdownsByFixture.get(fixture.id)}
+										{#if bd}
+											<div on:click|stopPropagation role="presentation">
+												<BreakdownCard
+													{fixture}
+													prediction={pred}
+													breakdown={bd}
+													config={scoringConfig}
+													metaRight={fmtTime(fixture.kickoff)}
+												/>
 											</div>
-											<!-- Your prediction underneath -->
-											<div class="text-center text-[10px] text-base-content/40 mt-0.5">
-												{#if pred}
-													You: {pred.home_score} - {pred.away_score}
-												{:else}
-													No prediction
-												{/if}
-											</div>
-										</div>
+										{/if}
 									{/each}
 								</div>
 

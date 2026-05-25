@@ -7,9 +7,51 @@
 	import { onMount } from 'svelte';
 	import { getCompetitionInfo, type CompetitionInfo } from '$api/competition';
 	import { getBonusQuestions, type BonusQuestion } from '$api/bonus';
+	import { logarithmicRarityBonus } from '$lib/utils/matchBreakdown';
 
 	let info: CompetitionInfo | null = null;
 	let bonusQuestions: BonusQuestion[] = [];
+
+	/** Cap of the rarity bonus — matches `match.rarity_cap` in
+	 *  config/worldcup2026.yml. Hardcoded here because this is the public
+	 *  rules page (no auth → no /scoring-config call). Touch both if you
+	 *  tune the value. */
+	const RARITY_CAP = 10;
+
+	/** Group consecutive correct-predictor counts (1..P) that yield the
+	 *  same logarithmic rarity bonus into bands so the published table is
+	 *  compact (e.g. "5–6 of 30 → +3"). */
+	function rarityBands(
+		totalPredictors: number,
+		cap: number
+	): Array<{ countLabel: string; bonus: number }> {
+		if (totalPredictors <= 0) return [];
+		const bands: Array<{ countLabel: string; bonus: number }> = [];
+		let bandStart = 1;
+		let bandBonus = logarithmicRarityBonus(totalPredictors, 1, cap);
+		for (let k = 2; k <= totalPredictors; k++) {
+			const r = logarithmicRarityBonus(totalPredictors, k, cap);
+			if (r !== bandBonus) {
+				bands.push({
+					countLabel: bandStart === k - 1 ? `${bandStart}` : `${bandStart}–${k - 1}`,
+					bonus: bandBonus
+				});
+				bandStart = k;
+				bandBonus = r;
+			}
+		}
+		bands.push({
+			countLabel:
+				bandStart === totalPredictors ? `${bandStart}` : `${bandStart}–${totalPredictors}`,
+			bonus: bandBonus
+		});
+		return bands;
+	}
+
+	// Fall back to 30 (the design anchor for the rarity formula) before
+	// /competition/info loads, so the table renders on first paint.
+	$: rarityPredictorCount = info?.total_players ?? 30;
+	$: rarityRows = rarityBands(rarityPredictorCount, RARITY_CAP);
 
 	onMount(async () => {
 		try {
@@ -142,7 +184,49 @@
 			</div>
 			<div class="flex items-center gap-4 p-3 rounded-lg bg-base-300/30">
 				<span class="font-display text-xl tracking-wide w-20 text-center text-accent">up to +10</span>
-				<div><div class="font-semibold">Rarity bonus (hybrid mode)</div><div class="text-xs text-base-content/50">The fewer players who got the outcome right, the higher this bonus climbs. Capped at +10.</div></div>
+				<div>
+					<div class="font-semibold">Rarity bonus</div>
+					<div class="text-xs text-base-content/50">
+						The fewer of your fellow predictors who picked the same outcome,
+						the higher this bonus. Gated at 50% — consensus picks pay nothing
+						extra. Derived from Shannon surprisal (the same logarithmic
+						scoring rule used in forecasting tournaments), scaled so a uniquely
+						correct call out of ~30 predictors hits the cap of +10.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Rarity bonus table: how many predictors → bonus for the current pool size. -->
+		<div class="mt-4 rounded-lg border border-base-300/60 overflow-hidden">
+			<div class="flex items-baseline justify-between bg-base-300/60 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-base-content/70">
+				<span>How many friends picked the same outcome as you</span>
+				<span class="font-bold">Bonus</span>
+			</div>
+			{#each rarityRows as band (band.countLabel)}
+				<div
+					class="flex items-baseline justify-between px-3 py-2 border-t border-base-300/40 {band.bonus === RARITY_CAP
+						? 'bg-accent/10'
+						: ''} {band.bonus === 0 ? 'opacity-60' : ''}"
+				>
+					<span class="font-mono text-xs text-base-content/80">
+						{band.countLabel} of {rarityPredictorCount}
+					</span>
+					<span
+						class="font-display text-xl leading-none {band.bonus === RARITY_CAP
+							? 'text-error'
+							: band.bonus === 0
+							? 'text-base-content/40'
+							: 'text-accent'}"
+					>
+						{band.bonus > 0 ? `+${band.bonus}` : '—'}
+					</span>
+				</div>
+			{/each}
+			<div class="border-t-2 border-base-300/60 bg-base-200/40 px-3 py-2 font-mono text-[10px] tracking-wider text-base-content/50">
+				Scales with how many friends predicted that fixture. Numbers shown
+				assume all {rarityPredictorCount} of you submitted — bands shift if
+				fewer predictors are in.
 			</div>
 		</div>
 	</section>
