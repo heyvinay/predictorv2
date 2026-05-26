@@ -130,7 +130,7 @@
 >
 	{#if isFinal}
 		<div
-			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-gold text-base-content py-0.5"
+			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-gold text-black py-0.5"
 			aria-hidden="true"
 		>
 			Final

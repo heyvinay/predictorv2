@@ -19,13 +19,18 @@
 	import { stubRankTrajectory } from '$lib/utils/widgetFallbacks';
 	import { loadEntries, entrySettings } from '$stores/entries';
 	import { isYouRow, shouldShowReference } from '$lib/utils/leaderboard';
+	import { pageTitle } from '$stores/pageTitle';
+
+	// Flag-gated: when true, restore the full standings table below.
+	const SHOW_CONTENT = false;
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
 	}
 
 	onMount(() => {
-		if ($isAuthenticated) {
+		pageTitle.set('Standings');
+		if ($isAuthenticated && SHOW_CONTENT) {
 			startPolling(60000);
 		}
 	});
@@ -147,10 +152,24 @@
 </script>
 
 <svelte:head>
-	<title>Leaderboard - Predictor v2</title>
+	<title>Standings — Predictor v2</title>
 </svelte:head>
 
-{#if $isAuthenticated}
+{#if $isAuthenticated && !SHOW_CONTENT}
+	<div class="hero min-h-[60vh]">
+		<div class="hero-content text-center">
+			<div class="max-w-md">
+				<h2 class="font-display text-3xl tracking-wide">Great stuff coming soon!</h2>
+				<p class="mt-3 text-base-content/60">We're polishing this page. In the meantime…</p>
+				<a href="/entries" class="btn btn-primary btn-lg mt-6 shadow-glow-gold">
+					Make your predictions
+				</a>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if $isAuthenticated && SHOW_CONTENT}
 	<div class="container mx-auto mobile-padding py-6">
 		<!-- Header + phase tabs -->
 		<div class="flex items-center justify-between flex-wrap gap-3 mb-6">

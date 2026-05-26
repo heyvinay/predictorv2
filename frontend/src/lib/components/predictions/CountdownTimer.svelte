@@ -67,13 +67,13 @@
 		role="timer"
 		aria-live={critical ? 'polite' : 'off'}
 		aria-label="{label}: {display} remaining"
-		class="inline-flex items-center {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border transition-colors {critical
+		class="inline-flex items-center {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {critical
 			? 'bg-error/10 border-error/40 text-error'
-			: 'bg-base-300/40 border-base-content/10 text-base-content/80'}"
+			: 'bg-accent border-accent text-accent-content'}"
 	>
 		{#if !compact}
-			<span class="text-[10px] uppercase tracking-wider opacity-70 font-semibold">{label}</span>
+			<span class="text-[10px] uppercase tracking-wider opacity-80 font-bold">{label}</span>
 		{/if}
-		<span class="font-mono {compact ? 'text-xs' : 'text-sm'} tabular-nums">{display}</span>
+		<span class="font-mono {compact ? 'text-xs' : 'text-sm'} tabular-nums font-bold">{display}</span>
 	</div>
 {/if}

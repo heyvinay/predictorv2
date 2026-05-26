@@ -17,6 +17,7 @@
 	} from '$stores/leaderboard';
 	import { phase1Countdown } from '$stores/phase';
 	import { loadEntries, activeEntryId } from '$stores/entries';
+	import { pageTitle } from '$stores/pageTitle';
 
 	import Sparkline from '$components/Sparkline.svelte';
 	import { teamCode } from '$lib/utils/teamCodes';
@@ -69,8 +70,12 @@
 	let realAgreements: FixtureAgreement[] | null = null;
 	let realExposure: BracketExposureResponse | null = null;
 
+	// Flag-gated: when true, restore the full dashboard widgets below.
+	const SHOW_CONTENT = false;
+
 	onMount(async () => {
-		if ($isAuthenticated) {
+		pageTitle.set('Home');
+		if ($isAuthenticated && SHOW_CONTENT) {
 			await Promise.all([fetchAllFixtures(), fetchLeaderboard()]);
 		}
 	});
@@ -266,10 +271,24 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - Predictor v2</title>
+	<title>Home — Predictor v2</title>
 </svelte:head>
 
-{#if $isAuthenticated}
+{#if $isAuthenticated && !SHOW_CONTENT}
+	<div class="hero min-h-[60vh]">
+		<div class="hero-content text-center">
+			<div class="max-w-md">
+				<h2 class="font-display text-3xl tracking-wide">Great stuff coming soon!</h2>
+				<p class="mt-3 text-base-content/60">We're polishing this page. In the meantime…</p>
+				<a href="/entries" class="btn btn-primary btn-lg mt-6 shadow-glow-gold">
+					Make your predictions
+				</a>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if $isAuthenticated && SHOW_CONTENT}
 	<div class="container mx-auto mobile-padding py-6 space-y-6">
 		<!-- Welcome -->
 		<div class="flex items-end justify-between flex-wrap gap-2">

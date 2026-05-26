@@ -17,12 +17,15 @@
 		{#if crumb.href && i < crumbs.length - 1}
 			<a
 				href={crumb.href}
-				class="text-base-content/60 hover:text-base-content truncate transition-colors"
+				class="text-base-content/60 hover:text-base-content truncate transition-colors max-w-[10rem] sm:max-w-[16rem]"
 			>
 				{crumb.label}
 			</a>
 		{:else}
-			<span class="font-semibold truncate" aria-current={i === crumbs.length - 1 ? 'page' : undefined}>
+			<span
+				class="font-semibold truncate max-w-[10rem] sm:max-w-[16rem]"
+				aria-current={i === crumbs.length - 1 ? 'page' : undefined}
+			>
 				{crumb.label}
 			</span>
 		{/if}

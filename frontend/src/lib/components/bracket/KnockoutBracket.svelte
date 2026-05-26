@@ -20,7 +20,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import BracketMatch from './BracketMatch.svelte';
-	import ChampionStrip from './ChampionStrip.svelte';
 	import {
 		initializeBracketState,
 		predictionToBracketState,
@@ -40,6 +39,17 @@
 		update: BracketPrediction;
 		clear: void;
 	}>();
+
+	// Confirm-then-dispatch wrapper for the "Clear Brackets" button. The
+	// parent route handles the `clear` event by zeroing the unsaved bracket
+	// prediction, which falls through to initializeBracketState() and
+	// renders every match with no winner selected (picked = 0).
+	function clearAll() {
+		if (locked || picked === 0) return;
+		if (confirm('Clear all your bracket picks? This cannot be undone.')) {
+			dispatch('clear');
+		}
+	}
 
 	// ── Derived bracket state ────────────────────────────────────────────────
 	$: state = (() => {
@@ -161,18 +171,19 @@
 	class="wallchart-panel hidden lg:block bg-base-100 text-base-content
 		rounded-2xl p-8 shadow-2xl border border-base-content/15
 		relative left-1/2 -translate-x-1/2
-		w-[calc(100vw-2rem)] max-w-[1800px]"
+		w-[calc(100vw-2rem-12rem)] max-w-[1800px]"
 >
-	<!-- Header strip: title + status meta -->
+	<!-- Header strip: title + status meta + clear-all action -->
 	<header class="flex items-start justify-between mb-3 gap-6">
 		<h2 class="font-display text-2xl tracking-wide leading-none">
 			YOUR <span class="text-primary">BRACKET</span>
 		</h2>
 
-		<dl
-			class="grid grid-flow-col auto-cols-max gap-x-8 gap-y-0
-				text-[10px] font-mono uppercase tracking-[0.18em] opacity-90"
-		>
+		<div class="flex items-start gap-6">
+			<dl
+				class="grid grid-cols-[auto_auto_auto] gap-x-8 gap-y-0
+					text-[10px] font-mono uppercase tracking-[0.18em] opacity-90"
+			>
 			<dt class="opacity-60 row-start-1">Picks Locked</dt>
 			<dt class="opacity-60 row-start-1">Status</dt>
 			<dt class="opacity-60 row-start-1">Final · Your Pick</dt>
@@ -188,6 +199,22 @@
 				{tournamentWinner ? tournamentWinner.toUpperCase() : '—'}
 			</dd>
 		</dl>
+
+			<!-- Clear Brackets — wipes every pick. Hidden when locked or
+			     already empty; confirms before dispatching. -->
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs gap-1 text-base-content/60 hover:text-error hover:bg-error/10 self-end whitespace-nowrap"
+				disabled={locked || picked === 0}
+				on:click={clearAll}
+				title="Clear all bracket picks"
+			>
+				<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+				</svg>
+				Clear Brackets
+			</button>
+		</div>
 	</header>
 
 	<hr class="border-base-content/15 mb-5" />
@@ -375,9 +402,25 @@
 				></button>
 			{/each}
 		</div>
-		<span class="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80">
-			{picked} / {TOTAL_PICKS}
-		</span>
+		<div class="flex items-center gap-2">
+			<span class="font-mono text-[10px] uppercase tracking-[0.18em] opacity-80">
+				{picked} / {TOTAL_PICKS}
+			</span>
+			<!-- Clear Brackets — icon-only on mobile to save horizontal room.
+			     Hidden when locked or already empty. -->
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-error hover:bg-error/10"
+				disabled={locked || picked === 0}
+				on:click={clearAll}
+				aria-label="Clear all bracket picks"
+				title="Clear all bracket picks"
+			>
+				<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+				</svg>
+			</button>
+		</div>
 	</header>
 
 	<!-- Current page label -->
@@ -538,16 +581,6 @@
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<!-- Persistent champion strip -->
-	<div class="mt-4">
-		<ChampionStrip
-			champion={tournamentWinner}
-			{picked}
-			total={TOTAL_PICKS}
-			compact={true}
-		/>
 	</div>
 
 	<!-- Footer nav -->

@@ -116,6 +116,33 @@
 		if (i === 2) return 'best3rd';
 		return 'out';
 	}
+
+	// True when at least one fixture in `group` has a (saved or unsaved)
+	// prediction. Used inside 'all' mode to gate per-group tie-warning
+	// icons in each table header — no point flagging a tie that's
+	// computed off an empty group.
+	function groupHasAnyPrediction(group: string): boolean {
+		const fixtures = $groupFixtures.find((g) => g.group === group)?.fixtures ?? [];
+		return fixtures.some((f) => effectivePredictions.has(f.id));
+	}
+
+	// In 'all' mode, fetch the warning (if any) for one group. We surface
+	// it as a small ⚠ icon next to the group heading rather than as a
+	// full alert below the table — the user asked to keep the stack
+	// uncluttered.
+	function groupHasUnresolvedTie(group: string): boolean {
+		return (
+			groupHasAnyPrediction(group) &&
+			standingsResult.warnings.some((w) => w.group === group)
+		);
+	}
+
+	// Ordered group letters for 'all' mode. Strips the 'thirdplace'
+	// pseudo-group; the cross-group third-place table renders separately
+	// at the bottom of the stack.
+	$: orderedGroups = $groupFixtures
+		.map((g) => g.group)
+		.filter((g) => g !== 'thirdplace');
 </script>
 
 <aside
@@ -131,7 +158,7 @@
 			</div>
 			<h3 class="font-display text-2xl leading-tight truncate">
 				{#if activeSection === 'groups'}
-					{#if activeGroup === 'thirdplace'}Third Place{:else}Group {activeGroup}{/if}
+					{#if activeGroup === 'all'}All Groups{:else if activeGroup === 'thirdplace'}Third Place{:else}Group {activeGroup}{/if}
 				{:else if activeSection === 'knockout'}Knockout Path{:else}Bonus Answers{/if}
 			</h3>
 		</div>
@@ -149,7 +176,154 @@
 
 	<div class="flex-1 overflow-y-auto px-4 py-3">
 		{#if activeSection === 'groups'}
-			{#if activeGroup === 'thirdplace'}
+			{#if activeGroup === 'all'}
+				<!-- ====== 'all' mode — vertical stack of every group's table ======
+				     Triggered from the wizard's Expand-all button. Each group
+				     gets a heading (with a ⚠ icon if there's an unresolved tie),
+				     the existing single-group table format, and a slim spacer.
+				     Tie-warning ALERTS are suppressed inside this stack per
+				     the spec; only the cross-group third-place warning survives
+				     at the bottom, because that one is genuinely consequential
+				     (it can flip qualification across groups). -->
+				<div class="space-y-5">
+					{#each orderedGroups as g (g)}
+						{@const teams = standingsMap[g] ?? []}
+						<section>
+							<div class="flex items-center gap-2 mb-1.5">
+								<span class="font-display text-base tracking-wide">Group {g}</span>
+								{#if groupHasUnresolvedTie(g)}
+									<span
+										class="badge badge-warning badge-xs gap-1 font-medium"
+										title="Unresolved tie in this group — open Group {g} for details"
+									>
+										<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+										</svg>
+										Tie
+									</span>
+								{/if}
+							</div>
+							{#if teams.length === 0}
+								<p class="text-xs text-base-content/40 py-1">No predictions yet.</p>
+							{:else}
+								<div class="overflow-x-auto">
+									<table class="w-full text-xs">
+										<thead class="text-base-content/40 uppercase tracking-wider">
+											<tr>
+												<th class="text-left font-normal pb-1 w-6">#</th>
+												<th class="text-left font-normal pb-1">Team</th>
+												<th class="text-center font-normal pb-1">P</th>
+												<th class="text-center font-normal pb-1">W</th>
+												<th class="text-center font-normal pb-1">D</th>
+												<th class="text-center font-normal pb-1">L</th>
+												<th class="text-center font-normal pb-1">GD</th>
+												<th class="text-center font-normal pb-1">Pts</th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each teams as team, i (team.team)}
+												<tr class="border-t border-base-content/5">
+													<td class="py-1">
+														<span
+															class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {POS_CLASS[posTone(i)]}"
+														>{i + 1}</span>
+													</td>
+													<td class="py-1">
+														<span class="flex items-center gap-1.5">
+															{#if hasFlag(team.team)}
+																<img src={getFlagUrl(team.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
+															{/if}
+															<span class="truncate">{team.team}</span>
+														</span>
+													</td>
+													<td class="text-center font-mono tabular-nums py-1">{team.played}</td>
+													<td class="text-center font-mono tabular-nums py-1">{team.won}</td>
+													<td class="text-center font-mono tabular-nums py-1">{team.drawn}</td>
+													<td class="text-center font-mono tabular-nums py-1">{team.lost}</td>
+													<td class="text-center font-mono tabular-nums py-1">
+														<span class={team.goalDifference > 0 ? 'text-success' : team.goalDifference < 0 ? 'text-error' : 'opacity-60'}>
+															{team.goalDifference > 0 ? '+' : ''}{team.goalDifference}
+														</span>
+													</td>
+													<td class="text-center font-mono tabular-nums font-bold py-1">{team.points}</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							{/if}
+						</section>
+					{/each}
+
+					<!-- Third-place qualifying table — closes the stack. Kept the
+					     existing markup style for parity with the dedicated
+					     'thirdplace' mode below. -->
+					{#if thirdPlaceStandings.length > 0}
+						<section>
+							<div class="flex items-center gap-2 mb-1.5">
+								<span class="font-display text-base tracking-wide">Third Place</span>
+								<span class="text-[10px] text-base-content/40 uppercase tracking-wider">Top 8 advance</span>
+							</div>
+							<div class="overflow-x-auto">
+								<table class="w-full text-xs">
+									<thead class="text-base-content/40 uppercase tracking-wider">
+										<tr>
+											<th class="text-left font-normal pb-1 w-6">#</th>
+											<th class="text-center font-normal pb-1 w-8">Grp</th>
+											<th class="text-left font-normal pb-1">Team</th>
+											<th class="text-center font-normal pb-1">P</th>
+											<th class="text-center font-normal pb-1">GD</th>
+											<th class="text-center font-normal pb-1">Pts</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each thirdPlaceStandings as t, i (t.team)}
+											<tr class="border-t border-base-content/5 {i < 8 ? 'bg-success/5' : ''}">
+												<td class="py-1">
+													<span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {i < 8 ? 'bg-success/20 text-success' : 'bg-base-300/40 text-base-content/50'}">{i + 1}</span>
+												</td>
+												<td class="text-center text-[11px] font-mono py-1">{t.group}</td>
+												<td class="py-1">
+													<span class="flex items-center gap-1.5">
+														{#if hasFlag(t.team)}
+															<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
+														{/if}
+														<span class="truncate">{t.team}</span>
+													</span>
+												</td>
+												<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
+												<td class="text-center font-mono tabular-nums py-1">
+													<span class={t.goalDifference > 0 ? 'text-success' : t.goalDifference < 0 ? 'text-error' : 'opacity-60'}>
+														{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}
+													</span>
+												</td>
+												<td class="text-center font-mono tabular-nums font-bold py-1">{t.points}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+
+							<!-- Cross-group third-place tie warning. The user kept
+							     THIS one (and only this one) inside the stacked
+							     view because it's the only warning that captures
+							     state spanning multiple groups. -->
+							{#if thirdPlaceWarnings.length > 0 && allGroupsComplete}
+								<div class="alert alert-warning text-xs py-2 mt-3">
+									<div>
+										<div class="font-semibold mb-0.5">⚠ Tied teams · alphabetical fallback</div>
+										{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
+											<p class="text-[11px] opacity-90">
+												{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place teams come from different groups so head-to-head isn't applicable; ranked alphabetically. Adjust scores to change qualification.
+											</p>
+										{/each}
+									</div>
+								</div>
+							{/if}
+						</section>
+					{/if}
+				</div>
+			{:else if activeGroup === 'thirdplace'}
 				<!-- Third-place qualifying table. Different shape from the
 				     regular group table: 12 teams (3 from each group), an
 				     extra "Grp" column, and top-8/bottom-4 highlighting
