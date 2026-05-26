@@ -67,17 +67,17 @@ def upgrade() -> None:
              actor_user_id, actor_role, reason, created_at)
         SELECT
             gen_random_uuid(), pep.entry_id, pep.phase, 'ready', 'submitted',
-            pe.user_id, 'system', 'lifecycle_simplification', NOW()
+            pe.user_id, 'SYSTEM', 'lifecycle_simplification', NOW()
         FROM prediction_entry_phases pep
         JOIN prediction_entries pe ON pe.id = pep.entry_id
-        WHERE pep.status::text = 'ready'
+        WHERE pep.status::text = 'READY'
         """
     )
     op.execute(
         """
         UPDATE prediction_entry_phases
-        SET status = 'submitted', updated_at = NOW()
-        WHERE status::text = 'ready'
+        SET status = 'SUBMITTED', updated_at = NOW()
+        WHERE status::text = 'READY'
         """
     )
 
@@ -89,17 +89,17 @@ def upgrade() -> None:
              actor_user_id, actor_role, reason, created_at)
         SELECT
             gen_random_uuid(), pep.entry_id, pep.phase, 'locked', 'submitted',
-            pe.user_id, 'system', 'lifecycle_simplification', NOW()
+            pe.user_id, 'SYSTEM', 'lifecycle_simplification', NOW()
         FROM prediction_entry_phases pep
         JOIN prediction_entries pe ON pe.id = pep.entry_id
-        WHERE pep.status::text = 'locked'
+        WHERE pep.status::text = 'LOCKED'
         """
     )
     op.execute(
         """
         UPDATE prediction_entry_phases
-        SET status = 'submitted', updated_at = NOW()
-        WHERE status::text = 'locked'
+        SET status = 'SUBMITTED', updated_at = NOW()
+        WHERE status::text = 'LOCKED'
         """
     )
 
@@ -113,17 +113,17 @@ def upgrade() -> None:
              actor_user_id, actor_role, reason, created_at)
         SELECT
             gen_random_uuid(), pep.entry_id, pep.phase, 'disabled', 'draft',
-            pe.user_id, 'system', 'lifecycle_simplification', NOW()
+            pe.user_id, 'SYSTEM', 'lifecycle_simplification', NOW()
         FROM prediction_entry_phases pep
         JOIN prediction_entries pe ON pe.id = pep.entry_id
-        WHERE pep.status::text = 'disabled'
+        WHERE pep.status::text = 'DISABLED'
         """
     )
     op.execute(
         """
         UPDATE prediction_entry_phases
-        SET status = 'draft', updated_at = NOW()
-        WHERE status::text = 'disabled'
+        SET status = 'DRAFT', updated_at = NOW()
+        WHERE status::text = 'DISABLED'
         """
     )
 
@@ -134,7 +134,7 @@ def upgrade() -> None:
     #       reduced set, so the USING clause is a straight cast);
     #   (c) drop the old type;
     #   (d) rename the new type to `entrystatus`.
-    op.execute("CREATE TYPE entrystatus_new AS ENUM ('draft', 'submitted', 'withdrawn')")
+    op.execute("CREATE TYPE entrystatus_new AS ENUM ('DRAFT', 'SUBMITTED', 'WITHDRAWN')")
     op.execute(
         """
         ALTER TABLE prediction_entry_phases
