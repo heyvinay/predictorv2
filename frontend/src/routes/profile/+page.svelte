@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user, logout } from '$stores/auth';
-	import { getUserStats } from '$api/auth';
+	import { getUserStats, updateProfile } from '$api/auth';
 	import {
 		loadEntries,
 		activeEntryId,
@@ -12,8 +12,14 @@
 	} from '$stores/entries';
 	import { fetchLeaderboard, myLeaderboardRows } from '$stores/leaderboard';
 	import { computeDisplayStatus, type Entry, type EntryStatus } from '$lib/types/entry';
+	import { pageTitle } from '$stores/pageTitle';
 	import type { UserStats } from '$types';
 	import { get } from 'svelte/store';
+
+	// Flag-gated: when true, restore the Header / Prediction Stats /
+	// Your Entries / inline Sign-Out sections. Logout stays reachable
+	// via the avatar dropdown regardless.
+	const SHOW_EXTENDED_PROFILE = false;
 
 	$: if (!$isAuthenticated) goto('/login');
 
@@ -21,8 +27,48 @@
 	let statsLoading = true;
 	let statsError: string | null = null;
 
+	// Name-edit state for the Account Information card.
+	let editingName = false;
+	let nameInput = '';
+	let nameError = '';
+	let savingName = false;
+
+	function startEditName() {
+		nameInput = $user?.name ?? '';
+		nameError = '';
+		editingName = true;
+	}
+
+	function cancelEditName() {
+		editingName = false;
+		nameError = '';
+	}
+
+	async function saveName() {
+		const trimmed = nameInput.trim();
+		if (!trimmed) {
+			nameError = 'Name cannot be blank';
+			return;
+		}
+		if (trimmed.length > 100) {
+			nameError = 'Max 100 characters';
+			return;
+		}
+		savingName = true;
+		nameError = '';
+		try {
+			const updated = await updateProfile({ name: trimmed });
+			user.set(updated);
+			editingName = false;
+		} catch (e) {
+			nameError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			savingName = false;
+		}
+	}
 
 	onMount(async () => {
+		pageTitle.set('Profile');
 		if ($isAuthenticated) {
 			// The leaderboard fetch doesn't need $user. Entry loading + stats
 			// are handled by the reactive block below — needed because
@@ -106,22 +152,25 @@
 
 {#if $isAuthenticated && $user}
 	<div class="container mx-auto mobile-padding py-6">
-		<!-- Header -->
-		<div class="mb-8 flex items-center gap-4">
-			<div class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20">
-				<span class="text-2xl font-bold text-white leading-none translate-y-0.5">
-					{($user.name?.[0] ?? '?').toUpperCase()}
-				</span>
+		{#if SHOW_EXTENDED_PROFILE}
+			<!-- Header -->
+			<div class="mb-8 flex items-center gap-4">
+				<div class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20">
+					<span class="text-2xl font-bold text-white leading-none translate-y-0.5">
+						{($user.name?.[0] ?? '?').toUpperCase()}
+					</span>
+				</div>
+				<div>
+					<h1 class="text-3xl sm:text-4xl font-display tracking-wide">{$user.name}</h1>
+					<p class="text-sm text-base-content/50">
+						{$user.email} · member since {fmtDate($user.created_at)}
+					</p>
+				</div>
 			</div>
-			<div>
-				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">{$user.name}</h1>
-				<p class="text-sm text-base-content/50">
-					{$user.email} · member since {fmtDate($user.created_at)}
-				</p>
-			</div>
-		</div>
+		{/if}
 
 		<div class="space-y-8">
+			{#if SHOW_EXTENDED_PROFILE}
 			<!-- Prediction stats (active entry) -->
 			<div class="stadium-card no-glow p-6">
 				<div class="flex items-center justify-between mb-6 flex-wrap gap-2">
@@ -231,14 +280,62 @@
 					</div>
 				</div>
 			{/if}
+			{/if}
 
 			<!-- Account information -->
 			<div class="stadium-card no-glow p-6">
 				<h2 class="text-lg font-display tracking-wide mb-6">Account Information</h2>
-				<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-					<div>
-						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Name</p>
-						<p class="font-medium">{$user.name}</p>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+					<!-- Editable name. Email stays read-only. -->
+					<div class="sm:col-span-2">
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-2">Name</p>
+						{#if editingName}
+							<div class="flex items-start gap-2 flex-wrap">
+								<input
+									type="text"
+									class="input input-bordered input-sm flex-1 min-w-[12rem] max-w-md"
+									bind:value={nameInput}
+									maxlength="100"
+									disabled={savingName}
+									aria-invalid={!!nameError}
+									on:keydown={(e) => {
+										if (e.key === 'Enter') saveName();
+										if (e.key === 'Escape') cancelEditName();
+									}}
+								/>
+								<button
+									type="button"
+									class="btn btn-primary btn-sm"
+									on:click={saveName}
+									disabled={savingName || !nameInput.trim()}
+								>
+									{savingName ? 'Saving…' : 'Save'}
+								</button>
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm"
+									on:click={cancelEditName}
+									disabled={savingName}
+								>
+									Cancel
+								</button>
+							</div>
+							{#if nameError}
+								<p class="text-xs text-error mt-2">{nameError}</p>
+							{/if}
+						{:else}
+							<div class="flex items-center gap-3">
+								<p class="font-medium">{$user.name}</p>
+								<button
+									type="button"
+									class="btn btn-ghost btn-xs"
+									on:click={startEditName}
+									aria-label="Edit name"
+								>
+									Edit
+								</button>
+							</div>
+						{/if}
 					</div>
 					<div>
 						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Email</p>
@@ -278,15 +375,17 @@
 				{/if}
 			</div>
 
-			<!-- Logout -->
-			<div class="flex justify-center pt-4">
-				<button class="btn btn-outline btn-error" on:click={logout}>
-					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-					</svg>
-					Sign Out
-				</button>
-			</div>
+			{#if SHOW_EXTENDED_PROFILE}
+				<!-- Logout (also available in the avatar dropdown). -->
+				<div class="flex justify-center pt-4">
+					<button class="btn btn-outline btn-error" on:click={logout}>
+						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+						</svg>
+						Sign Out
+					</button>
+				</div>
+			{/if}
 		</div><!-- /space-y-8 -->
 	</div><!-- /container -->
 {/if}

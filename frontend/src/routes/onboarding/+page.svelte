@@ -46,7 +46,7 @@
 	<title>Welcome — Predictor</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center mobile-padding py-12 bg-base-100">
+<div class="min-h-screen flex items-center justify-center mobile-padding py-12 auth-bg noise">
 	<div class="w-full max-w-md">
 		<!-- Brand header -->
 		<div class="flex items-center gap-3 justify-center mb-8">
@@ -69,9 +69,10 @@
 
 		<!-- Onboarding card -->
 		<div class="stadium-card no-glow p-7">
-			<h1 class="font-display text-2xl tracking-wide mb-1">What should we call you?</h1>
+			<p class="text-xs font-mono uppercase tracking-[0.18em] text-primary mb-2">Welcome</p>
+			<h1 class="font-display text-3xl tracking-wide mb-2">What should we call you?</h1>
 			<p class="text-sm text-base-content/60 mb-6">
-				This is the name your friends will see on the leaderboard.
+				This is the name your friends will see on the leaderboard. You can change it later in your profile.
 			</p>
 
 			{#if localError || $authError}

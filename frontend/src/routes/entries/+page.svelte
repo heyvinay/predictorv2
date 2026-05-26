@@ -41,6 +41,7 @@
 	} from '$lib/api/entries';
 	import type { CompletionSummary } from '$lib/types/entry';
 	import ProgressSection from '$lib/components/predictions/ProgressSection.svelte';
+	import { pageTitle } from '$stores/pageTitle';
 
 	$: if (!$isAuthenticated) {
 		goto('/login');
@@ -71,6 +72,7 @@
 	}
 
 	onMount(() => {
+		pageTitle.set('Entries');
 		void loadCompletion();
 	});
 

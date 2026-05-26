@@ -6,14 +6,17 @@
 	export let group: string;
 	export let fixtures: Fixture[];
 	export let predictions: Map<string, MatchPrediction>;
+	/** Optional in-table heading. Defaults to "Group {X} — Standings". */
+	export let title: string | null = null;
 
 	$: standings = calculateGroupStandings(fixtures, predictions, group);
+	$: resolvedTitle = title ?? `Group ${group} — Standings`;
 
 	// Position indicator styling
 	function getPositionClass(index: number): string {
 		if (index < 2) return 'qualifies';
 		if (index === 2) return 'third-place';
-		return '';
+		return 'eliminated';
 	}
 </script>
 
@@ -21,6 +24,14 @@
 	<div class="overflow-x-auto -mx-2 sm:mx-0">
 		<table class="standings-table">
 			<thead>
+				<tr>
+					<th
+						colspan="10"
+						class="text-left text-xs font-medium text-base-content/60 uppercase tracking-wider py-2 px-2"
+					>
+						{resolvedTitle}
+					</th>
+				</tr>
 				<tr>
 					<th class="w-8 text-center">#</th>
 					<th class="text-left">Team</th>
@@ -88,11 +99,19 @@
 		@apply border-l-2 border-l-warning;
 	}
 
+	.standing-row.eliminated {
+		@apply border-l-2 border-l-error;
+	}
+
 	.position-indicator.qualifies {
 		@apply bg-success/20 text-success;
 	}
 
 	.position-indicator.third-place {
 		@apply bg-warning/20 text-warning;
+	}
+
+	.position-indicator.eliminated {
+		@apply bg-error/20 text-error;
 	}
 </style>

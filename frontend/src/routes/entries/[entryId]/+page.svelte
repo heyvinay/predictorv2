@@ -69,13 +69,15 @@
 	import EntrySelector from '$components/EntrySelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
-	import ProgressSection from '$components/predictions/ProgressSection.svelte';
+	import WizardStepper from '$components/predictions/WizardStepper.svelte';
+	import SubmitSummary from '$components/predictions/SubmitSummary.svelte';
 	import StatusBanner from '$components/predictions/StatusBanner.svelte';
 	import BottomActionBar from '$components/predictions/BottomActionBar.svelte';
 	import SmartFillModal from '$components/predictions/SmartFillModal.svelte';
 	import PrintPreviewModal from '$components/predictions/PrintPreviewModal.svelte';
 	import StandingsPanel from '$components/predictions/StandingsPanel.svelte';
 	import { standingsPanelOpen } from '$stores/uiPreferences';
+	import { wizardSectionLabel } from '$stores/wizardCrumb';
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
 	import { tick } from 'svelte';
 
@@ -95,9 +97,20 @@
 	// stays false while Phase 2 is dormant).
 	let activePhase: string = 'phase1';
 
-	// Section toggle controls the outer mode (Groups / Knockout / Bonus).
-	type Section = 'groups' | 'knockout' | 'bonus';
+	// Wizard step — Groups → Knockout → Bonus → Submit. `activeSection`
+	// is the legacy variable name; kept identical so all downstream code
+	// (which references `activeSection === 'groups'` etc.) doesn't churn.
+	// The new `'submit'` step is wired into the same control flow below.
+	type Step = 'groups' | 'knockout' | 'bonus' | 'submit';
+	// Kept as `Section` alias for in-file readability where the variable
+	// still semantically means "section of the page being shown".
+	type Section = Step;
 	let activeSection: Section = 'groups';
+	// Visited-set: tracks which steps the user has navigated to. The
+	// wizard stepper consults this to decide whether a step is "locked"
+	// (not yet reachable) vs "visited but incomplete" (warning ring).
+	// Visiting a step is idempotent; we never remove from the set.
+	let visitedSteps: Set<Step> = new Set(['groups']);
 	// Active group pill — either a group letter (e.g. 'A') or 'thirdplace'.
 	let activeGroupPill: string = '';
 
@@ -289,19 +302,45 @@
 		}
 	}
 
-	// At most one GroupAccordion is open at a time. Clicking the open
-	// group closes it; clicking any other group switches focus and
-	// collapses the previous one. Opening also pushes `activeGroupPill`
-	// to the right-hand StandingsPanel so the panel mirrors the user's
-	// current editing focus. `null` = all closed (initial state).
-	let openGroup: string | null = null;
+	// Multiple GroupAccordions can be open simultaneously. Opening a
+	// group also pushes `activeGroupPill` to the right-hand StandingsPanel
+	// so the panel mirrors the user's most-recent editing focus.
+	let openGroups: Set<string> = new Set();
 	function toggleGroupAccordion(letter: string): void {
-		if (openGroup === letter) {
-			openGroup = null;
-			return;
+		if (openGroups.has(letter)) {
+			openGroups.delete(letter);
+		} else {
+			openGroups.add(letter);
+			activeGroupPill = letter;
 		}
-		openGroup = letter;
-		activeGroupPill = letter;
+		openGroups = openGroups; // trigger reactivity
+	}
+
+	// Expand-all toggle. When every group + thirdplace is open we treat
+	// it as the "overview" mode, which switches the right-hand
+	// StandingsPanel into its 'all' branch (a vertical stack of every
+	// group's standings + the third-place table at the bottom) and opens
+	// the drawer at narrow viewports.
+	$: allGroupKeys = [
+		...$groupFixtures.filter((g) => g.group !== 'thirdplace').map((g) => g.group),
+		'thirdplace'
+	];
+	$: allExpanded = allGroupKeys.length > 0 && allGroupKeys.every((k) => openGroups.has(k));
+
+	function toggleExpandAll(): void {
+		if (allExpanded) {
+			// Collapse — revert focus to the first group and close the drawer.
+			openGroups = new Set();
+			activeGroupPill = $groupFixtures[0]?.group ?? 'A';
+			standingsPanelOpen.set(false);
+		} else {
+			// Expand — open every accordion, switch the panel into 'all'
+			// mode, and surface the drawer on mobile/tablet so the stack
+			// is actually visible.
+			openGroups = new Set(allGroupKeys);
+			activeGroupPill = 'all';
+			standingsPanelOpen.set(true);
+		}
 	}
 
 	// Mobile/tablet standings-drawer helpers. The drawer is rendered
@@ -427,6 +466,9 @@
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('beforeunload', handleBeforeUnload);
 		}
+		// Clear the breadcrumb section crumb so it doesn't persist to the
+		// next route's topbar.
+		wizardSectionLabel.set(null);
 	});
 
 	// Default the active group pill to the first group once fixtures load
@@ -468,6 +510,23 @@
 
 	// ---- Derived: focused-header info for the active selection -----------
 	$: focusedInfo = (() => {
+		if (activeGroupPill === 'all') {
+			const completedGroups = $groupFixtures.filter((gg) => {
+				if (gg.group === 'thirdplace') return false;
+				const gpx = groupProgress(gg);
+				return gpx.total > 0 && gpx.done === gpx.total;
+			}).length;
+			const totalGroups = $groupFixtures.filter((gg) => gg.group !== 'thirdplace').length;
+			return {
+				badge: 'ALL',
+				title: 'ALL GROUPS',
+				caption: 'Overview of every group',
+				meta:
+					totalGroups > 0
+						? `${completedGroups} of ${totalGroups} groups complete`
+						: ''
+			};
+		}
 		if (activeGroupPill === 'thirdplace') {
 			const filled = thirdPlaceStandings?.length ?? 0;
 			return {
@@ -598,33 +657,75 @@
 	$: phase1AllComplete =
 		allGroupsComplete && bracketIsComplete && missingBonusCount === 0;
 
-	// Granular progress per area for the unified ProgressSection bar.
-	// Combined into one overall percentage in the component.
-	$: bracketSubProgress = (() => {
-		const b = $unsavedBracketPrediction || $bracketPrediction;
-		// User picks: R16 (16) + QF (8) + SF (4) + F (2) + Winner (1) = 31.
-		// R32 is derived from group standings (not a user pick) and 3rd
-		// place is derived from SF losers, so neither contributes.
-		const total = 31;
-		if (!b) return { done: 0, total };
-		const done =
-			(b.round_of_16?.length ?? 0) +
-			(b.quarter_finals?.length ?? 0) +
-			(b.semi_finals?.length ?? 0) +
-			(b.final?.length ?? 0) +
-			(b.winner ? 1 : 0);
-		return { done: Math.min(done, total), total };
-	})();
+	// ── Wizard model ─────────────────────────────────────────────────────
+	// Derived array fed to <WizardStepper>. Each step's `complete` flag
+	// reuses an existing derivation above — no parallel state machine.
+	// `locked` opens up once the user has visited the step (we never trap
+	// them on a future step) OR the previous step is complete.
+	const STEP_ORDER: Step[] = ['groups', 'knockout', 'bonus', 'submit'];
 
-	$: bonusSubProgress = (() => {
-		const total = bonusQuestions.length;
-		let done = 0;
-		for (const q of bonusQuestions) {
-			const a = bonusAnswers.get(q.id);
-			if (a && a.trim() !== '') done++;
+	$: wizardSteps = [
+		{
+			id: 'groups' as Step,
+			label: 'Groups',
+			complete: allGroupsComplete,
+			locked: false,
+			visited: visitedSteps.has('groups')
+		},
+		{
+			id: 'knockout' as Step,
+			label: 'Knockout',
+			complete: bracketIsComplete,
+			locked: !allGroupsComplete && !visitedSteps.has('knockout'),
+			visited: visitedSteps.has('knockout')
+		},
+		{
+			id: 'bonus' as Step,
+			label: 'Bonus',
+			complete: missingBonusCount === 0,
+			locked: !bracketIsComplete && !visitedSteps.has('bonus'),
+			visited: visitedSteps.has('bonus')
+		},
+		{
+			id: 'submit' as Step,
+			label: 'Submit',
+			complete: uiStatus === 'locked' || uiStatus === 'scored',
+			locked: !phase1AllComplete && !visitedSteps.has('submit'),
+			visited: visitedSteps.has('submit')
 		}
-		return { done, total };
-	})();
+	];
+
+	// Helpers for the BottomActionBar — current step's neighbours + label.
+	$: currentStepIdx = STEP_ORDER.indexOf(activeSection);
+	$: prevStepId = currentStepIdx > 0 ? STEP_ORDER[currentStepIdx - 1] : null;
+	$: nextStepId = currentStepIdx >= 0 && currentStepIdx < STEP_ORDER.length - 1 ? STEP_ORDER[currentStepIdx + 1] : null;
+	$: prevStepLabel = prevStepId ? wizardSteps.find((s) => s.id === prevStepId)?.label ?? '' : '';
+	$: nextStepLabel = nextStepId ? wizardSteps.find((s) => s.id === nextStepId)?.label ?? '' : '';
+	$: canContinue = (wizardSteps.find((s) => s.id === activeSection)?.complete ?? false);
+
+	function setStep(step: Step) {
+		// Locked-step jumps shouldn't reach here — the stepper guards them
+		// — but defensively guard anyway in case some other caller invokes
+		// setStep directly.
+		const target = wizardSteps.find((s) => s.id === step);
+		if (target?.locked) return;
+		activeSection = step;
+		visitedSteps = new Set([...visitedSteps, step]); // trigger reactivity
+	}
+
+	// Publish the active section's label to the layout breadcrumb. Reset on
+	// destroy (below) so the crumb doesn't leak into other routes' chrome.
+	$: wizardSectionLabel.set(wizardSteps.find((s) => s.id === activeSection)?.label ?? null);
+
+	function handleStepNavigate(e: CustomEvent<{ step: string }>) {
+		setStep(e.detail.step as Step);
+	}
+	function handleBackStep() {
+		if (prevStepId) setStep(prevStepId);
+	}
+	function handleContinueStep() {
+		if (nextStepId) setStep(nextStepId);
+	}
 
 	$: incompleteSummary = (() => {
 		if (phase1AllComplete) return null;
@@ -764,6 +865,24 @@
 	function handleBracketUpdate(event: CustomEvent<BracketPrediction>) {
 		unsavedBracketPrediction.set(event.detail);
 	}
+	// Empty-prediction sentinel for "Clear Brackets". Setting unsavedBracketPrediction
+	// to an object with empty round arrays causes hasValidPrediction() inside the
+	// bracket component to return false, falling through to initializeBracketState()
+	// which renders every match with no winner → picked counter goes to 0.
+	function makeEmptyBracket(): BracketPrediction {
+		return {
+			group_winners: {},
+			round_of_32: [],
+			round_of_16: [],
+			quarter_finals: [],
+			semi_finals: [],
+			final: [],
+			winner: ''
+		};
+	}
+	function handleBracketClear() {
+		unsavedBracketPrediction.set(makeEmptyBracket());
+	}
 	async function handleSaveBracket() {
 		const b = $unsavedBracketPrediction;
 		if (!b) return;
@@ -782,6 +901,9 @@
 	$: phase2DisplayBracket = $unsavedPhase2BracketPrediction || $phase2BracketPrediction;
 	function handlePhase2BracketUpdate(event: CustomEvent<BracketPrediction>) {
 		unsavedPhase2BracketPrediction.set(event.detail);
+	}
+	function handlePhase2BracketClear() {
+		unsavedPhase2BracketPrediction.set(makeEmptyBracket());
 	}
 	async function handleSavePhase2Bracket() {
 		const b = $unsavedPhase2BracketPrediction;
@@ -1061,7 +1183,7 @@
 			     flex-wrap only kicks in if BOTH Phase I/II + section tabs
 			     are wider than the viewport (Phase 2 case only). -->
 			<div class="flex items-center justify-between gap-3 flex-wrap">
-				<div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+				<div class="flex items-center gap-2 sm:gap-3 flex-wrap flex-1 w-full min-w-0">
 					{#if $isPhase2Active}
 						<div class="tabs tabs-boxed bg-base-300/40">
 							<button class="tab {activePhase === 'phase1' ? 'tab-active' : ''}" on:click={() => (activePhase = 'phase1')}>Phase I</button>
@@ -1069,24 +1191,20 @@
 						</div>
 					{/if}
 					{#if activePhase === 'phase1'}
-						<div class="tabs tabs-boxed bg-base-300/40">
-							<button class="tab {activeSection === 'groups' ? 'tab-active' : ''}" on:click={() => (activeSection = 'groups')}>Groups</button>
-							<button
-								class="tab {activeSection === 'knockout' ? 'tab-active' : ''} {phase1BracketGated ? 'opacity-50' : ''}"
-								on:click={() => (activeSection = 'knockout')}
-								title={phase1BracketGated ? 'Complete all group predictions to unlock' : ''}
-							>Knockout</button>
-							<button class="tab {activeSection === 'bonus' ? 'tab-active' : ''}" on:click={() => (activeSection = 'bonus')}>Bonus</button>
+						<!-- 4-step wizard: Groups → Knockout → Bonus → Submit.
+						     Each step's complete/locked state is derived from
+						     existing progress signals (allGroupsComplete,
+						     bracketIsComplete, missingBonusCount, etc.) — see
+						     the `wizardSteps` reactive block above. -->
+						<div class="flex-1 min-w-[16rem] w-full">
+							<WizardStepper
+								steps={wizardSteps}
+								activeStep={activeSection}
+								on:navigate={handleStepNavigate}
+							/>
 						</div>
 					{/if}
 				</div>
-
-				<ProgressSection
-					groupProgress={{ done: phaseProgress.done, total: phaseProgress.total }}
-					bracketProgress={bracketSubProgress}
-					bonusProgress={bonusSubProgress}
-					status={uiStatus}
-				/>
 			</div>
 
 			<!-- Smart Fill + Print row. Smart Fill only on drafts. Print always visible. -->
@@ -1097,7 +1215,7 @@
 						class="w-full sm:w-auto px-3 rounded-lg border border-dashed border-base-content/30 bg-base-200/30 hover:bg-base-200/60 text-sm font-medium text-base-content/80 min-h-10 transition-colors whitespace-nowrap"
 						on:click={() => (smartFillModalOpen = true)}
 					>
-						⚡ Smart Fill<span class="hidden sm:inline"> from FIFA Rankings</span>
+						⚡ SmartFill
 					</button>
 				{/if}
 				<button
@@ -1139,12 +1257,38 @@
 				     deadline hasn't passed — wires into the existing Edit flow. -->
 				<StatusBanner status={uiStatus} canUnlock={uiStatus === 'locked'} on:unlock={handleEdit} />
 
+				<!-- Expand all / Collapse all toggle. When expanded, the
+				     standings overview below shows every group's predicted
+				     standings stacked vertically (with the third-place
+				     qualifiers table last). -->
+				<div class="flex justify-end mb-3">
+					<button
+						type="button"
+						class="btn btn-ghost btn-xs gap-1"
+						on:click={toggleExpandAll}
+						aria-pressed={allExpanded}
+					>
+						<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							{#if allExpanded}
+								<path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+							{:else}
+								<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+							{/if}
+						</svg>
+						{allExpanded ? 'Collapse all' : 'Expand all'}
+					</button>
+				</div>
+
+				<!-- Standings overview lives in the right-hand StandingsPanel
+				     ('all' mode); the panel auto-opens as a drawer at narrow
+				     viewports when Expand-all is clicked. No inline stack here. -->
+
 				<div class="space-y-3 mb-6">
 					{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g (g.group)}
 						{@const gp = groupProgress(g)}
 						<GroupAccordion
 							group={g}
-							open={openGroup === g.group}
+							open={openGroups.has(g.group)}
 							editable={$activeEntry !== null && isPhaseEditable($activeEntry, 'phase_1')}
 							getPrediction={fixturePrediction}
 							onScore={(fid, home, away) => updateLocalPrediction(fid, home, away)}
@@ -1172,7 +1316,7 @@
 							type="button"
 							class="flex-1 flex items-center gap-3 min-w-0 text-left"
 							on:click={() => toggleGroupAccordion('thirdplace')}
-							aria-expanded={openGroup === 'thirdplace'}
+							aria-expanded={openGroups.has('thirdplace')}
 							aria-controls="group-thirdplace-body"
 						>
 							<span class="font-display font-bold text-base sm:text-lg whitespace-nowrap">
@@ -1220,7 +1364,7 @@
 						>
 							<svg
 								class="w-4 h-4 opacity-60 flex-shrink-0 transition-transform"
-								class:rotate-180={openGroup === 'thirdplace'}
+								class:rotate-180={openGroups.has('thirdplace')}
 								viewBox="0 0 20 20"
 								fill="currentColor"
 								aria-hidden="true"
@@ -1234,7 +1378,7 @@
 						</button>
 					</div>
 
-					{#if openGroup === 'thirdplace'}
+					{#if openGroups.has('thirdplace')}
 						<div
 							id="group-thirdplace-body"
 							transition:slide={{ duration: 200, easing: cubicOut }}
@@ -1254,36 +1398,22 @@
 					{/if}
 				</div>
 			{:else if activeSection === 'knockout'}
-				{#if phase1BracketGated}
-					<div class="stadium-card no-glow p-8 text-center max-w-xl mx-auto">
-						<div class="text-4xl mb-2">🔒</div>
-						<h2 class="text-2xl font-display tracking-wide mb-2">Knockout bracket locked</h2>
-						<p class="text-sm text-base-content/60 mb-4">Predict every group-stage match before opening the bracket. It seeds the Round of 32 from your predicted standings.</p>
-						<div class="font-display text-3xl tracking-wide">{phaseProgress.done}<span class="text-base text-base-content/40">/{phaseProgress.total}</span></div>
-						<div class="text-xs text-base-content/50 mb-3">matches predicted · {phaseProgress.pct}%</div>
-						<div class="w-full h-2 rounded-full bg-base-300/60 overflow-hidden mb-4"><div class="h-full bg-primary" style="width: {phaseProgress.pct}%;"></div></div>
-						<div class="flex flex-wrap justify-center gap-2 mb-4">
-							{#each $groupFixtures.filter((g) => g.group !== 'thirdplace') as g}
-								{@const gDone = groupProgress(g).done === groupProgress(g).total && groupProgress(g).total > 0}
-								<span class="badge badge-sm font-mono {gDone ? 'badge-success' : 'badge-ghost opacity-50'}">
-									{gDone ? '✓ ' : ''}{g.group}
-								</span>
-							{/each}
-						</div>
-						<button class="btn btn-primary btn-sm" type="button" on:click={() => (activeSection = 'groups')}>← Back to Groups</button>
-					</div>
-				{:else}
-					<KnockoutBracket
-						bind:this={bracketComponent}
-						prediction={displayBracket}
-						groupStandings={standingsMap}
-						locked={$isPhase1Locked}
-						phase="phase_1"
-						on:update={handleBracketUpdate}
-					/>
-					<!-- Legacy "Save bracket" button removed — bracket edits now
-					     flow through the unified Save Draft in BottomActionBar. -->
-				{/if}
+				<!-- The wizard stepper prevents reaching this step until Groups
+				     is complete (locked step). The legacy phase1BracketGated
+				     panel + button has been removed; if the user revisits this
+				     step after partially un-doing Groups, the bracket falls
+				     back to initializeBracketState (empty matches). -->
+				<KnockoutBracket
+					bind:this={bracketComponent}
+					prediction={displayBracket}
+					groupStandings={standingsMap}
+					locked={$isPhase1Locked}
+					phase="phase_1"
+					on:update={handleBracketUpdate}
+					on:clear={handleBracketClear}
+				/>
+				<!-- Legacy "Save bracket" button removed — bracket edits now
+				     flow through the unified Save Draft in BottomActionBar. -->
 			{:else if activeSection === 'bonus'}
 				{#each Object.entries(bonusByCategory) as [cat, qs] (cat)}
 					{#if qs.length > 0}
@@ -1322,6 +1452,30 @@
 					</button>
 				</div>
 				<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Bonus picks lock with Phase I · admin reveals correct answers as the tournament resolves</p>
+			{:else if activeSection === 'submit'}
+				<!-- ============================ SUBMIT STEP ============================ -->
+				<!-- Full read-only recap (groups + bracket + bonus) plus a state-aware
+				     submission panel. The Submit / Unlock buttons live inside the
+				     SubmitSummary component, NOT in BottomActionBar (which drops the
+				     Submit button when activeStep is set). -->
+				<SubmitSummary
+					entryName={$activeEntry?.display_name ?? ''}
+					entryRef={$activeEntry?.reference ?? ''}
+					playerName={$user?.name ?? ''}
+					groupFixtures={$groupFixtures.filter((g) => g.group !== 'thirdplace')}
+					{scoreValueMap}
+					{displayBracket}
+					{bonusQuestions}
+					{bonusAnswers}
+					status={uiStatus}
+					canSubmit={phase1AllComplete}
+					{incompleteSummary}
+					submittedAt={$activeEntry?.phases?.find((p) => p.phase === 'phase_1')?.submitted_at ?? null}
+					canUnlock={uiStatus === 'locked' && !$isPhase1Locked}
+					on:editStep={(e) => setStep(e.detail.step)}
+					on:submit={handleSubmit}
+					on:unlock={handleEdit}
+				/>
 			{/if}
 
 			<!-- Phase I sticky save bar removed at Prompt 14 — superseded by
@@ -1341,6 +1495,7 @@
 					locked={$isPhase2BracketLocked}
 					phase="phase_2"
 					on:update={handlePhase2BracketUpdate}
+					on:clear={handlePhase2BracketClear}
 				/>
 				<div class="flex gap-3 justify-end mt-3 mb-5">
 					{#if $hasUnsavedPhase2BracketChanges}
@@ -1405,6 +1560,10 @@
 		     the layout's mobile bottom nav (pb-16). Gold-glows when there
 		     are unsaved changes; the Save Draft label carries the count;
 		     a Discard button (with confirmation) lets the user revert. -->
+		<!-- Wizard-aware: activeStep + neighbour ids put the bar into wizard
+		     mode (Back/Continue cluster). On the Submit step, Continue is
+		     suppressed; on intermediate steps, Submit is suppressed (the
+		     canonical Submit button lives in <SubmitSummary>). -->
 		<BottomActionBar
 			status={uiStatus}
 			canSubmit={phase1AllComplete}
@@ -1412,10 +1571,18 @@
 			hasUnsavedChanges={hasAnyUnsaved}
 			unsavedCount={$unsavedChangesCount}
 			savingDraft={saveStatus === 'saving'}
+			activeStep={activeSection}
+			prevStep={prevStepId}
+			nextStep={nextStepId}
+			{prevStepLabel}
+			{nextStepLabel}
+			{canContinue}
 			on:saveDraft={handleSaveAll}
 			on:submit={handleSubmit}
 			on:unlock={handleEdit}
 			on:discard={openDiscardDialog}
+			on:back={handleBackStep}
+			on:continue={handleContinueStep}
 		/>
 
 		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,

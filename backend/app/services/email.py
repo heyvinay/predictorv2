@@ -41,6 +41,7 @@ async def send_magic_link_email(to_email: str, magic_link_url: str) -> None:
         return
 
     html_body = _build_email_html(magic_link_url)
+    text_body = _build_email_text(magic_link_url)
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -52,8 +53,9 @@ async def send_magic_link_email(to_email: str, magic_link_url: str) -> None:
             json={
                 "from": settings.resend_from_email,
                 "to": to_email,
-                "subject": "Your Predictor sign-in link",
+                "subject": "Welcome — your Predictor sign-in link",
                 "html": html_body,
+                "text": text_body,
             },
             timeout=10.0,
         )
@@ -63,78 +65,104 @@ async def send_magic_link_email(to_email: str, magic_link_url: str) -> None:
         raise RuntimeError("Failed to send magic link email")
 
 
-def _build_email_html(magic_link_url: str) -> str:
-    """Render the sign-in email body.
+# Brand palette — premium-night derived. Resolved as hex (no CSS vars).
+_NAVY = "#0B1329"          # Midnight navy
+_GOLD = "#D4AF37"          # Champagne gold
+_CARD_BG = "#F8FAFC"       # Ice white card surface
+_PAGE_BG = "#EEF2F7"       # Neutral page background
+_BODY_INK = "#1F2937"      # Slate-800 — body text
+_MUTED_INK = "#64748B"     # Slate-500 — secondary
+# System-font stack — picks up the native OS font in every client.
+_BODY_FONT = (
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
+)
+# Serif fallback for the wordmark. Bebas Neue isn't loadable in mail
+# clients; Georgia gives a confident editorial feel everywhere.
+_DISPLAY_FONT = "Georgia,'Times New Roman',serif"
 
-    Plain inlined-CSS HTML — designed to render the same in Gmail,
-    Outlook, Apple Mail, etc. without relying on stylesheets, web
-    fonts, or background images.
+
+def _build_email_html(magic_link_url: str) -> str:
+    """Render the welcome / sign-in email body.
+
+    Designed for cross-client rendering: inline CSS only, no web fonts,
+    no background images, no relative URLs. Width-attribute on the
+    outer table so Outlook respects layout.
     """
     return (
-        '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
+        '<!DOCTYPE html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
         '  <meta charset="UTF-8" />\n'
-        '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n'
-        '  <title>Sign in to The Predictor</title>\n'
+        '  <meta name="viewport" content="width=device-width,initial-scale=1.0" />\n'
+        '  <title>Welcome — your Predictor sign-in link</title>\n'
         '</head>\n'
-        '<body style="margin:0;padding:0;background:#f1ebde;'
-        "font-family:'IBM Plex Sans',Arial,sans-serif;\">\n"
-        '  <table width="100%" cellpadding="0" cellspacing="0" '
-        'style="background:#f1ebde;padding:40px 0;">\n'
+        f'<body style="margin:0;padding:0;background:{_PAGE_BG};'
+        f'font-family:{_BODY_FONT};color:{_BODY_INK};">\n'
+        '  <table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{_PAGE_BG};padding:32px 12px;">\n'
         '    <tr>\n'
         '      <td align="center">\n'
-        '        <table width="480" cellpadding="0" cellspacing="0"\n'
-        '               style="background:#f1ebde;border:2px solid #0e1d40;'
-        'box-shadow:5px 5px 0 #0e1d40;padding:40px;">\n'
+        '        <table width="520" cellpadding="0" cellspacing="0" border="0" '
+        f'style="max-width:520px;width:100%;background:{_CARD_BG};'
+        'border-radius:12px;overflow:hidden;'
+        'box-shadow:0 6px 24px -12px rgba(11,19,41,0.18);">\n'
+        # ---- Header band: dark navy, gold wordmark ----
         '          <tr>\n'
-        '            <td align="center" style="padding-bottom:24px;">\n'
-        '              <div style="width:48px;height:48px;background:#0e1d40;'
-        'border-radius:50%;\n'
-        '                          display:inline-flex;align-items:center;'
-        'justify-content:center;\n'
-        '                          font-family:Arial Black,Arial,sans-serif;'
-        'font-size:24px;\n'
-        '                          color:#f1ebde;line-height:48px;'
-        'text-align:center;">P</div>\n'
-        '              <div style="font-family:Arial Black,Arial,sans-serif;'
-        'font-size:11px;\n'
-        '                          letter-spacing:0.14em;text-transform:uppercase;'
-        'color:#514a3d;\n'
-        '                          margin-top:8px;">The Predictor · Vol. I — WC 2026</div>\n'
+        '            <td align="center" '
+        f'style="background:{_NAVY};padding:28px 24px;">\n'
+        f'              <div style="font-family:{_DISPLAY_FONT};font-size:26px;'
+        'font-weight:700;letter-spacing:0.18em;'
+        f'color:{_GOLD};text-transform:uppercase;line-height:1;">PREDICTOR</div>\n'
+        '              <div style="margin-top:8px;font-size:11px;letter-spacing:0.18em;'
+        'text-transform:uppercase;color:rgba(248,250,252,0.65);">'
+        'World Cup 2026</div>\n'
         '            </td>\n'
         '          </tr>\n'
+        # ---- Body ----
         '          <tr>\n'
-        '            <td align="center" style="padding-bottom:8px;">\n'
-        '              <h1 style="margin:0;font-family:Arial Black,Arial,sans-serif;'
-        'font-size:28px;\n'
-        '                         color:#0e1d40;letter-spacing:-0.02em;">Your sign-in link</h1>\n'
+        '            <td style="padding:36px 32px 8px 32px;">\n'
+        f'              <h1 style="margin:0 0 12px 0;font-family:{_DISPLAY_FONT};'
+        f'font-size:24px;font-weight:700;color:{_NAVY};letter-spacing:-0.01em;">'
+        'Welcome to The Predictor.</h1>\n'
+        f'              <p style="margin:0 0 18px 0;font-size:15px;line-height:1.55;'
+        f'color:{_BODY_INK};">'
+        'Your sign-in link is ready. One click below and you\'re in '
+        '— no password to remember.</p>\n'
         '            </td>\n'
         '          </tr>\n'
+        # ---- CTA button ----
         '          <tr>\n'
-        '            <td align="center" style="padding-bottom:32px;">\n'
-        '              <p style="margin:0;font-size:15px;color:#514a3d;line-height:1.5;">\n'
-        '                Click the button below to sign in. This link expires in 15&nbsp;minutes\n'
-        '                and can only be used once.\n'
+        '            <td align="center" style="padding:8px 32px 24px 32px;">\n'
+        f'              <a href="{magic_link_url}" '
+        f'style="display:inline-block;background:{_GOLD};color:{_NAVY};'
+        f'font-family:{_BODY_FONT};font-size:14px;font-weight:700;'
+        'letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;'
+        'padding:14px 28px;border-radius:8px;">'
+        'Sign in</a>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Raw URL fallback (for clients that strip buttons) ----
+        '          <tr>\n'
+        '            <td style="padding:0 32px 24px 32px;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};word-break:break-all;">'
+        'If the button doesn\'t work, paste this link into your browser:<br/>\n'
+        f'                <a href="{magic_link_url}" '
+        f'style="color:{_MUTED_INK};text-decoration:underline;">'
+        f'{magic_link_url}</a>'
         '              </p>\n'
         '            </td>\n'
         '          </tr>\n'
+        # ---- Footer: expiry + ignore note ----
         '          <tr>\n'
-        '            <td align="center" style="padding-bottom:32px;">\n'
-        f'              <a href="{magic_link_url}"\n'
-        '                 style="display:inline-block;background:#0e1d40;color:#f1ebde;\n'
-        '                        font-family:Arial Black,Arial,sans-serif;font-size:14px;\n'
-        '                        letter-spacing:0.08em;text-transform:uppercase;\n'
-        '                        padding:14px 32px;text-decoration:none;\n'
-        '                        box-shadow:3px 3px 0 #8a1610;">\n'
-        '                Sign In to The Predictor\n'
-        '              </a>\n'
-        '            </td>\n'
-        '          </tr>\n'
-        '          <tr>\n'
-        '            <td align="center">\n'
-        '              <p style="margin:0;font-size:11px;color:#8a826f;font-family:monospace;\n'
-        '                        letter-spacing:0.06em;">\n'
-        "                If you didn&apos;t request this, you can safely ignore this email.\n"
-        '              </p>\n'
+        '            <td '
+        f'style="padding:18px 32px 28px 32px;border-top:1px solid #E2E8F0;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};">'
+        'This link expires in 15 minutes and can only be used once. '
+        'If you didn\'t request it, you can safely ignore this email.</p>\n'
+        '              <p style="margin:14px 0 0 0;font-size:12px;'
+        f'color:{_MUTED_INK};">— The Predictor</p>\n'
         '            </td>\n'
         '          </tr>\n'
         '        </table>\n'
@@ -143,4 +171,19 @@ def _build_email_html(magic_link_url: str) -> str:
         '  </table>\n'
         '</body>\n'
         '</html>'
+    )
+
+
+def _build_email_text(magic_link_url: str) -> str:
+    """Plain-text alternative for mail clients that strip HTML."""
+    return (
+        "Welcome to The Predictor.\n"
+        "\n"
+        "Your sign-in link is ready. Open it in your browser to sign in:\n"
+        f"{magic_link_url}\n"
+        "\n"
+        "This link expires in 15 minutes and can only be used once.\n"
+        "If you didn't request it, you can safely ignore this email.\n"
+        "\n"
+        "— The Predictor\n"
     )

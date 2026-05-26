@@ -8,6 +8,7 @@
 	import { getCompetitionInfo, type CompetitionInfo } from '$api/competition';
 	import { getBonusQuestions, type BonusQuestion } from '$api/bonus';
 	import { logarithmicRarityBonus } from '$lib/utils/matchBreakdown';
+	import { pageTitle } from '$stores/pageTitle';
 
 	let info: CompetitionInfo | null = null;
 	let bonusQuestions: BonusQuestion[] = [];
@@ -54,6 +55,7 @@
 	$: rarityRows = rarityBands(rarityPredictorCount, RARITY_CAP);
 
 	onMount(async () => {
+		pageTitle.set('Rules');
 		try {
 			[info, bonusQuestions] = await Promise.all([
 				getCompetitionInfo(),

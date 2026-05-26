@@ -1,13 +1,18 @@
 <!--
 	BottomActionBar — sticky bottom CTA strip.
 
-	Three states (driven by `status` + `completionPct`):
+	Three states (driven by `status`):
 
 	  1. draft:
-	     [ Save Draft ] [ Lock In (NN%) ]
-	     - Save Draft: tap -> onSaveDraft + "✓ Saved" for 2s -> resets
-	     - Lock In: disabled until completionPct === 100;
-	       enabled state is btn-success "🔒 Lock In"
+	     - Wizard mode (when `activeStep` is set):
+	       [← Back to <prev>]   [Discard] [Save Draft (N)] [Continue to <next> →]
+	       Submit button is suppressed — it lives in <SubmitSummary> on the
+	       last step. On the Submit step itself, the Continue button is
+	       suppressed too (only Back + Save Draft remain).
+	     - Legacy mode (no `activeStep`):
+	       [status text] [Discard] [Save Draft] [Submit]
+	       Same behaviour the bar has always had — back-compat for any caller
+	       that doesn't pass step props.
 
 	  2. locked (pre-deadline):
 	     [ 🔒 Locked In ]  [ Unlock ]
@@ -21,41 +26,59 @@
 	  - gradient fade from transparent (top) to base-100 (bottom)
 	  - safe-area-inset-bottom padding (mobile)
 	  - sits above the layout's mobile bottom-nav with extra clearance
-
-	Wires straight into existing handlers via callback props rather
-	than dispatching events — the parent already has handleSubmit /
-	handleEdit / handleSaveAll for the modal-confirm flows.
 -->
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 
 	export let status: 'draft' | 'locked' | 'scored' | 'missed' = 'draft';
 	/**
-	 * Whether the Submit button is enabled. True only when EVERY required
-	 * prediction is in: all 72 group fixtures + the full knockout bracket
-	 * + every bonus question. Caller computes this; we just render it.
+	 * Whether the legacy Submit button is enabled. Only consulted when
+	 * `activeStep` is undefined (back-compat with non-wizard callers).
+	 * In wizard mode, Submit lives inside <SubmitSummary>, not here.
 	 */
 	export let canSubmit: boolean = false;
 	/**
 	 * Short human-readable summary of what's still missing when canSubmit
-	 * is false — shown in the disabled button's tooltip. e.g. "3 fixtures,
-	 * 5 bracket picks, 2 bonus" or null when nothing is missing.
+	 * is false — shown in the disabled button's tooltip. Only used in
+	 * legacy (non-wizard) mode.
 	 */
 	export let incompleteSummary: string | null = null;
 	export let hasUnsavedChanges: boolean = false;
 	export let savingDraft: boolean = false;
 	/**
 	 * Number of unsaved prediction changes since the last save. Appears
-	 * in brackets next to the Save Draft label and the Discard label so
-	 * the user sees the count on the buttons they're about to press.
+	 * in brackets next to the Save Draft label and the Discard label.
 	 */
 	export let unsavedCount: number = 0;
+
+	// ── Wizard-navigation props (all optional for back-compat) ───────────
+	/**
+	 * Current wizard step. When set, the bar switches into wizard mode
+	 * (renders Back/Continue instead of the legacy status text + Submit).
+	 * Undefined → legacy mode.
+	 */
+	export let activeStep: string | undefined = undefined;
+	/** Previous step id, or null when on the first step. */
+	export let prevStep: string | null = null;
+	/** Next step id, or null when on the last step (Submit). */
+	export let nextStep: string | null = null;
+	/** Display label for the previous step (used in the Back button text). */
+	export let prevStepLabel: string = '';
+	/** Display label for the next step (used in the Continue button text). */
+	export let nextStepLabel: string = '';
+	/**
+	 * Whether the user can advance from the current step. Mirrors the
+	 * step's `complete` flag in the wizard's `wizardSteps` array.
+	 */
+	export let canContinue: boolean = false;
 
 	const dispatch = createEventDispatcher<{
 		saveDraft: void;
 		submit: void;
 		unlock: void;
 		discard: void;
+		back: void;
+		continue: void;
 	}>();
 	let savedFlash = false;
 
@@ -72,6 +95,11 @@
 	function handleDiscard() {
 		dispatch('discard');
 	}
+
+	// Wizard mode is engaged when the parent passed `activeStep`. In legacy
+	// mode the bar renders exactly as before so non-wizard callers (if any
+	// surface later) still work without a code change.
+	$: wizardMode = activeStep !== undefined;
 </script>
 
 <div
@@ -90,59 +118,134 @@
 				? 'shadow-[0_-2px_18px_-2px_rgba(212,175,55,0.55)] border-primary/40'
 				: ''}"
 	>
-		<div class="max-w-3xl mx-auto flex items-center justify-between gap-3">
+		<div class="max-w-3xl mx-auto flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
 			{#if status === 'draft'}
-				<!-- Left: status text -->
-				<span class="text-sm text-base-content/60 truncate">
-					{#if savedFlash}
-						<span class="text-success font-medium">✓ Saved</span>
-					{:else if savingDraft}
-						<span class="text-base-content/40">Saving…</span>
-					{:else if unsavedCount > 0}
-						{unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}
-					{/if}
-				</span>
-				<!-- Right: action buttons -->
-				<div class="flex items-center gap-2 flex-shrink-0">
-					{#if hasUnsavedChanges && !savingDraft && !savedFlash}
+				{#if wizardMode}
+					<!-- ─── WIZARD MODE: three zones so Save sits centred ─────────
+					     [left flex-1: Back] [centre: Discard + Save] [right flex-1: Continue]
+					     The flex-1 side zones keep the centre group optically
+					     centred regardless of Back/Continue button widths. -->
+					<!-- Left zone: Back (or empty to preserve centring). -->
+					<div class="flex-1 flex justify-start min-w-0">
+						{#if prevStep}
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm gap-1 whitespace-nowrap"
+								on:click={() => dispatch('back')}
+							>
+								<span aria-hidden="true">←</span>
+								<span class="hidden sm:inline">Back to {prevStepLabel}</span>
+								<span class="sm:hidden">Back</span>
+							</button>
+						{/if}
+					</div>
+
+					<!-- Centre zone: Discard (quiet) + Save (prominent when dirty). -->
+					<div class="flex items-center gap-2 flex-shrink-0">
+						{#if hasUnsavedChanges && !savingDraft && !savedFlash}
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs font-normal text-base-content/50 hover:text-base-content"
+								on:click={handleDiscard}
+								title="Discard unsaved changes"
+								aria-label="Discard {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}"
+							>
+								Discard
+							</button>
+						{/if}
 						<button
 							type="button"
-							class="btn btn-ghost btn-sm"
-							on:click={handleDiscard}
-							title="Discard unsaved changes"
-							aria-label="Discard {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}"
+							class="btn btn-sm whitespace-nowrap {savedFlash
+								? 'btn-success'
+								: hasUnsavedChanges
+									? 'btn-primary shadow-glow-gold'
+									: 'btn-outline'}"
+							on:click={handleSaveDraft}
+							disabled={savingDraft || (!hasUnsavedChanges && !savedFlash)}
 						>
-							Discard
+							{#if savingDraft}
+								Saving…
+							{:else if savedFlash}
+								✓ Saved
+							{:else if unsavedCount > 0}
+								Save&nbsp;({unsavedCount})
+							{:else}
+								Save
+							{/if}
 						</button>
-					{/if}
-					<button
-						type="button"
-						class="btn {savedFlash ? 'btn-success' : 'btn-outline'} btn-sm"
-						on:click={handleSaveDraft}
-						disabled={savingDraft || (!hasUnsavedChanges && !savedFlash)}
-					>
-						{#if savingDraft}
-							Saving…
-						{:else if savedFlash}
-							✓ Saved
-						{:else}
-							Save Draft
+					</div>
+
+					<!-- Right zone: Continue. Suppressed on the last step (Submit) —
+					     the explicit "Submit Entry" button lives in <SubmitSummary>. -->
+					<div class="flex-1 flex justify-end min-w-0">
+						{#if nextStep}
+							<button
+								type="button"
+								class="btn btn-primary btn-sm gap-1 whitespace-nowrap"
+								on:click={() => dispatch('continue')}
+								disabled={!canContinue}
+								title={canContinue
+									? `Continue to ${nextStepLabel}`
+									: 'Finish this step first'}
+							>
+								<span class="hidden sm:inline">Continue to {nextStepLabel}</span>
+								<span class="sm:hidden">Continue</span>
+								<span aria-hidden="true">→</span>
+							</button>
 						{/if}
-					</button>
-					<button
-						type="button"
-						class="btn {canSubmit ? 'btn-success' : ''} btn-sm"
-						on:click={() => canSubmit && dispatch('submit')}
-						disabled={!canSubmit}
-						title={canSubmit
-							? 'Submit your predictions'
-							: incompleteSummary
-								? `Complete to submit: ${incompleteSummary}`
-								: 'Complete all predictions to submit'}
-					>
-						Submit
-					</button>
-				</div>
+					</div>
+				{:else}
+					<!-- ─── LEGACY MODE: status text on left, Save + Submit on right ───── -->
+					<span class="text-sm text-base-content/60 truncate">
+						{#if savedFlash}
+							<span class="text-success font-medium">✓ Saved</span>
+						{:else if savingDraft}
+							<span class="text-base-content/40">Saving…</span>
+						{:else if unsavedCount > 0}
+							{unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}
+						{/if}
+					</span>
+					<div class="flex items-center gap-2 flex-shrink-0">
+						{#if hasUnsavedChanges && !savingDraft && !savedFlash}
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm"
+								on:click={handleDiscard}
+								title="Discard unsaved changes"
+								aria-label="Discard {unsavedCount} unsaved {unsavedCount === 1 ? 'change' : 'changes'}"
+							>
+								Discard
+							</button>
+						{/if}
+						<button
+							type="button"
+							class="btn {savedFlash ? 'btn-success' : 'btn-outline'} btn-sm"
+							on:click={handleSaveDraft}
+							disabled={savingDraft || (!hasUnsavedChanges && !savedFlash)}
+						>
+							{#if savingDraft}
+								Saving…
+							{:else if savedFlash}
+								✓ Saved
+							{:else}
+								Save Draft
+							{/if}
+						</button>
+						<button
+							type="button"
+							class="btn {canSubmit ? 'btn-success' : ''} btn-sm"
+							on:click={() => canSubmit && dispatch('submit')}
+							disabled={!canSubmit}
+							title={canSubmit
+								? 'Submit your predictions'
+								: incompleteSummary
+									? `Complete to submit: ${incompleteSummary}`
+									: 'Complete all predictions to submit'}
+						>
+							Submit
+						</button>
+					</div>
+				{/if}
 			{:else if status === 'locked'}
 				<div class="flex items-center gap-2 text-success font-semibold text-sm">
 					🔒 Locked In
