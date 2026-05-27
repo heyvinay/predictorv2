@@ -2,8 +2,10 @@
  * Tests for utils/standings.ts — the FIFA tiebreaker chain used to compute
  * the wizard's *predicted* group standings.
  *
- * The chain (per the file header):
- *   points → GD → GF → H2H points → H2H GD → H2H goals → alphabetical (+warning)
+ * The chain (FWC2026 Regulations, Article 13):
+ *   points → H2H (points → GD → goals, recomputed per remaining subset)
+ *         → overall GD → overall goals → alphabetical (+warning)
+ *   i.e. head-to-head is applied BEFORE overall goal difference.
  *
  * Covered:
  *   - applyFifaTiebreakers directly with synthetic standings (3-way H2H
@@ -178,6 +180,53 @@ describe('applyFifaTiebreakers', () => {
 		const teams = [_ts('Lo', 'A', 6, +2, 3), _ts('Hi', 'A', 6, +2, 5)];
 		const { sorted } = applyFifaTiebreakers(teams, [], new Map(), 'group_standings');
 		expect(sorted[0].team).toBe('Hi');
+	});
+
+	it('ranks the head-to-head winner above a team with better OVERALL GD (FWC2026 Art.13)', () => {
+		// THE discriminating case: both level on points. "Bigger" has the better
+		// overall goal difference (+5 vs +2), but "Winner" beat "Bigger" head-to-head.
+		// FWC2026 Article 13 applies head-to-head BEFORE overall GD → Winner ranks first.
+		// (The old overall-first order would have ranked Bigger first — this test locks
+		// in the corrected behaviour.)
+		const teams = [
+			_ts('Bigger', 'A', 6, 5, 8), // better overall GD
+			_ts('Winner', 'A', 6, 2, 4) // worse overall GD, but won the h2h
+		];
+		const fixtures: Fixture[] = [_fixture('m1', 'Winner', 'Bigger')];
+		const predictions = new Map([_pred('m1', 1, 0)]); // Winner beat Bigger 1-0
+		const { sorted, warnings } = applyFifaTiebreakers(
+			teams,
+			fixtures,
+			predictions,
+			'group_standings'
+		);
+		expect(sorted.map((t) => t.team)).toEqual(['Winner', 'Bigger']);
+		expect(warnings).toEqual([]);
+	});
+
+	it('falls to overall GD after a head-to-head cycle (Art.13 Step 2 d)', () => {
+		// 3 teams level on points; H2H is a perfect 1-0 cycle (each beats one, loses
+		// one) → all equal on h2h points/GD/goals, so Step 1 separates no one.
+		// Step 2 d) overall goal difference then decides: +4 > +2 > 0.
+		const teams = [
+			_ts('Cyc1', 'A', 6, 4, 6),
+			_ts('Cyc2', 'A', 6, 2, 5),
+			_ts('Cyc3', 'A', 6, 0, 4)
+		];
+		const fixtures: Fixture[] = [
+			_fixture('m1', 'Cyc1', 'Cyc2'),
+			_fixture('m2', 'Cyc2', 'Cyc3'),
+			_fixture('m3', 'Cyc3', 'Cyc1')
+		];
+		const predictions = new Map([_pred('m1', 1, 0), _pred('m2', 1, 0), _pred('m3', 1, 0)]);
+		const { sorted, warnings } = applyFifaTiebreakers(
+			teams,
+			fixtures,
+			predictions,
+			'group_standings'
+		);
+		expect(sorted.map((t) => t.team)).toEqual(['Cyc1', 'Cyc2', 'Cyc3']);
+		expect(warnings).toEqual([]);
 	});
 });
 
