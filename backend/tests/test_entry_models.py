@@ -50,14 +50,16 @@ class TestPredictionEntryDefaults:
         assert entry.updated_at is not None
 
     def test_entry_status_enum_values(self):
-        """EntryStatus exposes the six statuses defined in the brief."""
+        """EntryStatus exposes the three lifecycle statuses.
+
+        The lifecycle was simplified 6 → 3: `ready`, `locked` and `disabled`
+        were removed. `is_disabled` is now a separate orthogonal admin flag on
+        PredictionEntry, not a status. See plan i-want-to-simplify-bright-wolf.md.
+        """
         assert {e.value for e in EntryStatus} == {
             "draft",
-            "ready",
             "submitted",
-            "locked",
             "withdrawn",
-            "disabled",
         }
 
     def test_actor_role_enum_values(self):

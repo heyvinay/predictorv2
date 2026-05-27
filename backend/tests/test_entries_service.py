@@ -448,17 +448,25 @@ class TestWithdraw:
         assert entry.withdrawn_at is not None
         assert entry.withdrawn_reason == "changed my mind"
 
-    async def test_withdraw_marks_all_phases(
+    async def test_withdraw_sets_withdrawn_at_and_marks_phase_1(
         self, session: AsyncSession, user: User, competition: Competition
     ):
+        """Withdrawal sets entry.withdrawn_at and flips PHASE 1 to WITHDRAWN.
+
+        Phase 2 is dormant, so withdrawal is scoped to the active phase (phase 1)
+        rather than cascading to every phase — the 6→3 lifecycle simplification
+        narrowed this from the old 'mark all phases' behaviour.
+        """
         entry = await entries_service.create_entry(
             session, user=user, competition=competition
         )
         await session.commit()
         await entries_service.admin_withdraw_entry(session, entry=entry, admin=user, reason="test")
         await session.commit()
-        for p in entry.phases:
-            assert p.status == EntryStatus.WITHDRAWN
+
+        assert entry.withdrawn_at is not None
+        phase1 = next(p for p in entry.phases if p.phase == PredictionPhase.PHASE_1)
+        assert phase1.status == EntryStatus.WITHDRAWN
 
 
 # ---------------------------------------------------------------------------
