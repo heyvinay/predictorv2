@@ -203,26 +203,9 @@ class TestTwoEntriesSameFixture:
 # Phase lock — rejects writes once entry's phase is not DRAFT
 # ---------------------------------------------------------------------------
 class TestPhaseStatusLock:
-    async def test_ready_status_rejects_write(
-        self,
-        session: AsyncSession,
-        alice: User,
-        competition: Competition,
-        alice_entry: PredictionEntry,
-        fixture_future: Fixture,
-    ):
-        # Move phase_1 to READY.
-        await session.commit()
-        with pytest.raises(PredictionLockedError):
-            await predictions_service.upsert_match_prediction(
-                session,
-                entry=alice_entry,
-                user=alice,
-                competition=competition,
-                fixture_id=fixture_future.id,
-                home_score=1,
-                away_score=0,
-            )
+    # The former `test_ready_status_rejects_write` was removed: the `ready`
+    # status no longer exists after the 6→3 lifecycle simplification. The only
+    # non-editable status is SUBMITTED, covered by the test below.
 
     async def test_submitted_status_rejects_write(
         self,
@@ -563,11 +546,14 @@ class TestBracketReplaceClearsByPhase:
         competition: Competition,
         alice_entry: PredictionEntry,
     ):
-        # Manually seed a phase_2 pick so we can verify it survives.
+        # Manually seed a phase_2 pick so we can verify it survives. The phase
+        # MUST be set explicitly — TeamPrediction.phase defaults to PHASE_1, and
+        # a phase-1 row would (correctly) be cleared by the phase-1 replace below.
         phase2_row = TeamPrediction(
             entry_id=alice_entry.id,
             team="France",
             stage="winner",
+            phase=PredictionPhase.PHASE_2,
         )
         session.add(phase2_row)
         await session.commit()

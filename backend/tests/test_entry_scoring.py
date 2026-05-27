@@ -325,15 +325,19 @@ class TestEligibilityFilters:
         assert live.id in ids
         assert disabled.id not in ids
 
-    async def test_draft_and_ready_entries_excluded_from_leaderboard(
+    async def test_draft_entries_excluded_from_leaderboard(
         self,
         session: AsyncSession,
         alice: User,
-        bob: User,
         competition: Competition,
         finished_fixture: Fixture,
     ):
-        """Only SUBMITTED and LOCKED entries appear on the leaderboard."""
+        """Only SUBMITTED entries appear on the leaderboard; DRAFT is excluded.
+
+        The old 'ready'/'locked' statuses were removed in the 6→3 lifecycle
+        simplification. WITHDRAWN exclusion is covered by
+        test_withdrawn_entry_excluded_from_leaderboard.
+        """
         submitted = await _make_entry(
             session,
             user=alice,
@@ -348,14 +352,7 @@ class TestEligibilityFilters:
             entry_number=2,
             status=EntryStatus.DRAFT,
         )
-        ready = await _make_entry(
-            session,
-            user=bob,
-            competition=competition,
-            entry_number=1,
-            status=EntryStatus.SUBMITTED,
-        )
-        for entry in (submitted, draft, ready):
+        for entry in (submitted, draft):
             await _add_match_pick(
                 session, entry=entry, fixture=finished_fixture, home=2, away=1
             )
