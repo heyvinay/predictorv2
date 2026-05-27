@@ -154,24 +154,54 @@ function _segmentEnd<T>(items: T[], start: number, keyFn: (t: T) => unknown): nu
 	return j;
 }
 
-/** Resolve a segment of tied teams via H2H then alphabetical. Mutates `warnings`. */
-function _resolveTiedSegment(
+/** Step 2 d–e + fallback: rank a still-tied set by OVERALL goal difference, then
+ *  overall goals, then alphabetical-with-warning. Used as the tail of the group
+ *  chain and as the whole chain for cross-group (third-place) sorts where no
+ *  head-to-head exists. Mutates `warnings`. */
+function _rankByOverallThenAlpha(
+	tied: TeamStanding[],
+	context: TieWarning['context'],
+	warnings: TieWarning[]
+): TeamStanding[] {
+	const byOverall = [...tied].sort((a, b) => {
+		if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+		return b.goalsFor - a.goalsFor;
+	});
+	const out: TeamStanding[] = [];
+	let i = 0;
+	while (i < byOverall.length) {
+		const j = _segmentEnd(byOverall, i, (t) => [t.goalDifference, t.goalsFor]);
+		const sub = byOverall.slice(i, j);
+		if (sub.length > 1) {
+			// Genuinely unresolvable (FIFA's remaining criteria — conduct score,
+			// FIFA ranking, drawing of lots — aren't predictable in this game).
+			warnings.push({
+				group: sub[0].group,
+				tiedTeams: sub.map((t) => t.team).sort((a, b) => a.localeCompare(b)),
+				context
+			});
+			sub.sort((a, b) => a.team.localeCompare(b.team));
+		}
+		out.push(...sub);
+		i = j;
+	}
+	return out;
+}
+
+/** FWC2026 Article 13 Step 1 + Step 2 (head-to-head) for a set of teams already
+ *  level on points. Recomputes the H2H mini-table for whatever subset is passed,
+ *  per Step 2's "applied to the matches between the remaining teams only".
+ *  Any subset that H2H cannot separate falls through to overall GD/goals
+ *  (Step 2 d–e) then alphabetical. Recursion terminates because we only recurse
+ *  into PROPER subsets; a set H2H can't split at all goes straight to overall. */
+function _resolveGroupTie(
 	tied: TeamStanding[],
 	fixtures: Fixture[],
 	predictions: Map<string, MatchPrediction>,
 	context: TieWarning['context'],
 	warnings: TieWarning[]
 ): TeamStanding[] {
-	const allowH2h = fixtures.length > 0 && context === 'group_standings';
-
-	if (!allowH2h) {
-		warnings.push({
-			group: tied[0].group,
-			tiedTeams: tied.map((t) => t.team).sort((a, b) => a.localeCompare(b)),
-			context
-		});
-		return [...tied].sort((a, b) => a.team.localeCompare(b.team));
-	}
+	if (tied.length === 1) return tied;
 
 	const h2h = _computeH2hStats(tied, fixtures, predictions);
 	const byH2h = [...tied].sort((a, b) => {
@@ -190,23 +220,44 @@ function _resolveTiedSegment(
 			return [s.points, s.goalDifference, s.goalsFor];
 		});
 		const sub = byH2h.slice(i, j);
-		if (sub.length > 1) {
-			warnings.push({
-				group: sub[0].group,
-				tiedTeams: sub.map((t) => t.team).sort((a, b) => a.localeCompare(b)),
-				context
-			});
-			sub.sort((a, b) => a.team.localeCompare(b.team));
+		if (sub.length === 1) {
+			out.push(sub[0]);
+		} else if (sub.length < tied.length) {
+			// A proper subset is still tied → Step 2: recompute H2H among just them.
+			out.push(..._resolveGroupTie(sub, fixtures, predictions, context, warnings));
+		} else {
+			// H2H separated no one (whole set still equal) → Step 2 d–e: overall GD/goals.
+			out.push(..._rankByOverallThenAlpha(sub, context, warnings));
 		}
-		out.push(...sub);
 		i = j;
 	}
 	return out;
 }
 
-/** Apply FIFA's tiebreaker chain (up to H2H goals) then alphabetical-with-warning.
- *  Returns `{ sorted, warnings }`. Pass `fixtures: []` and `context: 'third_place_qualifying'`
- *  to skip H2H entirely (cross-group sorts). */
+/** Resolve a segment of teams level on points. `group_standings` applies the
+ *  FWC2026 Article 13 chain (head-to-head first, then overall GD/goals, then
+ *  alphabetical). Cross-group sorts (`third_place_qualifying`, or no fixtures)
+ *  have no head-to-head, so they go straight to overall GD/goals → alphabetical.
+ *  Mutates `warnings`. */
+function _resolveTiedSegment(
+	tied: TeamStanding[],
+	fixtures: Fixture[],
+	predictions: Map<string, MatchPrediction>,
+	context: TieWarning['context'],
+	warnings: TieWarning[]
+): TeamStanding[] {
+	const allowH2h = fixtures.length > 0 && context === 'group_standings';
+	if (!allowH2h) {
+		return _rankByOverallThenAlpha(tied, context, warnings);
+	}
+	return _resolveGroupTie(tied, fixtures, predictions, context, warnings);
+}
+
+/** Rank teams per FWC2026 Article 13. Primary key is POINTS; teams level on
+ *  points are resolved by head-to-head first (Step 1–2), then overall goal
+ *  difference / goals (Step 2 d–e), then alphabetical (with a TieWarning).
+ *  Returns `{ sorted, warnings }`. Pass `fixtures: []` and
+ *  `context: 'third_place_qualifying'` to skip head-to-head (cross-group sorts). */
 export function applyFifaTiebreakers(
 	teams: TeamStanding[],
 	fixtures: Fixture[],
@@ -214,17 +265,15 @@ export function applyFifaTiebreakers(
 	context: TieWarning['context']
 ): { sorted: TeamStanding[]; warnings: TieWarning[] } {
 	const warnings: TieWarning[] = [];
-	const byOverall = [...teams].sort((a, b) => {
-		if (b.points !== a.points) return b.points - a.points;
-		if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-		return b.goalsFor - a.goalsFor;
-	});
+	// Primary sort: points only. The tiebreaker chain triggers among teams
+	// that finish level on points (Article 13 opening clause).
+	const byPoints = [...teams].sort((a, b) => b.points - a.points);
 
 	const out: TeamStanding[] = [];
 	let i = 0;
-	while (i < byOverall.length) {
-		const j = _segmentEnd(byOverall, i, (t) => [t.points, t.goalDifference, t.goalsFor]);
-		const segment = byOverall.slice(i, j);
+	while (i < byPoints.length) {
+		const j = _segmentEnd(byPoints, i, (t) => t.points);
+		const segment = byPoints.slice(i, j);
 		if (segment.length === 1) {
 			out.push(segment[0]);
 		} else {

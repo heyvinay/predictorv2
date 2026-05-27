@@ -89,47 +89,39 @@ def _apply_fifa_tiebreakers(
     group_matches: list[tuple[Fixture, Score]] | None = None,
     context: str,
 ) -> tuple[list[dict], list[TieWarning]]:
-    """Sort `teams` using FIFA's tiebreaker chain (up to head-to-head goals),
-    then alphabetical as a deterministic fallback. Returns (sorted_teams, warnings).
+    """Rank `teams` per FWC2026 Regulations Article 13.
+
+    Primary key is POINTS. Teams that finish level on points are resolved by
+    head-to-head first (Step 1–2), then overall goal difference / goals
+    (Step 2 d–e), then alphabetical as a deterministic fallback (FIFA's
+    remaining criteria — conduct score, FIFA ranking, drawing of lots — are
+    not predictable in this game). Returns (sorted_teams, warnings).
 
     Args:
         teams: team standings dicts (must contain 'team', 'group', 'points',
                'goal_difference', 'goals_for').
-        group_matches: when provided, used to compute head-to-head stats among
-               tied teams. Pass None (or empty list) for cross-group sorts like
-               third-place qualifying — H2H is not applicable there.
-        context: free-form string that gets passed into TieWarning so callers
-               can distinguish in-group vs cross-group ties.
-
-    Behaviour:
-      - First sorts by total (points, GD, GF) descending.
-      - For each segment of teams tied on those three, computes head-to-head
-        stats and re-sorts by H2H (points, GD, goals).
-      - Any sub-segment still tied after H2H gets sorted alphabetically and
-        emits a TieWarning naming the tied teams.
+        group_matches: when provided (in-group sort), used to compute
+               head-to-head stats among tied teams. Pass None (or empty) for
+               cross-group sorts like third-place qualifying — H2H is N/A.
+        context: free-form string passed into TieWarning so callers can
+               distinguish in-group vs cross-group ties.
     """
     warnings: list[TieWarning] = []
 
-    # Step 1 — sort by overall stats.
-    sorted_overall = sorted(
-        teams,
-        key=lambda t: (-t["points"], -t["goal_difference"], -t["goals_for"]),
-    )
+    # Primary sort: points only. The tiebreaker chain triggers among teams
+    # level on points (Article 13 opening clause).
+    sorted_by_points = sorted(teams, key=lambda t: -t["points"])
 
-    # Step 2 — walk through segments tied on (points, GD, GF) and apply H2H.
     result: list[dict] = []
     i = 0
-    while i < len(sorted_overall):
-        j = _segment_end(
-            sorted_overall, i,
-            key=lambda t: (t["points"], t["goal_difference"], t["goals_for"]),
-        )
-        segment = sorted_overall[i:j]
+    while i < len(sorted_by_points):
+        j = _segment_end(sorted_by_points, i, key=lambda t: (t["points"],))
+        segment = sorted_by_points[i:j]
         if len(segment) == 1:
             result.append(segment[0])
         else:
             result.extend(
-                _resolve_h2h_then_alphabetical(
+                _resolve_tied_segment(
                     segment,
                     group_matches=group_matches,
                     context=context,
@@ -150,49 +142,27 @@ def _segment_end(items: list[dict], start: int, *, key) -> int:
     return j
 
 
-def _resolve_h2h_then_alphabetical(
+def _rank_by_overall_then_alpha(
     tied_teams: list[dict],
     *,
-    group_matches: list[tuple[Fixture, Score]] | None,
     context: str,
     warnings: list[TieWarning],
 ) -> list[dict]:
-    """Apply FIFA H2H tiebreakers to `tied_teams`, then alphabetical with warning."""
-    if not group_matches:
-        # No H2H available (e.g. cross-group third-place sort) — straight to alphabetical.
-        warnings.append(
-            TieWarning(
-                group=tied_teams[0].get("group", ""),
-                tied_teams=sorted(t["team"] for t in tied_teams),
-                context=context,
-            )
-        )
-        return sorted(tied_teams, key=lambda t: t["team"])
-
-    h2h_stats = _compute_h2h_stats(tied_teams, group_matches)
-
-    sorted_by_h2h = sorted(
+    """Step 2 d–e + fallback: rank a still-tied set by OVERALL goal difference,
+    then overall goals, then alphabetical (with a TieWarning). Also the whole
+    chain for cross-group (third-place) sorts where no head-to-head exists."""
+    sorted_overall = sorted(
         tied_teams,
-        key=lambda t: (
-            -h2h_stats[t["team"]]["points"],
-            -h2h_stats[t["team"]]["goal_difference"],
-            -h2h_stats[t["team"]]["goals_for"],
-        ),
+        key=lambda t: (-t["goal_difference"], -t["goals_for"]),
     )
-
-    # Find any sub-segments still tied after H2H → alphabetical with warning.
     out: list[dict] = []
     i = 0
-    while i < len(sorted_by_h2h):
+    while i < len(sorted_overall):
         j = _segment_end(
-            sorted_by_h2h, i,
-            key=lambda t: (
-                h2h_stats[t["team"]]["points"],
-                h2h_stats[t["team"]]["goal_difference"],
-                h2h_stats[t["team"]]["goals_for"],
-            ),
+            sorted_overall, i,
+            key=lambda t: (t["goal_difference"], t["goals_for"]),
         )
-        sub = sorted_by_h2h[i:j]
+        sub = sorted_overall[i:j]
         if len(sub) > 1:
             warnings.append(
                 TieWarning(
@@ -205,6 +175,81 @@ def _resolve_h2h_then_alphabetical(
         out.extend(sub)
         i = j
     return out
+
+
+def _resolve_group_tie(
+    tied_teams: list[dict],
+    *,
+    group_matches: list[tuple[Fixture, Score]],
+    context: str,
+    warnings: list[TieWarning],
+) -> list[dict]:
+    """FWC2026 Article 13 Step 1 + Step 2 (head-to-head) for teams level on
+    points. Recomputes the H2H mini-table for whatever subset is passed (Step 2:
+    "applied to the matches between the remaining teams only"). Subsets H2H
+    cannot split fall through to overall GD/goals then alphabetical. Recursion
+    terminates because we only recurse into PROPER subsets."""
+    if len(tied_teams) == 1:
+        return tied_teams
+
+    h2h_stats = _compute_h2h_stats(tied_teams, group_matches)
+    sorted_by_h2h = sorted(
+        tied_teams,
+        key=lambda t: (
+            -h2h_stats[t["team"]]["points"],
+            -h2h_stats[t["team"]]["goal_difference"],
+            -h2h_stats[t["team"]]["goals_for"],
+        ),
+    )
+
+    out: list[dict] = []
+    i = 0
+    while i < len(sorted_by_h2h):
+        j = _segment_end(
+            sorted_by_h2h, i,
+            key=lambda t: (
+                h2h_stats[t["team"]]["points"],
+                h2h_stats[t["team"]]["goal_difference"],
+                h2h_stats[t["team"]]["goals_for"],
+            ),
+        )
+        sub = sorted_by_h2h[i:j]
+        if len(sub) == 1:
+            out.append(sub[0])
+        elif len(sub) < len(tied_teams):
+            # Proper subset still tied → Step 2: recompute H2H among just them.
+            out.extend(
+                _resolve_group_tie(
+                    sub,
+                    group_matches=group_matches,
+                    context=context,
+                    warnings=warnings,
+                )
+            )
+        else:
+            # H2H separated no one → Step 2 d–e: overall GD/goals.
+            out.extend(
+                _rank_by_overall_then_alpha(sub, context=context, warnings=warnings)
+            )
+        i = j
+    return out
+
+
+def _resolve_tied_segment(
+    tied_teams: list[dict],
+    *,
+    group_matches: list[tuple[Fixture, Score]] | None,
+    context: str,
+    warnings: list[TieWarning],
+) -> list[dict]:
+    """Resolve teams level on points. In-group sorts apply the Article 13 chain
+    (head-to-head first); cross-group sorts (no group_matches) have no H2H, so
+    go straight to overall GD/goals → alphabetical."""
+    if not group_matches:
+        return _rank_by_overall_then_alpha(tied_teams, context=context, warnings=warnings)
+    return _resolve_group_tie(
+        tied_teams, group_matches=group_matches, context=context, warnings=warnings
+    )
 
 
 def _compute_h2h_stats(

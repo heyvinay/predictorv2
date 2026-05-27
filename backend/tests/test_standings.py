@@ -568,6 +568,46 @@ def test_apply_fifa_tiebreakers_no_h2h_matches_falls_straight_to_alphabetical() 
     assert warnings[0]["context"] == "third_place_qualifying"
 
 
+def test_apply_fifa_tiebreakers_h2h_winner_outranks_better_overall_gd() -> None:
+    """FWC2026 Regulations Article 13: head-to-head is applied BEFORE overall
+    goal difference. THE discriminating case — 'Bigger' has the better overall
+    GD (+5 vs +2) but lost the head-to-head to 'Winner', so 'Winner' ranks first.
+
+    Under the old overall-first ordering 'Bigger' would have ranked first; this
+    test locks in the corrected 2026 behaviour."""
+    teams = [
+        _stand("Bigger", "A", points=6, gd=5, gf=8),  # better overall GD
+        _stand("Winner", "A", points=6, gd=2, gf=4),  # worse overall GD, won h2h
+    ]
+    matches = [_h2h("Winner", "Bigger", 1, 0)]  # Winner beat Bigger 1-0
+    sorted_teams, warnings = _apply_fifa_tiebreakers(
+        teams, group_matches=matches, context="group_standings"
+    )
+    assert [t["team"] for t in sorted_teams] == ["Winner", "Bigger"]
+    assert warnings == []
+
+
+def test_apply_fifa_tiebreakers_overall_gd_after_h2h_cycle() -> None:
+    """Article 13 Step 2 d): when head-to-head is a perfect cycle (each team
+    3 h2h pts, GD 0, GF 1) it separates no one, so overall goal difference
+    decides: +4 > +2 > 0."""
+    teams = [
+        _stand("Cyc1", "A", points=6, gd=4, gf=6),
+        _stand("Cyc2", "A", points=6, gd=2, gf=5),
+        _stand("Cyc3", "A", points=6, gd=0, gf=4),
+    ]
+    matches = [
+        _h2h("Cyc1", "Cyc2", 1, 0),
+        _h2h("Cyc2", "Cyc3", 1, 0),
+        _h2h("Cyc3", "Cyc1", 1, 0),
+    ]
+    sorted_teams, warnings = _apply_fifa_tiebreakers(
+        teams, group_matches=matches, context="group_standings"
+    )
+    assert [t["team"] for t in sorted_teams] == ["Cyc1", "Cyc2", "Cyc3"]
+    assert warnings == []
+
+
 # ---------------------------------------------------------------------------
 # Third-place qualifying warnings via the public *_with_warnings function
 # ---------------------------------------------------------------------------
