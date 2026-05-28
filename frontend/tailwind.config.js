@@ -67,9 +67,20 @@ export default {
 				'premium-night': {
 					'primary': '#D4AF37',           // gold — CTAs, brand, accents
 					'primary-content': '#0B1329',   // ink on gold
+					'secondary': '#1C2541',         // premium navy (used by DaisyUI btn-secondary)
+					'secondary-content': '#E2E8F0',
+					'accent': '#D4AF37',            // same gold for accent semantics
+					'accent-content': '#0B1329',
+					'neutral': '#1E293B',           // tooltip / btn-neutral bg
+					'neutral-content': '#E2E8F0',
+					'info': '#3B82F6',
+					'info-content': '#F8FAFC',
 					'success': '#059669',           // mint — exact score
+					'success-content': '#F8FAFC',
 					'warning': '#D97706',           // amber — lock / outcome
+					'warning-content': '#F8FAFC',
 					'error':   '#B91C1C',           // red — miss
+					'error-content': '#F8FAFC',
 					'base-100': '#0B1329',          // canvas
 					'base-200': '#1C2541',          // surface / cards
 					'base-300': '#2A3552',          // divider / borders
@@ -87,9 +98,20 @@ export default {
 				'premium-day': {
 					'primary': '#B8941F',
 					'primary-content': '#0B1329',
+					'secondary': '#1C2541',         // premium navy headers / chrome
+					'secondary-content': '#F8FAFC',
+					'accent': '#B8941F',
+					'accent-content': '#F8FAFC',
+					'neutral': '#1E293B',           // dark tooltip bg even on light canvas
+					'neutral-content': '#F8FAFC',
+					'info': '#3B82F6',
+					'info-content': '#F8FAFC',
 					'success': '#059669',
+					'success-content': '#F8FAFC',
 					'warning': '#B45309',
+					'warning-content': '#F8FAFC',
 					'error':   '#B91C1C',
+					'error-content': '#F8FAFC',
 					'base-100': '#F8FAFC',          // ice canvas — NEVER pure #FFFFFF
 					'base-200': '#FFFFFF',          // surface / cards
 					'base-300': '#E2E8F0',          // slate-200 divider / borders
