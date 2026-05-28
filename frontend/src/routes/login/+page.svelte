@@ -166,11 +166,15 @@
 
 		<!-- Brand lockup (top) -->
 		<div class="relative flex items-center gap-3">
-			<div
-				class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20 shadow-glow-gold"
-			>
-				<span class="text-xl font-bold text-primary-content leading-none translate-y-0.5">P</span>
-			</div>
+			<img
+				src="/logo.png"
+				alt="Predictor"
+				class="w-12 h-12 rounded-full object-cover"
+				on:error={(e) => {
+					const el = e.currentTarget as HTMLImageElement;
+					el.outerHTML = '<span class="font-display text-xl leading-none">P</span>';
+				}}
+			/>
 			<span class="font-display text-2xl tracking-wide">Atlas World Cup 2026 Pools</span>
 		</div>
 
@@ -198,11 +202,15 @@
 		<div class="w-full max-w-md">
 			<!-- Brand header — mobile/tablet only; the hero owns branding on lg+. -->
 			<div class="flex items-center gap-3 justify-center mb-8 lg:hidden">
-				<div
-					class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20 shadow-glow-gold"
-				>
-					<span class="text-2xl font-bold text-primary-content leading-none translate-y-0.5">P</span>
-				</div>
+				<img
+					src="/logo.png"
+					alt="Predictor"
+					class="w-14 h-14 rounded-full object-cover"
+					on:error={(e) => {
+						const el = e.currentTarget as HTMLImageElement;
+						el.outerHTML = '<span class="font-display text-2xl leading-none">P</span>';
+					}}
+				/>
 				<div class="flex flex-col leading-tight">
 					<span class="font-display text-xl tracking-wide">Atlas World Cup 2026 Pools</span>
 					<span class="text-[10px] font-mono uppercase tracking-[0.18em] text-base-content/50">Vol. I — WC 2026</span>

@@ -1,254 +1,171 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repo.
 
-## Project Overview
+## Project
 
-**The Predictor v2** is a self-hosted web application for managing international football prediction competitions (World Cup, Euros) for ~30 friends.
+**The Predictor v2** — self-hosted web app for running international football
+prediction competitions (World Cup, Euros) among ~30 friends. Current focus:
+**World Cup 2026**.
 
-Current focus: **World Cup 2026**
+## Tech stack
 
-## Tech Stack
+**Backend:** FastAPI (Python 3.11+), SQLModel, PostgreSQL 16, Alembic.
+Tournament config in YAML (`config/worldcup2026.yml`). External scores via
+Football-Data.org (`backend/app/services/external/football_data.py`).
 
-**Backend:**
-- FastAPI (Python 3.11+)
-- SQLModel (Pydantic + SQLAlchemy ORM)
-- PostgreSQL 16
-- Alembic for migrations
-- YAML-based tournament configuration
-- External data: Football-Data.org or API-Football (planned)
+**Frontend:** SvelteKit + TypeScript, Tailwind + DaisyUI (themes
+`premium-night` default / `light` alternative), `svelte-motion`,
+`flag-icons`. Vitest for unit tests.
 
-**Frontend:**
-- SvelteKit with TypeScript
-- Tailwind CSS + DaisyUI — the dark **predictor** theme defined in `frontend/tailwind.config.js` (primary `#0D9748`, secondary `#1E3A5F`, accent `#F5A623`, base-100 `#0A0E13`)
-- Fonts: **Bebas Neue** (display) and **DM Sans** (body), loaded in `frontend/src/app.html`
-- Svelte stores for state management
-- Vitest for unit tests (pure utilities + widget fallbacks)
-- svelte-motion for animations (planned)
+**Infra:** Docker Compose for dev, Nginx + Cloudflare Tunnel in prod.
 
-**Infrastructure:**
-- Docker Compose (development)
-- Nginx reverse proxy (production)
-- Cloudflare Tunnel (for self-hosting)
-
-## Project Structure
+## Layout
 
 ```
-/predictorv2
-├── /backend
-│   ├── /app
-│   │   ├── /api             # FastAPI routes
-│   │   ├── /models          # SQLModel tables
-│   │   ├── /schemas         # Pydantic request/response models
-│   │   └── /services        # Business logic (scoring, locking, standings)
-│   └── /tests               # pytest tests
-├── /frontend
-│   ├── /src
-│   │   ├── /lib
-│   │   │   ├── /api         # API client functions
-│   │   │   ├── /components  # Shared UI: MatchCard, GroupTable, ResultCard,
-│   │   │   │                #   SaveButton, ErrorAlert, Icon, ScatterPlot,
-│   │   │   │                #   EntrySelector, Sparkline, GoogleLoginButton …
-│   │   │   │   ├── /bracket # Interactive knockout bracket (KnockoutBracket,
-│   │   │   │   │            #   BracketMatch) — state machine in bracketResolver
-│   │   │   │   └── /predictions # Wizard sub-views (Phase1Groups, Phase1Bracket,
-│   │   │   │                    #   Phase2Content, DeadlineBanner, ProgressBar)
-│   │   │   ├── /stores      # Svelte stores
-│   │   │   ├── /types       # TypeScript interfaces
-│   │   │   └── /utils       # Helper functions (incl. teamCodes.ts,
-│   │   │                    #   bracketResolver.ts, standings.ts,
-│   │   │                    #   widgetFallbacks.ts)
-│   │   └── /routes          # SvelteKit pages
-├── /config                  # Tournament YAML configuration
-├── /docs                    # Documentation
-├── /nginx                   # Proxy config (production)
-└── docker-compose.yml
+/backend/app/{api,models,schemas,services}   FastAPI routes, SQLModel tables, Pydantic, business logic
+/backend/alembic/versions                    Schema migrations (single source of truth)
+/backend/tests                               pytest suite
+/frontend/src/lib/{api,components,stores,types,utils}
+/frontend/src/lib/components/{bracket,predictions,results}   feature subfolders
+/frontend/src/routes                         SvelteKit pages
+/config                                      tournament YAML
+/docs                                        long-form docs (scoring system, etc.)
 ```
 
-## Key Domain Concepts
+## Domain invariants
 
-### Competition Phases
-- **Phase 1**: Pre-tournament predictions
-  - Group stage match scores
-  - Knockout bracket advancement (predict which teams reach each round)
-  - Locks at tournament start or per-match (5 min before kickoff)
+### Phases
+- **Phase 1** (pre-tournament): group-stage scores + knockout-bracket
+  advancement. Locks per-match.
+- **Phase 2** (admin-activated after groups): knockout-stage scores +
+  re-predicted bracket. Points scaled by `phase_multipliers.phase_2`
+  (currently 0.7 — `config/worldcup2026.yml`). Kept stored separately from
+  Phase 1.
 
-- **Phase 2**: Knockout stage predictions (activated by admin after groups complete)
-  - Knockout match scores
-  - Updated bracket predictions based on actual group results
-  - Points reduced to 70% (configurable multiplier)
+### Locking & visibility
+- Predictions lock **5 minutes before kickoff** (`backend/app/services/locking.py`).
+- Blind pool: users cannot see others' predictions until a match locks.
+- 100% data integrity — never silently drop or overwrite a prediction.
 
-### Scoring System
+### Scoring
+Modes — `logarithmic` (default, Shannon-surprisal rarity bonus), `fixed`
+(flat), and `hybrid` (legacy linear rarity). Selected via `scoring.mode` in
+`config/worldcup2026.yml`. Engine in `backend/app/services/scoring.py`.
+See `docs/scoring-system.md` for the formula, bonus table, and rationale.
 
-Configured in `config/worldcup2026.yml`. See `docs/scoring-system.md` for full documentation.
+**Rule:** no scoring logic changes without a corresponding `pytest` case.
 
-**Scoring Modes:**
-- `fixed`: Flat points for correct predictions
-- `hybrid`: Base points + rarity bonus (fewer correct = higher bonus)
+### Datetime rule (system-wide)
 
-**Match predictions:**
-- 5 pts: correct outcome (1-X-2)
-- +10 pts: exact score bonus
+**Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
 
-**Advancement predictions:**
-- 10 pts: team advances from group
-- 5 pts: correct group position
-- 10-100 pts: knockout stage advancement (scales by round)
+- **DB:** all datetime columns are `TIMESTAMPTZ`. Use the column factory in
+  `backend/app/models/_datetime.py`.
+- **Python:** use `utc_now()` from `app.models._datetime` — never
+  `datetime.utcnow()` (deprecated and naive). Construct test datetimes with
+  `datetime(..., tzinfo=timezone.utc)`.
+- **API:** Pydantic serializes aware datetimes as ISO 8601 with explicit
+  offset.
+- **Frontend:** `new Date(string)` parses correctly thanks to the offset,
+  then `Intl` renders local time.
+- **Driver gotcha:** aiosqlite drops tzinfo on read; PostgreSQL preserves it.
+  Use `aware_utc()` from `_datetime.py` defensively at any compare site that
+  touches DB-loaded values.
 
-### Critical Constraints
-- Predictions lock 5 minutes before kickoff
-- Users cannot see others' predictions until match locks (blind pool)
-- Phase 1 and Phase 2 predictions are stored separately
-- 100% data integrity required - no lost predictions
+Established in commit `c6089cc`; the conversion migration was later squashed
+into `f06b6a2077d3`. Violating this silently shifts kickoffs/deadlines by the
+user's UTC offset.
 
-### Datetime Rule (system-wide invariant)
+## Migrations
 
-**Every datetime in this system is timezone-aware UTC.** Naive datetimes are forbidden — comparing or storing one is a bug.
-
-- **DB**: every datetime column is `TIMESTAMPTZ` (PostgreSQL `TIMESTAMP WITH TIME ZONE`). See `backend/app/models/_datetime.py` for the column factory and `default_factory`.
-- **Python**: use `utc_now()` from `app.models._datetime`, never `datetime.utcnow()` (deprecated and naive). Construct test datetimes with `datetime(..., tzinfo=timezone.utc)`.
-- **API**: Pydantic serializes aware datetimes as ISO 8601 with explicit offset (`...Z` or `+00:00`).
-- **Frontend**: `new Date(string).toLocaleString(...)` parses correctly because of the explicit offset, then renders in the user's local timezone via `Intl`.
-- **DB-driver gotcha**: aiosqlite drops tzinfo on read even when the column is declared aware; PostgreSQL preserves it. Use `aware_utc()` (also in `_datetime.py`) at any compare site that touches DB-loaded values, defensively.
-
-The rule was established in commit `c6089cc`. The original conversion migration was subsequently squashed into the consolidated initial migration (`f06b6a2077d3`) during pre-production prep. Violating the rule silently shifts kickoffs and deadlines by the user's UTC offset — a data-integrity disaster for a prediction app where lock timing matters.
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `config/worldcup2026.yml` | Tournament and scoring configuration |
-| `backend/app/services/scoring.py` | Scoring strategies and point calculation |
-| `backend/app/services/locking.py` | Prediction locking logic |
-| `backend/app/services/standings.py` | Group standings calculation |
-| `backend/app/api/admin.py` | Admin endpoints (users, paid status, phase ops, score sync) |
-| `frontend/tailwind.config.js` | DaisyUI `predictor` theme tokens, custom utilities (pitch-pattern, stadium-glow, glow-*, noise) |
-| `frontend/src/app.css` | Global styles — `stadium-card`, `match-card`, `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, font setup |
-| `frontend/src/app.html` | Sets `data-theme="predictor"` and loads Bebas Neue + DM Sans |
-| `frontend/src/routes/+layout.svelte` | Root layout — dark navbar + mobile bottom nav, mounted on every route |
-| `frontend/src/lib/components/bracket/KnockoutBracket.svelte` | Interactive knockout bracket (wall chart desktop / swipeable mobile) |
-| `frontend/src/lib/components/bracket/BracketMatch.svelte` | Single match card inside the bracket |
-| `frontend/src/lib/components/EntrySelector.svelte` | Multi-entry switcher used in the wizard, profile, and leaderboard |
-| `frontend/src/lib/components/Sparkline.svelte` | Rank-trajectory sparkline (leaderboard + dashboard) |
-| `frontend/src/lib/stores/predictions.ts` | Prediction state management |
-| `frontend/src/lib/utils/widgetFallbacks.ts` | Deterministic fallbacks for backend-pending dashboard/leaderboard widgets |
-| `frontend/src/lib/utils/bracketResolver.ts` | FIFA 2026 knockout bracket logic |
-| `frontend/src/lib/utils/teamCodes.ts` | Team name → FIFA 3-letter code mapping for flag swatches |
-
-## Development
-
-### Running Locally
+**Alembic is the single source of truth for schema.** Backend startup runs
+`alembic upgrade head` automatically (`backend/app/database.py:init_db`). No
+`SQLModel.metadata.create_all` fallback.
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# Backend: http://localhost:8000
-# Frontend dev: http://localhost:5173 (with --profile dev)
-```
-
-### Common Commands
-
-```bash
-# Run backend tests
-docker-compose exec backend pytest tests/ -v
-
-# Check frontend types
-cd frontend && npm run check
-
-# View logs
-docker-compose logs -f backend
-```
-
-## Development Rules
-
-1. **Scoring Engine Safety**: No scoring logic changes without a corresponding `pytest` test case
-2. **Mobile First**: Verify all UI on 375px viewport width
-3. **Type Safety**:
-   - Backend: Strict Pydantic models
-   - Frontend: No `any` types - define interfaces in `/lib/types`
-4. **Phase Separation**: Phase 1 and Phase 2 data must be kept separate (different stores, filtered queries)
-
-## Database migrations
-
-**Alembic is the single source of truth for schema.** Every backend startup
-runs `alembic upgrade head` automatically (`backend/app/database.py:init_db`,
-called from the FastAPI lifespan). There is no `SQLModel.metadata.create_all`
-fallback — tables only ever exist because a migration created them.
-
-Workflow for adding a new table or column:
-
-```bash
-# 1. Add/modify the SQLModel class under backend/app/models/ and
-#    import it in backend/app/models/__init__.py
-# 2. Generate the migration:
+# Add/modify model under backend/app/models/, import it in models/__init__.py, then:
 docker-compose exec backend alembic revision --autogenerate -m "describe change"
-# 3. Review the file under backend/alembic/versions/ — autogenerate is good
-#    but not perfect (data migrations, default values, server_default
-#    semantics, enum changes all need a human pass)
-# 4. Restart the backend. init_db() picks up the new revision and applies it.
+# Review the file under backend/alembic/versions/ (autogenerate misses
+# data migrations, server_defaults, enum changes), then restart:
 docker-compose restart backend
 ```
 
-The migration is applied on every environment the backend boots in — dev,
-staging, prod. A failing migration takes the app down at startup, which is
-the safe default for a schema-versioned system. Logs surface the underlying
-error.
-
-If you ever need to manually stamp / downgrade / inspect:
+Manual inspection when needed:
 
 ```bash
-docker-compose exec backend alembic current
-docker-compose exec backend alembic history
-docker-compose exec backend alembic downgrade -1
-docker-compose exec backend alembic stamp <revision>   # rarely needed now
+docker-compose exec backend alembic current | history | downgrade -1 | stamp <rev>
 ```
 
-## Testing
+A failing migration takes the app down at startup — that's the safe default.
+
+## Development
 
 ```bash
-# Backend unit tests (scoring, auth, locking)
-docker-compose exec backend pytest tests/test_scoring.py -v
+docker-compose up -d                # backend :8000, frontend dev :5173 (--profile dev)
+docker-compose logs -f backend
+```
 
-# Frontend type checking
-cd frontend && npm run check                           # or via container:
+### Testing
+
+```bash
+# Backend
+docker-compose exec backend pytest tests/ -v
+
+# Frontend type check (keep errors at 0; existing warnings are tolerated)
 docker-compose exec frontend-dev npm run check
 
-# Frontend unit tests (vitest — widget fallbacks, sparkline path, standings,
-# bracketResolver, leaderboard helpers, entry selector logic)
+# Frontend unit tests
 docker-compose exec frontend-dev npx vitest run
 
-# Manual testing with test data
+# Seed Phase 2 test data
 docker-compose exec backend python scripts/seed_phase2_test.py
 ```
 
-**Pre-existing svelte-check baseline:** ~59 warnings (mostly `@apply` and a11y), 0 errors. New code should keep the error count at zero; a couple of new warnings is acceptable.
+## UI
 
-## UI Guidelines
+Two DaisyUI themes are registered in `frontend/tailwind.config.js`:
+**`premium-night`** (default — champagne gold CTAs on midnight navy) and
+**`light`**. The choice is persisted in `localStorage['predictor:theme']` and
+applied by the FOUC-prevention script in `frontend/src/app.html`; the store
+lives at `frontend/src/lib/stores/theme.ts`. Layout + mobile bottom nav are
+in `frontend/src/routes/+layout.svelte`.
 
-The site uses the DaisyUI **predictor** theme — a dark sports-broadcast palette with green primary, navy secondary, gold accent, near-black background, and subtle noise/pitch-pattern texture overlays. The root `<html>` tag sets `data-theme="predictor"` (`app.html`); all routes render inside the dark `<nav>` + mobile bottom nav defined in `routes/+layout.svelte`.
+**`premium-night` tokens** (the default):
+- `primary` `#D4AF37` (champagne gold) · `primary-content` `#0B1329` (navy
+  on gold buttons)
+- `secondary` `#1C2541` (premium blue) · `accent` `#D4AF37` (same gold)
+- `base-100` `#0B1329` (midnight navy canvas) · `base-200` `#1C2541` ·
+  `base-300` `#2A3552`
+- `success` `#059669` · `warning` `#D97706` · `error` `#B91C1C`
 
-**Theme tokens** (in `frontend/tailwind.config.js`):
-- `primary` `#0D9748` (action / accents / "you" highlights)
-- `secondary` `#1E3A5F` (deep navy panels)
-- `accent` `#F5A623` (gold — exact-score & rare-pick highlights)
-- `base-100` `#0A0E13` (near-black canvas) · `base-200` `#11161D` · `base-300` `#1A2028`
-- `success` / `warning` / `error` for outcome states
+**Typography:** dual-font system, both bundles loaded unconditionally in
+`app.html`; a CSS layer in `app.css` gates which is active per theme:
+- `light` → Bebas Neue (display) + DM Sans (body)
+- `premium-night` → Manrope (display / scores) + Inter (body)
 
-**Typography:**
-- **Bebas Neue** (display) — uppercase numerals, hero titles, big stats, brand mark
-- **DM Sans** (body) — UI text, labels, captions
+**Global classes** (`frontend/src/app.css`): `stadium-card`, `match-card`
+(+ `match-card-v2` for the redesigned variant), `stat-card`,
+`leaderboard-row`, `auth-bg`, `.noise`, `.score-input`. Custom utilities
+`pitch-pattern`, `stadium-glow`, `hero-gradient`, plus shadow tokens
+`shadow-glow-green`, `shadow-glow-gold`, `shadow-card` in
+`tailwind.config.js`. Standalone named colors `turf`, `pitch`, `gold`,
+`trophy`, `navy` are available outside the theme. Prefer DaisyUI `shadow*`
++ the `glow-*` shadows over hand-rolled box-shadows.
 
-**Global classes** (in `frontend/src/app.css`): `stadium-card`, `match-card`, `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, plus DaisyUI's `btn`, `card`, `navbar`, `dropdown`, `menu`, `tabs`, etc. Custom utilities `pitch-pattern`, `stadium-glow`, `glow-primary` / `glow-accent` live in `tailwind.config.js`.
+**Conventions:**
+- Mobile-first: verify on 375px.
+- Save actions: show success only after backend confirms.
+- Mobile screens: one logical group at a time; avoid grid-of-cards.
+- Phase tabs + section tabs (Groups / Knockout / Bonus) are stacked in the
+  wizard hero.
+- Bracket gating: in Phase 1 the Knockout sub-section is locked until every
+  group prediction is filled (predicted standings seed R32).
+- Score inputs cap at 15 goals per side, enforced on the input event.
 
-**Card shadows:** prefer DaisyUI's `shadow`/`shadow-xl` plus the custom `glow-*` utilities for emphasis. Avoid hand-rolled box-shadow hacks unless the theme tokens can't express it.
+**No `any` types** in TypeScript — define interfaces in `frontend/src/lib/types`.
 
-**Save actions** show feedback only after the backend confirms.
-**Mobile**: one logical group at a time; avoid grid-of-cards on small screens.
-**Phase tabs**: switch between Phase 1 and Phase 2 predictions. The Phase I/II toggle and the Groups / Knockout / Bonus section toggle live as a stacked pair in the wizard hero.
-**Bracket gating**: in Phase 1 the Knockout sub-section is locked until every group prediction is filled in (uses predicted standings to seed R32 — would otherwise show TBD slots).
-**Score inputs** are capped at 15 goals per side, enforced live in the input event so the user sees the cap immediately.
-
-**Flag swatches** are 2/3-stripe gradient placeholders driven by `lib/utils/teamCodes.ts` — earmarked for a real flag library in a follow-up plan.
-
-**Backend-dependent widgets** (rank sparklines, social signals, hot pick, bracket exposure, underdog hits, steepest climb) fall back to deterministic stub data via `frontend/src/lib/utils/widgetFallbacks.ts` when the relevant endpoint is empty, unavailable, or newly deployed.
+**Backend-pending widgets** (rank sparklines, social signals, hot pick,
+bracket exposure, underdog hits, steepest climb) fall back to deterministic
+stubs via `frontend/src/lib/utils/widgetFallbacks.ts` when their endpoint is
+empty or unavailable.
