@@ -150,6 +150,15 @@
 			cooldownTimer = null;
 		}
 	}
+
+	function logoFallbackHero(e: Event) {
+		const el = e.currentTarget as HTMLImageElement;
+		el.outerHTML = '<span class="font-display text-xl leading-none">P</span>';
+	}
+	function logoFallbackMobile(e: Event) {
+		const el = e.currentTarget as HTMLImageElement;
+		el.outerHTML = '<span class="font-display text-2xl leading-none">P</span>';
+	}
 </script>
 
 <svelte:head>
@@ -170,10 +179,7 @@
 				src="/logo.png"
 				alt="Predictor"
 				class="w-12 h-12 rounded-full object-cover"
-				on:error={(e) => {
-					const el = e.currentTarget as HTMLImageElement;
-					el.outerHTML = '<span class="font-display text-xl leading-none">P</span>';
-				}}
+				on:error={logoFallbackHero}
 			/>
 			<span class="font-display text-2xl tracking-wide">Atlas World Cup 2026 Pools</span>
 		</div>
@@ -206,10 +212,7 @@
 					src="/logo.png"
 					alt="Predictor"
 					class="w-14 h-14 rounded-full object-cover"
-					on:error={(e) => {
-						const el = e.currentTarget as HTMLImageElement;
-						el.outerHTML = '<span class="font-display text-2xl leading-none">P</span>';
-					}}
+					on:error={logoFallbackMobile}
 				/>
 				<div class="flex flex-col leading-tight">
 					<span class="font-display text-xl tracking-wide">Atlas World Cup 2026 Pools</span>
