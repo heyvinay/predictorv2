@@ -55,6 +55,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Baked into the JS bundle at `npm run build`. Unset on dev → empty
+        # string → Turnstile widget skips render and the Send button isn't
+        # gated. In prod, set VITE_TURNSTILE_SITE_KEY in the VPS .env and
+        # this passes through to the build.
+        VITE_TURNSTILE_SITE_KEY: ${VITE_TURNSTILE_SITE_KEY:-}
     container_name: predictor-frontend
     restart: unless-stopped
     environment:

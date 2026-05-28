@@ -2,6 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build-time vars for Vite. `VITE_*` names are inlined into the JS bundle
+# at `npm run build` time — setting them in the running container has no
+# effect, so they must arrive as Docker build args (passed through from
+# docker-compose.yml's frontend.build.args). Empty default keeps dev / CI
+# builds working without requiring the env var to be set.
+ARG VITE_TURNSTILE_SITE_KEY=""
+ENV VITE_TURNSTILE_SITE_KEY=$VITE_TURNSTILE_SITE_KEY
+
 # Install dependencies
 COPY package*.json ./
 RUN npm ci
