@@ -1,0 +1,29 @@
+{
+  "name": "Predictor v2",
+  "short_name": "Predictor",
+  "description": "Football prediction competition for World Cup 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1329",
+  "theme_color": "#0B1329",
+  "icons": [
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
