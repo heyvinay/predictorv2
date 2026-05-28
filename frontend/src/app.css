@@ -5,13 +5,14 @@
 /* Base styles */
 @layer base {
 	html {
-		font-family: 'DM Sans', system-ui, sans-serif;
+		font-family: 'Inter', system-ui, sans-serif;
 	}
 
-	/* Display headings use Bebas Neue */
-	h1, h2, .font-display {
-		font-family: 'Bebas Neue', Impact, sans-serif;
-		letter-spacing: 0.02em;
+	/* Display headings use Manrope across both themes */
+	h1, h2, h3, .font-display {
+		font-family: 'Manrope', system-ui, sans-serif;
+		font-weight: 700;
+		letter-spacing: -0.005em;
 	}
 
 	/* Smooth scrolling */
@@ -33,7 +34,7 @@
 		@apply bg-base-300 border-2 border-base-100 rounded-lg;
 		@apply focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30;
 		@apply transition-all duration-200;
-		font-family: 'Bebas Neue', monospace;
+		font-family: 'Manrope', monospace;
 		letter-spacing: 0.05em;
 	}
 
@@ -67,7 +68,7 @@
 	}
 
 	.match-card:hover:not(.locked) {
-		@apply border-primary/30 shadow-glow-green;
+		@apply border-primary/30 shadow-glow-gold;
 		transform: translateY(-2px);
 	}
 
@@ -113,7 +114,7 @@
 		@apply px-2 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-xs font-bold tracking-widest;
 		@apply bg-base-100 text-base-content/70 rounded-full;
 		@apply border border-base-content/10;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 	}
 
 	/* Team name styling */
@@ -157,14 +158,14 @@
 
 	.leaderboard-row.current-user {
 		@apply bg-primary/10 border-primary/30;
-		@apply shadow-glow-green;
+		@apply shadow-glow-gold;
 	}
 
 	/* Position badge - Podium style */
 	.position-badge {
 		@apply w-10 h-10 flex items-center justify-center rounded-full;
 		@apply font-bold text-lg border-2 border-transparent;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply bg-base-300 text-base-content;
 	}
 
@@ -219,7 +220,7 @@
 	}
 
 	.stat-card .stat-value {
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-3xl sm:text-4xl tracking-wide;
 	}
 
@@ -229,7 +230,7 @@
 
 	/* Group header */
 	.group-header {
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-2xl tracking-wide text-primary;
 	}
 
@@ -291,13 +292,13 @@
 	.points-badge {
 		@apply inline-flex items-center justify-center min-w-[28px] h-7 px-2;
 		@apply bg-base-300 rounded-md font-bold text-base-content;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-lg tracking-wide;
 	}
 
 	/* Navigation */
 	.nav-brand {
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-2xl tracking-wider text-primary;
 	}
 
@@ -450,7 +451,7 @@
 	.rank-pill {
 		@apply inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold;
 		@apply bg-base-300/60 text-base-content/60 border border-base-300/60;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		font-size: 0.95rem;
 	}
 	.rank-pill.pos-advance { @apply bg-success/15 text-success border-success/30; }
@@ -460,7 +461,7 @@
 	.pts-badge {
 		@apply inline-flex items-center justify-center min-w-[32px] h-8 px-2 rounded-md;
 		@apply bg-base-300/70 text-base-content border border-base-300/60;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-lg tracking-wide;
 	}
 
@@ -521,7 +522,7 @@
 		@apply w-12 h-12 text-center text-xl font-bold rounded-lg;
 		@apply bg-base-300/40 border border-base-300/60;
 		@apply focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all;
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 	}
 	.score-box:disabled {
 		@apply opacity-60 cursor-not-allowed;
@@ -566,7 +567,7 @@
 		@apply border-2 border-primary/60 bg-base-100/60;
 	}
 	.group-focus-badge span {
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-3xl sm:text-4xl text-primary leading-none translate-y-0.5;
 	}
 	.group-focus-badge.is-thirdplace {
@@ -593,7 +594,7 @@
 		@apply transition-colors duration-150 cursor-pointer;
 	}
 	.group-mini-pill .letter {
-		font-family: 'Bebas Neue', sans-serif;
+		font-family: 'Manrope', sans-serif;
 		@apply text-lg leading-none tracking-wider mb-1;
 	}
 	.group-mini-pill .progress-bar {
@@ -701,32 +702,14 @@
 		--premium-card-inset: inset 0 1px 2px rgba(0, 0, 0, 0.05);  /* tactile depth */
 	}
 
-	/* Typography swap — Inter for body, Manrope for scores & display. */
+	/* Premium-day body background — soft gold + navy washes for
+	   editorial depth. (Typography handled by the base layer; both
+	   themes share Manrope/Inter.) */
 	[data-theme="premium-day"] body {
-		font-family: 'Inter', system-ui, sans-serif;
 		background-image:
 			radial-gradient(ellipse 90% 60% at 50% 0%, rgba(var(--premium-gold) / 0.07) 0%, transparent 55%),
 			radial-gradient(ellipse 70% 50% at 100% 100%, rgba(var(--premium-navy) / 0.05) 0%, transparent 55%);
 		background-attachment: fixed;
-	}
-
-	[data-theme="premium-day"] h1,
-	[data-theme="premium-day"] h2,
-	[data-theme="premium-day"] h3,
-	[data-theme="premium-day"] .font-display {
-		font-family: 'Manrope', system-ui, sans-serif;
-		font-weight: 700;
-		letter-spacing: 0.02em;
-	}
-
-	[data-theme="premium-day"] .score-box,
-	[data-theme="premium-day"] .rank-pill,
-	[data-theme="premium-day"] .pts-badge,
-	[data-theme="premium-day"] .group-focus-badge span,
-	[data-theme="premium-day"] .group-mini-pill .letter,
-	[data-theme="premium-day"] .nav-brand {
-		font-family: 'Manrope', system-ui, sans-serif;
-		font-weight: 700;
 	}
 
 	/* Card topology — slate-200/60 micro-border + inset shadow.
@@ -824,7 +807,6 @@
 		letter-spacing: 0.24em;
 		color: rgba(var(--premium-navy) / 0.7);
 		font-weight: 600;
-		font-family: 'Inter', system-ui, sans-serif;
 	}
 
 	/* Brand mark on auth pages — editorial sweep navy → gold → navy. */

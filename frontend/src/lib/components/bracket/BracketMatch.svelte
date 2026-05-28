@@ -15,11 +15,11 @@
 	  bg-base-200 / text-base-content    → chip surface + text (subtle
 	                                        gray on near-white panel,
 	                                        charcoal text)
-	  bg-gold / border-gold              → FINAL accent strip + outline,
-	                                        pinned to the project's gold
-	                                        token (#FFD700) so the final
-	                                        always reads as "trophy gold"
-	                                        regardless of active theme
+	  bg-primary / border-primary        → FINAL accent strip + outline,
+	                                        theme-driven so the gold reads
+	                                        correctly in both premium-night
+	                                        (champagne #D4AF37) and
+	                                        premium-day (deeper #B8941F).
 	  is-winner background rgb(34 197 94) → green wash on the picked team
 	                                        row, pinned to Tailwind green-500
 	                                        at 28 % alpha so the highlight
@@ -124,13 +124,13 @@
 	bind:this={chipEl}
 	class="bracket-chip relative overflow-hidden rounded-md border
 		{isFinal
-			? 'border-gold/80 bg-base-200 text-base-content shadow-lg'
+			? 'border-primary/80 bg-base-200 text-base-content shadow-lg'
 			: 'border-base-content/15 bg-base-200 text-base-content shadow-sm'}
 		{locked ? 'opacity-80' : ''}"
 >
 	{#if isFinal}
 		<div
-			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-gold text-black py-0.5"
+			class="text-center text-[10px] font-mono uppercase tracking-[0.2em] bg-primary text-primary-content py-0.5"
 			aria-hidden="true"
 		>
 			Final

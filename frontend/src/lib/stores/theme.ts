@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-export const THEMES = ['light', 'premium-night'] as const;
+export const THEMES = ['premium-day', 'premium-night'] as const;
 
 export type Theme = (typeof THEMES)[number];
 

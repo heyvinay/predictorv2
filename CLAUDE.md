@@ -15,7 +15,7 @@ Tournament config in YAML (`config/worldcup2026.yml`). External scores via
 Football-Data.org (`backend/app/services/external/football_data.py`).
 
 **Frontend:** SvelteKit + TypeScript, Tailwind + DaisyUI (themes
-`premium-night` default / `light` alternative), `svelte-motion`,
+`premium-night` default / `premium-day` alternative), `svelte-motion`,
 `flag-icons`. Vitest for unit tests.
 
 **Infra:** Docker Compose for dev, Nginx + Cloudflare Tunnel in prod.
@@ -124,34 +124,32 @@ docker-compose exec backend python scripts/seed_phase2_test.py
 
 ## UI
 
-Two DaisyUI themes are registered in `frontend/tailwind.config.js`:
-**`premium-night`** (default — champagne gold CTAs on midnight navy) and
-**`light`**. The choice is persisted in `localStorage['predictor:theme']` and
-applied by the FOUC-prevention script in `frontend/src/app.html`; the store
-lives at `frontend/src/lib/stores/theme.ts`. Layout + mobile bottom nav are
-in `frontend/src/routes/+layout.svelte`.
+Two DaisyUI themes registered in `frontend/tailwind.config.js`: **`premium-night`** (dark, default — champagne gold on midnight navy) and **`premium-day`** (light — deeper gold on ice white for AA contrast). Themes change colour, not voice — same fonts, same hierarchy. The choice is persisted in `localStorage['predictor:theme']` and applied FOUC-safely by a script in `frontend/src/app.html`; the store lives at `frontend/src/lib/stores/theme.ts`. Legacy `'light'` values migrate to `'premium-day'` on load. Layout + mobile bottom nav are in `frontend/src/routes/+layout.svelte`.
 
-**`premium-night` tokens** (the default):
-- `primary` `#D4AF37` (champagne gold) · `primary-content` `#0B1329` (navy
-  on gold buttons)
-- `secondary` `#1C2541` (premium blue) · `accent` `#D4AF37` (same gold)
-- `base-100` `#0B1329` (midnight navy canvas) · `base-200` `#1C2541` ·
-  `base-300` `#2A3552`
-- `success` `#059669` · `warning` `#D97706` · `error` `#B91C1C`
+Components use **semantic DaisyUI classes** (`bg-primary`, `bg-base-100`, `text-base-content`, `text-success` …) — never raw hex. Dim/faint text is `text-base-content/55` / `/30`; soft accent fills are `bg-success/20` etc.
 
-**Typography:** dual-font system, both bundles loaded unconditionally in
-`app.html`; a CSS layer in `app.css` gates which is active per theme:
-- `light` → Bebas Neue (display) + DM Sans (body)
-- `premium-night` → Manrope (display / scores) + Inter (body)
+**Theme tokens** (in `frontend/tailwind.config.js`):
 
-**Global classes** (`frontend/src/app.css`): `stadium-card`, `match-card`
-(+ `match-card-v2` for the redesigned variant), `stat-card`,
-`leaderboard-row`, `auth-bg`, `.noise`, `.score-input`. Custom utilities
-`pitch-pattern`, `stadium-glow`, `hero-gradient`, plus shadow tokens
-`shadow-glow-green`, `shadow-glow-gold`, `shadow-card` in
-`tailwind.config.js`. Standalone named colors `turf`, `pitch`, `gold`,
-`trophy`, `navy` are available outside the theme. Prefer DaisyUI `shadow*`
-+ the `glow-*` shadows over hand-rolled box-shadows.
+| Token | `premium-night` (dark) | `premium-day` (light) | Use |
+|---|---|---|---|
+| `primary` | `#D4AF37` champagne gold | `#B8941F` deeper gold | CTAs, brand, accents |
+| `success` | `#059669` mint | `#059669` mint | Exact score, "good news" |
+| `warning` | `#D97706` amber | `#B45309` amber | Outcome / lock |
+| `error` | `#B91C1C` red | `#B91C1C` red | Miss |
+| `base-100` | `#0B1329` midnight navy | `#F8FAFC` ice (NOT pure white) | Canvas |
+| `base-200` | `#1C2541` premium navy | `#FFFFFF` white | Surfaces, cards |
+| `base-300` | `#2A3552` slate | `#E2E8F0` slate-200 | Dividers, borders |
+| `base-content` | `#E2E8F0` off-white | `#0B1329` navy | Body ink |
+
+Radii: `rounded-box` (14px / `0.875rem`), `rounded-btn` (10px / `0.625rem`), `rounded-badge` (8px / `0.5rem`).
+
+**Typography** — one family pair, both themes:
+- **Manrope** 700/800 (display, `font-display`) — wordmark, headlines, scores, big stats
+- **Inter** 400/500/600/700 (body, `font-sans`) — UI text, labels, captions
+- **JetBrains Mono** 500 (mono, `font-mono`) — timers, codes, monospace data
+- **Bebas Neue** (opt-in via `font-hero`) — landing-page hero headlines only. Reach for it when you want a loud, broadcast-poster moment; Manrope still carries the rest of the system.
+
+**Global classes** (`frontend/src/app.css`): `stadium-card`, `match-card` (+ `match-card-v2` for the redesigned variant), `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, `.score-input`. Custom utilities `pitch-pattern`, `stadium-glow`, plus shadow tokens `shadow-glow-gold`, `shadow-card` in `tailwind.config.js`. Prefer DaisyUI `shadow*` + `glow-gold` over hand-rolled box-shadows.
 
 **Conventions:**
 - Mobile-first: verify on 375px.

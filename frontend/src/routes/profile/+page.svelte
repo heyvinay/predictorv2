@@ -333,7 +333,7 @@
 								type="button"
 								class="text-left rounded-xl border p-4 transition-all
 									{isActive
-										? 'bg-primary/10 border-primary/40 shadow-glow-green'
+										? 'bg-primary/10 border-primary/40 shadow-glow-gold'
 										: 'bg-base-300/30 border-base-300/50 hover:border-base-content/20'}
 									{e.is_disabled || e.withdrawn_at ? 'opacity-60' : ''}"
 								on:click={() => handleSelectEntry(e)}

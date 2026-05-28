@@ -625,13 +625,11 @@
 	}
 
 	.col-label--final {
-		/* Pinned gold (darker hex for legibility on light panels;
-		   stays readable on dark panels too). Background tints the
-		   project's #FFD700 gold at 18 % alpha. */
-		color: #b8860b;
+		/* FINAL column accent — theme-driven primary (gold) so the
+		   header reads as trophy-gold in both themes. */
+		@apply text-primary bg-primary/20;
 		font-weight: 700;
 		opacity: 1;
-		background: rgb(255 215 0 / 0.18);
 	}
 
 	.match-col {

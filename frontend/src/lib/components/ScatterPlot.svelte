@@ -205,7 +205,7 @@
 			fill="rgba(148, 163, 184, 0.35)"
 			font-size="7"
 			font-weight="600"
-			font-family="'DM Sans', sans-serif"
+			font-family="'Inter', sans-serif"
 		>HOME</text>
 		<text
 			x={pad + plotSize - 6}
@@ -214,7 +214,7 @@
 			fill="rgba(148, 163, 184, 0.35)"
 			font-size="7"
 			font-weight="600"
-			font-family="'DM Sans', sans-serif"
+			font-family="'Inter', sans-serif"
 		>AWAY</text>
 
 		<!-- Diagonal line (draw line) — neutral gray, emphasized when actual result is a draw -->
@@ -236,7 +236,7 @@
 			class={isDraw ? 'fill-base-content/40' : 'fill-base-content/20'}
 			font-size="8"
 			font-weight="600"
-			font-family="'DM Sans', sans-serif"
+			font-family="'Inter', sans-serif"
 			transform="rotate(-45, {diagMidX}, {diagMidY - 5})"
 		>DRAW</text>
 
@@ -263,7 +263,7 @@
 				text-anchor="middle"
 				class="fill-base-content/40"
 				font-size="11"
-				font-family="'Bebas Neue', monospace"
+				font-family="'JetBrains Mono', monospace"
 			>{t}</text>
 			<!-- Y-axis (home score) -->
 			<text
@@ -272,7 +272,7 @@
 				text-anchor="middle"
 				class="fill-base-content/40"
 				font-size="11"
-				font-family="'Bebas Neue', monospace"
+				font-family="'JetBrains Mono', monospace"
 			>{t}</text>
 		{/each}
 
@@ -408,7 +408,7 @@
 				fill="rgba(255,255,255,0.5)"
 				font-size="7"
 				font-weight="600"
-				font-family="'DM Sans', sans-serif"
+				font-family="'Inter', sans-serif"
 				pointer-events="none"
 			>YOU</text>
 		{/if}
