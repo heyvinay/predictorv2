@@ -86,7 +86,7 @@
 		!!$phase1Deadline && new Date($phase1Deadline).getTime() > $currentTime.getTime();
 
 	function toggleTheme() {
-		theme.update((t) => (t === 'premium-night' ? 'light' : 'premium-night'));
+		theme.update((t) => (t === 'premium-night' ? 'premium-day' : 'premium-night'));
 	}
 
 	// Logo fallback — if /logo.png is missing, swap the <img> for the

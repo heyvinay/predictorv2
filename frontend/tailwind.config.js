@@ -4,29 +4,26 @@ export default {
 	theme: {
 		extend: {
 			fontFamily: {
-				'display': ['"Bebas Neue"', 'Impact', 'sans-serif'],
-				'sans': ['"DM Sans"', 'system-ui', 'sans-serif'],
-			},
-			colors: {
-				// Custom colors for win/loss indicators
-				'win': '#22c55e',
-				'loss': '#ef4444',
-				'draw': '#f59e0b',
-				// Stadium/sports palette
-				'turf': '#0D9748',
-				'pitch': '#0A7B3A',
-				'gold': '#FFD700',
-				'trophy': '#F5A623',
-				'navy': '#1E3A5F',
+				'display': ['Manrope', 'system-ui', 'sans-serif'],
+				'sans': ['Inter', 'system-ui', 'sans-serif'],
+				'mono': ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+				// Editorial hero font — landing page hero headlines only.
+				// Manrope remains the system display font; reach for `font-hero`
+				// when you want a loud, broadcast-poster moment.
+				'hero': ['"Bebas Neue"', 'Impact', 'sans-serif'],
 			},
 			backgroundImage: {
+				// Subtle 50px vertical stripes — barely-visible texture for
+				// hero canvases. Theme-neutral (white at 2% alpha).
 				'pitch-pattern': 'repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255,255,255,0.02) 50px, rgba(255,255,255,0.02) 100px)',
-				'stadium-glow': 'radial-gradient(ellipse at top, rgba(13, 151, 72, 0.15) 0%, transparent 50%)',
-				'hero-gradient': 'linear-gradient(135deg, rgba(13, 151, 72, 0.1) 0%, rgba(30, 58, 95, 0.1) 100%)',
+				// Ambient gold radial — soft champagne wash from the top.
+				// Matches the new premium-night/day aesthetic.
+				'stadium-glow': 'radial-gradient(ellipse at top, rgba(212, 175, 55, 0.10) 0%, transparent 50%)',
 			},
 			boxShadow: {
-				'glow-green': '0 0 20px rgba(13, 151, 72, 0.3)',
-				'glow-gold': '0 0 20px rgba(245, 166, 35, 0.3)',
+				// Champagne-gold glow — primary accent halo on CTAs and
+				// "you" highlights. Hex matches premium-night primary (#D4AF37).
+				'glow-gold': '0 0 20px rgba(212, 175, 55, 0.30)',
 				'card': '0 4px 20px rgba(0, 0, 0, 0.4)',
 			},
 			animation: {
@@ -64,33 +61,45 @@ export default {
 	plugins: [require('daisyui')],
 	daisyui: {
 		themes: [
-			'light',
 			{
+				// Dark theme — sports-broadcast editorial.
+				// Gold-on-navy, mint success, amber/red urgency.
 				'premium-night': {
-					// Dark sports-broadcast palette: deep navy canvas with
-					// champagne-gold CTAs and mint-green success.
-					'primary': '#D4AF37',           // Champagne Gold
-					'primary-content': '#0B1329',   // Navy on gold buttons
-					'secondary': '#1C2541',         // Premium blue
-					'secondary-content': '#F8FAFC',
-					'accent': '#D4AF37',            // Gold accent
-					'accent-content': '#0B1329',
-					'neutral': '#1E293B',
-					'neutral-content': '#CBD5E1',
-					'base-100': '#0B1329',          // Midnight Navy canvas
-					'base-200': '#1C2541',          // Raised surfaces
-					'base-300': '#2A3552',          // Dividers
-					'base-content': '#E2E8F0',
-					'info': '#3B82F6',
-					'info-content': '#F8FAFC',
+					'primary': '#D4AF37',           // gold — CTAs, brand, accents
+					'primary-content': '#0B1329',   // ink on gold
+					'success': '#059669',           // mint — exact score
+					'warning': '#D97706',           // amber — lock / outcome
+					'error':   '#B91C1C',           // red — miss
+					'base-100': '#0B1329',          // canvas
+					'base-200': '#1C2541',          // surface / cards
+					'base-300': '#2A3552',          // divider / borders
+					'base-content': '#E2E8F0',     // body ink
+					'--rounded-box': '0.875rem',   // 14px cards
+					'--rounded-btn': '0.625rem',   // 10px buttons
+					'--rounded-badge': '0.5rem',   // 8px pills
+					'--border-btn': '1px',
+				},
+			},
+			{
+				// Light theme — same voice, lighter canvas.
+				// Deeper gold (B8941F) for AA contrast on ice — use #D4AF37
+				// only for large fills/marks.
+				'premium-day': {
+					'primary': '#B8941F',
+					'primary-content': '#0B1329',
 					'success': '#059669',
-					'success-content': '#F8FAFC',
-					'warning': '#D97706',
-					'warning-content': '#F8FAFC',
-					'error': '#B91C1C',
-					'error-content': '#F8FAFC',
-				}
-			}
+					'warning': '#B45309',
+					'error':   '#B91C1C',
+					'base-100': '#F8FAFC',          // ice canvas — NEVER pure #FFFFFF
+					'base-200': '#FFFFFF',          // surface / cards
+					'base-300': '#E2E8F0',          // slate-200 divider / borders
+					'base-content': '#0B1329',     // navy ink
+					'--rounded-box': '0.875rem',
+					'--rounded-btn': '0.625rem',
+					'--rounded-badge': '0.5rem',
+					'--border-btn': '1px',
+				},
+			},
 		],
 		darkTheme: 'premium-night'
 	}

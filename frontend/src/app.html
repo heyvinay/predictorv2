@@ -6,23 +6,26 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="description" content="Football prediction competition for World Cup 2026" />
 		<meta name="robots" content="noindex, nofollow" />
-		<!-- Google Fonts:
-		     - Bebas Neue + DM Sans → used by the bundled `light` theme.
-		     - Inter + Manrope      → used by `premium-night` (Inter body,
-		       Manrope display / scores). Loaded unconditionally; the
-		       premium-scoped CSS layer in app.css gates them on
-		       [data-theme="premium-night"]. -->
+		<!-- Google Fonts — system stack carries both themes
+		     (themes change colour, not voice):
+		     - Manrope 700/800        → display / wordmark / scores
+		     - Inter 400/500/600/700  → body, UI, captions
+		     - JetBrains Mono 500     → timers, codes, monospace data
+		     - Bebas Neue (regular)   → opt-in via `font-hero` for landing
+		                                hero headlines only -->
 
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@300..900&family=Manrope:wght@200..800&display=swap" rel="stylesheet" />
+		<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Bebas+Neue&display=swap" rel="stylesheet" />
 		<title>Predictor v2</title>
 		<script>
 			// Apply persisted theme synchronously to prevent FOUC.
-			// Mirrors DEFAULT_THEME / THEMES in lib/stores/theme.ts.
+			// Themes: premium-night (dark, default) | premium-day (light).
+			// Legacy 'light' values migrate to 'premium-day'.
 			try {
 				var t = localStorage.getItem('predictor:theme');
-				if (t !== 'light' && t !== 'premium-night') t = 'premium-night';
+				if (t === 'light') t = 'premium-day';
+				if (t !== 'premium-day' && t !== 'premium-night') t = 'premium-night';
 				document.documentElement.setAttribute('data-theme', t);
 			} catch (e) {}
 		</script>
