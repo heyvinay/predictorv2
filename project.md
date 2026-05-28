@@ -17,7 +17,7 @@
 2.  **Prediction Wizard:** A clean interface for inputting all predictions for the group stage games.
     *   *Constraint:* Predictions lock rigidly 5 minutes before kickoff. People will fill in all their predictions prior to the tournament but will have a chance to change things up until 5 minutes before kick off of each game.
 3.  **The Bracket:** Once the users have filled in their group stage predictions they next fill in a recursive visual tree for the knockout stages.
-4.  **Scoring Engine:** A custom "Base + Capped Bonus" algorithm is being considered.
+4.  **Scoring Engine:** A logarithmic "Shannon-surprisal" rarity-bonus scoring system is in production (default mode). See `docs/scoring-system.md` and `config/worldcup2026.yml` for the configured values; `fixed` and `hybrid` modes are also available for swap-in.
     *   *Blind Pool:* Users cannot see others' specific predictions until the match locks.
     *   *Real-time:* Scores update live as the match is played.
 5.  **Analytics:** Interactive charts showing rank progression (User vs. Rival).
@@ -28,9 +28,9 @@
 ## 2. Product Guidelines
 
 ### Visual Identity
-*   **Theme:** Dark Mode default (Sports/Premium aesthetic).
-*   **Palette:** High contrast. Green/Red indicators for Win/Loss.
-*   **Typography:** Clean, sans-serif (Inter or Roboto).
+*   **Theme:** `premium-night` is the default — champagne-gold CTAs on midnight-navy canvas. A `light` theme is also registered and persisted via `localStorage['predictor:theme']`. Both are defined in `frontend/tailwind.config.js`.
+*   **Palette:** High contrast. Green for win, red for loss, gold (`#D4AF37`) for premium accents / exact-score / rare-pick highlights.
+*   **Typography:** Inter (body) + Manrope (display / scores) under `premium-night`; Bebas Neue + DM Sans under `light`. Both font bundles are loaded in `app.html` and gated per theme in `app.css`.
 
 ### UX Standards
 *   **Saving** If a user clicks "Save," it is important that they receive visual feedback only once the backend confirms that the update has been saved.
@@ -38,7 +38,7 @@
 *   **Animations:** Use `svelte-motion` for state changes (e.g., rows swapping on the leaderboard).
 
 ### The Scoring Formula (The "Law")
-The scoring formula is not yet confirmed, so the system should be flexible enough to accept multiple scoring formulas. There are multiple ways to score points, these can be divided into Match Prediction and advancement prediction. Important, all the following points must be confirgurable via a yaml.
+The scoring system is configurable via `config/worldcup2026.yml` and supports multiple modes (`logarithmic` default, `fixed`, `hybrid`). The values below are the historical / proposed values from when this doc was drafted — for the *current* configured values and the full logarithmic rarity-bonus spec, see [`docs/scoring-system.md`](docs/scoring-system.md). Scoring divides into Match Prediction and Advancement Prediction.
 ### Match Prediction:
 The current system uses 5 pts for correct result: 1-X-2 OR 15 pts for correct score
 
@@ -85,7 +85,7 @@ I am on the fence between self-hosting the project or running it in a cloud mach
 *   **ORM:** **SQLModel** (Pydantic + SQLAlchemy).
 *   **Database:** **PostgreSQL 16**.
 *   **Migrations:** Alembic.
-*   **External Data:** Football-Data.org or API-Football (Cached via Redis/internal logic).
+*   **External Data:** Football-Data.org (live in `backend/app/services/external/football_data.py`). API-Football was evaluated and discarded.
 
 ### Frontend (Client)
 *   **Framework:** **SvelteKit** 
