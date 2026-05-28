@@ -46,7 +46,11 @@ class Settings(BaseSettings):
     # Leave resend_api_key empty in dev — the service will log the link to
     # stdout instead of sending an email.
     resend_api_key: str = ""
-    resend_from_email: str = "The Predictor <noreply@resend.dev>"
+    resend_from_email: str = "Atlas World Cup 2026 Pools <noreply@resend.dev>"
+
+    # Cloudflare Turnstile (sign-in CAPTCHA). Leave empty in dev — the
+    # verifier short-circuits to success so local sign-in needs no widget.
+    turnstile_secret_key: str = ""
 
     # Football-Data.org
     football_data_token: str = ""

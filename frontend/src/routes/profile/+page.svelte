@@ -13,8 +13,20 @@
 	import { fetchLeaderboard, myLeaderboardRows } from '$stores/leaderboard';
 	import { computeDisplayStatus, type Entry, type EntryStatus } from '$lib/types/entry';
 	import { pageTitle } from '$stores/pageTitle';
-	import type { UserStats } from '$types';
+	import type { Employer, UserStats, UserUpdate } from '$types';
 	import { get } from 'svelte/store';
+	import { defaultPaidTo } from '$lib/utils/onboarding';
+
+	const EMPLOYER_LABELS: Record<Employer, string> = {
+		atlas: 'Atlas',
+		jmfa: 'JMFA',
+		neither: 'Neither'
+	};
+	const EMPLOYER_OPTIONS: { v: Employer; l: string }[] = [
+		{ v: 'atlas', l: 'Atlas' },
+		{ v: 'jmfa', l: 'JMFA' },
+		{ v: 'neither', l: 'Neither' }
+	];
 
 	// Flag-gated: when true, restore the Header / Prediction Stats /
 	// Your Entries / inline Sign-Out sections. Logout stays reachable
@@ -64,6 +76,80 @@
 			nameError = e instanceof Error ? e.message : 'Failed to save';
 		} finally {
 			savingName = false;
+		}
+	}
+
+	// Employer-edit state.
+	let editingEmployer = false;
+	let employerInput: Employer | '' = '';
+	let contactInput = '';
+	let employerError = '';
+	let savingEmployer = false;
+
+	function startEditEmployer() {
+		employerInput = $user?.employer ?? '';
+		contactInput = $user?.company_contact ?? '';
+		employerError = '';
+		editingEmployer = true;
+	}
+
+	async function saveEmployer() {
+		if (!employerInput) {
+			employerError = 'Please choose one';
+			return;
+		}
+		const trimmedContact = contactInput.trim();
+		if (employerInput === 'neither' && !trimmedContact) {
+			employerError = 'A contact at Atlas or JMFA is required';
+			return;
+		}
+		savingEmployer = true;
+		employerError = '';
+		const payload: UserUpdate = { employer: employerInput };
+		if (employerInput === 'neither') payload.company_contact = trimmedContact;
+		try {
+			const updated = await updateProfile(payload);
+			user.set(updated);
+			editingEmployer = false;
+		} catch (e) {
+			employerError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			savingEmployer = false;
+		}
+	}
+
+	// Paid-to edit state. Optional field — name of the person they paid
+	// their entry fee to. Surfaced here on the profile (and also planned
+	// for the entry-submission flow, where the user is most likely to
+	// know the value).
+	let editingPaidTo = false;
+	let paidToInput = '';
+	let paidToError = '';
+	let savingPaidTo = false;
+
+	function startEditPaidTo() {
+		// Defaults to company_contact when employer = Neither (R10.4).
+		paidToInput = defaultPaidTo($user);
+		paidToError = '';
+		editingPaidTo = true;
+	}
+
+	async function savePaidTo() {
+		const trimmed = paidToInput.trim();
+		if (trimmed.length > 100) {
+			paidToError = 'Max 100 characters';
+			return;
+		}
+		savingPaidTo = true;
+		paidToError = '';
+		try {
+			const updated = await updateProfile({ paid_to: trimmed });
+			user.set(updated);
+			editingPaidTo = false;
+		} catch (e) {
+			paidToError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			savingPaidTo = false;
 		}
 	}
 
@@ -286,9 +372,9 @@
 			<div class="stadium-card no-glow p-6">
 				<h2 class="text-lg font-display tracking-wide mb-6">Account Information</h2>
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-					<!-- Editable name. Email stays read-only. -->
+					<!-- Editable full name. Email stays read-only. -->
 					<div class="sm:col-span-2">
-						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-2">Name</p>
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-2">Full Name</p>
 						{#if editingName}
 							<div class="flex items-start gap-2 flex-wrap">
 								<input
@@ -337,7 +423,112 @@
 							</div>
 						{/if}
 					</div>
-					<div>
+					<!-- Editable employer (+ conditional contact). -->
+					<div class="sm:col-span-2">
+						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-2">Where you work</p>
+						{#if editingEmployer}
+							<div class="grid grid-cols-3 gap-2 max-w-md">
+								{#each EMPLOYER_OPTIONS as opt}
+									<button
+										type="button"
+										disabled={savingEmployer}
+										class="btn btn-sm normal-case {employerInput === opt.v ? 'btn-primary' : 'btn-outline'}"
+										aria-pressed={employerInput === opt.v}
+										on:click={() => (employerInput = opt.v)}
+									>
+										{opt.l}
+									</button>
+								{/each}
+							</div>
+							{#if employerInput === 'neither'}
+								<div class="form-control mt-3">
+									<label class="label py-1" for="profile-company-contact">
+										<span class="label-text text-xs uppercase tracking-wider text-base-content/60">
+											Who is your contact at Atlas or JMFA
+										</span>
+									</label>
+									<input
+										id="profile-company-contact"
+										type="text"
+										class="input input-bordered input-sm w-full max-w-md"
+										placeholder="Their name"
+										bind:value={contactInput}
+										maxlength="100"
+										disabled={savingEmployer}
+									/>
+								</div>
+							{/if}
+							<div class="flex items-center gap-2 mt-3">
+								<button type="button" class="btn btn-primary btn-sm" on:click={saveEmployer} disabled={savingEmployer}>
+									{savingEmployer ? 'Saving…' : 'Save'}
+								</button>
+								<button type="button" class="btn btn-ghost btn-sm" on:click={() => (editingEmployer = false)} disabled={savingEmployer}>
+									Cancel
+								</button>
+							</div>
+							{#if employerError}<p class="text-xs text-error mt-2">{employerError}</p>{/if}
+						{:else}
+							<div class="flex items-center gap-3">
+								<p class="font-medium">
+									{$user.employer ? EMPLOYER_LABELS[$user.employer] : '—'}
+								</p>
+								<button type="button" class="btn btn-ghost btn-xs" on:click={startEditEmployer} aria-label="Edit employer">
+									Edit
+								</button>
+							</div>
+							{#if $user.employer === 'neither'}
+								<!-- Separate labeled row so the saved contact value reads with
+								     the same affordance as edit mode (R10.5). -->
+								<div class="mt-3">
+									<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">
+										Who is your contact at Atlas or JMFA
+									</p>
+									<p class="font-medium">{$user.company_contact || '—'}</p>
+								</div>
+							{/if}
+						{/if}
+					</div>
+					
+<!-- Editable paid-to (optional). -->
+<div class="sm:col-span-2">
+	<p class="text-xs text-base-content/50 uppercase tracking-wider mb-2 flex items-center gap-2">
+	Name of the person who you paid the fee to
+	<span
+		class="tooltip tooltip-top normal-case tracking-normal"
+		data-tip="Atlas or JMFA staff: see the email you received and enter the name of the person you've paid (or plan to pay). Everyone else: enter the name of your Atlas or JMFA contact."
+	>
+		<span class="text-base-content/40 cursor-help text-sm" aria-label="Help">ⓘ</span>
+	</span>
+</p>
+	{#if editingPaidTo}
+		<div class="flex items-start gap-2 flex-wrap">
+			<input
+				type="text"
+				class="input input-bordered input-sm flex-1 min-w-[12rem] max-w-md"
+				placeholder="Name of the person"
+				bind:value={paidToInput}
+				maxlength="100"
+				disabled={savingPaidTo}
+			/>
+			<button type="button" class="btn btn-primary btn-sm" on:click={savePaidTo} disabled={savingPaidTo}>
+				{savingPaidTo ? 'Saving…' : 'Save'}
+			</button>
+			<button type="button" class="btn btn-ghost btn-sm" on:click={() => (editingPaidTo = false)} disabled={savingPaidTo}>
+				Cancel
+			</button>
+		</div>
+		{#if paidToError}<p class="text-xs text-error mt-2">{paidToError}</p>{/if}
+	{:else}
+		<div class="flex items-center gap-3">
+			<p class="font-medium">{defaultPaidTo($user) || '—'}</p>
+			<button type="button" class="btn btn-ghost btn-xs" on:click={startEditPaidTo} aria-label="Edit paid-to">
+				Edit
+			</button>
+		</div>
+	{/if}
+</div>
+
+<div>
 						<p class="text-xs text-base-content/50 uppercase tracking-wider mb-1">Email</p>
 						<p class="font-medium lowercase">{$user.email}</p>
 					</div>

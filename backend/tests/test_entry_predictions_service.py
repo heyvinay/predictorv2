@@ -69,11 +69,13 @@ async def competition(session: AsyncSession) -> Competition:
 
 @pytest_asyncio.fixture
 async def alice(session: AsyncSession) -> User:
+    # paid_to pre-populated for the R3 submit gate (see test_entries_service.py).
     u = User(
         email="alice@example.com",
         name="Alice",
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
+        paid_to="Pool Treasurer",
     )
     session.add(u)
     await session.commit()
@@ -88,6 +90,7 @@ async def bob(session: AsyncSession) -> User:
         name="Bob",
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
+        paid_to="Pool Treasurer",
     )
     session.add(u)
     await session.commit()

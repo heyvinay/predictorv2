@@ -22,6 +22,18 @@ class AuthProvider(str, Enum):
     GOOGLE = "google"
 
 
+class Employer(str, Enum):
+    """Which pool-organizing company the participant works for.
+
+    NEITHER means an outside participant who must name a contact at
+    Atlas or JMFA (see ``User.company_contact``).
+    """
+
+    ATLAS = "atlas"
+    JMFA = "jmfa"
+    NEITHER = "neither"
+
+
 class User(SQLModel, table=True):
     """User account for predictions."""
 
@@ -42,6 +54,17 @@ class User(SQLModel, table=True):
     # Admin-managed flag tracking whether this participant has paid their
     # entry. Default false; only mutated by /api/admin/users/{id}/paid.
     paid: bool = Field(default=False)
+
+    # Onboarding profile fields. All nullable: enforced by the onboarding
+    # gate + API validators rather than DB NOT NULL, so existing rows
+    # (and Google sign-ups) can be back-filled rather than rejected.
+    employer: Employer | None = None
+    # Required only when employer is NEITHER — their named contact at
+    # Atlas or JMFA. Enforced in UserUpdate's model_validator.
+    company_contact: str | None = None
+    # "Who you paid the fee to." Captured later at entry submission, not
+    # onboarding (the user doesn't know it at signup). Per-user.
+    paid_to: str | None = None
 
     competition_id: uuid.UUID | None = Field(default=None, foreign_key="competitions.id")
 

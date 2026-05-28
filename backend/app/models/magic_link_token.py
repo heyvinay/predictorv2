@@ -44,7 +44,7 @@ class MagicLinkToken(SQLModel, table=True):
     expires_at: datetime = Field(sa_column=utc_datetime_column(nullable=False))
     # NULL = unused. Set to `now` on first successful verify; subsequent
     # verifies of the same raw token are rejected.
-    used_at: datetime | None = Field(default=None, sa_column=utc_datetime_column())
+    used_at: datetime | None = Field(default=None, sa_column=utc_datetime_column(nullable=True))
     created_at: datetime = Field(default_factory=utc_now, sa_column=utc_datetime_column())
 
     user: "User" = Relationship(back_populates="magic_link_tokens")

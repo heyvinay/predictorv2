@@ -2,13 +2,33 @@
 	import { goto } from '$app/navigation';
 	import { user, loading, error as authError } from '$stores/auth';
 	import { updateProfile } from '$api/auth';
+	import { needsOnboarding } from '$lib/utils/onboarding';
+	import type { Employer, UserUpdate } from '$types';
+
+	const EMPLOYER_OPTIONS: { v: Employer; l: string }[] = [
+		{ v: 'atlas', l: 'Atlas' },
+		{ v: 'jmfa', l: 'JMFA' },
+		{ v: 'neither', l: 'Neither' }
+	];
 
 	let name = '';
+	let employer: Employer | '' = '';
+	let companyContact = '';
 	let localError = '';
 	let saving = false;
+	let prefilled = false;
 
-	// Already has a name — skip straight to dashboard
-	$: if ($user && $user.name) {
+	// Prefill name for users who already have one (e.g. Google sign-ups
+	// routed here to complete the new mandatory fields).
+	$: if ($user && !prefilled) {
+		name = $user.name ?? '';
+		employer = $user.employer ?? '';
+		companyContact = $user.company_contact ?? '';
+		prefilled = true;
+	}
+
+	// Onboarding complete — go to the dashboard.
+	$: if ($user && !needsOnboarding($user)) {
 		goto('/', { replaceState: true });
 	}
 
@@ -17,25 +37,32 @@
 		goto('/login', { replaceState: true });
 	}
 
+	// Reactive form validity — drives the disabled state of "Let's go".
+	// This replaces the old "click → red error" pattern, which had a stale-
+	// state bug (errors lingered after the user corrected the selection).
+	// The backend's model_validator stays as the safety net.
+	$: trimmedName = name.trim();
+	$: trimmedContact = companyContact.trim();
+	$: canSubmit =
+		!!trimmedName &&
+		trimmedName.length <= 100 &&
+		!!employer &&
+		(employer !== 'neither' || !!trimmedContact);
+
 	async function handleSubmit() {
+		if (!canSubmit) return;
 		localError = '';
-		const trimmed = name.trim();
-		if (!trimmed) {
-			localError = 'Please enter a display name';
-			return;
-		}
-		if (trimmed.length > 100) {
-			localError = 'Name must be 100 characters or fewer';
-			return;
-		}
+
+		const payload: UserUpdate = { name: trimmedName, employer: employer as Employer };
+		if (employer === 'neither') payload.company_contact = trimmedContact;
 
 		saving = true;
 		try {
-			const updated = await updateProfile({ name: trimmed });
+			const updated = await updateProfile(payload);
 			user.set(updated);
 			goto('/');
 		} catch (e) {
-			localError = e instanceof Error ? e.message : 'Could not save name';
+			localError = e instanceof Error ? e.message : 'Could not save your details';
 		} finally {
 			saving = false;
 		}
@@ -43,7 +70,7 @@
 </script>
 
 <svelte:head>
-	<title>Welcome — Predictor</title>
+	<title>Welcome — Atlas World Cup 2026 Pools</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center mobile-padding py-12 auth-bg noise">
@@ -53,26 +80,20 @@
 			<div
 				class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20 shadow-glow-gold"
 			>
-				<span
-					class="text-2xl font-bold text-primary-content leading-none translate-y-0.5"
-					>P</span
-				>
+				<span class="text-2xl font-bold text-primary-content leading-none translate-y-0.5">P</span>
 			</div>
 			<div class="flex flex-col leading-tight">
-				<span class="font-display text-xl tracking-wide">The Predictor</span>
-				<span
-					class="text-[10px] font-mono uppercase tracking-[0.18em] text-base-content/50"
-					>Vol. I — WC 2026</span
-				>
+				<span class="font-display text-xl tracking-wide">Atlas World Cup 2026 Pools</span>
+				<span class="text-[10px] font-mono uppercase tracking-[0.18em] text-base-content/50">Vol. I — WC 2026</span>
 			</div>
 		</div>
 
 		<!-- Onboarding card -->
 		<div class="stadium-card no-glow p-7">
 			<p class="text-xs font-mono uppercase tracking-[0.18em] text-primary mb-2">Welcome</p>
-			<h1 class="font-display text-3xl tracking-wide mb-2">What should we call you?</h1>
+			<h1 class="font-display text-3xl tracking-wide mb-2">Tell us about you</h1>
 			<p class="text-sm text-base-content/60 mb-6">
-				This is the name your friends will see on the leaderboard. You can change it later in your profile.
+				A few details so we can set up your pool. You can change these later in your profile.
 			</p>
 
 			{#if localError || $authError}
@@ -81,26 +102,61 @@
 				</div>
 			{/if}
 
-			<form class="space-y-4" on:submit|preventDefault={handleSubmit}>
+			<form class="space-y-5" on:submit|preventDefault={handleSubmit}>
+				<!-- Full name -->
 				<div class="form-control">
 					<label class="label py-1" for="name">
-						<span class="label-text text-xs uppercase tracking-wider text-base-content/60"
-							>Display name</span
-						>
+						<span class="label-text text-xs uppercase tracking-wider text-base-content/60">Full name</span>
 					</label>
 					<input
 						id="name"
 						type="text"
 						class="input input-bordered w-full"
-						placeholder="Your name"
+						placeholder="Your full name"
 						bind:value={name}
 						disabled={saving}
 						autocomplete="name"
 						maxlength={100}
-						autofocus
 					/>
 				</div>
-				<button type="submit" class="btn btn-primary w-full" disabled={saving}>
+
+				<!-- Employer -->
+				<div class="form-control">
+					<span class="label-text text-xs uppercase tracking-wider text-base-content/60 mb-2 block">Where do you work?</span>
+					<div class="grid grid-cols-3 gap-2">
+						{#each EMPLOYER_OPTIONS as opt}
+							<button
+								type="button"
+								disabled={saving}
+								class="btn btn-sm normal-case {employer === opt.v ? 'btn-primary' : 'btn-outline'}"
+								aria-pressed={employer === opt.v}
+								on:click={() => (employer = opt.v)}
+							>
+								{opt.l}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<!-- Conditional company contact -->
+				{#if employer === 'neither'}
+					<div class="form-control">
+						<label class="label py-1" for="contact">
+							<span class="label-text text-xs uppercase tracking-wider text-base-content/60">Who is your contact at Atlas or JMFA</span>
+						</label>
+						<input
+							id="contact"
+							type="text"
+							class="input input-bordered w-full"
+							placeholder="Name of your contact"
+							bind:value={companyContact}
+							disabled={saving}
+							maxlength={100}
+						/>
+					</div>
+				{/if}
+
+				<button type="submit" class="btn btn-primary w-full" disabled={saving || !canSubmit}>
 					{#if saving}
 						<span class="loading loading-spinner loading-sm"></span>
 						Saving…

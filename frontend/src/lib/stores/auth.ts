@@ -45,12 +45,15 @@ token.subscribe((value) => {
 });
 
 // Actions
-export async function requestMagicLink(email: string): Promise<boolean> {
+export async function requestMagicLink(
+	email: string,
+	captchaToken?: string | null
+): Promise<boolean> {
 	loading.set(true);
 	error.set(null);
 
 	try {
-		await authApi.requestMagicLink({ email });
+		await authApi.requestMagicLink({ email, captcha_token: captchaToken ?? null });
 		return true;
 	} catch (e) {
 		error.set(e instanceof Error ? e.message : 'Failed to send sign-in link');

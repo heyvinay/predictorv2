@@ -18,6 +18,8 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
+	import UserAvatar from '$lib/components/UserAvatar.svelte';
+	import { needsOnboarding } from '$lib/utils/onboarding';
 
 	let hasLoadedPhase = false;
 
@@ -38,8 +40,10 @@
 		stopAdminAttentionPolling();
 	}
 
-	// New magic-link users have no name yet — send them to onboarding
-	$: if ($isAuthenticated && $user && $user.name === null && $page.url.pathname !== '/onboarding') {
+	// Users missing any mandatory profile field (name, employer, or the
+	// neither-contact) are routed to onboarding — this also back-fills
+	// existing/Google accounts that predate the new fields.
+	$: if ($isAuthenticated && needsOnboarding($user) && $page.url.pathname !== '/onboarding') {
 		goto('/onboarding');
 	}
 
@@ -172,9 +176,7 @@
 						class="btn btn-ghost h-12 w-full justify-start px-2 gap-2"
 					>
 						<div class="relative">
-							<div class="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20">
-								<span class="text-base font-bold text-white leading-none">{$user?.name?.charAt(0).toUpperCase() || '?'}</span>
-							</div>
+							<UserAvatar name={$user?.name ?? null} />
 							{#if $user?.is_admin && $adminAttentionCount > 0}
 								<span
 									class="absolute -top-1 -right-1 badge badge-warning badge-xs font-mono"
@@ -361,9 +363,7 @@
 				<div class="dropdown dropdown-end">
 					<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 						<div class="relative">
-							<div class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent grid place-items-center ring-2 ring-primary/20">
-								<span class="text-lg font-bold text-white leading-none translate-y-0.5">{$user?.name?.charAt(0).toUpperCase() || '?'}</span>
-							</div>
+							<UserAvatar name={$user?.name ?? null} sizeClass="w-10 h-10" textClass="text-lg" />
 							{#if $user?.is_admin && $adminAttentionCount > 0}
 								<span
 									class="absolute -top-1 -right-1 badge badge-warning badge-xs font-mono"

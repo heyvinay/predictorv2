@@ -5,6 +5,7 @@
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
+	import { updateProfile } from '$api/auth';
 	import {
 		fetchMatchPredictions,
 		fetchBracketPredictions,
@@ -81,8 +82,13 @@
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
 	import { tick } from 'svelte';
 
+	// returnTo round-trip (R7): if an unauth user lands on this deep-link
+	// URL (e.g. from the submission-confirmation email), preserve the path
+	// through /login → magic-link → /auth/callback so they end up here
+	// instead of the dashboard.
 	$: if (!$isAuthenticated) {
-		goto('/login');
+		const returnTo = $page.url.pathname + $page.url.search;
+		goto(`/login?returnTo=${encodeURIComponent(returnTo)}`);
 	}
 
 	// Phase + pill selection state. Phase 2 is dormant in the simplified
@@ -277,7 +283,9 @@
 	// ConfirmModal state — one boolean per modal usage on this page.
 	// Lock modal = "Submit" confirmation; Unlock modal = "Edit" / revert.
 	// Discard modal = "Discard unsaved changes" from BottomActionBar.
-	let lockModalOpen = false;
+	// Submit modal is now the dual-mode PrintPreviewModal (see plan R3);
+	// `lockModalOpen` was retired in round 2. `unlockModalOpen` still drives
+	// the revert-to-draft ConfirmModal.
 	let unlockModalOpen = false;
 	let discardModalOpen = false;
 
@@ -367,6 +375,22 @@
 	// Smart Fill modal state.
 	let smartFillModalOpen = false;
 	let printPreviewOpen = false;
+	// submissionMeta drives the receipt-style header in the recap (R6).
+	// `status` reflects the entry-level Phase 1 lens (matches the wizard's
+	// own UX surface). `statusAt` is the most relevant timestamp —
+	// submitted_at from the Phase 1 row when SUBMITTED, otherwise the
+	// entry's updated_at (last save).
+	$: submissionMeta = $activeEntry
+		? (() => {
+				const status = computeDisplayStatus($activeEntry, 'phase_1');
+				const phase1 = $activeEntry.phases.find((p) => p.phase === 'phase_1');
+				const statusAt =
+					status === 'submitted'
+						? phase1?.submitted_at ?? $activeEntry.updated_at
+						: $activeEntry.updated_at;
+				return { status, statusAt };
+			})()
+		: null;
 	$: smartFillBlanksOnly = $groupFixtures
 		.flatMap((g) => g.fixtures)
 		.filter((f) => !f.is_locked && fixturePrediction(f.id) === null);
@@ -418,19 +442,32 @@
 		}
 	}
 
-	function handleSubmit(): void {
-		if (!$activeEntry) return;
-		lifecycleError = null;
-		lockModalOpen = true;
+	// Submit flow: SubmitSummary hosts the disclaimer + paid_to + checkbox
+	// + Submit button inline (see plan R9). Its `submit` event fires with
+	// the trimmed paid_to value, which we persist to the user then submit.
+	// The BottomActionBar's Submit button (page-bottom action bar) is a
+	// secondary CTA on the Submit step — it scrolls the user up into the
+	// inline form rather than bypassing the consent UI.
+	function scrollToInlineSubmit(): void {
+		const el = document.querySelector('#submit-paid-to');
+		if (el && 'scrollIntoView' in el) {
+			(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+			(el as HTMLInputElement).focus();
+		}
 	}
 
-	async function confirmSubmit(): Promise<void> {
-		lockModalOpen = false;
+	async function confirmSubmit(paidTo: string): Promise<void> {
 		const current = $activeEntry;
 		if (!current) return;
 		lifecycleBusy = 'submit';
 		lifecycleError = null;
 		try {
+			// Persist paid_to on the user first so the backend gate
+			// (entries_service.submit_entry) sees it.
+			if (paidTo && paidTo !== ($user?.paid_to ?? '')) {
+				const updated = await updateProfile({ paid_to: paidTo });
+				user.set(updated);
+			}
 			await entriesApi.submitEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
@@ -1467,13 +1504,16 @@
 					{displayBracket}
 					{bonusQuestions}
 					{bonusAnswers}
+					groupStandings={standingsMap}
+					{submissionMeta}
+					userPaidTo={$user?.paid_to ?? null}
+					submitBusy={lifecycleBusy === 'submit'}
 					status={uiStatus}
 					canSubmit={phase1AllComplete}
-					{incompleteSummary}
 					submittedAt={$activeEntry?.phases?.find((p) => p.phase === 'phase_1')?.submitted_at ?? null}
 					canUnlock={uiStatus === 'locked' && !$isPhase1Locked}
 					on:editStep={(e) => setStep(e.detail.step)}
-					on:submit={handleSubmit}
+					on:submit={(e) => confirmSubmit(e.detail.paidTo)}
 					on:unlock={handleEdit}
 				/>
 			{/if}
@@ -1578,27 +1618,16 @@
 			{nextStepLabel}
 			{canContinue}
 			on:saveDraft={handleSaveAll}
-			on:submit={handleSubmit}
+			on:submit={scrollToInlineSubmit}
 			on:unlock={handleEdit}
 			on:discard={openDiscardDialog}
 			on:back={handleBackStep}
 			on:continue={handleContinueStep}
 		/>
 
-		<!-- ConfirmModal instances (one per lifecycle action). Fixed-positioned,
-		     so their DOM location is purely organizational. -->
-		<ConfirmModal
-			open={lockModalOpen}
-			icon="🔒"
-			title="Submit your predictions?"
-			message={$activeEntry
-				? `"${$activeEntry.display_name}" becomes official and qualifies for scoring. You can still tap Edit to revert until the competition starts.`
-				: ''}
-			confirmLabel="Submit"
-			confirmVariant="success"
-			onConfirm={confirmSubmit}
-			onCancel={() => (lockModalOpen = false)}
-		/>
+		<!-- Submit modal is now the dual-mode PrintPreviewModal below (mode='submit').
+		     The remaining ConfirmModal instances drive the smaller lifecycle
+		     actions (revert, discard). -->
 
 		<ConfirmModal
 			open={unlockModalOpen}
@@ -1638,7 +1667,8 @@
 			on:cancel={() => (smartFillModalOpen = false)}
 		/>
 
-		<!-- Print Preview modal — always available so user can review before or after submit -->
+		<!-- Read-only Print Preview modal. The submit flow lives inline in
+		     SubmitSummary (see plan R9). -->
 		<PrintPreviewModal
 			open={printPreviewOpen}
 			entryName={$activeEntry?.display_name ?? ''}
@@ -1649,6 +1679,8 @@
 			displayBracket={displayBracket}
 			{bonusQuestions}
 			{bonusAnswers}
+			groupStandings={standingsMap}
+			{submissionMeta}
 			onClose={() => (printPreviewOpen = false)}
 		/>
 	</div>

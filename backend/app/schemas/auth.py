@@ -3,9 +3,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
-from app.models.user import AuthProvider
+from app.models.user import AuthProvider, Employer
 from app.schemas.leaderboard import PointBreakdown
 
 
@@ -36,6 +36,10 @@ class UserRead(BaseModel):
     is_active: bool
     competition_id: uuid.UUID | None
     created_at: datetime
+    # Onboarding profile fields (see app.models.user.User).
+    employer: Employer | None
+    company_contact: str | None
+    paid_to: str | None
 
     class Config:
         """Pydantic config."""
@@ -47,17 +51,37 @@ class UserUpdate(BaseModel):
     """Schema for updating user profile.
 
     Used by ``PATCH /api/auth/me`` — primarily by the /onboarding page
-    to set a name for new magic-link users, and by admin profile edits.
+    to set the mandatory profile fields for new magic-link users, and by
+    later profile edits. All fields optional so partial edits (e.g.
+    changing just the avatar) don't require resending everything.
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     email: EmailStr | None = None
+    employer: Employer | None = None
+    company_contact: str | None = Field(default=None, max_length=100)
+    paid_to: str | None = Field(default=None, max_length=100)
+
+    @model_validator(mode="after")
+    def _require_contact_for_neither(self) -> "UserUpdate":
+        """If employer is being set to NEITHER, a company contact is
+        required (cross-field rule — the picker must send both together)."""
+        if self.employer == Employer.NEITHER and not (
+            self.company_contact and self.company_contact.strip()
+        ):
+            raise ValueError(
+                "A contact name at Atlas or JMFA is required when employer is Neither."
+            )
+        return self
 
 
 class MagicLinkRequest(BaseModel):
     """Payload for ``POST /api/auth/request-magic-link``."""
 
     email: EmailStr
+    # Cloudflare Turnstile token from the login widget. Optional so dev
+    # (CAPTCHA disabled) and tests don't need to supply one.
+    captcha_token: str | None = None
 
 
 class MagicLinkResponse(BaseModel):

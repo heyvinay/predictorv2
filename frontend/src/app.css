@@ -969,8 +969,47 @@ input[type='number'] {
 	@apply bg-base-content/30;
 }
 
-/* Print: show only .print-preview-target, hide all page chrome */
+/* Print: show only the .print-preview-target, hide everything else.
+ *
+ * PrintPreviewModal moves the target to be a direct body child on
+ * `beforeprint` (and restores it on `afterprint`). That makes the print
+ * stylesheet trivial — we just hide every other body child. Normal
+ * document flow takes over, page breaks behave sanely, and CSS Grid
+ * inside the recap (R32 / R16 / QF column grids) lays out correctly
+ * because there are no enclosing positioned ancestors.
+ *
+ * `print:break-inside-avoid` on each round container (set in
+ * EntryRecapBody) keeps a single round on one page when possible.
+ */
 @media print {
-  body > * { display: none !important; }
-  .print-preview-target { display: block !important; position: static !important; overflow: visible !important; }
+  /* Hide every body child that isn't the print target. */
+  body > *:not(.print-preview-target) {
+    display: none !important;
+  }
+  /* Reset the target's modal-scroll chrome so it prints as a normal page. */
+  .print-preview-target {
+    display: block !important;
+    position: static !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+  /* Drop interactive chrome that might be inside the target subtree. */
+  .print-preview-target .print\:hidden,
+  .print-preview-target [class*="scroll-cue"] {
+    display: none !important;
+  }
+  /* Make sure body itself doesn't impose dark theming on print. */
+  html, body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 }
+
+@page { margin: 1cm; }

@@ -688,6 +688,16 @@ async def submit_entry(
     if competition.block_unpaid_entry_submission and not entry.paid:
         raise EntryValidationError("Entry is unpaid; submission blocked")
 
+    # Pool-rule (R3): the user must record who they paid the entry fee to
+    # before submitting. The field is optional in the profile UI but enforced
+    # here so any submit caller (API, future scripts, tests) gets the same
+    # gate. The frontend submit modal captures + persists it via PATCH /auth/me
+    # right before calling submit; this validation is the safety net.
+    if not user.paid_to or not user.paid_to.strip():
+        raise EntryValidationError(
+            "Please record who you paid the fee to before submitting."
+        )
+
     # Duplicate-submission check — reject identical predictions.
     conflict = await _find_duplicate_eligible_entry(
         session, entry=entry, phase=phase

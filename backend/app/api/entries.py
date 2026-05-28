@@ -13,15 +13,20 @@ in `services/entries.py`.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.dependencies import AdminUser, CurrentUser, DbSession
+from app.models._datetime import utc_now
 from app.models.entry import EntryStatus
 from app.models.prediction import PredictionPhase
+
+logger = logging.getLogger(__name__)
 from app.schemas.entry import (
     AdminEntriesPage,
     EntryCompletionSummary,
@@ -40,6 +45,7 @@ from app.schemas.entry import (
 )
 from app.services import entries as entries_service
 from app.services.audit import AuditContext, audit_context
+from app.services.email import send_submission_confirmation_email
 from app.services.entries import (
     EntryAccessDeniedError,
     EntryConfigError,
@@ -286,6 +292,34 @@ async def submit_entry(
     except Exception as exc:
         await session.rollback()
         _raise_for(exc)
+
+    # Submission confirmation email — best-effort. The entry is already
+    # committed and audit-logged; failing the API call on a Resend outage
+    # would tell the user "submission failed" when in fact it succeeded,
+    # which is the worst outcome. Log and swallow.
+    settings = get_settings()
+    # The submission just committed milliseconds ago; using utc_now() avoids
+    # having to relationship-load the phase row's submitted_at. "%d %b %Y,
+    # %H:%M" → "27 May 2026, 14:32" — zero-padded day is portable across
+    # platforms (Linux's %-d is not on Windows containers).
+    submitted_at_display = utc_now().strftime("%d %b %Y, %H:%M")
+    deep_link_url = f"{settings.frontend_url}/entries/{entry_id}"
+    try:
+        await send_submission_confirmation_email(
+            to_email=current_user.email,
+            player_name=current_user.name or current_user.email,
+            entry_name=entry.display_name,
+            entry_ref=entry.reference,
+            submitted_at_display=submitted_at_display,
+            deep_link_url=deep_link_url,
+        )
+    except Exception as e:  # noqa: BLE001 — email is best-effort
+        logger.warning(
+            "[submission] confirmation email failed for entry %s: %s",
+            entry_id,
+            e,
+        )
+
     return EntryRead.model_validate(entry)
 
 

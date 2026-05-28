@@ -7,6 +7,8 @@
 export * from './entry';
 
 // Auth types
+export type Employer = 'atlas' | 'jmfa' | 'neither';
+
 export interface User {
 	id: string;
 	email: string;
@@ -16,6 +18,9 @@ export interface User {
 	is_active: boolean;
 	competition_id: string | null;
 	created_at: string;
+	employer: Employer | null;
+	company_contact: string | null;
+	paid_to: string | null;
 }
 
 export interface Token {
@@ -25,6 +30,7 @@ export interface Token {
 
 export interface MagicLinkRequest {
 	email: string;
+	captcha_token?: string | null;
 }
 
 // Fixture types
@@ -332,7 +338,10 @@ export interface ActualStandingsResponse {
 
 // Profile types
 export interface UserUpdate {
-	name: string;
+	name?: string;
+	employer?: Employer;
+	company_contact?: string;
+	paid_to?: string;
 }
 
 export interface UserStats {

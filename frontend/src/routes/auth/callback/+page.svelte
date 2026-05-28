@@ -20,7 +20,22 @@
 			// (otherwise the dashboard's auth reactive can fire `goto('/login')`
 			// during the transient window between token-set and user-load).
 			await handleOAuthCallback(token);
-			goto('/');
+
+			// returnTo round-trip (R7): if the user was deep-linked through
+			// /login?returnTo=/entries/X, restore that destination. Strict
+			// anti-open-redirect: must start with a single '/'; reject absolute
+			// URLs, protocol-relative URLs, and anything malformed.
+			let dest = '/';
+			try {
+				const rt = sessionStorage.getItem('predictor_returnTo');
+				if (rt && rt.startsWith('/') && !rt.startsWith('//')) {
+					dest = rt;
+				}
+				sessionStorage.removeItem('predictor_returnTo');
+			} catch {
+				/* sessionStorage unavailable — fall through to dashboard */
+			}
+			goto(dest);
 		} else {
 			error = 'No authentication token received';
 		}

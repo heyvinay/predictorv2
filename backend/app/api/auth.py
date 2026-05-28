@@ -44,6 +44,7 @@ from app.schemas.auth import (
     UserUpdate,
 )
 from app.services.audit import AuditContext, audit_context, record_audit_event
+from app.services.captcha import verify_turnstile
 from app.services.email import send_magic_link_email
 from app.services.profile import calculate_user_stats
 
@@ -323,7 +324,7 @@ _MAGIC_LINK_THROTTLE_SECONDS = 60
 
 @router.post("/request-magic-link", response_model=MagicLinkResponse)
 async def request_magic_link(
-    payload: MagicLinkRequest, session: DbSession
+    payload: MagicLinkRequest, session: DbSession, request: Request
 ) -> MagicLinkResponse:
     """Issue a one-time sign-in link to the supplied email address.
 
@@ -342,6 +343,17 @@ async def request_magic_link(
     enumerate accounts.
     """
     settings = get_settings()
+
+    # Gate on Cloudflare Turnstile before doing anything else (this is the
+    # only unauthenticated, account-creating endpoint). No-ops in dev when
+    # no secret key is configured.
+    client_ip = request.client.host if request.client else None
+    if not await verify_turnstile(payload.captcha_token, client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Captcha verification failed. Please try again.",
+        )
+
     email = payload.email.lower().strip()
 
     # Find-or-create user.
@@ -498,6 +510,12 @@ async def update_current_user(
                 detail="That email is already in use.",
             )
         current_user.email = payload.email
+    if payload.employer is not None:
+        current_user.employer = payload.employer
+    if payload.company_contact is not None:
+        current_user.company_contact = payload.company_contact
+    if payload.paid_to is not None:
+        current_user.paid_to = payload.paid_to
 
     current_user.updated_at = utc_now()
     session.add(current_user)

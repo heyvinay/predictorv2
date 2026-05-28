@@ -175,8 +175,11 @@
 						</button>
 					</div>
 
-					<!-- Right zone: Continue. Suppressed on the last step (Submit) —
-					     the explicit "Submit Entry" button lives in <SubmitSummary>. -->
+					<!-- Right zone: Continue button on intermediate steps. On the
+					     Submit step (no nextStep), the explicit "Submit Entry"
+					     button lives inside <SubmitSummary>, which sits below the
+					     fold — show a small italic hint so users always know
+					     where to find it even if the in-card scroll-cue misses. -->
 					<div class="flex-1 flex justify-end min-w-0">
 						{#if nextStep}
 							<button
@@ -192,6 +195,10 @@
 								<span class="sm:hidden">Continue</span>
 								<span aria-hidden="true">→</span>
 							</button>
+						{:else}
+							<span class="text-xs italic text-base-content/60 whitespace-nowrap">
+								Scroll down to submit ↓
+							</span>
 						{/if}
 					</div>
 				{:else}

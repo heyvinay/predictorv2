@@ -77,11 +77,15 @@ async def competition(session: AsyncSession) -> Competition:
 
 @pytest_asyncio.fixture
 async def user(session: AsyncSession) -> User:
+    # paid_to is pre-populated so existing submit tests pass; the new R3
+    # gate in submit_entry rejects submissions where paid_to is empty.
+    # A dedicated test exercises the blocked path with a user lacking it.
     u = User(
         email="alice@example.com",
         name="Alice",
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
+        paid_to="Pool Treasurer",
     )
     session.add(u)
     await session.commit()
@@ -96,6 +100,7 @@ async def other_user(session: AsyncSession) -> User:
         name="Bob",
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
+        paid_to="Pool Treasurer",
     )
     session.add(u)
     await session.commit()
@@ -306,6 +311,41 @@ class TestLifecycle:
         await session.commit()
         assert phase.status == EntryStatus.SUBMITTED
         assert phase.submitted_at is not None
+
+    async def test_submit_blocked_without_paid_to(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """R3 gate: a user must record paid_to before submitting."""
+        # Clear paid_to to simulate a user who hasn't filled it in yet.
+        user.paid_to = None
+        await session.commit()
+
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        with pytest.raises(EntryValidationError, match=r"(?i)paid"):
+            await entries_service.submit_entry(
+                session, entry=entry, user=user, competition=competition
+            )
+
+    async def test_submit_blocked_when_paid_to_is_whitespace(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """Empty-string and whitespace-only paid_to are equally blocked."""
+        user.paid_to = "   "
+        await session.commit()
+
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        with pytest.raises(EntryValidationError, match=r"(?i)paid"):
+            await entries_service.submit_entry(
+                session, entry=entry, user=user, competition=competition
+            )
 
     async def test_edit_reverts_submitted_to_draft(
         self, session: AsyncSession, user: User, competition: Competition
