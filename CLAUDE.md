@@ -169,3 +169,19 @@ in `frontend/src/routes/+layout.svelte`.
 bracket exposure, underdog hits, steepest climb) fall back to deterministic
 stubs via `frontend/src/lib/utils/widgetFallbacks.ts` when their endpoint is
 empty or unavailable.
+
+### Frontend gotchas
+
+- **Svelte `<script lang="ts">` does NOT extend TypeScript into template
+  expressions.** Only the script block is parsed as TS; everything inside
+  `{...}` in the markup is parsed as plain JavaScript. Inline handlers like
+  `on:click={(e) => (e.currentTarget as HTMLElement).foo()}` will throw a
+  Vite compile error on the `as`. Extract them to a named function in the
+  script block (the pattern in `+layout.svelte` — `logoFallbackRail` etc.).
+  When this breaks, Vite keeps the last-good build live and the dev server
+  *silently* serves stale output — the error is only visible in the dev
+  container's stdout (`docker logs predictorv2-frontend-dev-1`), not in the
+  browser or via asset probes. Always check dev-server logs first when a
+  change "doesn't show up."
+- **`app.html` changes do not hot-reload.** Vite treats it as a boot-time
+  document shell. Edits require `docker-compose restart frontend-dev`.
