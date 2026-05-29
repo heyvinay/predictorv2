@@ -65,6 +65,11 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # Server-side load functions ("/+page.server.ts") use this to reach
+      # the backend across the Docker network. Browser-side requests go
+      # through nginx (/api/* → backend); SvelteKit's internal fetch does
+      # not, so it needs the absolute service URL.
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://backend:8000}
       # Analytics — substituted into app.html via %sveltekit.env.PUBLIC_*%
       # at request time. Empty → corresponding script tag no-ops.
       - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
@@ -87,6 +92,8 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=development
+      # See `frontend` service for rationale.
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://backend:8000}
       # Analytics env vars — see `frontend` service above. Empty on dev
       # by default so local sessions don't pollute prod metrics.
       - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
