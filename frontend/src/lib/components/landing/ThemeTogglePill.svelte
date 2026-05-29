@@ -11,13 +11,23 @@
 	collapses to icon-only to save room.
 -->
 <script lang="ts">
-	import { theme } from '$stores/theme';
+	import { theme, type Theme } from '$stores/theme';
 	import Sun from 'lucide-svelte/icons/sun';
 	import Moon from 'lucide-svelte/icons/moon';
 
+	// Pure dark themes — body canvas is dark. Hybrids have a LIGHT body
+	// (dark chrome only) so they don't belong here.
+	const DARK_THEMES = new Set<Theme>(['premium-night', 'vin-dark']);
+
+	// Authenticated users get the full six-theme picker in the rail/navbar;
+	// this pill is the unauthenticated visitor's fast night↔day affordance.
+	// Light-bodied themes (hybrid, vin-light, vin-hybrid) flip to premium-night
+	// so the binary toggle stays predictable regardless of the stored preference.
 	function toggle() {
-		theme.update((t) => (t === 'premium-night' ? 'premium-day' : 'premium-night'));
+		theme.update((t) => (DARK_THEMES.has(t) ? 'premium-day' : 'premium-night'));
 	}
+
+	$: isDark = DARK_THEMES.has($theme);
 </script>
 
 <button
@@ -28,9 +38,9 @@
 		hover:text-base-content hover:border-primary/40 transition-colors"
 	on:click={toggle}
 	aria-label="Toggle colour theme"
-	title={$theme === 'premium-night' ? 'Switch to light theme' : 'Switch to dark theme'}
+	title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
 >
-	{#if $theme === 'premium-night'}
+	{#if isDark}
 		<Sun size={14} />
 		<span class="hidden sm:inline">Light</span>
 	{:else}

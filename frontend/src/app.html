@@ -26,12 +26,15 @@
 		<title>Predictor v2</title>
 		<script>
 			// Apply persisted theme synchronously to prevent FOUC.
-			// Themes: premium-night (dark, default) | premium-day (light).
+			// Themes: premium-night (default) | premium-day | hybrid |
+			//         vin-dark | vin-light | vin-hybrid.
 			// Legacy 'light' values migrate to 'premium-day'.
+			// Whitelist must stay in sync with THEMES in $lib/stores/theme.ts.
 			try {
+				var valid = ['premium-night','premium-day','hybrid','vin-dark','vin-light','vin-hybrid'];
 				var t = localStorage.getItem('predictor:theme');
 				if (t === 'light') t = 'premium-day';
-				if (t !== 'premium-day' && t !== 'premium-night') t = 'premium-night';
+				if (valid.indexOf(t) === -1) t = 'premium-night';
 				document.documentElement.setAttribute('data-theme', t);
 			} catch (e) {}
 		</script>
