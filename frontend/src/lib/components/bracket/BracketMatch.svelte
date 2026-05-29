@@ -19,7 +19,7 @@
 	                                        theme-driven so the gold reads
 	                                        correctly in both premium-night
 	                                        (champagne #D4AF37) and
-	                                        premium-day (deeper #B8941F).
+	                                        hybrid (deeper #B8941F).
 	  is-winner background rgb(34 197 94) → green wash on the picked team
 	                                        row, pinned to Tailwind green-500
 	                                        at 28 % alpha so the highlight

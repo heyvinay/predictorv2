@@ -633,300 +633,15 @@
 		@apply text-base;
 	}
 
-	/* ----- Premium-theme tuning for the selector ----- */
-	[data-theme="premium-day"] .group-selector {
-		border-color: rgba(var(--premium-ink) / 0.12);
-		background-color: rgba(var(--premium-cream) / 0.55);
-	}
-	[data-theme="premium-day"] .group-stepper-btn {
-		background-color: rgba(var(--premium-cream) / 0.6);
-		border-color: rgba(var(--premium-ink) / 0.15);
-		color: rgba(var(--premium-ink) / 0.65);
-	}
-	[data-theme="premium-day"] .group-stepper-btn:hover {
-		background-color: rgba(var(--premium-cream) / 0.85);
-		border-color: rgba(var(--premium-bordeaux) / 0.35);
-		color: rgba(var(--premium-bordeaux) / 1);
-	}
-	[data-theme="premium-day"] .group-focus-badge {
-		border-color: rgba(var(--premium-bordeaux) / 0.55);
-		background-color: rgba(var(--premium-cream) / 0.75);
-	}
-	[data-theme="premium-day"] .group-focus-badge span {
-		color: rgba(var(--premium-bordeaux) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill {
-		background-color: rgba(var(--premium-cream) / 0.55);
-		border-color: rgba(var(--premium-ink) / 0.12);
-		color: rgba(var(--premium-ink) / 0.6);
-	}
-	[data-theme="premium-day"] .group-mini-pill:hover {
-		border-color: rgba(var(--premium-bordeaux) / 0.30);
-		color: rgba(var(--premium-bordeaux) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-active {
-		background-color: rgba(var(--premium-bordeaux) / 0.10);
-		border-color: rgba(var(--premium-bordeaux) / 0.55);
-		color: rgba(var(--premium-bordeaux) / 1);
-		box-shadow: 0 0 0 2px rgba(var(--premium-bordeaux) / 0.18);
-	}
-	[data-theme="premium-day"] .group-mini-pill .progress-fill {
-		background-color: rgba(var(--premium-bordeaux) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-complete {
-		background-color: rgba(61, 107, 78, 0.10);   /* muted forest */
-		border-color: rgba(61, 107, 78, 0.55);
-		color: rgba(61, 107, 78, 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-complete .progress-fill {
-		background-color: rgba(61, 107, 78, 1);
-	}
-
-	/* ============ Premium theme polish ============
-	 * Scoped to [data-theme="premium-day"] only. Cool ice-white canvas,
-	 * midnight-navy ink, champagne-gold CTAs, mint-green success.
-	 * Editorial-meets-broadcast — Premier League programme guide,
-	 * not casino. Card topology: rounded-xl + slate-200/60 micro-
-	 * borders + inset shadow for tactile depth (per spec).
-	 */
-	[data-theme="premium-day"] {
-		--premium-gold:  212 175  55;  /* #D4AF37 — champagne gold (CTAs) */
-		--premium-navy:   11  19  41;  /* #0B1329 — midnight navy (ink, hero) */
-		--premium-ice:   248 250 252;  /* #F8FAFC — crisp ice white (canvas) */
-		--premium-mint:    5 150 105;  /* #059669 — mint success green */
-		--premium-slate: 226 232 240;  /* #E2E8F0 — slate-200 (borders) */
-
-		/* Topology constants from the spec */
-		--premium-card-radius: 12px;
-		--premium-card-border: rgba(var(--premium-slate) / 0.60);   /* border-slate-200/60 */
-		--premium-card-inset: inset 0 1px 2px rgba(0, 0, 0, 0.05);  /* tactile depth */
-	}
-
-	/* Premium-day body background — soft gold + navy washes for
-	   editorial depth. (Typography handled by the base layer; both
-	   themes share Manrope/Inter.) */
-	[data-theme="premium-day"] body {
-		background-image:
-			radial-gradient(ellipse 90% 60% at 50% 0%, rgba(var(--premium-gold) / 0.07) 0%, transparent 55%),
-			radial-gradient(ellipse 70% 50% at 100% 100%, rgba(var(--premium-navy) / 0.05) 0%, transparent 55%);
-		background-attachment: fixed;
-	}
-
-	/* Card topology — slate-200/60 micro-border + inset shadow.
-	   The inset gives tactile depth without lifting the card off the
-	   page; hover adds an outer lift shadow so users feel the affordance. */
-	[data-theme="premium-day"] .stadium-card,
-	[data-theme="premium-day"] .standings-card,
-	[data-theme="premium-day"] .match-card-v2,
-	[data-theme="premium-day"] .group-selector {
-		border-radius: var(--premium-card-radius);
-		border-color: var(--premium-card-border);
-		box-shadow: var(--premium-card-inset);
-		background-color: rgba(var(--premium-ice) / 1);
-		transition: border-color 280ms ease, box-shadow 280ms ease, transform 280ms ease;
-	}
-
-	[data-theme="premium-day"] .match-card-v2:hover:not(.is-locked),
-	[data-theme="premium-day"] .stadium-card:hover {
-		border-color: rgba(var(--premium-navy) / 0.15);
-		box-shadow:
-			var(--premium-card-inset),
-			0 6px 18px -10px rgba(var(--premium-navy) / 0.25);
-	}
-
-	[data-theme="premium-day"] .match-card-v2.is-editing {
-		border-color: rgba(var(--premium-gold) / 0.65);
-		box-shadow:
-			var(--premium-card-inset),
-			0 0 0 3px rgba(var(--premium-gold) / 0.18);
-	}
-
-	/* Primary CTA — vertical champagne-gold gradient with navy ink. */
-	[data-theme="premium-day"] .btn-primary {
-		background-image: linear-gradient(180deg, #E0BE4A 0%, #B8941F 100%);
-		border-color: rgba(var(--premium-gold) / 0.7);
-		color: #0B1329;
-		font-weight: 600;
-		transition: filter 220ms ease, box-shadow 220ms ease;
-	}
-	[data-theme="premium-day"] .btn-primary:hover {
-		filter: brightness(1.06);
-		box-shadow: 0 6px 16px -8px rgba(var(--premium-gold) / 0.55);
-	}
-
-	/* Score box — ice fill, slate border, gold focus ring. */
-	[data-theme="premium-day"] .score-box {
-		background-color: rgba(var(--premium-ice) / 1);
-		border-color: rgba(var(--premium-navy) / 0.12);
-		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
-		color: rgba(var(--premium-navy) / 1);
-	}
-	[data-theme="premium-day"] .score-box:focus {
-		border-color: rgba(var(--premium-gold) / 0.80);
-		box-shadow:
-			inset 0 1px 2px rgba(0, 0, 0, 0.04),
-			0 0 0 3px rgba(var(--premium-gold) / 0.25);
-	}
-
-	/* Countdown chip — gold ink on a soft gold wash. */
-	[data-theme="premium-day"] .countdown-chip {
-		background-color: rgba(var(--premium-gold) / 0.12);
-		color: #8A6B14;
-		border-color: rgba(var(--premium-gold) / 0.35);
-		letter-spacing: 0.04em;
-		font-weight: 600;
-	}
-	[data-theme="premium-day"] .countdown-chip.is-locked {
-		background-color: rgba(var(--premium-navy) / 0.05);
-		color: rgba(var(--premium-navy) / 0.45);
-		border-color: rgba(var(--premium-navy) / 0.12);
-	}
-
-	[data-theme="premium-day"] .group-tag {
-		background-color: rgba(var(--premium-navy) / 0.05);
-		color: rgba(var(--premium-navy) / 0.55);
-		font-weight: 500;
-	}
-
-	[data-theme="premium-day"] .rank-pill,
-	[data-theme="premium-day"] .pts-badge {
-		letter-spacing: 0.04em;
-	}
-	[data-theme="premium-day"] .pts-badge {
-		background-color: rgba(var(--premium-navy) / 0.05);
-		border-color: rgba(var(--premium-navy) / 0.10);
-		color: rgba(var(--premium-navy) / 1);
-	}
-	[data-theme="premium-day"] .rank-pill {
-		background-color: rgba(var(--premium-navy) / 0.05);
-		border-color: rgba(var(--premium-navy) / 0.12);
-		color: rgba(var(--premium-navy) / 0.6);
-	}
-
-	[data-theme="premium-day"] .section-label {
-		letter-spacing: 0.24em;
-		color: rgba(var(--premium-navy) / 0.7);
-		font-weight: 600;
-	}
-
-	/* Brand mark on auth pages — editorial sweep navy → gold → navy. */
-	[data-theme="premium-day"] .text-gradient {
-		background-image: linear-gradient(135deg, #0B1329 0%, #D4AF37 50%, #0B1329 100%);
-		-webkit-background-clip: text;
-		background-clip: text;
-		color: transparent;
-	}
-
-	/* Scrollbars — slate gutter, gold hover. */
-	[data-theme="premium-day"] ::-webkit-scrollbar-track {
-		background-color: rgba(var(--premium-slate) / 0.40);
-	}
-	[data-theme="premium-day"] ::-webkit-scrollbar-thumb {
-		background-color: rgba(var(--premium-navy) / 0.20);
-	}
-	[data-theme="premium-day"] ::-webkit-scrollbar-thumb:hover {
-		background-color: rgba(var(--premium-gold) / 0.70);
-	}
-
-	/* ----- Selector overrides (sport-broadcast variant) ----- */
-	[data-theme="premium-day"] .group-selector {
-		background-color: rgba(var(--premium-ice) / 1);
-	}
-	[data-theme="premium-day"] .group-stepper-btn {
-		background-color: rgba(var(--premium-ice) / 1);
-		border-color: var(--premium-card-border);
-		color: rgba(var(--premium-navy) / 0.7);
-	}
-	[data-theme="premium-day"] .group-stepper-btn:hover {
-		background-color: rgba(var(--premium-gold) / 0.10);
-		border-color: rgba(var(--premium-gold) / 0.45);
-		color: rgba(var(--premium-navy) / 1);
-	}
-	[data-theme="premium-day"] .group-focus-badge {
-		border-color: rgba(var(--premium-gold) / 0.65);
-		background-color: rgba(var(--premium-gold) / 0.08);
-	}
-	[data-theme="premium-day"] .group-focus-badge span {
-		color: rgba(var(--premium-navy) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill {
-		background-color: rgba(var(--premium-ice) / 1);
-		border-color: var(--premium-card-border);
-		color: rgba(var(--premium-navy) / 0.55);
-		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
-	}
-	[data-theme="premium-day"] .group-mini-pill:hover {
-		border-color: rgba(var(--premium-gold) / 0.45);
-		color: rgba(var(--premium-navy) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-active {
-		background-color: rgba(var(--premium-gold) / 0.12);
-		border-color: rgba(var(--premium-gold) / 0.70);
-		color: rgba(var(--premium-navy) / 1);
-		box-shadow:
-			inset 0 1px 2px rgba(0, 0, 0, 0.04),
-			0 0 0 2px rgba(var(--premium-gold) / 0.22);
-	}
-	[data-theme="premium-day"] .group-mini-pill .progress-fill {
-		background-color: rgba(var(--premium-gold) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-complete {
-		background-color: rgba(var(--premium-mint) / 0.10);
-		border-color: rgba(var(--premium-mint) / 0.55);
-		color: rgba(var(--premium-mint) / 1);
-	}
-	[data-theme="premium-day"] .group-mini-pill.is-complete .progress-fill {
-		background-color: rgba(var(--premium-mint) / 1);
-	}
-
-	/* ----- Top navbar — midnight navy executive chrome ----- */
-	[data-theme="premium-day"] .navbar {
-		background-color: rgba(var(--premium-navy) / 1);
-		border-bottom-color: rgba(var(--premium-gold) / 0.25);
-		color: rgba(var(--premium-ice) / 0.85);
-	}
-	/* Brand mark "PREDICTOR" — already gold via .nav-brand → primary,
-	   reads beautifully on navy. No override needed here. */
-
-	/* Desktop nav-center list items — ice-white text on the navy bar. */
-	[data-theme="premium-day"] .navbar-center > ul > li > a {
-		color: rgba(var(--premium-ice) / 0.75);
-		transition: color 180ms ease, background-color 180ms ease;
-	}
-	[data-theme="premium-day"] .navbar-center > ul > li > a:hover {
-		color: rgba(var(--premium-ice) / 1);
-		background-color: rgba(var(--premium-ice) / 0.08) !important;
-	}
-	/* Active link is `text-primary` in the markup — gold on navy is
-	   the correct premium read; no override needed. */
-
-	/* Avatar button hover (ghost) — keep the bg subtle on navy. */
-	[data-theme="premium-day"] .navbar .btn-ghost:hover {
-		background-color: rgba(var(--premium-ice) / 0.08);
-	}
-
-	/* Dropdown popover below the avatar lives on its own bg-base-200
-	   (slate-100) surface — text inside reverts to base-content (navy).
-	   No special handling needed. */
-
-	/* ============ Light-body polish for new themes ============
-	 * Parallel of the premium-day card topology, retargeted at the three
-	 * new light-bodied themes (hybrid, vin-light, vin-hybrid). Uses
-	 * DaisyUI base tokens via `hsl(var(--bN))` so each theme supplies its
-	 * own palette — premium-day's gold-specific block is untouched.
-	 * Topology constants (12px radius, inset shadow) are theme-agnostic. */
+	/* ============ Hybrid light-body polish ============
+	 * Card topology and editorial typography for the `hybrid` theme.
+	 * Uses DaisyUI base tokens via hsl(var(--bN)) — chrome flips to
+	 * premium-night via nested data-theme in +layout.svelte, so the
+	 * body palette here drives only the canvas / cards / inputs. */
 	[data-theme="hybrid"] .stadium-card,
 	[data-theme="hybrid"] .standings-card,
 	[data-theme="hybrid"] .match-card-v2,
-	[data-theme="hybrid"] .group-selector,
-	[data-theme="vin-light"] .stadium-card,
-	[data-theme="vin-light"] .standings-card,
-	[data-theme="vin-light"] .match-card-v2,
-	[data-theme="vin-light"] .group-selector,
-	[data-theme="vin-hybrid"] .stadium-card,
-	[data-theme="vin-hybrid"] .standings-card,
-	[data-theme="vin-hybrid"] .match-card-v2,
-	[data-theme="vin-hybrid"] .group-selector {
+	[data-theme="hybrid"] .group-selector {
 		border-radius: 12px;
 		border-color: hsl(var(--b3) / 0.6);
 		background-color: hsl(var(--b2));
@@ -935,58 +650,38 @@
 	}
 
 	[data-theme="hybrid"] .match-card-v2:hover:not(.is-locked),
-	[data-theme="hybrid"] .stadium-card:hover,
-	[data-theme="vin-light"] .match-card-v2:hover:not(.is-locked),
-	[data-theme="vin-light"] .stadium-card:hover,
-	[data-theme="vin-hybrid"] .match-card-v2:hover:not(.is-locked),
-	[data-theme="vin-hybrid"] .stadium-card:hover {
+	[data-theme="hybrid"] .stadium-card:hover {
 		border-color: hsl(var(--bc) / 0.15);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.05),
 			0 6px 18px -10px hsl(var(--bc) / 0.25);
 	}
 
-	[data-theme="hybrid"] .match-card-v2.is-editing,
-	[data-theme="vin-light"] .match-card-v2.is-editing,
-	[data-theme="vin-hybrid"] .match-card-v2.is-editing {
+	[data-theme="hybrid"] .match-card-v2.is-editing {
 		border-color: hsl(var(--p) / 0.65);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.05),
 			0 0 0 3px hsl(var(--p) / 0.18);
 	}
 
-	/* Score box outline — token-driven so each new theme matches its own
-	   primary on focus. */
-	[data-theme="hybrid"] .score-box,
-	[data-theme="vin-light"] .score-box,
-	[data-theme="vin-hybrid"] .score-box {
+	/* Score box outline — gold focus ring derives from --p. */
+	[data-theme="hybrid"] .score-box {
 		background-color: hsl(var(--b2));
 		border-color: hsl(var(--bc) / 0.12);
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 		color: hsl(var(--bc));
 	}
-	[data-theme="hybrid"] .score-box:focus,
-	[data-theme="vin-light"] .score-box:focus,
-	[data-theme="vin-hybrid"] .score-box:focus {
+	[data-theme="hybrid"] .score-box:focus {
 		border-color: hsl(var(--p) / 0.80);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.04),
 			0 0 0 3px hsl(var(--p) / 0.25);
 	}
 
-	/* ----- "Bold and prominent" team titles (spec §6) -----
-	   Standings team names go from font-medium (500) to Manrope 700.
-	   Match-card team labels go from font-semibold (600) to Manrope 700.
-	   Pure typography — broadened to every light-bodied theme so the
-	   editorial weight reads the same across them. */
-	[data-theme="premium-day"] .standing-row-v2 .team-cell .team-name,
-	[data-theme="premium-day"] .team-block .team-label,
+	/* "Bold and prominent" team titles (spec §6) — Manrope 700 for
+	   standings team names and match-card labels under the light body. */
 	[data-theme="hybrid"] .standing-row-v2 .team-cell .team-name,
-	[data-theme="hybrid"] .team-block .team-label,
-	[data-theme="vin-light"] .standing-row-v2 .team-cell .team-name,
-	[data-theme="vin-light"] .team-block .team-label,
-	[data-theme="vin-hybrid"] .standing-row-v2 .team-cell .team-name,
-	[data-theme="vin-hybrid"] .team-block .team-label {
+	[data-theme="hybrid"] .team-block .team-label {
 		font-family: 'Manrope', system-ui, sans-serif;
 		font-weight: 700;
 		letter-spacing: 0.005em;

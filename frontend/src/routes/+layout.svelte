@@ -5,7 +5,7 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
-	import { theme, chromeThemeFor, THEMES, THEME_LABELS } from '$stores/theme';
+	import { theme, chromeThemeFor } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
 	import { pageTitle } from '$stores/pageTitle';
 	import { supportOpen } from '$stores/supportPanel';
@@ -90,10 +90,15 @@
 		!!$phase1Deadline && new Date($phase1Deadline).getTime() > $currentTime.getTime();
 
 	// Chrome wrappers (rail / topbars / bottom-nav) carry data-theme={chromeTheme}.
-	// chromeThemeFor() returns a dark-theme key under the hybrids and null
-	// otherwise; Svelte 4 removes attributes bound to null so non-hybrid
-	// themes are unaffected and chrome inherits the body theme as before.
+	// Under `hybrid` (the light body) this is 'premium-night' so the chrome
+	// flips to the dark broadcast palette; under `premium-night` itself the
+	// value is null and Svelte 4 removes the attribute, so chrome inherits
+	// the body theme.
 	$: chromeTheme = chromeThemeFor($theme);
+
+	function toggleTheme() {
+		theme.update((t) => (t === 'premium-night' ? 'hybrid' : 'premium-night'));
+	}
 
 	// Logo fallback — if /logo.png is missing, swap the <img> for the
 	// letter-P brand mark. Two sizes: rail (text-2xl) and mobile (text-xl).
@@ -245,38 +250,25 @@
 				{#if hasLiveDeadline}
 					<CountdownTimer deadline={$phase1Deadline} />
 				{/if}
-				<div class="dropdown dropdown-end">
-					<div
-						tabindex="0"
-						role="button"
-						class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
-						data-tip="Choose theme"
-						aria-label="Choose theme"
+				<div
+					class="tooltip tooltip-bottom"
+					data-tip={$theme === 'premium-night' ? 'Switch to light mode' : 'Switch to dark mode'}
+				>
+					<button
+						class="btn btn-ghost btn-sm btn-circle"
+						aria-label={$theme === 'premium-night' ? 'Switch to light mode' : 'Switch to dark mode'}
+						on:click={toggleTheme}
 					>
-						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M2.53 19.65l1.34.56v-9.03a4.502 4.502 0 012.42 4.84 4.5 4.5 0 01-3.76 3.63zM5.04 8.51l.34-.78c.66-1.53 2.44-2.25 3.97-1.6l9.05 3.9c1.54.66 2.25 2.43 1.6 3.97l-3.21 7.49a2.99 2.99 0 01-2.7 1.81H7c-.59 0-1.1-.34-1.35-.86l-2.45-5.69c-.21-.49-.21-1.05 0-1.55l1.84-6.69z" />
-							<path stroke-linecap="round" stroke-linejoin="round" d="M13 8.5a2 2 0 11-4 0 2 2 0 014 0z" />
-						</svg>
-					</div>
-					<ul
-						tabindex="0"
-						class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-200 border border-base-300/50 rounded-xl w-44"
-					>
-						<li class="menu-title px-3 py-1 text-xs text-base-content/50 uppercase tracking-wider">
-							Theme
-						</li>
-						{#each THEMES as key (key)}
-							<li>
-								<button
-									class="rounded-lg {$theme === key ? 'text-primary font-semibold' : ''}"
-									on:click={() => theme.set(key)}
-									aria-current={$theme === key ? 'true' : undefined}
-								>
-									{THEME_LABELS[key]}
-								</button>
-							</li>
-						{/each}
-					</ul>
+						{#if $theme === 'premium-night'}
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+							</svg>
+						{:else}
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+							</svg>
+						{/if}
+					</button>
 				</div>
 				<div class="tooltip tooltip-bottom" data-tip="Help & support">
 					<button
@@ -346,37 +338,25 @@
 				{#if hasLiveDeadline}
 					<CountdownTimer deadline={$phase1Deadline} compact />
 				{/if}
-				<div class="dropdown dropdown-end">
-					<div
-						tabindex="0"
-						role="button"
+				<div
+					class="tooltip tooltip-bottom"
+					data-tip={$theme === 'premium-night' ? 'Switch to light mode' : 'Switch to dark mode'}
+				>
+					<button
 						class="btn btn-ghost btn-sm btn-circle"
-						aria-label="Choose theme"
+						aria-label={$theme === 'premium-night' ? 'Switch to light mode' : 'Switch to dark mode'}
+						on:click={toggleTheme}
 					>
-						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M2.53 19.65l1.34.56v-9.03a4.502 4.502 0 012.42 4.84 4.5 4.5 0 01-3.76 3.63zM5.04 8.51l.34-.78c.66-1.53 2.44-2.25 3.97-1.6l9.05 3.9c1.54.66 2.25 2.43 1.6 3.97l-3.21 7.49a2.99 2.99 0 01-2.7 1.81H7c-.59 0-1.1-.34-1.35-.86l-2.45-5.69c-.21-.49-.21-1.05 0-1.55l1.84-6.69z" />
-							<path stroke-linecap="round" stroke-linejoin="round" d="M13 8.5a2 2 0 11-4 0 2 2 0 014 0z" />
-						</svg>
-					</div>
-					<ul
-						tabindex="0"
-						class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-200 border border-base-300/50 rounded-xl w-44"
-					>
-						<li class="menu-title px-3 py-1 text-xs text-base-content/50 uppercase tracking-wider">
-							Theme
-						</li>
-						{#each THEMES as key (key)}
-							<li>
-								<button
-									class="rounded-lg {$theme === key ? 'text-primary font-semibold' : ''}"
-									on:click={() => theme.set(key)}
-									aria-current={$theme === key ? 'true' : undefined}
-								>
-									{THEME_LABELS[key]}
-								</button>
-							</li>
-						{/each}
-					</ul>
+						{#if $theme === 'premium-night'}
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+							</svg>
+						{:else}
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+							</svg>
+						{/if}
+					</button>
 				</div>
 				<div class="tooltip tooltip-bottom" data-tip="Help & support">
 					<button
