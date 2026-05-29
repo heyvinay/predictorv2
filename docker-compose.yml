@@ -65,6 +65,10 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # Analytics — substituted into app.html via %sveltekit.env.PUBLIC_*%
+      # at request time. Empty → corresponding script tag no-ops.
+      - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
+      - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -83,6 +87,10 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=development
+      # Analytics env vars — see `frontend` service above. Empty on dev
+      # by default so local sessions don't pollute prod metrics.
+      - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
+      - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
     volumes:
       - ./frontend:/app
       - /app/node_modules
