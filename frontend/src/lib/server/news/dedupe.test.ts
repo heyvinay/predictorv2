@@ -133,7 +133,61 @@ describe('dedupeByTitle', () => {
 		expect(dedupeByTitle(items)).toHaveLength(2);
 	});
 
-	it('uses 0.85 as the default threshold', () => {
-		expect(DEFAULT_DEDUPE_THRESHOLD).toBe(0.85);
+	it('uses 0.4 as the default threshold', () => {
+		// Tuned against real BBC ↔ Guardian paraphrases of the same
+		// World Cup story. See comment in dedupe.ts.
+		expect(DEFAULT_DEDUPE_THRESHOLD).toBe(0.4);
+	});
+
+	it('catches paraphrases that share most content words', () => {
+		// Two outlets covering the same story with mostly-shared wording.
+		// After stopword filtering, ~4/5 tokens overlap → Jaccard well
+		// above 0.4 → merged.
+		const items = [
+			item('Brazil announce 26-man World Cup squad', '2026-05-01T10:00:00Z', 'BBC Sport'),
+			item('Brazil announce their 26-man squad for the World Cup', '2026-05-01T11:00:00Z', 'Guardian Football')
+		];
+		expect(dedupeByTitle(items)).toHaveLength(1);
+	});
+
+	it('leaves heavy-rewrite paraphrases separate (honest limitation)', () => {
+		// Both outlets cover the same Messi news with different verbs,
+		// different framings — only "messi" and "sixth" overlap after
+		// stopword filtering. Jaccard ≈ 0.33, below the 0.4 default.
+		// Jaccard at lower thresholds starts merging *different* stories
+		// that share a subject, so we accept this as the honest limit.
+		// Embedding-based dedupe could catch these; out of scope for v1.
+		const items = [
+			item('Messi to represent Argentina at sixth World Cup', '2026-05-01T10:00:00Z'),
+			item('Messi confirms he will play at sixth World Cup', '2026-05-01T11:00:00Z')
+		];
+		expect(dedupeByTitle(items)).toHaveLength(2);
+	});
+});
+
+describe('STOPWORDS filtering', () => {
+	it('drops common English connectives', () => {
+		const tokens = tokenize('England beat Brazil with goals from the striker');
+		expect(tokens.has('with')).toBe(false);
+		expect(tokens.has('the')).toBe(false);
+		expect(tokens.has('from')).toBe(false);
+		// Content words preserved
+		expect(tokens.has('england')).toBe(true);
+		expect(tokens.has('beat')).toBe(true);
+		expect(tokens.has('brazil')).toBe(true);
+		expect(tokens.has('goals')).toBe(true);
+		expect(tokens.has('striker')).toBe(true);
+	});
+
+	it('drops WC-context noise (world, cup, football)', () => {
+		const tokens = tokenize('Brazil eye World Cup glory after qualifying for the football tournament');
+		expect(tokens.has('world')).toBe(false);
+		expect(tokens.has('cup')).toBe(false);
+		expect(tokens.has('football')).toBe(false);
+		// Content words preserved
+		expect(tokens.has('brazil')).toBe(true);
+		expect(tokens.has('glory')).toBe(true);
+		expect(tokens.has('qualifying')).toBe(true);
+		expect(tokens.has('tournament')).toBe(true);
 	});
 });

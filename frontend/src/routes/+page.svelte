@@ -36,6 +36,7 @@
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
 	import CountdownBand from '$lib/components/landing/CountdownBand.svelte';
 	import HowItWorks from '$lib/components/landing/HowItWorks.svelte';
+	import FaqSection from '$lib/components/landing/FaqSection.svelte';
 	import EntryDepth from '$lib/components/landing/EntryDepth.svelte';
 	import ScoringAtAGlance from '$lib/components/landing/ScoringAtAGlance.svelte';
 	import StakesBanner from '$lib/components/landing/StakesBanner.svelte';
@@ -66,7 +67,16 @@
 	/>
 </svelte:head>
 
-<StickyTopBar />
+<!--
+	StickyTopBar and ThemeTogglePill are guest-only: authenticated users
+	already get the layout's app top bar + a theme toggle elsewhere in
+	`+layout.svelte`, so rendering the landing's versions would visibly
+	stack two top bars and surface two toggles. Keep the components pure
+	(no auth coupling inside them) — the page composer owns the gate.
+-->
+{#if !$isAuthenticated}
+	<StickyTopBar />
+{/if}
 
 <TrackedSection name="hero">
 	<LandingHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
@@ -88,6 +98,10 @@
 	<ScoringAtAGlance />
 </TrackedSection>
 
+<TrackedSection name="faq">
+	<FaqSection />
+</TrackedSection>
+
 <TrackedSection name="stakes">
 	<StakesBanner />
 </TrackedSection>
@@ -101,4 +115,7 @@
 </TrackedSection>
 
 <LandingFooter />
-<ThemeTogglePill />
+
+{#if !$isAuthenticated}
+	<ThemeTogglePill />
+{/if}

@@ -38,18 +38,18 @@
 	}
 
 	function buildTrustSignals(players: number | null, days: number | null): string[] {
+		// Three short labels designed to fit one mobile line. The "cut to
+		// charity" story is already in the subhead — no need to duplicate.
 		const signals: string[] = [];
-		// Real player count if we have one and it's worth showing.
-		// Otherwise lead with the pot.
-		if (players !== null && players >= 30) {
-			signals.push(`${players}+ entries`);
+		
+		if (players !== null && players >= 1) {
+			signals.push(`€5 per entry`);
 		}
-		signals.push('€600 pot last year');
-		signals.push('A cut to charity');
+		signals.push('AI-ASSISTED PICKS');
 		if (days !== null) {
-			if (days === 0) signals.push('Kickoff today');
-			else if (days === 1) signals.push('First kickoff tomorrow');
-			else signals.push(`First kickoff in ${days}d`);
+			if (days <= 0) signals.push('Kickoff today');
+			else if (days === 1) signals.push('Kickoff in 1d');
+			else signals.push(`Kickoff in ${days}d`);
 		} else {
 			signals.push('Free to play');
 		}
@@ -65,31 +65,48 @@
 	></div>
 
 	<div
-		class="relative max-w-[1200px] mx-auto mobile-padding py-20 lg:py-24
-			grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-10 lg:gap-14 items-center"
+		class="relative max-w-[1200px] mx-auto mobile-padding py-8 sm:py-12 lg:py-24
+			grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 lg:gap-14 items-center"
 	>
 		<!-- ── Left column — copy ─────────────────────────────────── -->
 		<div>
+			<!--
+				The headline reads as 2 lines on mobile ("MAKE EVERY WORLD
+				CUP" / "MATCH MATTER.") and 3 lines on desktop where the
+				bigger font would otherwise overflow. We render different
+				markup per breakpoint rather than fighting CSS wrap rules —
+				screen-readers see both, but the visible content is one.
+			-->
 			<h1
-				class="font-hero text-[clamp(50px,7.6vw,108px)] leading-[0.9] tracking-[0.01em]
+				class="font-hero text-[clamp(36px,7.6vw,108px)] leading-[0.9] tracking-[0.01em]
 					text-base-content"
 			>
-				<span class="block">MAKE EVERY</span>
-				<span class="block">WORLD CUP</span>
-				<span class="block text-primary">MATCH MATTER.</span>
+				<!-- Mobile / tablet: 2 lines -->
+				<span class="block lg:hidden">
+					<span class="block">MAKE EVERY WORLD CUP</span>
+					<span class="block text-primary">MATCH MATTER.</span>
+				</span>
+				<!-- Desktop: 3 lines (handoff spec — big type would
+				     otherwise wrap unpredictably) -->
+				<span class="hidden lg:block" aria-hidden="true">
+					<span class="block">MAKE EVERY</span>
+					<span class="block">WORLD CUP</span>
+					<span class="block text-primary">MATCH MATTER.</span>
+				</span>
 			</h1>
 
 			<p
-				class="mt-6 text-[18px] sm:text-[20px] text-base-content/80 max-w-2xl leading-relaxed"
+				class="mt-4 sm:mt-5 lg:mt-6 text-base sm:text-[18px] lg:text-[20px]
+					text-base-content/80 max-w-2xl leading-relaxed"
 			>
-				Pick scores, build a bracket, watch the World Cup like it matters. Last year's pot:
-				<strong class="text-base-content font-semibold">€600</strong>. Some goes to charity. The
+				Pick scores, build a bracket, watch the World Cup like it matters. Last tournament's pot:
+				<strong class="text-base-content font-semibold">€600</strong>. <span class="text-amber-500">Some goes to charity.</span> The
 				rest goes to whoever calls the final right.
 			</p>
 
 			<div
-				class="mt-7 flex flex-wrap items-center gap-x-3 gap-y-1
-					text-[11px] sm:text-xs font-mono uppercase tracking-widest text-base-content/60"
+				class="mt-4 sm:mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1
+					text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.16em] text-base-content/60"
 			>
 				{#each trustSignals as signal, i (signal)}
 					{#if i > 0}<span class="text-primary/70" aria-hidden="true">●</span>{/if}

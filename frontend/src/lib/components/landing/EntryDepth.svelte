@@ -44,7 +44,7 @@
 						2 minutes
 					</span>
 				</div>
-				<h3 class="font-display text-lg mb-2">Smart Fill seeds every match</h3>
+				<h3 class="font-display text-lg mb-2">AI Assisted Smart Fill seeds every match</h3>
 				<p class="text-sm text-base-content/70 leading-relaxed">
 					One click, done before your coffee's cold.
 				</p>
@@ -91,7 +91,7 @@
 						More shots at the pot
 					</span>
 				</div>
-				<h3 class="font-display text-lg mb-2">Run three entries — bold, safe, crazy</h3>
+				<h3 class="font-display text-lg mb-2">Submit multiple entries — bold, safe, crazy...</h3>
 				<p class="text-sm text-base-content/70 leading-relaxed">
 					No limits! Each entry appears as its own on the leaderboard.
 				</p>

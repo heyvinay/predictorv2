@@ -3,10 +3,15 @@
 	links. Visible at the bottom of every landing-page view.
 -->
 <script lang="ts">
+	import { supportOpen } from '$stores/supportPanel';
 	import { track } from '$lib/analytics';
 
 	function onRulesClick() {
 		track('rules_link_clicked', { placement: 'footer' });
+	}
+
+	function onContactClick() {
+		supportOpen.set(true);
 	}
 </script>
 
@@ -38,9 +43,13 @@
 			<span class="text-base-content/20" aria-hidden="true">·</span>
 			<a href="/privacy" class="hover:text-primary transition-colors">Privacy</a>
 			<span class="text-base-content/20" aria-hidden="true">·</span>
-			<a href="mailto:hello@atlasinsurance.com.mt" class="hover:text-primary transition-colors">
+			<button
+				type="button"
+				class="hover:text-primary transition-colors font-mono uppercase tracking-widest"
+				on:click={onContactClick}
+			>
 				Contact
-			</a>
+			</button>
 		</nav>
 	</div>
 </footer>

@@ -56,7 +56,7 @@
 			</div>
 
 			<p class="text-sm text-base-content/65 mt-6 leading-relaxed text-center md:text-left">
-				Knockout rounds scale: 10 pts (R32) → 100 pts (Final). Phase 2 predictions earn 70%.
+				Knockout rounds scale: 10 pts (R32) → 100 pts (Final). Bonus points can make the difference.
 			</p>
 
 			<div class="mt-3 text-center md:text-left">

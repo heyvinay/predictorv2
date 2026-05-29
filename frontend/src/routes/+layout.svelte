@@ -441,9 +441,11 @@
 		</nav>
 	{/if}
 
-	<!-- Main content. Padding-left shifts past the rail on desktop; bottom
-	     padding accounts for the mobile tab bar (cleared on desktop). -->
-	<main class="flex-1 pb-16 min-[700px]:pb-0 min-[700px]:pl-48">
+	<!-- Main content. Padding-left clears the desktop rail; bottom padding
+	     clears the mobile tab bar. Both navs are auth-gated above, so we
+	     only reserve space for them when actually rendering them —
+	     otherwise guests get a phantom left column on `/` (the landing). -->
+	<main class="flex-1 {$isAuthenticated ? 'pb-16 min-[700px]:pb-0 min-[700px]:pl-48' : ''}">
 		<slot />
 	</main>
 </div>

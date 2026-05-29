@@ -28,6 +28,7 @@
 	import { requestMagicLink, loading, error as authError } from '$stores/auth';
 	import GoogleLoginButton from '$components/GoogleLoginButton.svelte';
 	import { track } from '$lib/analytics';
+	import Mail from 'lucide-svelte/icons/mail';
 
 	export let id: string | undefined = undefined;
 	export let placement: string = 'standalone';
@@ -208,11 +209,11 @@
 	}
 </script>
 
-<div {id} class="stadium-card no-glow p-7">
+<div {id} class="stadium-card no-glow p-5 sm:p-7">
 	{#if !sent}
-		<h2 class="font-display text-2xl tracking-wide mb-1">Sign in</h2>
+		<h2 class="font-hero text-2xl sm:text-3xl tracking-[0.02em] uppercase mb-1.5">Sign in</h2>
 		<p class="text-sm text-base-content/60 mb-6">
-			We'll email you a one-time link — no password required.
+			We'll email you a one-time link — no password.
 		</p>
 	{:else}
 		<div class="flex flex-col items-center text-center mb-6">
@@ -231,7 +232,7 @@
 					/>
 				</svg>
 			</div>
-			<h2 class="font-display text-2xl tracking-wide mb-2">Check your email</h2>
+			<h2 class="font-hero text-2xl sm:text-3xl tracking-[0.02em] uppercase mb-2">Check your email</h2>
 			<p class="text-sm text-base-content/70 leading-relaxed">
 				We sent a sign-in link to<br />
 				<strong class="text-base-content">{email}</strong>
@@ -273,11 +274,12 @@
 		{/if}
 
 		{#if !sent}
-			<button type="submit" class="btn btn-primary w-full" disabled={sendDisabled}>
+			<button type="submit" class="btn btn-primary w-full gap-2" disabled={sendDisabled}>
 				{#if $loading}
 					<span class="loading loading-spinner loading-sm"></span>
 					Sending…
 				{:else}
+					<Mail size={16} strokeWidth={2.25} />
 					Send me a link
 				{/if}
 			</button>
@@ -301,7 +303,9 @@
 	</form>
 
 	{#if !sent}
-		<div class="divider text-xs text-base-content/40 my-6">or continue with</div>
+		<div class="divider text-[10px] font-mono uppercase tracking-widest text-base-content/40 my-5">
+			or
+		</div>
 		<div on:click={onGoogleClick} on:keydown role="presentation">
 			<GoogleLoginButton disabled={$loading} />
 		</div>

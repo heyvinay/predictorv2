@@ -11,13 +11,25 @@ import type { FeedSource } from './types';
 
 export const FEEDS: readonly FeedSource[] = [
 	{
+		// NOTE on URL: BBC migrated two things at once around 2024:
+		//   1. Hostname `feeds.bbc.co.uk` → `feeds.bbci.co.uk`. The old
+		//      host silently kills TLS handshakes (ECONNRESET).
+		//   2. Path separator from underscore to hyphen in the WC URL
+		//      (`/world_cup/` → `/world-cup/`). The old path returns 404.
+		// Both legacy variants are dead; this is the only working route
+		// to BBC's World Cup feed today.
 		name: 'BBC Sport',
-		url: 'https://feeds.bbc.co.uk/sport/football/world_cup/rss.xml',
+		url: 'https://feeds.bbci.co.uk/sport/football/world-cup/rss.xml',
 		format: 'rss2'
 	},
 	{
+		// Guardian follows a "<topic-page>/rss" convention; appending /rss
+		// to the WC-2026 hub page exposes the WC-only segment. The wider
+		// `/football/rss` is the general football firehose — we're using
+		// the tournament-scoped variant to keep the strip on-topic with
+		// BBC's equivalent WC feed.
 		name: 'Guardian Football',
-		url: 'https://www.theguardian.com/football/rss',
+		url: 'https://www.theguardian.com/football/world-cup-2026/rss',
 		format: 'rss2'
 	}
 ] as const;

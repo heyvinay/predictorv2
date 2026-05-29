@@ -21,11 +21,34 @@
  */
 import type { NewsItem } from './types';
 
-/** Default similarity threshold. 0.85 ≈ "same headline, minor wording
- *  differences"; 0.70 starts catching same-topic-different-angle pairs
- *  (which we DON'T want to dedupe — two perspectives on the same story
- *  is editorially valuable). */
-export const DEFAULT_DEDUPE_THRESHOLD = 0.85;
+/** Default similarity threshold. Tuned against real BBC ↔ Guardian
+ *  paraphrases of the same World Cup story (e.g. "Messi to represent
+ *  Argentina at sixth World Cup" vs "Messi: I'll play in sixth World
+ *  Cup"). Their Jaccard sits around 0.4–0.5 after stopword filtering,
+ *  so 0.4 catches them. Truly distinct stories ("Brazil beat France"
+ *  vs "Germany sign new keeper") score below 0.2 and stay separate. */
+export const DEFAULT_DEDUPE_THRESHOLD = 0.4;
+
+/** Stopwords stripped during tokenization. Two families:
+ *   1. Common English connectives/auxiliaries (>2 chars so they survive
+ *      the length filter) — pure noise that bloats the union and
+ *      depresses Jaccard scores.
+ *   2. WC-context words ("world", "cup", "football") that appear in
+ *      every story in our feeds — meaningful for English in general,
+ *      but pure noise for THIS dedupe job because they don't help
+ *      distinguish one WC story from another.
+ *   Set lookup is O(1), so a longer list costs nothing at runtime. */
+const STOPWORDS = new Set([
+	// English connectives / auxiliaries
+	'the', 'and', 'for', 'are', 'with', 'from', 'this', 'that', 'will',
+	'have', 'has', 'had', 'their', 'they', 'them', 'when', 'where',
+	'into', 'onto', 'about', 'over', 'after', 'before', 'been', 'being',
+	'would', 'could', 'should', 'can', 'may', 'might', 'must', 'than',
+	'then', 'just', 'also', 'still', 'while', 'which', 'what', 'who',
+	'whom', 'whose',
+	// WC-context noise (every story is football+WC by construction)
+	'world', 'cup', 'football', 'soccer'
+]);
 
 /** Public API — returns a deduplicated copy of `items` in input order. */
 export function dedupeByTitle(
@@ -61,15 +84,15 @@ export function dedupeByTitle(
 }
 
 /** Lowercase → strip non-alphanumeric → tokenize on whitespace → drop
- *  tokens of length ≤ 2. Returns a Set for cheap intersection later.
- *  Exported for unit testing. */
+ *  tokens of length ≤ 2 AND drop stopwords. Returns a Set for cheap
+ *  intersection later. Exported for unit testing. */
 export function tokenize(title: string): Set<string> {
 	return new Set(
 		title
 			.toLowerCase()
 			.replace(/[^a-z0-9\s]/g, ' ')
 			.split(/\s+/)
-			.filter((w) => w.length > 2)
+			.filter((w) => w.length > 2 && !STOPWORDS.has(w))
 	);
 }
 

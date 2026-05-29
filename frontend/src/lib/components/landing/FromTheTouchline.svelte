@@ -19,7 +19,10 @@
 	export let news: NewsItem[] = [];
 
 	$: featured = news[0] ?? null;
-	$: gridItems = news.slice(1, 6);
+	// 6 grid cards (was 5 + an "All headlines" tile) — the 6th slot is
+	// now a real article instead of a generic outbound link, which is
+	// both more useful and more editorially honest.
+	$: gridItems = news.slice(1, 7);
 
 	function relativeTime(iso: string): string {
 		const then = new Date(iso).getTime();
@@ -170,30 +173,6 @@
 						</div>
 					</a>
 				{/each}
-
-				<!-- All headlines tile -->
-				<a
-					href="https://www.bbc.com/sport/football"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="group flex items-center justify-center bg-base-100/50 rounded-2xl
-						border-2 border-dashed border-base-300/60 min-h-[200px]
-						hover:border-primary/50 transition-colors"
-				>
-					<div class="text-center">
-						<Rss
-							size={24}
-							strokeWidth={1.5}
-							class="mx-auto mb-2 text-base-content/50 group-hover:text-primary transition-colors"
-						/>
-						<p
-							class="text-xs font-mono uppercase tracking-widest text-base-content/60
-								group-hover:text-primary transition-colors"
-						>
-							All headlines
-						</p>
-					</div>
-				</a>
 			</div>
 		{/if}
 	</div>

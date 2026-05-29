@@ -17,7 +17,7 @@
 		{
 			num: '01',
 			title: 'Predict the Games',
-			body: 'Pick every group-stage match score and call who advances.',
+			body: 'Pick every group-stage match score and call who advances. Pay €5 per entry!',
 			Icon: ListChecks
 		},
 		{

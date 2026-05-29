@@ -48,7 +48,7 @@
 		</h2>
 
 		<p class="mt-5 text-base sm:text-lg text-base-content/75 max-w-xl mx-auto leading-relaxed">
-			€600 last year. A cut to charity. The rest to whoever calls it right.
+			What are you waiting for? Click and let's get started!
 		</p>
 
 		<div class="mt-8 flex flex-col items-center gap-3">

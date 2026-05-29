@@ -3,7 +3,7 @@
 	that escalate as the deadline approaches. Same component, four
 	visually-distinct states driven by time remaining:
 
-	  calm      — > 7 days  → mint green, "Phase 1 locks in"
+	  calm      — > 7 days  → mint green, "Pools locks in"
 	  heads-up  — 1-7 days  → amber, "Last week"
 	  urgent    — < 24h     → red, "Last day" + inline "Lock in →" pill
 	  critical  — < 1h      → red + pulsing, "Minutes left" + larger CTA
@@ -64,7 +64,7 @@
 		if (secs === null) return 'unknown';
 		if (secs <= 0) return 'locked';
 		if (secs < 3600) return 'critical';
-		if (secs < 86_400) return 'urgent';
+		if (secs < 172_400) return 'urgent';
 		if (secs < 604_800) return 'heads_up';
 		return 'calm';
 	}
@@ -94,7 +94,7 @@
 		calm: {
 			colorClass: 'text-success',
 			pulseClass: '',
-			label: 'Phase 1 locks in',
+			label: 'Pools locks in',
 			subline:
 				"Plenty of time. But picks stay editable until kickoff — lock in early, tweak later.",
 			ctaLabel: null
@@ -110,14 +110,14 @@
 			colorClass: 'text-error',
 			pulseClass: 'animate-pulse-soft',
 			label: 'Last day',
-			subline: 'Lock in your picks now. Smart Fill takes 2 minutes.',
+			subline: 'Lock in your picks now. AI assisted Smart Fill takes 2 minutes.',
 			ctaLabel: 'Lock in'
 		},
 		critical: {
 			colorClass: 'text-error',
 			pulseClass: 'animate-pulse-soft',
 			label: 'Minutes left',
-			subline: 'Last chance. Smart Fill finishes in 90 seconds.',
+			subline: 'Last chance. AI assisted Smart Fill finishes in 90 seconds.',
 			ctaLabel: 'Quick fill'
 		},
 		locked: {
@@ -130,7 +130,7 @@
 		unknown: {
 			colorClass: 'text-base-content/60',
 			pulseClass: '',
-			label: 'Phase 1',
+			label: 'Pools',
 			subline: 'Locks in soon.',
 			ctaLabel: null
 		}
@@ -150,26 +150,30 @@
 			{config.label}
 		</p>
 
+		<!-- whitespace-nowrap + a lower clamp() floor prevents the digit
+		     row from wrapping on narrow viewports. tabular-nums keeps
+		     each digit width-stable as the timer ticks, so explicit
+		     min-w on the digit spans is unnecessary. -->
 		<div
-			class="font-hero tabular-nums {config.colorClass} {config.pulseClass}
-				text-[clamp(54px,10.5vw,124px)] leading-none tracking-[0.05em]"
+			class="font-hero tabular-nums whitespace-nowrap {config.colorClass} {config.pulseClass}
+				text-[clamp(36px,10vw,124px)] leading-none tracking-tight"
 		>
 			{#if parts}
-				<span class="inline-block min-w-[1.6em]">{parts.dd}</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">{parts.hh}</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">{parts.mm}</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">{parts.ss}</span>
+				<span>{parts.dd}</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>{parts.hh}</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>{parts.mm}</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>{parts.ss}</span>
 			{:else}
-				<span class="inline-block min-w-[1.6em]">—</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">—</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">—</span>
-				<span class="opacity-60">:</span>
-				<span class="inline-block min-w-[1.6em]">—</span>
+				<span>—</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>—</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>—</span>
+				<span class="opacity-60 px-1 sm:px-2">:</span>
+				<span>—</span>
 			{/if}
 		</div>
 
