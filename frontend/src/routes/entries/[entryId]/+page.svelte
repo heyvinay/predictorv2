@@ -80,6 +80,8 @@
 	import { standingsPanelOpen } from '$stores/uiPreferences';
 	import { wizardSectionLabel } from '$stores/wizardCrumb';
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
+	import { getOdds, getCacheInfo } from '$lib/utils/oddsCache';
+	import { oddsScoreline } from '$lib/utils/oddsScoreline';
 	import { tick } from 'svelte';
 
 	// returnTo round-trip (R7): if an unauth user lands on this deep-link
@@ -375,6 +377,24 @@
 	// Smart Fill modal state.
 	let smartFillModalOpen = false;
 	let printPreviewOpen = false;
+
+	// Betting Odds support — see frontend/src/lib/utils/oddsCache.ts.
+	// Lazy-fetched on first modal open so users who never use Smart Fill
+	// don't pay the network cost. oddsCacheInfo===null means "not yet
+	// attempted"; the reactive block below kicks the fetch when needed.
+	let oddsAvailable = false;
+	let oddsCacheInfo: { fetchedAt: string; matchCount: number; remaining: number } | null = null;
+
+	$: if (smartFillModalOpen && oddsCacheInfo === null) {
+		void getOdds().then((cache) => {
+			if (cache) {
+				oddsCacheInfo = getCacheInfo(cache);
+				oddsAvailable = true;
+			} else {
+				oddsAvailable = false; // key unset, network failure, etc.
+			}
+		});
+	}
 	// submissionMeta drives the receipt-style header in the recap (R6).
 	// `status` reflects the entry-level Phase 1 lens (matches the wizard's
 	// own UX surface). `statusAt` is the most relevant timestamp —
@@ -418,6 +438,7 @@
 		overwrite: boolean;
 		fillBlanks: boolean;
 		fillBracket: boolean;
+		method: 'fifa' | 'odds';
 	}): Promise<void> {
 		smartFillModalOpen = false;
 		const user = $user;
@@ -427,14 +448,34 @@
 		const targets: typeof smartFillBlanksOnly = [];
 		if (opts.fillBlanks) targets.push(...smartFillBlanksOnly);
 		if (opts.overwrite) targets.push(...smartFillExisting);
-		for (const f of targets) {
-			const [h, a] = smartFillScoreline(f.home_team, f.away_team, user.id, f.id);
-			updateLocalPrediction(f.id, h, a);
+
+		if (opts.method === 'odds') {
+			// Defensive: the modal's Odds radio is disabled when the cache
+			// isn't loaded, so this should never be null at this point.
+			const cache = await getOdds();
+			if (!cache) return;
+			for (const f of targets) {
+				const result = await oddsScoreline(
+					f.home_team,
+					f.away_team,
+					f.id,
+					cache.matches,
+					cache.fetchedAt
+				);
+				if (result) updateLocalPrediction(f.id, result[0], result[1]);
+				// Fixtures without matching odds stay blank — silently skipped.
+			}
+		} else {
+			for (const f of targets) {
+				const [h, a] = smartFillScoreline(f.home_team, f.away_team, user.id, f.id);
+				updateLocalPrediction(f.id, h, a);
+			}
 		}
 
 		// 2. Bracket fill — only after a tick so standingsMap reactively
-		//    recomputes from the just-written predictions. Higher-ranked
-		//    team always advances; ties = seeded coin flip per match.
+		//    recomputes from the just-written predictions. Bracket fill
+		//    ALWAYS uses FIFA rankings, regardless of method: odds cover
+		//    scorelines only, not knockout permutations.
 		if (opts.fillBracket) {
 			await tick();
 			const bracket = smartFillBracket(standingsMap, user.id);
@@ -1663,6 +1704,8 @@
 			existingCount={smartFillExisting.length}
 			blankCount={smartFillBlanksOnly.length}
 			bracketAlreadyFilled={bracketIsComplete}
+			{oddsAvailable}
+			{oddsCacheInfo}
 			on:apply={(e) => runSmartFill(e.detail)}
 			on:cancel={() => (smartFillModalOpen = false)}
 		/>
