@@ -1,12 +1,41 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-export const THEMES = ['premium-day', 'premium-night'] as const;
+// Order matters — this is the picker order in +layout.svelte.
+export const THEMES = [
+	'premium-night',
+	'premium-day',
+	'hybrid',
+	'vin-dark',
+	'vin-light',
+	'vin-hybrid'
+] as const;
 
 export type Theme = (typeof THEMES)[number];
 
 export const DEFAULT_THEME: Theme = 'premium-night';
 const STORAGE_KEY = 'predictor:theme';
+
+export const THEME_LABELS: Record<Theme, string> = {
+	'premium-night': 'Night',
+	'premium-day': 'Day',
+	'hybrid': 'Hybrid',
+	'vin-dark': 'VinDark',
+	'vin-light': 'VinLight',
+	'vin-hybrid': 'VinHybrid'
+};
+
+// For hybrid themes the chrome (rail / topbars / bottom-nav) renders in a
+// DARK theme while the body stays light. Returns null when the chrome should
+// just inherit the body theme.
+const CHROME_OVERRIDE: Partial<Record<Theme, Theme>> = {
+	'hybrid': 'premium-night',
+	'vin-hybrid': 'vin-dark'
+};
+
+export function chromeThemeFor(t: Theme): Theme | null {
+	return CHROME_OVERRIDE[t] ?? null;
+}
 
 function readInitial(): Theme {
 	if (!browser) return DEFAULT_THEME;
