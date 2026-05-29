@@ -18,6 +18,11 @@ import type { OddsApiMatch } from './oddsCache';
 /**
  * API variation → canonical (worldcup2026.yml) name.
  * Mirrors the alias conventions already in `smartFill.ts:FIFA_POINTS`.
+ *
+ * Adding new aliases: keys are any spelling the API might emit; values are
+ * the canonical name as used in `worldcup2026.yml` / fixture data. Both
+ * sides get canonicalised before comparison, so both fixture-side and
+ * API-side variants can map to the same canonical form.
  */
 const ALIASES: Record<string, string> = {
 	// United States
@@ -25,18 +30,55 @@ const ALIASES: Record<string, string> = {
 	'United States of America': 'United States',
 	// South Korea
 	'Korea Republic': 'South Korea',
-	// Ivory Coast — not in WC26 groups but harmless to keep
+	// Ivory Coast
 	"Cote d'Ivoire": 'Ivory Coast',
 	// Czechia
 	'Czech Republic': 'Czechia',
-	// Cape Verde
+	// Cape Verde — API uses "Cape Verde", fixtures may use either form;
+	// Cabo Verde is the Portuguese spelling sometimes seen in feeds.
 	'Cape Verde Islands': 'Cape Verde',
-	// Bosnia
-	'Bosnia-Herzegovina': 'Bosnia and Herzegovina'
+	'Cabo Verde': 'Cape Verde',
+	// Bosnia — API uses "Bosnia & Herzegovina" (ampersand), fixtures use
+	// the hyphenated form. Canonical: "Bosnia and Herzegovina" (matches
+	// smartFill.ts:FIFA_POINTS).
+	'Bosnia-Herzegovina': 'Bosnia and Herzegovina',
+	'Bosnia & Herzegovina': 'Bosnia and Herzegovina',
+	// Congo DR — API uses "DR Congo", fixtures use "Congo DR".
+	// Canonical: "Congo DR" (the fixture-side spelling).
+	'DR Congo': 'Congo DR',
+	'Democratic Republic of the Congo': 'Congo DR',
+	'Democratic Republic of Congo': 'Congo DR',
+	// Curaçao — The Odds API ships mojibake-double-encoded UTF-8 (the
+	// literal characters "Ã§" appear instead of "ç"). NFD-strip in
+	// normalize() catches the correct "Curaçao" form; this explicit
+	// alias catches the mojibake form because NFD on "Ã" decomposes to
+	// "A" + tilde, losing the cedilla entirely.
+	'CuraÃ§ao': 'Curacao',
+	// Türkiye — FIFA's endonym (official since 2022). Odds API still
+	// uses "Turkey". NFD doesn't help — the difference is morphological
+	// ("iye" vs "ey"), not just an accent. Explicit alias is the only fix.
+	'Türkiye': 'Turkey',
+	// IR Iran — FIFA's official entry name ("Islamic Republic of Iran"
+	// abbreviated). Odds API uses just "Iran".
+	'IR Iran': 'Iran'
 };
 
+/**
+ * Normalise a team name for comparison:
+ * - NFD-decompose then strip combining marks (handles "Curaçao" → "Curacao",
+ *   "São Tomé" → "Sao Tome", etc. — naive Latin accent removal).
+ * - Trim, lowercase, collapse runs of whitespace.
+ *
+ * Does NOT handle mojibake (already-mis-encoded sequences like "Ã§"
+ * standing in for "ç") — those need explicit ALIASES entries above.
+ */
 function normalize(name: string): string {
-	return name.trim().toLowerCase().replace(/\s+/g, ' ');
+	return name
+		.normalize('NFD')
+		.replace(/[̀-ͯ]/g, '')
+		.trim()
+		.toLowerCase()
+		.replace(/\s+/g, ' ');
 }
 
 /**

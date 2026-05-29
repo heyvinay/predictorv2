@@ -50,6 +50,46 @@ describe('canonicalize', () => {
 		expect(canonicalize('Korea Republic')).toBe('south korea');
 	});
 
+	it('resolves API "Bosnia & Herzegovina" to canonical Bosnia and Herzegovina', () => {
+		expect(canonicalize('Bosnia & Herzegovina')).toBe(canonicalize('Bosnia-Herzegovina'));
+		expect(canonicalize('Bosnia & Herzegovina')).toBe('bosnia and herzegovina');
+	});
+
+	it('resolves API "DR Congo" to canonical Congo DR', () => {
+		expect(canonicalize('DR Congo')).toBe(canonicalize('Congo DR'));
+		expect(canonicalize('DR Congo')).toBe('congo dr');
+	});
+
+	it('resolves long-form "Democratic Republic of the Congo" to Congo DR', () => {
+		expect(canonicalize('Democratic Republic of the Congo')).toBe('congo dr');
+	});
+
+	it('resolves Portuguese "Cabo Verde" to canonical Cape Verde', () => {
+		expect(canonicalize('Cabo Verde')).toBe(canonicalize('Cape Verde'));
+		expect(canonicalize('Cabo Verde')).toBe('cape verde');
+	});
+
+	it('strips accents from Curaçao to match Curacao', () => {
+		expect(canonicalize('Curaçao')).toBe(canonicalize('Curacao'));
+		expect(canonicalize('Curaçao')).toBe('curacao');
+	});
+
+	it('handles mojibake "CuraÃ§ao" from The Odds API', () => {
+		// API double-encodes UTF-8 → "ç" arrives as the literal chars "Ã§".
+		// NFD alone can't recover it; an explicit alias catches this case.
+		expect(canonicalize('CuraÃ§ao')).toBe(canonicalize('Curacao'));
+	});
+
+	it('resolves FIFA endonym "Türkiye" to API exonym "Turkey"', () => {
+		expect(canonicalize('Türkiye')).toBe(canonicalize('Turkey'));
+		expect(canonicalize('Türkiye')).toBe('turkey');
+	});
+
+	it('resolves FIFA "IR Iran" to API "Iran"', () => {
+		expect(canonicalize('IR Iran')).toBe(canonicalize('Iran'));
+		expect(canonicalize('IR Iran')).toBe('iran');
+	});
+
 	it('passes through unknown names unchanged (just normalised)', () => {
 		expect(canonicalize('Belgium')).toBe('belgium');
 	});
