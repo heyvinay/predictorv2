@@ -67,6 +67,12 @@
 	// Reset on modal close so each open is a fresh decision.
 	$: if (open === false) method = null;
 
+	// Until the user picks a method, none of the three actions are clickable.
+	// This makes the two-step flow explicit: pick HOW first, then pick WHAT.
+	// Kept separate from a/b/c-Disabled so the existing contextual subtitles
+	// (e.g. "Needs all group fixtures predicted first") stay accurate.
+	$: actionsDisabled = !method;
+
 	$: aDisabled = existingCount === 0;
 	$: bDisabled = blankCount === 0;
 
@@ -246,9 +252,15 @@
 				</div>
 			{/if}
 
-			<div class="space-y-2 mb-5">
+			<!-- Step 2: actions. Divider + greyed state make the two-step flow
+			     clear — checkboxes only become interactive after a method is
+			     picked (actionsDisabled = !method). -->
+			<div
+				class="space-y-2 mb-5 pt-4 border-t border-base-content/10"
+			>
 				<label
-					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {aDisabled
+					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {aDisabled ||
+					actionsDisabled
 						? 'opacity-50 cursor-not-allowed'
 						: ''}"
 				>
@@ -256,7 +268,7 @@
 						type="checkbox"
 						class="checkbox checkbox-warning mt-0.5 flex-shrink-0"
 						bind:checked={overwriteChecked}
-						disabled={aDisabled}
+						disabled={aDisabled || actionsDisabled}
 					/>
 					<div class="flex-1 min-w-0">
 						<div class="text-sm font-medium">Overwrite existing picks</div>
@@ -269,7 +281,8 @@
 				</label>
 
 				<label
-					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {bDisabled
+					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {bDisabled ||
+					actionsDisabled
 						? 'opacity-50 cursor-not-allowed'
 						: ''}"
 				>
@@ -277,7 +290,7 @@
 						type="checkbox"
 						class="checkbox checkbox-primary mt-0.5 flex-shrink-0"
 						bind:checked={fillBlanksChecked}
-						disabled={bDisabled}
+						disabled={bDisabled || actionsDisabled}
 					/>
 					<div class="flex-1 min-w-0">
 						<div class="text-sm font-medium">Fill in blank fixtures</div>
@@ -290,7 +303,8 @@
 				</label>
 
 				<label
-					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {cDisabled
+					class="flex items-start gap-3 p-2 rounded-lg hover:bg-base-300/30 cursor-pointer {cDisabled ||
+					actionsDisabled
 						? 'opacity-50 cursor-not-allowed'
 						: ''}"
 					title={cTooltip}
@@ -299,7 +313,7 @@
 						type="checkbox"
 						class="checkbox checkbox-primary mt-0.5 flex-shrink-0"
 						bind:checked={fillBracketChecked}
-						disabled={cDisabled}
+						disabled={cDisabled || actionsDisabled}
 					/>
 					<div class="flex-1 min-w-0">
 						<div class="text-sm font-medium">Fill in Knock out brackets</div>
