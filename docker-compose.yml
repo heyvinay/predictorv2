@@ -74,6 +74,10 @@ services:
       # at request time. Empty → corresponding script tag no-ops.
       - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
       - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
+      # The Odds API key — read server-side by /odds/+server.ts via
+      # $env/dynamic/private. Empty → proxy returns { error: 'not_configured' }
+      # and the modal's Betting Odds radio is disabled (graceful degradation).
+      - ODDS_API_KEY=${ODDS_API_KEY:-}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -98,6 +102,8 @@ services:
       # by default so local sessions don't pollute prod metrics.
       - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
       - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
+      # See `frontend` service for rationale.
+      - ODDS_API_KEY=${ODDS_API_KEY:-}
     volumes:
       - ./frontend:/app
       - /app/node_modules
