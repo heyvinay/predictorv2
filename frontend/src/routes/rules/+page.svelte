@@ -177,16 +177,16 @@
 		<h2 class="text-lg font-display tracking-wide mb-3">02 · Scoring · Match Predictions <span class="text-xs text-base-content/40">· per match</span></h2>
 		<p class="text-sm text-base-content/80 mb-4">For each match you predict — group stage or knockout — three things can earn you points. They stack — a perfectly-called exact score that nobody else got hits all three at once.</p>
 		<div class="space-y-2">
-			<div class="flex items-start gap-4 p-3 rounded-lg bg-base-300/30">
-				<span class="font-display text-2xl tracking-wide w-20 text-center">5</span>
+			<div class="flex items-baseline gap-4 p-3 rounded-lg bg-base-300/30">
+				<span class="font-display text-2xl tracking-wide w-20 text-center shrink-0">5</span>
 				<div><div class="font-semibold">Correct outcome</div><div class="text-xs text-base-content/50">Picking the right side (1/X/2). Awarded even if the exact score is wrong.</div></div>
 			</div>
-			<div class="flex items-start gap-4 p-3 rounded-lg bg-base-300/30">
-				<span class="font-display text-2xl tracking-wide w-20 text-center text-success">+10</span>
+			<div class="flex items-baseline gap-4 p-3 rounded-lg bg-base-300/30">
+				<span class="font-display text-2xl tracking-wide w-20 text-center text-success shrink-0">+10</span>
 				<div><div class="font-semibold">Exact score bonus</div><div class="text-xs text-base-content/50">Stacks on top of the outcome — 15 pts total if you nail the result.</div></div>
 			</div>
-			<div class="flex items-start gap-4 p-3 rounded-lg bg-base-300/30">
-				<span class="font-display text-2xl tracking-wide w-20 text-center text-accent">+10</span>
+			<div class="flex items-baseline gap-4 p-3 rounded-lg bg-base-300/30">
+				<span class="font-display text-2xl tracking-wide w-20 text-center text-accent shrink-0">+10</span>
 				<div>
 					<div class="font-semibold">Rarity bonus <span class="ml-1 text-xs font-normal text-base-content/55">(up to)</span></div>
 					<div class="text-xs text-base-content/50">
