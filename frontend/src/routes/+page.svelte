@@ -99,7 +99,7 @@
 </TrackedSection>
 
 <TrackedSection name="faq">
-	<FaqSection />
+	<FaqSection phase1Deadline={data.phase1Deadline} />
 </TrackedSection>
 
 <TrackedSection name="stakes">

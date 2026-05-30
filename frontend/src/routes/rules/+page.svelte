@@ -4,11 +4,19 @@
 	// /api/competition/info and /api/predictions/bonus/questions endpoints
 	// with sensible static fallbacks so the first paint is correct even if
 	// the API is unreachable.
+	//
+	// SCORING NOTE: the rarity cap, outcome/exact/rarity match-scoring
+	// numbers, the BRACKET_STAGES values, and the +20 hardcoded on bonus
+	// questions are all maintained BY HAND in this file (no public
+	// /scoring-config endpoint exists). If you tune scoring config in
+	// config/worldcup2026.yml, mirror the values here too — there's no
+	// runtime check that the two are in sync.
 	import { onMount } from 'svelte';
 	import { getCompetitionInfo, type CompetitionInfo } from '$api/competition';
 	import { getBonusQuestions, type BonusQuestion } from '$api/bonus';
 	import { logarithmicRarityBonus } from '$lib/utils/matchBreakdown';
 	import { pageTitle } from '$stores/pageTitle';
+	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 
 	let info: CompetitionInfo | null = null;
 	let bonusQuestions: BonusQuestion[] = [];
@@ -19,9 +27,20 @@
 	 *  tune the value. */
 	const RARITY_CAP = 10;
 
+	/** Worked-example sample size for the rarity-bonus table. Fixed at
+	 *  100 for the pre-tournament window so the table is stable and easy
+	 *  to read as percentages. Bump manually after the deadline once the
+	 *  real predictor pool is known. */
+	const rarityPredictorCount = 100;
+
+	/** Flat per-question bonus value, displayed against every bonus
+	 *  question. Mirror this in config/worldcup2026.yml (bonus.points)
+	 *  when you sync backend scoring to the rules-page values. */
+	const BONUS_POINTS = 20;
+
 	/** Group consecutive correct-predictor counts (1..P) that yield the
 	 *  same logarithmic rarity bonus into bands so the published table is
-	 *  compact (e.g. "5–6 of 30 → +3"). */
+	 *  compact (e.g. "5–6 of 100 → +3"). */
 	function rarityBands(
 		totalPredictors: number,
 		cap: number
@@ -49,9 +68,6 @@
 		return bands;
 	}
 
-	// Fall back to 30 (the design anchor for the rarity formula) before
-	// /competition/info loads, so the table renders on first paint.
-	$: rarityPredictorCount = info?.total_players ?? 30;
 	$: rarityRows = rarityBands(rarityPredictorCount, RARITY_CAP);
 
 	onMount(async () => {
@@ -82,11 +98,6 @@
 		});
 	}
 
-	$: poolTotal =
-		info && info.entry_fee && info.paid_players
-			? info.entry_fee * info.paid_players
-			: 0;
-
 	const CATEGORY_LABEL: Record<string, string> = {
 		group_stage: 'Group stage',
 		top_flop: 'Top / Flop',
@@ -104,14 +115,16 @@
 		return groups;
 	})();
 
+	/** Six knockout-only bracket stages. Group-stage advancement is
+	 *  rewarded via group-stage match scoring (outcome/exact/rarity), not
+	 *  via a separate bracket point. Sync these values with the backend
+	 *  scoring config when you tune. */
 	const BRACKET_STAGES: { lbl: string; pts: number; winner?: boolean }[] = [
-		{ lbl: 'Group advance', pts: 10 },
-		{ lbl: 'Group position', pts: 5 },
-		{ lbl: 'Round of 32', pts: 10 },
-		{ lbl: 'Round of 16', pts: 15 },
-		{ lbl: 'Quarter-final', pts: 20 },
-		{ lbl: 'Semi-final', pts: 40 },
-		{ lbl: 'Final', pts: 60 },
+		{ lbl: 'Round of 32', pts: 20 },
+		{ lbl: 'Round of 16', pts: 30 },
+		{ lbl: 'Quarter-final', pts: 40 },
+		{ lbl: 'Semi-final', pts: 50 },
+		{ lbl: 'Final', pts: 75 },
 		{ lbl: 'Tournament winner', pts: 100, winner: true }
 	];
 </script>
@@ -124,13 +137,29 @@
 	<!-- Hero -->
 	<div class="stadium-card p-6">
 		<h1 class="text-4xl font-display tracking-wide mb-2">The <span class="text-gradient">Rules</span></h1>
-		<p class="text-sm text-base-content/60 mb-4">
-			How predictions, points and prizes work in {info?.name ?? 'FIFA World Cup 2026'}.
+		<p class="text-sm text-base-content/60 mb-2">
+			How predictions, points and prizes work in {info?.name ?? 'FIFA World Cup 2026'}. Read the
+			short version below — the long version is in the comments of every Sunday morning text
+			thread you've ever been part of.
 		</p>
-		<div class="grid grid-cols-3 gap-3">
-			<div class="stat-card"><p class="stat-title">Entry fee</p><p class="stat-value text-2xl">{info ? fmtCurrency(info.entry_fee) : '—'}</p></div>
-			<div class="stat-card"><p class="stat-title">Players signed up</p><p class="stat-value text-2xl">{info?.total_players ?? '—'}</p></div>
-			<div class="stat-card"><p class="stat-title">Phase I lock</p><p class="text-sm font-semibold mt-2">{info ? fmtDate(info.phase1_deadline) : '—'}</p></div>
+		<p class="text-sm text-base-content/80 mb-4">
+			Get all your picks in before the deadline shown — that's the only timer you need to watch.
+		</p>
+		<div class="grid grid-cols-2 gap-3">
+			<div class="stat-card">
+				<p class="stat-title">Entry fee</p>
+				<p class="stat-value text-2xl">{info ? fmtCurrency(info.entry_fee) : '—'}</p>
+				<p class="text-xs text-base-content/40 mt-1">per entry</p>
+			</div>
+			<div class="stat-card">
+				<p class="stat-title">Predictions lock</p>
+				<p class="text-sm font-semibold mt-2">{info ? fmtDate(info.phase1_deadline) : '—'}</p>
+				{#if info?.phase1_deadline}
+					<div class="mt-2">
+						<CountdownTimer deadline={info.phase1_deadline} compact />
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 
@@ -143,38 +172,10 @@
 		</div>
 	</section>
 
-	<!-- 02 — Phases -->
+	<!-- 02 — Match scoring -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">02 · Two Phases <span class="text-xs text-base-content/40">· Phase II points at 70% value</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">The competition is split into two phases. Phase I is the headline event — everything is up for grabs and predictions are made blind, before a ball is kicked. Phase II opens after the group stage, gives you a second crack at the bracket with full knowledge of who advanced, and is worth less per pick to keep Phase I players in the game.</p>
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-			<div class="rounded-xl border-2 border-accent/40 p-4">
-				<h3 class="font-display text-xl tracking-wide mb-1">Phase <span class="text-accent">I</span></h3>
-				<div class="text-xs text-base-content/50 mb-2">Locks at tournament start</div>
-				<ul class="text-sm space-y-1 list-disc list-inside text-base-content/80">
-					<li>Predict every group-stage match score</li>
-					<li>Build a full knockout bracket from group winners</li>
-					<li>Answer the 9 bonus questions</li>
-					<li>All Phase I points are 1× face value</li>
-				</ul>
-			</div>
-			<div class="rounded-xl border border-base-300 p-4">
-				<h3 class="font-display text-xl tracking-wide mb-1">Phase <span class="text-primary">II</span></h3>
-				<div class="text-xs text-base-content/50 mb-2">Opens after group stage · admin-activated</div>
-				<ul class="text-sm space-y-1 list-disc list-inside text-base-content/80">
-					<li>Re-build the bracket using <b>actual</b> group standings</li>
-					<li>Predict the score of each knockout match</li>
-					<li>Phase II points are scaled to <b>70%</b> of face value</li>
-					<li>Phase I picks remain frozen — Phase II is additive</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- 03 — Match scoring -->
-	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">03 · Scoring · Match Predictions <span class="text-xs text-base-content/40">· per match</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">For each match you predict, three things can earn you points. They stack — a perfectly-called exact score that nobody else got hits all three at once.</p>
+		<h2 class="text-lg font-display tracking-wide mb-3">02 · Scoring · Match Predictions <span class="text-xs text-base-content/40">· per match</span></h2>
+		<p class="text-sm text-base-content/80 mb-4">For each match you predict — group stage or knockout — three things can earn you points. They stack — a perfectly-called exact score that nobody else got hits all three at once.</p>
 		<div class="space-y-2">
 			<div class="flex items-center gap-4 p-3 rounded-lg bg-base-300/30">
 				<span class="font-display text-2xl tracking-wide w-20 text-center">5</span>
@@ -199,7 +200,7 @@
 			</div>
 		</div>
 
-		<!-- Rarity bonus table: how many predictors → bonus for the current pool size. -->
+		<!-- Rarity bonus table: worked example based on a fixed sample of 100 predictors. -->
 		<div class="mt-4 rounded-lg border border-base-300/60 overflow-hidden">
 			<div class="flex items-baseline justify-between bg-base-300/60 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-base-content/70">
 				<span>How many friends picked the same outcome as you</span>
@@ -226,18 +227,16 @@
 				</div>
 			{/each}
 			<div class="border-t-2 border-base-300/60 bg-base-200/40 px-3 py-2 font-mono text-[10px] tracking-wider text-base-content/50">
-				Scales with how many friends predicted that fixture. Numbers shown
-				assume all {rarityPredictorCount} of you submitted — bands shift if
-				fewer predictors are in.
+				Worked example using {rarityPredictorCount} predictors — bands scale with the actual pool size when scoring runs.
 			</div>
 		</div>
 	</section>
 
-	<!-- 04 — Bracket scoring -->
+	<!-- 03 — Bracket scoring -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">04 · Scoring · Bracket Advancements <span class="text-xs text-base-content/40">· per team-stage pick</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">Your bracket awards points for each team you correctly predict to reach a stage — cumulative through the bracket. Picking the champion who beat their final opponent awards the Winner points <i>plus</i> the Final points, plus their SF / QF / R16 / R32 stage points.</p>
-		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+		<h2 class="text-lg font-display tracking-wide mb-3">03 · Scoring · Bracket Advancements <span class="text-xs text-base-content/40">· per team-stage pick · knockout only</span></h2>
+		<p class="text-sm text-base-content/80 mb-4">Your bracket awards points for each team you correctly predict to reach a stage — cumulative through the knockout rounds. Picking <b>Argentina</b> as champion who beat <b>France</b> in the final, for example, awards you the Winner points <i>plus</i> the Final points for Argentina, plus their SF / QF / R16 / R32 stage points.</p>
+		<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
 			{#each BRACKET_STAGES as s (s.lbl)}
 				<div class="stat-card {s.winner ? 'border-accent/50' : ''}">
 					<p class="stat-title">{s.lbl}</p>
@@ -247,10 +246,10 @@
 		</div>
 	</section>
 
-	<!-- 05 — Bonus questions -->
+	<!-- 04 — Bonus questions -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">05 · Bonus Questions <span class="text-xs text-base-content/40">· {bonusQuestions.length || 9} questions · lock with Phase I</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">A small set of pre-tournament wagers on side-stories beyond the bracket. Submit your picks before Phase I locks; the admin reveals the correct answer as each question resolves. Player-name answers are matched leniently — capitalisation and accents don't matter.</p>
+		<h2 class="text-lg font-display tracking-wide mb-3">04 · Bonus Questions <span class="text-xs text-base-content/40">· {bonusQuestions.length || 9} questions · lock with the deadline</span></h2>
+		<p class="text-sm text-base-content/80 mb-4">A small set of pre-tournament wagers on side-stories beyond the bracket. Submit your picks before the deadline; the admin reveals the correct answer as each question resolves (group-stage questions at the end of the group stage, awards at the FIFA ceremony, etc.). Player-name answers are matched leniently — capitalisation and accents don't matter.</p>
 		{#each ['group_stage', 'top_flop', 'awards'] as cat (cat)}
 			{@const qs = bonusByCategory[cat] ?? []}
 			{#if qs.length > 0}
@@ -259,7 +258,7 @@
 					{#each qs as q (q.id)}
 						<div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-base-300/30">
 							<span class="text-sm">{q.label}</span>
-							<span class="badge badge-accent">+{q.points}</span>
+							<span class="badge badge-accent">+{BONUS_POINTS}</span>
 						</div>
 					{/each}
 				</div>
@@ -270,29 +269,40 @@
 		{/if}
 	</section>
 
-	<!-- 06 — Buy-in & pool -->
+	<!-- 05 — Buy-in & pool -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">06 · Buy-in & Pool <span class="text-xs text-base-content/40">· cash, paid pre-tournament</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">Entry to the competition costs <b>{info ? fmtCurrency(info.entry_fee) : 'tbd'}</b> per player, payable to the admin before the tournament starts. Anyone who hasn't paid by Phase I lock can still play, but isn't eligible for the prize pool.</p>
+		<h2 class="text-lg font-display tracking-wide mb-3">05 · Buy-in & Pool <span class="text-xs text-base-content/40">· cash, paid pre-tournament</span></h2>
+		<p class="text-sm text-base-content/80 mb-4">Entry to the competition costs <b>{info ? fmtCurrency(info.entry_fee) : 'tbd'}</b> per entry, payable to the admin before the deadline. Anyone who hasn't paid by the deadline can still play, but isn't eligible for the prize pool. The admin tracks paid status in the admin panel.</p>
 		<div class="grid grid-cols-3 gap-3">
-			<div class="stat-card"><p class="stat-title">Entry fee</p><p class="stat-value text-2xl">{info ? fmtCurrency(info.entry_fee) : '—'}</p><p class="text-xs text-base-content/40 mt-1">per player</p></div>
-			<div class="stat-card"><p class="stat-title">Players paid</p><p class="stat-value text-2xl">{info?.paid_players ?? '—'}</p><p class="text-xs text-base-content/40 mt-1">of {info?.total_players ?? '—'} signed up</p></div>
-			<div class="stat-card"><p class="stat-title">Pool (so far)</p><p class="stat-value text-2xl">{poolTotal > 0 ? fmtCurrency(poolTotal) : '—'}</p><p class="text-xs text-base-content/40 mt-1">grows as buy-ins land</p></div>
+			<div class="stat-card">
+				<p class="stat-title">Entry fee</p>
+				<p class="stat-value text-2xl">{info ? fmtCurrency(info.entry_fee) : '—'}</p>
+				<p class="text-xs text-base-content/40 mt-1">per entry</p>
+			</div>
+			<div class="stat-card">
+				<p class="stat-title">Players paid</p>
+				<p class="stat-value text-2xl">—</p>
+				<p class="text-xs text-base-content/40 mt-1">Updated after the deadline</p>
+			</div>
+			<div class="stat-card">
+				<p class="stat-title">Prize pool</p>
+				<p class="stat-value text-2xl">—</p>
+				<p class="text-xs text-base-content/40 mt-1">Updated after the deadline</p>
+			</div>
 		</div>
-		<p class="text-sm text-base-content/80 mt-4"><b>Prize distribution</b> is decided by the admin pre-tournament and announced in the group chat. A common split: <b>60 / 25 / 15</b> for 1st / 2nd / 3rd, or winner-takes-all for small pools. Final split is fixed before Phase I locks.</p>
+		<p class="text-sm text-base-content/80 mt-4">The prize fund is typically split as follows: <b>65%</b> to the overall winner, <b>20%</b> to the group-stage winner, and the rest to a charity chosen by the organisers.</p>
 	</section>
 
-	<!-- 07 — Fine print -->
+	<!-- 06 — Fine print -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">07 · The Fine Print <span class="text-xs text-base-content/40">· read once · then never again</span></h2>
+		<h2 class="text-lg font-display tracking-wide mb-3">06 · The Fine Print <span class="text-xs text-base-content/40">· read once · then never again</span></h2>
 		<div class="space-y-3 text-sm text-base-content/80">
-			<div><b class="text-base-content">Per-match lock · 5 minutes before kickoff.</b> Once a match locks you can't change your prediction for it, regardless of phase.</div>
-			<div><b class="text-base-content">Blind pool.</b> You can't see anyone else's pick for a match until that match locks. Rarity bonuses are computed once the field is set.</div>
-			<div><b class="text-base-content">Score cap · 15 goals per side.</b> The wizard caps any single team's score at 15.</div>
-			<div><b class="text-base-content">Phase I bracket gate.</b> The Phase I knockout bracket only opens once all group-stage matches have been predicted — it needs your predicted standings to seed R32.</div>
-			<div><b class="text-base-content">Phase II is optional but recommended.</b> If the admin activates Phase II, you can re-build the bracket using actual group results. You're not penalised for skipping it.</div>
-			<div><b class="text-base-content">Disputes.</b> If a fixture's score is corrected after the fact, the admin can update the result and the leaderboard recomputes on the next request.</div>
-			<div><b class="text-base-content">Have fun.</b> This is a friend competition, not Vegas. Trash talk is encouraged.</div>
+			<div><b class="text-base-content">One deadline · all entries lock together.</b> Every prediction — group-stage scores, knockout bracket, and bonus questions — must be in before the deadline shown in the hero. After that, nothing can change.</div>
+			<div><b class="text-base-content">Blind pool.</b> You can't see anyone else's picks until the deadline. Once everyone's locked in, the pool is open and rarity bonuses can be computed.</div>
+			<div><b class="text-base-content">Score cap · 15 goals per side.</b> The wizard caps any single team's score at 15. Yes, even when picking the 7-1 you saw in 2014.</div>
+			<div><b class="text-base-content">Knockout bracket gate.</b> The knockout sub-section of the wizard only opens once all 72 group-stage matches have been predicted — it needs your predicted standings to seed R32, so it can't work earlier.</div>
+			<div><b class="text-base-content">Disputes.</b> If a fixture's score is corrected after the fact (e.g. a goal disallowed in post-match review), the admin can manually update the result via the admin panel and the leaderboard recomputes on the next request.</div>
+			<div><b class="text-base-content">Have fun.</b> This is a friend competition, not Vegas. Trash talk is encouraged. Lording an 18-place lead over your group chat is exactly the point.</div>
 		</div>
 	</section>
 </div>

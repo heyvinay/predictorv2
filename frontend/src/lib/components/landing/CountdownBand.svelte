@@ -96,7 +96,7 @@
 			pulseClass: '',
 			label: 'Pools locks in',
 			subline:
-				"Plenty of time. But picks stay editable until kickoff — lock in early, tweak later.",
+				"Plenty of time. But picks stay editable until the deadline — lock in early, tweak later.",
 			ctaLabel: null
 		},
 		heads_up: {
