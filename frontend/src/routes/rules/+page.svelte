@@ -200,23 +200,27 @@
 			</div>
 		</div>
 
-		<!-- Rarity bonus table: worked example based on a fixed sample of 100 predictors. -->
-		<div class="mt-4 rounded-lg border border-base-300/60 overflow-hidden">
-			<div class="flex items-baseline justify-between bg-base-300/60 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-base-content/70">
-				<span>How many friends picked the same outcome as you</span>
+		<!-- Rarity bonus worked example: novice intro → narrow table → nerd footnote. -->
+		<p class="text-sm text-base-content/80 mt-4 mb-3 leading-relaxed">
+			<b class="text-base-content">How the rarity bonus works.</b>
+			After a match, we count how many of the {rarityPredictorCount} predictors got the outcome right. The fewer correct calls, the bigger your bonus — capped at <b class="text-accent">+10</b>. The table below shows the bands for a {rarityPredictorCount}-predictor pool; the bands scale automatically with the actual pool size when scoring runs.
+		</p>
+		<div class="rounded-lg border border-base-300/60 overflow-hidden max-w-md">
+			<div class="flex items-baseline justify-between gap-4 bg-base-300/60 px-3 py-2 text-[10px] uppercase tracking-widest text-base-content/70">
+				<span>Friends who got it right</span>
 				<span class="font-bold">Bonus</span>
 			</div>
 			{#each rarityRows as band (band.countLabel)}
 				<div
-					class="flex items-baseline justify-between px-3 py-2 border-t border-base-300/40 {band.bonus === RARITY_CAP
+					class="flex items-baseline justify-between gap-4 px-3 py-2 border-t border-base-300/40 {band.bonus === RARITY_CAP
 						? 'bg-accent/10'
 						: ''} {band.bonus === 0 ? 'opacity-60' : ''}"
 				>
-					<span class="font-mono text-xs text-base-content/80">
+					<span class="text-sm text-base-content/80 tabular-nums">
 						{band.countLabel} of {rarityPredictorCount}
 					</span>
 					<span
-						class="font-display text-xl leading-none {band.bonus === RARITY_CAP
+						class="font-display text-xl leading-none tabular-nums {band.bonus === RARITY_CAP
 							? 'text-error'
 							: band.bonus === 0
 							? 'text-base-content/40'
@@ -226,10 +230,13 @@
 					</span>
 				</div>
 			{/each}
-			<div class="border-t-2 border-base-300/60 bg-base-200/40 px-3 py-2 font-mono text-[10px] tracking-wider text-base-content/50">
-				Worked example using {rarityPredictorCount} predictors — bands scale with the actual pool size when scoring runs.
-			</div>
 		</div>
+		<p class="text-xs text-base-content/55 mt-3 leading-relaxed">
+			<b class="text-base-content/70">For the nerds.</b>
+			Derived from Shannon surprisal — the same logarithmic scoring rule used in forecasting tournaments. The bonus is
+			<code class="font-mono text-[11px] bg-base-300/40 px-1.5 py-0.5 rounded text-base-content/70">R = min(10, round(α · log₂(1 / 2f)))</code>
+			where <i>f</i> is the fraction of predictors who got it right (so <i>f</i> = 3 ⁄ 100 in the top band above), and α ≈ 2.56 is calibrated so a uniquely correct call out of ~30 predictors hits the +10 cap.
+		</p>
 	</section>
 
 	<!-- 03 — Bracket scoring -->
