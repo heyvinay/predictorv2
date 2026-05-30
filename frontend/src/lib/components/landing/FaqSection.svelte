@@ -16,13 +16,38 @@
 
 	type FaqItem = { q: string; a: string };
 
+	/** ISO datetime of the entry deadline (`competition.phase1_deadline`),
+	 *  passed through from `+page.server.ts` via `+page.svelte`. Drives the
+	 *  dynamic deadline mention in Q1; null falls back to the literal
+	 *  string "the deadline" so the page still reads gracefully when the
+	 *  backend is unreachable. */
+	export let phase1Deadline: string | null = null;
+
+	/** Format the deadline as a short, human date for inline copy.
+	 *  Mirrors the rules page's `fmtDate` (en-GB locale, short weekday +
+	 *  day + month + year — e.g. "Fri 12 Jun 2026"). Null/invalid input
+	 *  degrades to the literal "the deadline" so Q1 still reads cleanly. */
+	function fmtDeadline(iso: string | null): string {
+		if (!iso) return 'the deadline';
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return 'the deadline';
+		return d.toLocaleDateString('en-GB', {
+			weekday: 'short',
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
+	}
+
 	// Q&A inline. Edit answers directly here when copy changes; same
 	// flow as /rules. Keep answers ~40–60 words — long enough to be
-	// useful, short enough to scan after expand.
-	const faqs: FaqItem[] = [
+	// useful, short enough to scan after expand. Reactive so the Q1
+	// deadline mention updates if the prop changes (e.g. SSR-vs-client
+	// hydration with locale shifts).
+	$: faqs = [
 		{
 			q: 'Can I change my picks after submitting?',
-			a: "Yes — your picks stay editable until 2 hours before the tournament starts. All entries will be locked after the deadline — no exceptions!"
+			a: `Yes — your picks stay editable until ${fmtDeadline(phase1Deadline)}. All entries will be locked after the deadline — no exceptions!`
 		},
 		{
 			q: "What if I don't know much about football?",
@@ -48,7 +73,7 @@
 			q: 'I signed up — what next? How do I follow my points and leaderboard?',
 			a: "Three steps. (1) Hit 'Enter your predictions' — click on the Entries tab in the nav — to make your picks. (2) Pay your fee for each submission, then sit back and enjoy the games. (3) Once the tournament kicks off, your standings will be updated live on the Leaderboard tab, and individual match scores on the Results tab. Points update within minutes of each match finishing."
 		}
-	];
+	] satisfies FaqItem[];
 
 	function onRulesLinkClick() {
 		track('rules_link_clicked', { placement: 'faq_section' });
