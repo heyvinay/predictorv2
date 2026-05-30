@@ -186,7 +186,10 @@
 				<div><div class="font-semibold">Exact score bonus</div><div class="text-xs text-base-content/50">Stacks on top of the outcome — 15 pts total if you nail the result.</div></div>
 			</div>
 			<div class="flex items-center gap-4 p-3 rounded-lg bg-base-300/30">
-				<span class="font-display text-xl tracking-wide w-20 text-center text-accent">up to +10</span>
+				<div class="w-20 text-center flex flex-col items-center justify-center leading-none">
+					<span class="text-[10px] font-mono uppercase tracking-widest text-accent/70 mb-0.5">up to</span>
+					<span class="font-display text-2xl tracking-wide text-accent">+10</span>
+				</div>
 				<div>
 					<div class="font-semibold">Rarity bonus</div>
 					<div class="text-xs text-base-content/50">
