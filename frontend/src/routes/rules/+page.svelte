@@ -205,22 +205,22 @@
 			<b class="text-base-content">How the rarity bonus works.</b>
 			After a match, we count how many of the {rarityPredictorCount} predictors got the outcome right. The fewer correct calls, the bigger your bonus — capped at <b class="text-accent">+10</b>. The table below shows the bands for a {rarityPredictorCount}-predictor pool; the bands scale automatically with the actual pool size when scoring runs.
 		</p>
-		<div class="rounded-lg border border-base-300/60 overflow-hidden max-w-md">
-			<div class="flex items-baseline justify-between gap-4 bg-base-300/60 px-3 py-2 text-[10px] uppercase tracking-widest text-base-content/70">
-				<span>Friends who got it right</span>
-				<span class="font-bold">Bonus</span>
+		<div class="rounded-lg border border-base-300/60 overflow-hidden">
+			<div class="flex items-baseline gap-4 bg-base-300/60 px-3 py-2 text-[10px] uppercase tracking-widest text-base-content/70">
+				<span class="w-48 shrink-0">Friends who got it right</span>
+				<span class="font-bold w-12 text-right shrink-0">Bonus</span>
 			</div>
 			{#each rarityRows as band (band.countLabel)}
 				<div
-					class="flex items-baseline justify-between gap-4 px-3 py-2 border-t border-base-300/40 {band.bonus === RARITY_CAP
+					class="flex items-baseline gap-4 px-3 py-2 border-t border-base-300/40 {band.bonus === RARITY_CAP
 						? 'bg-accent/10'
 						: ''} {band.bonus === 0 ? 'opacity-60' : ''}"
 				>
-					<span class="text-sm text-base-content/80 tabular-nums">
+					<span class="text-sm text-base-content/80 tabular-nums w-48 shrink-0">
 						{band.countLabel} of {rarityPredictorCount}
 					</span>
 					<span
-						class="font-display text-xl leading-none tabular-nums {band.bonus === RARITY_CAP
+						class="font-display text-xl leading-none tabular-nums w-12 text-right shrink-0 {band.bonus === RARITY_CAP
 							? 'text-error'
 							: band.bonus === 0
 							? 'text-base-content/40'
