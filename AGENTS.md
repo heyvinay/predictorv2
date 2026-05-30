@@ -16,7 +16,7 @@ Tournament config in YAML (`config/worldcup2026.yml`). External scores via
 Football-Data.org (`backend/app/services/external/football_data.py`).
 
 **Frontend:** SvelteKit + TypeScript, Tailwind + DaisyUI (themes
-`premium-night` default / `light` alternative), `svelte-motion`,
+`premium-night` default / `hybrid` alternative), `svelte-motion`,
 `flag-icons`. Vitest for unit tests.
 
 **Infra:** Docker Compose for dev, Nginx + Cloudflare Tunnel in prod.
@@ -36,17 +36,33 @@ Football-Data.org (`backend/app/services/external/football_data.py`).
 
 ## Domain invariants
 
-### Phases
+### Phases (backend: two-phase model · production: single-phase)
+
+The backend still has two-phase code, but as of 2026-05-30 the live
+competition runs **single-phase only**:
+
 - **Phase 1** (pre-tournament): group-stage scores + knockout-bracket
-  advancement. Locks per-match.
+  advancement + bonus questions. Every entry must be in before
+  `competition.phase1_deadline`.
 - **Phase 2** (admin-activated after groups): knockout-stage scores +
   re-predicted bracket. Points scaled by `phase_multipliers.phase_2`
-  (currently 0.7 — `config/worldcup2026.yml`). Kept stored separately from
-  Phase 1.
+  (currently 0.7 — `config/worldcup2026.yml`). **Code is dormant** for the
+  current competition (`is_phase2_active = false`). Keep the code paths
+  working but don't surface Phase 2 in user-facing copy unless the admin
+  flips it on.
+- The user-facing `/rules` page, landing page, and `FaqSection` all describe
+  the single-phase model — no Phase I/II language anywhere. The
+  `DeadlineBanner` component was also simplified to drop its `phase` prop.
 
 ### Locking & visibility
-- Predictions lock **5 minutes before kickoff** (`backend/app/services/locking.py`).
-- Blind pool: users cannot see others' predictions until a match locks.
+- **One global deadline** is the practical lock for the current competition:
+  every prediction (group scores, knockout bracket, bonus questions) must be
+  in before `competition.phase1_deadline`. User-facing copy frames it as
+  "the deadline" everywhere (`/rules`, `FaqSection` Q1, `CountdownBand`).
+- The per-match 5-minute pre-kickoff lock still exists in
+  `backend/app/services/locking.py` but is not reached in practice for the
+  single-phase competition — the deadline trips first.
+- Blind pool: users cannot see others' predictions until the deadline.
 - 100% data integrity — never silently drop or overwrite a prediction.
 
 ### Scoring
@@ -56,6 +72,28 @@ Modes — `logarithmic` (default, Shannon-surprisal rarity bonus), `fixed`
 See `docs/scoring-system.md` for the formula, bonus table, and rationale.
 
 **Rule:** no scoring logic changes without a corresponding `pytest` case.
+
+**⚠ Rules-page vs. backend-config divergence (intentional, pending sync).**
+The `/rules` page hardcodes a scoring scale that does NOT yet match the
+backend config. Until you sync them, leaderboards reflect backend
+values, not page advertising:
+
+| Aspect | Page advertises (rules/+page.svelte) | Backend config (worldcup2026.yml) |
+|---|---|---|
+| Bracket: Round of 32 | **20** | 10 |
+| Bracket: Round of 16 | **30** | 15 |
+| Bracket: Quarter-final | **40** | 20 |
+| Bracket: Semi-final | **50** | 40 |
+| Bracket: Final | **75** | 60 |
+| Bracket: Winner | 100 | 100 ✓ |
+| Bracket: Group advance | (not mentioned) | 10 (still awarded) |
+| Bracket: Group position | (not mentioned) | 5 (still awarded) |
+| Bonus question points | **+20 flat** | 15 / 20 / 20 by category |
+| Rarity worked example | Fixed at 100 predictors | Computed at live pool size |
+
+To sync: change values in `config/worldcup2026.yml`, update tests in
+`backend/tests/test_entry_scoring.py` and related, then a one-shot
+leaderboard recompute on the next request will pick up new totals.
 
 ### Datetime rule (system-wide)
 
@@ -125,34 +163,32 @@ docker-compose exec backend python scripts/seed_phase2_test.py
 
 ## UI
 
-Two DaisyUI themes are registered in `frontend/tailwind.config.js`:
-**`premium-night`** (default — champagne gold CTAs on midnight navy) and
-**`light`**. The choice is persisted in `localStorage['predictor:theme']` and
-applied by the FOUC-prevention script in `frontend/src/app.html`; the store
-lives at `frontend/src/lib/stores/theme.ts`. Layout + mobile bottom nav are
-in `frontend/src/routes/+layout.svelte`.
+Two DaisyUI themes registered in `frontend/tailwind.config.js`: **`premium-night`** (dark, default — champagne gold on midnight navy) and **`hybrid`** (light — deeper gold on a dim slate canvas with white cards lifting above it). Themes change colour, not voice — same fonts, same hierarchy. The choice is persisted in `localStorage['predictor:theme']` and applied FOUC-safely by a script in `frontend/src/app.html`; the store lives at `frontend/src/lib/stores/theme.ts`. Legacy `'light'` / `'premium-day'` values migrate to `'hybrid'` on load. Layout + mobile bottom nav are in `frontend/src/routes/+layout.svelte`.
 
-**`premium-night` tokens** (the default):
-- `primary` `#D4AF37` (champagne gold) · `primary-content` `#0B1329` (navy
-  on gold buttons)
-- `secondary` `#1C2541` (premium blue) · `accent` `#D4AF37` (same gold)
-- `base-100` `#0B1329` (midnight navy canvas) · `base-200` `#1C2541` ·
-  `base-300` `#2A3552`
-- `success` `#059669` · `warning` `#D97706` · `error` `#B91C1C`
+Components use **semantic DaisyUI classes** (`bg-primary`, `bg-base-100`, `text-base-content`, `text-success` …) — never raw hex. Dim/faint text is `text-base-content/55` / `/30`; soft accent fills are `bg-success/20` etc.
 
-**Typography:** dual-font system, both bundles loaded unconditionally in
-`app.html`; a CSS layer in `app.css` gates which is active per theme:
-- `light` → Bebas Neue (display) + DM Sans (body)
-- `premium-night` → Manrope (display / scores) + Inter (body)
+**Theme tokens** (in `frontend/tailwind.config.js`):
 
-**Global classes** (`frontend/src/app.css`): `stadium-card`, `match-card`
-(+ `match-card-v2` for the redesigned variant), `stat-card`,
-`leaderboard-row`, `auth-bg`, `.noise`, `.score-input`. Custom utilities
-`pitch-pattern`, `stadium-glow`, `hero-gradient`, plus shadow tokens
-`shadow-glow-green`, `shadow-glow-gold`, `shadow-card` in
-`tailwind.config.js`. Standalone named colors `turf`, `pitch`, `gold`,
-`trophy`, `navy` are available outside the theme. Prefer DaisyUI `shadow*`
-+ the `glow-*` shadows over hand-rolled box-shadows.
+| Token | `premium-night` (dark) | `hybrid` (light) | Use |
+|---|---|---|---|
+| `primary` | `#D4AF37` champagne gold | `#B8941F` deeper gold | CTAs, brand, accents |
+| `success` | `#059669` mint | `#059669` mint | Exact score, "good news" |
+| `warning` | `#D97706` amber | `#B45309` amber | Outcome / lock |
+| `error` | `#B91C1C` red | `#B91C1C` red | Miss |
+| `base-100` | `#0B1329` midnight navy | `#E2E7F0` dim slate (NOT pure white — cards lift via base-200) | Canvas |
+| `base-200` | `#1C2541` premium navy | `#FFFFFF` white | Surfaces, cards |
+| `base-300` | `#2A3552` slate | `#D3DBE7` slate divider | Dividers, borders |
+| `base-content` | `#E2E8F0` off-white | `#0B1329` navy | Body ink |
+
+Radii: `rounded-box` (14px / `0.875rem`), `rounded-btn` (10px / `0.625rem`), `rounded-badge` (8px / `0.5rem`).
+
+**Typography** — one family pair, both themes:
+- **Manrope** 700/800 (display, `font-display`) — wordmark, headlines, scores, big stats
+- **Inter** 400/500/600/700 (body, `font-sans`) — UI text, labels, captions
+- **JetBrains Mono** 500 (mono, `font-mono`) — timers, codes, monospace data
+- **Bebas Neue** (opt-in via `font-hero`) — landing-page hero headlines only. Reach for it when you want a loud, broadcast-poster moment; Manrope still carries the rest of the system.
+
+**Global classes** (`frontend/src/app.css`): `stadium-card`, `match-card` (+ `match-card-v2` for the redesigned variant), `stat-card`, `leaderboard-row`, `auth-bg`, `.noise`, `.score-input`. Custom utilities `pitch-pattern`, `stadium-glow`, plus shadow tokens `shadow-glow-gold`, `shadow-card` in `tailwind.config.js`. Prefer DaisyUI `shadow*` + `glow-gold` over hand-rolled box-shadows.
 
 **Conventions:**
 - Mobile-first: verify on 375px.
