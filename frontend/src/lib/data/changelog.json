@@ -1864,6 +1864,13 @@
       "type": "internal",
       "summary": "Internal: added invariant tests for the Release Notes changelog and a defensive composite key in the admin renderer so a future ordering mistake or duplicate-SHA placeholder cannot blank the page again.",
       "commit": "pending"
+    },
+    {
+      "version": "2.150.3",
+      "date": "2026-06-01",
+      "type": "fix",
+      "summary": "Bracket wallchart now fits the screen properly on desktop, incomplete match cards (those still showing TBD because an upstream pick is missing) now have a red border so they stand out, and a small \"click a team to advance them\" hint sits under the bracket title.",
+      "commit": "0c70d3e"
     }
   ]
 }
