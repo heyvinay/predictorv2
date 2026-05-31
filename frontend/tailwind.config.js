@@ -3,6 +3,13 @@ export default {
 	content: ['./src/**/*.{html,js,svelte,ts}'],
 	theme: {
 		extend: {
+			// `warning` is a surface token (bg-warning/text-warning-content pair).
+			// `warning-text` is the readable amber FOREGROUND token — use it as
+			// `text-warning-text` on base canvases where bare `text-warning` would
+			// vanish into the surface color. Channels live in app.css per theme.
+			colors: {
+				'warning-text': 'rgb(var(--warning-text) / <alpha-value>)',
+			},
 			fontFamily: {
 				'display': ['Manrope', 'system-ui', 'sans-serif'],
 				'sans': ['Inter', 'system-ui', 'sans-serif'],

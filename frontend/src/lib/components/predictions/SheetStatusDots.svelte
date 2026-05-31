@@ -116,7 +116,7 @@
 			{:else}
 				<span class="text-success">{submittedCount} submitted</span>
 				<span class="text-base-content/40"> · </span>
-				<span class="text-warning">{draftCount} draft</span>
+				<span class="text-warning-text">{draftCount} draft</span>
 			{/if}
 		</div>
 	</div>

@@ -859,7 +859,7 @@
 				<h2 class="text-lg font-display tracking-wide mb-3">Competition starts at <span class="text-xs text-base-content/40">· locks predictions, kicks off scoring</span></h2>
 				<div class="text-sm mb-3">
 					<b>Starts:</b>
-					{#if $phase1Deadline}{new Date($phase1Deadline).toLocaleString()} · <span class={$phase1Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase1Countdown}</span>{:else}<span class="text-warning">NOT SET</span>{/if}
+					{#if $phase1Deadline}{new Date($phase1Deadline).toLocaleString()} · <span class={$phase1Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase1Countdown}</span>{:else}<span class="text-warning-text">NOT SET</span>{/if}
 				</div>
 				{#if phase1Error}<div class="alert alert-error text-sm mb-3">{phase1Error}</div>{/if}
 				{#if phase1Success}<div class="alert alert-success text-sm mb-3">{phase1Success}</div>{/if}
@@ -875,7 +875,7 @@
 				<h2 class="text-lg font-display tracking-wide mb-3">Phase II Activation <span class="text-xs text-base-content/40">· Knockout stage</span></h2>
 				<div class="text-sm mb-3">
 					<b>Status:</b>
-					{#if $isPhase2Active}<span class="text-success">ACTIVE</span>{#if $phase2BracketDeadline} · Bracket locks {new Date($phase2BracketDeadline).toLocaleString()} · <span class={$phase2Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase2Countdown}</span>{/if}{:else}<span class="text-warning">NOT ACTIVE</span>{/if}
+					{#if $isPhase2Active}<span class="text-success">ACTIVE</span>{#if $phase2BracketDeadline} · Bracket locks {new Date($phase2BracketDeadline).toLocaleString()} · <span class={$phase2Countdown === 'Locked' ? 'text-error' : 'text-success'}>{$phase2Countdown}</span>{/if}{:else}<span class="text-warning-text">NOT ACTIVE</span>{/if}
 				</div>
 				{#if activationError}<div class="alert alert-error text-sm mb-3">{activationError}</div>{/if}
 				{#if activationSuccess}<div class="alert alert-success text-sm mb-3">{activationSuccess}</div>{/if}

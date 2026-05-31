@@ -4,6 +4,17 @@
 
 /* Base styles */
 @layer base {
+	/* Readable amber FOREGROUND channels — paired with `text-warning-text`
+	 * Tailwind utility (see tailwind.config.js). The DaisyUI `warning` token
+	 * is a surface color (used with `text-warning-content`), so bare
+	 * `text-warning` on the canvas would vanish; use `text-warning-text`. */
+	[data-theme="premium-night"] {
+		--warning-text: 245 158 11;     /* #F59E0B — 8.58:1 on base-100 */
+	}
+	[data-theme="hybrid"] {
+		--warning-text: 146 64 14;      /* #92400E — 7.09:1 on base-100 */
+	}
+
 	html {
 		font-family: 'Inter', system-ui, sans-serif;
 	}
@@ -102,7 +113,7 @@
 	}
 
 	.result-badge.outcome {
-		@apply bg-warning/20 text-warning;
+		@apply bg-warning/20 text-warning-text;
 	}
 
 	.result-badge.wrong {
@@ -188,7 +199,7 @@
 	/* Countdown timer */
 	.countdown-timer {
 		@apply text-xs font-mono px-2 py-1 rounded-md;
-		@apply bg-warning/20 text-warning border border-warning/30;
+		@apply bg-warning/20 text-warning-text border border-warning/30;
 	}
 
 	.countdown-timer.urgent {
@@ -465,7 +476,7 @@
 		font-size: 0.95rem;
 	}
 	.rank-pill.pos-advance { @apply bg-success/15 text-success border-success/30; }
-	.rank-pill.pos-thirdplace { @apply bg-warning/15 text-warning border-warning/30; }
+	.rank-pill.pos-thirdplace { @apply bg-warning/15 text-warning-text border-warning/30; }
 	.rank-pill.pos-out { @apply bg-error/15 text-error border-error/30; }
 
 	.pts-badge {
@@ -502,7 +513,7 @@
 
 	.countdown-chip {
 		@apply px-2 py-1 rounded-md text-[11px] font-mono font-semibold;
-		@apply bg-warning/15 text-warning border border-warning/25;
+		@apply bg-warning/15 text-warning-text border border-warning/25;
 		white-space: nowrap;
 	}
 	.countdown-chip.is-locked {
@@ -584,7 +595,7 @@
 		@apply border-warning/60;
 	}
 	.group-focus-badge.is-thirdplace span {
-		@apply text-warning text-2xl sm:text-3xl;
+		@apply text-warning-text text-2xl sm:text-3xl;
 	}
 
 	.group-focus-text {
@@ -633,10 +644,10 @@
 		background-color: theme('colors.error');
 	}
 	.group-mini-pill.is-thirdplace {
-		@apply text-warning/85 border-warning/50;
+		@apply text-warning-text/85 border-warning/50;
 	}
 	.group-mini-pill.is-thirdplace.is-active {
-		@apply text-warning border-warning bg-warning/10;
+		@apply text-warning-text border-warning bg-warning/10;
 		box-shadow: 0 0 0 2px theme('colors.warning / 0.25');
 	}
 	.group-mini-pill.is-thirdplace .letter {

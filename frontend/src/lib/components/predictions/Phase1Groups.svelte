@@ -74,7 +74,7 @@
 		<div class="stadium-card no-glow p-4 sm:p-6 animate-slide-up" style="animation-delay: 600ms; animation-fill-mode: both;">
 			<div class="flex items-center gap-3 mb-5">
 				<div class="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center">
-					<span class="text-lg font-display text-warning">3rd</span>
+					<span class="text-lg font-display text-warning-text">3rd</span>
 				</div>
 				<div>
 					<h2 class="text-lg font-display tracking-wide">Ranking of 3rd Place Teams</h2>

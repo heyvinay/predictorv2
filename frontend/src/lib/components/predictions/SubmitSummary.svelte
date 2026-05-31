@@ -226,7 +226,7 @@
 				</label>
 
 				{#if !canSubmit}
-					<p class="text-sm text-warning mt-4">
+					<p class="text-sm text-warning-text mt-4">
 						Please complete your predictions and bonus questions before submitting.
 					</p>
 				{/if}

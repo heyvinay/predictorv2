@@ -217,7 +217,7 @@
 			const o = cellOutcomeClass(h, a);
 			if (o === 'home-win') return 'bg-info/15 text-info border-info/40';
 			if (o === 'draw') return 'bg-base-content/10 text-base-content/70 border-base-content/20';
-			return 'bg-warning/15 text-warning border-warning/40';
+			return 'bg-warning/15 text-warning-text border-warning/40';
 		}
 		// post — colour by accuracy
 		if (!actualScore) return 'bg-base-300/30 text-base-content/60';
@@ -225,7 +225,7 @@
 			return 'bg-success/30 text-success border-success/60';
 		const sameOutcome =
 			cellOutcomeClass(h, a) === cellOutcomeClass(actualScore.home_score, actualScore.away_score);
-		if (sameOutcome) return 'bg-warning/20 text-warning border-warning/40';
+		if (sameOutcome) return 'bg-warning/20 text-warning-text border-warning/40';
 		return 'bg-error/10 text-error/70 border-error/30';
 	}
 
@@ -554,7 +554,7 @@
 												{#if pp.exact}
 													<span class="text-success">★ +{pp.pts}</span>
 												{:else if pp.outcome}
-													<span class="text-warning">+{pp.pts}</span>
+													<span class="text-warning-text">+{pp.pts}</span>
 												{:else}
 													<span class="text-base-content/30">—</span>
 												{/if}

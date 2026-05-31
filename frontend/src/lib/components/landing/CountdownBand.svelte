@@ -100,7 +100,7 @@
 			ctaLabel: null
 		},
 		heads_up: {
-			colorClass: 'text-warning',
+			colorClass: 'text-warning-text',
 			pulseClass: 'animate-pulse-soft',
 			label: 'Last week',
 			subline: "One week until your picks are frozen. Don't be the friend who forgot.",

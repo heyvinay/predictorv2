@@ -295,7 +295,7 @@
 				</div>
 				<div class="stat-card !p-3">
 					<div class="stat-title text-[10px]">Correct</div>
-					<div class="stat-value !text-2xl text-warning">{stats.outcome}</div>
+					<div class="stat-value !text-2xl text-warning-text">{stats.outcome}</div>
 				</div>
 				<div class="stat-card !p-3">
 					<div class="stat-title text-[10px]">Wrong</div>

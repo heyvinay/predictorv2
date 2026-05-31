@@ -28,7 +28,7 @@
 
 	function getResultClass(pred: UserMatchPredictionView): string {
 		if (pred.is_exact) return 'text-success';
-		if (pred.is_correct_outcome) return 'text-warning';
+		if (pred.is_correct_outcome) return 'text-warning-text';
 		return 'text-error/70';
 	}
 </script>
