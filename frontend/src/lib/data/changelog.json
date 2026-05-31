@@ -3,13 +3,6 @@
   "generated_from": "git log --since=2026-05-01 --until=2026-06-01",
   "entries": [
     {
-      "version": "2.150.0",
-      "date": "2026-05-31",
-      "type": "feature",
-      "summary": "Entries page redesigned with cards/list view toggle, per-entry action buttons, and an inline reinstate confirmation. Nav deadline timer now matches the landing-page countdown.",
-      "commit": "5bc65a6"
-    },
-    {
       "version": "2.0.0",
       "date": "2026-05-02",
       "type": "improvement",
@@ -1848,6 +1841,20 @@
       "date": "2026-05-31",
       "type": "fix",
       "summary": "Landing page: the \"some goes to charity\" line now uses the gold brand color (theme-aware) and breaks onto its own line for clearer emphasis.",
+      "commit": "pending"
+    },
+    {
+      "version": "2.150.0",
+      "date": "2026-05-31",
+      "type": "feature",
+      "summary": "Entries page redesigned with cards/list view toggle, per-entry action buttons, and an inline reinstate confirmation. Nav deadline timer now matches the landing-page countdown.",
+      "commit": "5bc65a6"
+    },
+    {
+      "version": "2.150.1",
+      "date": "2026-05-31",
+      "type": "internal",
+      "summary": "Internal: corrected the position of the 2.150.0 changelog entry so it surfaces as the latest release in the admin Release Notes panel (was buried at the bottom due to a sort-order mistake).",
       "commit": "pending"
     }
   ]
