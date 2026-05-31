@@ -93,7 +93,7 @@
 	};
 	const SEG_TEXT: Record<SegmentKey, string> = {
 		complete: 'text-success',
-		progress: 'text-warning',
+		progress: 'text-warning-text',
 		empty: 'text-base-content/50',
 		missed: 'text-error'
 	};

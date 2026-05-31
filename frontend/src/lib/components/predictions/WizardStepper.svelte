@@ -88,7 +88,7 @@
 						{variant === 'complete'
 							? 'bg-success text-success-content cursor-pointer hover:brightness-110'
 							: variant === 'visited'
-								? 'bg-base-100 text-warning cursor-pointer hover:brightness-110'
+								? 'bg-base-100 text-warning-text cursor-pointer hover:brightness-110'
 								: variant === 'locked'
 									? 'bg-base-100 text-base-content/40 ring-base-content/20 cursor-not-allowed'
 									: 'bg-base-100 text-base-content/40 ring-base-content/20'}
@@ -125,7 +125,7 @@
 							: variant === 'complete'
 								? 'text-success'
 								: variant === 'visited'
-									? 'text-warning'
+									? 'text-warning-text'
 									: 'text-base-content/40'}"
 				>
 					{step.label}

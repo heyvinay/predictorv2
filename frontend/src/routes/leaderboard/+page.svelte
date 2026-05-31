@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user } from '$stores/auth';
 	import {
-		setPhase,
 		startPolling,
 		stopPolling,
 		leaderboard,
@@ -18,6 +17,7 @@
 	import Sparkline from '$components/Sparkline.svelte';
 	import { stubRankTrajectory } from '$lib/utils/widgetFallbacks';
 	import { loadEntries, entrySettings } from '$stores/entries';
+	import { phase1Deadline } from '$stores/phase';
 	import { isYouRow, shouldShowReference } from '$lib/utils/leaderboard';
 	import { pageTitle } from '$stores/pageTitle';
 
@@ -47,10 +47,6 @@
 		stopPolling();
 	});
 
-	async function handlePhaseChange(phase: LeaderboardPhase) {
-		await setPhase(phase);
-	}
-
 	function ordinal(n: number): string {
 		if (n % 100 >= 11 && n % 100 <= 13) return 'th';
 		switch (n % 10) {
@@ -64,6 +60,22 @@
 	function formatLastUpdated(date: string | null): string {
 		if (!date) return '';
 		return new Date(date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+	}
+
+	/** Tournament-start date for the pre-kickoff "Standings open at…" copy.
+	 *  Short, weekday-anchored format (e.g. "Thu, 11 Jun") — readable on
+	 *  mobile without taking the hero off the fold. */
+	function formatKickoff(iso: string | null): string {
+		if (!iso) return '';
+		try {
+			return new Date(iso).toLocaleDateString(undefined, {
+				weekday: 'short',
+				day: 'numeric',
+				month: 'short'
+			});
+		} catch {
+			return '';
+		}
 	}
 
 	// Match-cell value for the current phase filter
@@ -97,10 +109,13 @@
 		expanded = expanded; // trigger reactivity
 	}
 
-	// Phases listed in the per-row expander, in order
+	// Per-row breakdown buckets. Single-phase production model means
+	// `phase2` is dormant (always zero) — the array shape stays intact so
+	// Phase 2 data still flows through if admin ever activates it, but the
+	// user-facing labels are neutral (no "Phase I/II" language anywhere).
 	const DETAIL_PHASES: Array<{ k: 'phase1' | 'phase2'; name: string }> = [
-		{ k: 'phase1', name: 'Phase I' },
-		{ k: 'phase2', name: 'Phase II' }
+		{ k: 'phase1', name: 'Pre-tournament' },
+		{ k: 'phase2', name: 'Knockout' }
 	];
 
 	function phaseTotal(p: PhaseBreakdown): number {
@@ -137,12 +152,6 @@
 	$: yourExact = $activeEntryPosition?.exact_scores ?? 0;
 	$: yourOutcomes = $activeEntryPosition?.correct_outcomes ?? 0;
 
-	const PHASE_TABS: Array<{ k: LeaderboardPhase; label: string }> = [
-		{ k: 'overall', label: 'Overall' },
-		{ k: 'phase_1', label: 'Phase I' },
-		{ k: 'phase_2', label: 'Phase II' }
-	];
-
 	function posBadgeClass(position: number): string {
 		if (position === 1) return 'position-badge gold';
 		if (position === 2) return 'position-badge silver';
@@ -159,10 +168,17 @@
 	<div class="hero min-h-[60vh]">
 		<div class="hero-content text-center">
 			<div class="max-w-md">
-				<h2 class="font-display text-3xl tracking-wide">Great stuff coming soon!</h2>
-				<p class="mt-3 text-base-content/60">We're polishing this page. In the meantime…</p>
+				<h2 class="font-display text-3xl tracking-wide">Standings open at kickoff</h2>
+				<p class="mt-3 text-base-content/60">
+					{#if $phase1Deadline}
+						We start scoring once the first match begins —
+						<span class="text-warning-text font-semibold">{formatKickoff($phase1Deadline)}</span>.
+					{:else}
+						We start scoring once the first match of the tournament begins.
+					{/if}
+				</p>
 				<a href="/entries" class="btn btn-primary btn-lg mt-6 shadow-glow-gold">
-					Make your predictions
+					Lock in your predictions
 				</a>
 			</div>
 		</div>
@@ -171,7 +187,7 @@
 
 {#if $isAuthenticated && SHOW_CONTENT}
 	<div class="container mx-auto mobile-padding py-6">
-		<!-- Header + phase tabs -->
+		<!-- Header (phase tabs removed — single-phase production model) -->
 		<div class="flex items-center justify-between flex-wrap gap-3 mb-6">
 			<div>
 				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Standings</h1>
@@ -179,13 +195,6 @@
 					{$totalParticipants || $leaderboard.length} players
 					{#if $leaderboardLoading}· updating…{:else if $lastCalculated}· updated {formatLastUpdated($lastCalculated)}{/if}
 				</p>
-			</div>
-			<div class="tabs tabs-boxed bg-base-200">
-				{#each PHASE_TABS as t}
-					<button class="tab {$leaderboardPhase === t.k ? 'tab-active' : ''}" on:click={() => handlePhaseChange(t.k)}>
-						{t.label}
-					</button>
-				{/each}
 			</div>
 		</div>
 

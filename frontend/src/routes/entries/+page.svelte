@@ -79,6 +79,10 @@
 	// ── Action state ─────────────────────────────────────────────────────────
 	let actionBusy: string | null = null;
 	let confirmWithdrawId: string | null = null;
+	// Component-local error surface for create/duplicate/withdraw/reinstate
+	// failures — rendered as an inline alert near the header (avoids the
+	// jarring native window.alert dialog on the primary money path).
+	let actionError: string | null = null;
 
 	// ── New-entry modal ──────────────────────────────────────────────────────
 	let newEntryModalOpen = false;
@@ -91,6 +95,7 @@
 	}
 
 	async function handleCreate(): Promise<void> {
+		actionError = null;
 		newEntryBusy = true;
 		try {
 			await createEntry({ display_name: newEntryName.trim() || undefined });
@@ -98,7 +103,7 @@
 			newEntryModalOpen = false;
 			newEntryName = '';
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to create entry');
+			actionError = e instanceof Error ? e.message : 'Failed to create entry';
 		} finally {
 			newEntryBusy = false;
 		}
@@ -131,37 +136,40 @@
 
 	// ── Row actions ──────────────────────────────────────────────────────────
 	async function handleDuplicate(entryId: string): Promise<void> {
+		actionError = null;
 		actionBusy = entryId + ':dup';
 		try {
 			await duplicateEntry(entryId);
 			await Promise.all([loadEntries($user!.id), loadCompletion()]);
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to duplicate entry');
+			actionError = e instanceof Error ? e.message : 'Failed to duplicate entry';
 		} finally {
 			actionBusy = null;
 		}
 	}
 
 	async function handleWithdraw(entryId: string): Promise<void> {
+		actionError = null;
 		confirmWithdrawId = null;
 		actionBusy = entryId + ':withdraw';
 		try {
 			await withdrawEntry(entryId);
 			await loadEntries($user!.id);
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to withdraw entry');
+			actionError = e instanceof Error ? e.message : 'Failed to withdraw entry';
 		} finally {
 			actionBusy = null;
 		}
 	}
 
 	async function handleReinstate(entryId: string): Promise<void> {
+		actionError = null;
 		actionBusy = entryId + ':reinstate';
 		try {
 			await reinstateEntry(entryId);
 			await Promise.all([loadEntries($user!.id), loadCompletion()]);
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to reinstate entry');
+			actionError = e instanceof Error ? e.message : 'Failed to reinstate entry';
 		} finally {
 			actionBusy = null;
 		}
@@ -332,6 +340,20 @@
 		<div class="alert alert-error mb-4"><span>{$entriesError}</span></div>
 	{/if}
 
+	{#if actionError}
+		<div class="alert alert-error mb-4" role="alert">
+			<span class="flex-1">{actionError}</span>
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs"
+				on:click={() => (actionError = null)}
+				aria-label="Dismiss error"
+			>
+				✕
+			</button>
+		</div>
+	{/if}
+
 	{#if $entriesLoading && $entries.length === 0}
 		<!-- Loading skeletons -->
 		<div class="rounded-xl border border-base-300/50 overflow-hidden">
@@ -346,12 +368,26 @@
 
 	{:else if $entries.length === 0}
 		<div class="rounded-xl border border-base-300/50 bg-base-200/40">
-			<div class="flex flex-col items-center text-center py-14 px-6 gap-3">
+			<div class="flex flex-col items-center text-center py-14 px-6 gap-4">
 				<div class="text-3xl">📋</div>
 				<h2 class="font-semibold text-base">No entries yet</h2>
 				<p class="text-sm text-base-content/50 max-w-xs">
-					Click "New Entry" above to create your first prediction entry.
+					Name your entry, then fill in your picks. You can edit until the deadline.
 				</p>
+				<button
+					type="button"
+					class="btn btn-primary btn-lg gap-2 mt-2 shadow-glow-gold"
+					disabled={!canCreate || $entriesLoading}
+					title={!canCreate
+						? `Maximum of ${maxEntries} active ${maxEntries === 1 ? 'entry' : 'entries'} reached`
+						: undefined}
+					on:click={openNewEntryModal}
+				>
+					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+					</svg>
+					Create your first entry
+				</button>
 			</div>
 		</div>
 

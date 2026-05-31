@@ -425,7 +425,7 @@
 				{#if hoveredGroup.result === 'exact'}
 					<span class="text-success ml-1">Exact</span>
 				{:else if hoveredGroup.result === 'outcome'}
-					<span class="text-warning ml-1">Correct</span>
+					<span class="text-warning-text ml-1">Correct</span>
 				{:else if hoveredGroup.result === 'wrong'}
 					<span class="text-error ml-1">Wrong</span>
 				{/if}

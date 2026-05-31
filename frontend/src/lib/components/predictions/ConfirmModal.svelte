@@ -122,7 +122,7 @@
 			</p>
 
 			{#if warning}
-				<p class="text-sm text-warning mb-2 whitespace-pre-line">{warning}</p>
+				<p class="text-sm text-warning-text mb-2 whitespace-pre-line">{warning}</p>
 			{/if}
 
 			<div class="flex gap-2 mt-4 flex-wrap">

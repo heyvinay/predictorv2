@@ -14,6 +14,7 @@
 	import ScatterPlot from '$lib/components/ScatterPlot.svelte';
 	import BreakdownCard from '$lib/components/results/BreakdownCard.svelte';
 	import { pageTitle } from '$stores/pageTitle';
+	import { phase1Deadline } from '$stores/phase';
 	import type { Fixture, CommunityPredictionsResponse } from '$types';
 
 	// Flag-gated: when true, restore the full results page below.
@@ -237,6 +238,21 @@
 		}
 	}
 
+	/** Tournament-start date for the pre-kickoff "Results open at…" copy.
+	 *  Short weekday-anchored format (e.g. "Thu, 11 Jun"). */
+	function formatKickoff(iso: string | null): string {
+		if (!iso) return '';
+		try {
+			return new Date(iso).toLocaleDateString(undefined, {
+				weekday: 'short',
+				day: 'numeric',
+				month: 'short'
+			});
+		} catch {
+			return '';
+		}
+	}
+
 	// Result border color helper
 	function resultBorderClass(result: PredictionResult): string {
 		if (result === 'exact') return 'border-success/60';
@@ -254,10 +270,17 @@
 	<div class="hero min-h-[60vh]">
 		<div class="hero-content text-center">
 			<div class="max-w-md">
-				<h2 class="font-display text-3xl tracking-wide">Great stuff coming soon!</h2>
-				<p class="mt-3 text-base-content/60">We're polishing this page. In the meantime…</p>
+				<h2 class="font-display text-3xl tracking-wide">Results open at kickoff</h2>
+				<p class="mt-3 text-base-content/60">
+					{#if $phase1Deadline}
+						You'll see your match results here as the tournament unfolds, starting
+						<span class="text-warning-text font-semibold">{formatKickoff($phase1Deadline)}</span>.
+					{:else}
+						You'll see your match results here as the tournament unfolds.
+					{/if}
+				</p>
 				<a href="/entries" class="btn btn-primary btn-lg mt-6 shadow-glow-gold">
-					Make your predictions
+					Lock in your predictions
 				</a>
 			</div>
 		</div>
@@ -295,7 +318,7 @@
 				</div>
 				<div class="stat-card !p-3">
 					<div class="stat-title text-[10px]">Correct</div>
-					<div class="stat-value !text-2xl text-warning">{stats.outcome}</div>
+					<div class="stat-value !text-2xl text-warning-text">{stats.outcome}</div>
 				</div>
 				<div class="stat-card !p-3">
 					<div class="stat-title text-[10px]">Wrong</div>

@@ -68,7 +68,7 @@
 	 */
 	function pillClasses(state: string): string {
 		if (state === 'hit-exact') return 'bg-success/20 text-success border border-success/40';
-		if (state === 'hit-outcome') return 'bg-warning/20 text-warning border border-warning/40';
+		if (state === 'hit-outcome') return 'bg-warning/20 text-warning-text border border-warning/40';
 		if (state.startsWith('hit-rarity solo'))
 			return 'bg-accent/25 text-accent border-2 border-accent/70 ring-1 ring-accent/30';
 		if (state.startsWith('hit-rarity'))
@@ -100,7 +100,7 @@
 	/** Your-pick chip background by result. */
 	function ypickBg(cls: string): string {
 		if (cls === 'exact') return 'bg-success/15 text-success border-success/40';
-		if (cls === 'outcome') return 'bg-warning/15 text-warning border-warning/40';
+		if (cls === 'outcome') return 'bg-warning/15 text-warning-text border-warning/40';
 		if (cls === 'miss') return 'bg-error/10 text-error border-error/30';
 		if (cls === 'empty') return 'bg-base-300/30 text-base-content/40 border-base-300';
 		return 'bg-base-300/30 text-base-content/60 border-base-300';

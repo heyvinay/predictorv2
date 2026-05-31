@@ -109,7 +109,7 @@
 	}
 
 	.position-indicator.third-place {
-		@apply bg-warning/20 text-warning;
+		@apply bg-warning/20 text-warning-text;
 	}
 
 	.position-indicator.eliminated {
