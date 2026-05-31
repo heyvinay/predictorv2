@@ -3,6 +3,13 @@
   "generated_from": "git log --since=2026-05-01 --until=2026-06-01",
   "entries": [
     {
+      "version": "2.150.0",
+      "date": "2026-05-31",
+      "type": "feature",
+      "summary": "Entries page redesigned with cards/list view toggle, per-entry action buttons, and an inline reinstate confirmation. Nav deadline timer now matches the landing-page countdown.",
+      "commit": "5bc65a6"
+    },
+    {
       "version": "2.0.0",
       "date": "2026-05-02",
       "type": "improvement",
