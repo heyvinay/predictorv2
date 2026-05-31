@@ -137,6 +137,25 @@ docker-compose exec backend alembic current | history | downgrade -1 | stamp <re
 
 A failing migration takes the app down at startup — that's the safe default.
 
+## Versioning
+
+**Bump the version before any production push.** Two files must stay in
+sync — both live at the same semver number:
+
+- `frontend/package.json` (also `frontend/package-lock.json` — both
+  top-level `"version"` AND the in-tree `packages[""]` self-reference)
+- `backend/pyproject.toml`
+
+Bump rule (pre-1.0):
+- New user-visible behavior or new endpoint → **minor** (`0.x.0` → `0.(x+1).0`)
+- Bug fix / docs / refactor with no behavior change → **patch** (`0.x.y` → `0.x.(y+1)`)
+- Anything that breaks an existing contract — patience, this repo is
+  pre-1.0; treat it as minor and tighten the rule once we cut `1.0.0`.
+
+Commit shape: a standalone `chore(version): bump to X.Y.Z` commit AFTER
+the feature/fix work has landed but BEFORE `git push` to origin. Keeps
+the deploy boundary visible in the log.
+
 ## Development
 
 ```bash
