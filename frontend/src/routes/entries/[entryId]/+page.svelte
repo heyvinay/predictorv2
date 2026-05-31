@@ -56,6 +56,14 @@
 		phase1Deadline
 	} from '$stores/phase';
 	import { applyFifaTiebreakers, computeGroupStandingsMapWithWarnings } from '$lib/utils/standings';
+	import { predictionToBracketState } from '$lib/utils/bracketResolver';
+	import {
+		ROUND_OF_32,
+		ROUND_OF_16,
+		QUARTER_FINALS,
+		SEMI_FINALS,
+		FINAL
+	} from '$lib/config/bracketConfig';
 	import {
 		initPersistence,
 		teardownPersistence,
@@ -70,6 +78,10 @@
 	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
 	import EntrySelector from '$components/EntrySelector.svelte';
 	import ConfirmModal from '$components/predictions/ConfirmModal.svelte';
+	import ErrorModal from '$components/predictions/ErrorModal.svelte';
+	import LifecycleConflictModal from '$components/predictions/LifecycleConflictModal.svelte';
+	import CompletenessModal from '$components/predictions/CompletenessModal.svelte';
+	import { ApiResponseError } from '$api/client';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
 	import WizardStepper from '$components/predictions/WizardStepper.svelte';
 	import SubmitSummary from '$components/predictions/SubmitSummary.svelte';
@@ -269,7 +281,116 @@
 
 	// ---- Entry-lifecycle handlers (Mark Ready / Submit / Reopen / Withdraw)
 	let lifecycleBusy: false | 'submit' | 'edit' = false;
-	let lifecycleError: string | null = null;
+
+	// ---- Error modals (replace the old inline `lifecycleError` string) ----
+	// All save / lifecycle failures route through `routeSaveError`, which
+	// either opens the LifecycleConflictModal (HTTP 409 with "is in status"
+	// — entry was submitted in another tab) or the generic ErrorModal.
+	let errorModalOpen = false;
+	let errorModalTitle = "Couldn't save your edits";
+	let errorModalMessage = '';
+	let errorModalDetails: string | null = null;
+	let lifecycleConflictOpen = false;
+	let lifecycleConflictStatus = 'SUBMITTED';
+	let lifecycleConflictCanReopen = true;
+	// Captured at the moment of conflict so the LifecycleConflictModal's
+	// Reopen action can re-run the same save after editEntry succeeds.
+	let pendingRetry: (() => Promise<unknown>) | null = null;
+
+	function routeSaveError(e: unknown, retry?: () => Promise<unknown>): void {
+		const isLifecycle =
+			e instanceof ApiResponseError &&
+			e.status === 409 &&
+			typeof e.detail === 'string' &&
+			e.detail.includes('is in status');
+		if (isLifecycle) {
+			const phaseRow = $activeEntry?.phases?.find((p) => p.phase === currentPhaseEnum);
+			lifecycleConflictStatus = phaseRow?.status ?? 'SUBMITTED';
+			lifecycleConflictCanReopen = !!(
+				$activeEntry && canEdit($activeEntry, currentPhaseEnum, $phase1Deadline ?? null)
+			);
+			pendingRetry = retry ?? null;
+			lifecycleConflictOpen = true;
+			return;
+		}
+		errorModalTitle = "Couldn't save your edits";
+		errorModalMessage =
+			e instanceof Error ? e.message : 'Save failed for an unknown reason.';
+		errorModalDetails =
+			e instanceof ApiResponseError ? `HTTP ${e.status} — ${e.detail}` : null;
+		errorModalOpen = true;
+	}
+
+	async function handleLifecycleDiscard(): Promise<void> {
+		lifecycleConflictOpen = false;
+		pendingRetry = null;
+		// Drop in-memory unsaved state; resetPredictions clears every
+		// unsaved store, which makes the persistence subscriber write an
+		// empty envelope and effectively wipe this tab's sessionStorage
+		// draft for the active entry.
+		resetPredictions();
+		await refreshEntries();
+	}
+
+	async function handleLifecycleReopen(): Promise<void> {
+		const current = $activeEntry;
+		if (!current) {
+			lifecycleConflictOpen = false;
+			pendingRetry = null;
+			return;
+		}
+		const retry = pendingRetry;
+		try {
+			await entriesApi.editEntry(current.id);
+			await refreshEntries();
+			lifecycleConflictOpen = false;
+			pendingRetry = null;
+			if (retry) await retry();
+		} catch (e) {
+			lifecycleConflictOpen = false;
+			pendingRetry = null;
+			routeSaveError(e);
+		}
+	}
+
+	function handleLifecycleCancel(): void {
+		lifecycleConflictOpen = false;
+		pendingRetry = null;
+	}
+
+	function handleErrorDismiss(): void {
+		errorModalOpen = false;
+	}
+
+	// ---- CompletenessModal — fires from handleContinueStep when a
+	// section is (or whose dependent section has become) incomplete.
+	let completenessOpen = false;
+	let completenessTitle = 'Section is incomplete';
+	let completenessMissing: string[] = [];
+	let completenessGoToLabel = 'Go fix it';
+	let completenessGoToTarget: Section | null = null;
+
+	function openCompletenessModal(opts: {
+		title: string;
+		missing: string[];
+		goToLabel: string;
+		goToTarget: Section | null;
+	}): void {
+		completenessTitle = opts.title;
+		completenessMissing = opts.missing;
+		completenessGoToLabel = opts.goToLabel;
+		completenessGoToTarget = opts.goToTarget;
+		completenessOpen = true;
+	}
+
+	function handleCompletenessGoTo(): void {
+		completenessOpen = false;
+		if (completenessGoToTarget) setStep(completenessGoToTarget);
+	}
+
+	function handleCompletenessCancel(): void {
+		completenessOpen = false;
+	}
 
 	$: currentPhaseEnum = (activePhase === 'phase2' ? 'phase_2' : 'phase_1') as
 		import('$types').PredictionPhase;
@@ -498,22 +619,81 @@
 		}
 	}
 
+	// Aggregated missing-list across all three sections. Used by Submit's
+	// pre-flight CompletenessModal so the user sees everything they need
+	// to fix in one place — not "fix this, click again, fix that."
+	function buildAllMissing(): {
+		items: string[];
+		firstSection: Section | null;
+	} {
+		const groupsMissing = buildMissingForSection('groups');
+		const knockoutMissing = buildMissingForSection('knockout');
+		const bonusMissing = buildMissingForSection('bonus');
+		const items: string[] = [];
+		if (groupsMissing.length > 0) {
+			items.push(...groupsMissing.map((m) => `Groups — ${m}`));
+		}
+		if (knockoutMissing.length > 0) {
+			items.push(...knockoutMissing.map((m) => `Knockout — ${m}`));
+		}
+		if (bonusMissing.length > 0) {
+			items.push(...bonusMissing.map((m) => `Bonus — ${m}`));
+		}
+		const firstSection: Section | null =
+			groupsMissing.length > 0
+				? 'groups'
+				: knockoutMissing.length > 0
+					? 'knockout'
+					: bonusMissing.length > 0
+						? 'bonus'
+						: null;
+		return { items, firstSection };
+	}
+
 	async function confirmSubmit(paidTo: string): Promise<void> {
 		const current = $activeEntry;
 		if (!current) return;
 		lifecycleBusy = 'submit';
-		lifecycleError = null;
 		try {
-			// Persist paid_to on the user first so the backend gate
-			// (entries_service.submit_entry) sees it.
+			// 1. Auto-save first so any pending edits are persisted before
+			//    we either bail on validation or commit the submit. If save
+			//    fails, handleSaveAll's catch opens ErrorModal /
+			//    LifecycleConflictModal via routeSaveError; we just abort.
+			const saved = await handleSaveAll();
+			if (!saved) return;
+
+			// 2. Validate completeness across ALL sections — Groups +
+			//    Knockout + Bonus. Catches the "user damaged a previously
+			//    complete bracket and clicked Submit anyway" case + any
+			//    stale state. The SubmitSummary button is already gated by
+			//    `phase1AllComplete`, but this is defense in depth and
+			//    surfaces a precise missing-list to the user.
+			const { items, firstSection } = buildAllMissing();
+			if (items.length > 0) {
+				openCompletenessModal({
+					title: "You're not ready to submit yet",
+					missing: items,
+					goToLabel: firstSection
+						? `Go to ${firstSection.charAt(0).toUpperCase()}${firstSection.slice(1)}`
+						: 'OK',
+					goToTarget: firstSection
+				});
+				return;
+			}
+
+			// 3. Persist paid_to on the user first so the backend gate
+			//    (entries_service.submit_entry) sees it.
 			if (paidTo && paidTo !== ($user?.paid_to ?? '')) {
 				const updated = await updateProfile({ paid_to: paidTo });
 				user.set(updated);
 			}
+
+			// 4. Submit. routeSaveError handles HTTP 409 (already
+			//    submitted in another tab) → LifecycleConflictModal.
 			await entriesApi.submitEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
-			lifecycleError = e instanceof Error ? e.message : 'Failed to submit';
+			routeSaveError(e, () => confirmSubmit(paidTo));
 		} finally {
 			lifecycleBusy = false;
 		}
@@ -521,7 +701,6 @@
 
 	function handleEdit(): void {
 		if (!$activeEntry) return;
-		lifecycleError = null;
 		unlockModalOpen = true;
 	}
 
@@ -530,12 +709,11 @@
 		const current = $activeEntry;
 		if (!current) return;
 		lifecycleBusy = 'edit';
-		lifecycleError = null;
 		try {
 			await entriesApi.editEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
-			lifecycleError = e instanceof Error ? e.message : 'Failed to revert to draft';
+			routeSaveError(e, () => confirmEdit());
 		} finally {
 			lifecycleBusy = false;
 		}
@@ -710,14 +888,26 @@
 	$: bracketIsComplete = (() => {
 		const b = $unsavedBracketPrediction || $bracketPrediction;
 		if (!b) return false;
-		return (
-			b.round_of_32?.length === 32 &&
-			b.round_of_16?.length === 16 &&
-			b.quarter_finals?.length === 8 &&
-			b.semi_finals?.length === 4 &&
-			b.final?.length === 2 &&
-			!!b.winner
-		);
+		if (!b.winner || b.winner.length === 0) return false;
+		if (!standingsMap || Object.keys(standingsMap).length === 0) return false;
+		// Validate the WINNER CHAIN, not just team arrays. The prediction
+		// shape only stores advancing teams; arrays can stay "full" with
+		// stale teams from a previous bracket version after the user
+		// changes an upstream pick (setMatchWinner's cascade only walks
+		// one level). predictionToBracketState walks forward set-by-set
+		// and only marks a match's winner when its homeTeam/awayTeam is
+		// found in the next round's set — so broken chains show up as
+		// matches with winner=null.
+		try {
+			const state = predictionToBracketState(b, standingsMap);
+			// Every match except 103 (the third-place playoff — losers'
+			// match, doesn't gate submission) must have a winner.
+			return Object.values(state.matchResults)
+				.filter((m) => m.matchNumber !== 103)
+				.every((m) => typeof m.winner === 'string' && m.winner.length > 0);
+		} catch {
+			return false;
+		}
 	})();
 
 	$: missingBracketPicks = bracketIsComplete ? 0 : 1; // boolean-ish; tooltip just says "bracket"
@@ -762,7 +952,10 @@
 			id: 'bonus' as Step,
 			label: 'Bonus',
 			complete: missingBonusCount === 0,
-			locked: !bracketIsComplete && !visitedSteps.has('bonus'),
+			// Bonus is independent of Groups and Knockout — users can
+			// answer bonus questions at any time, before or after
+			// touching the bracket.
+			locked: false,
 			visited: visitedSteps.has('bonus')
 		},
 		{
@@ -802,8 +995,107 @@
 	function handleBackStep() {
 		if (prevStepId) setStep(prevStepId);
 	}
-	function handleContinueStep() {
-		if (nextStepId) setStep(nextStepId);
+	function buildMissingForSection(section: Section): string[] {
+		// Compose a focused missing-list for CompletenessModal based on
+		// the section we're leaving. Each branch reuses existing reactives
+		// to avoid drift from the wizardSteps[i].complete source of truth.
+		switch (section) {
+			case 'groups': {
+				const out: string[] = [];
+				if (missingFixtureCount > 0) {
+					out.push(
+						`${missingFixtureCount} fixture score${missingFixtureCount === 1 ? '' : 's'} unfilled`
+					);
+				}
+				return out;
+			}
+			case 'knockout': {
+				const b = $unsavedBracketPrediction || $bracketPrediction;
+				if (!b) return ['Bracket has not been started yet'];
+				if (!standingsMap || Object.keys(standingsMap).length === 0) {
+					return ['Groups must be completed before the bracket can be validated'];
+				}
+				// Same approach as `bracketIsComplete` — count matches in
+				// the reconstructed state that lack a winner. This catches
+				// stale-team entries that the raw prediction arrays would
+				// otherwise count as "filled."
+				let state;
+				try {
+					state = predictionToBracketState(b, standingsMap);
+				} catch {
+					return ['Bracket has not been started yet'];
+				}
+				const missingIn = (matches: { matchNumber: number }[]) =>
+					matches.filter((m) => !state.matchResults[m.matchNumber]?.winner).length;
+				const r32 = missingIn(ROUND_OF_32);
+				const r16 = missingIn(ROUND_OF_16);
+				const qf = missingIn(QUARTER_FINALS);
+				const sf = missingIn(SEMI_FINALS);
+				const finMissing = missingIn([FINAL]);
+				const out: string[] = [];
+				if (r32 > 0)
+					out.push(`Round of 32: ${r32} match${r32 === 1 ? '' : 'es'} need winners`);
+				if (r16 > 0)
+					out.push(`Round of 16: ${r16} match${r16 === 1 ? '' : 'es'} need winners`);
+				if (qf > 0)
+					out.push(`Quarter-finals: ${qf} match${qf === 1 ? '' : 'es'} need winners`);
+				if (sf > 0)
+					out.push(`Semi-finals: ${sf} match${sf === 1 ? '' : 'es'} need winners`);
+				if (finMissing > 0) out.push('Final: winner not picked');
+				if (!b.winner) out.push('Tournament winner not picked');
+				return out;
+			}
+			case 'bonus': {
+				if (missingBonusCount === 0) return [];
+				return [
+					`${missingBonusCount} bonus question${missingBonusCount === 1 ? '' : 's'} unanswered`
+				];
+			}
+			default:
+				return [];
+		}
+	}
+
+	async function handleContinueStep(): Promise<void> {
+		if (!nextStepId) return;
+
+		// 1. Re-validate the section we're LEAVING. The Continue button
+		//    is already gated by `canContinue`, so this is defense-in-depth
+		//    for callers that bypass the button (keyboard / a11y).
+		const current = wizardSteps.find((s) => s.id === activeSection);
+		if (current && !current.complete) {
+			const missing = buildMissingForSection(activeSection);
+			openCompletenessModal({
+				title: `${current.label} is incomplete`,
+				missing: missing.length > 0 ? missing : ['Some entries are still missing.'],
+				goToLabel: 'OK',
+				goToTarget: null
+			});
+			return;
+		}
+
+		// 2. Cross-section bracket check on Bonus → Submit. Bonus's
+		//    `complete` flag doesn't know about the bracket, so a user
+		//    who damaged a completed bracket and walked back to Bonus
+		//    would otherwise sail through to Submit.
+		if (activeSection === 'bonus' && !bracketIsComplete) {
+			openCompletenessModal({
+				title: 'Knockout bracket is incomplete',
+				missing: buildMissingForSection('knockout'),
+				goToLabel: 'Go to Knockout',
+				goToTarget: 'knockout'
+			});
+			return;
+		}
+
+		// 3. Auto-save before navigating. handleSaveAll handles its own
+		//    error routing (ErrorModal / LifecycleConflictModal); we only
+		//    navigate if it returned true.
+		const ok = await handleSaveAll();
+		if (!ok) return;
+
+		// 4. Navigate.
+		setStep(nextStepId);
 	}
 
 	$: incompleteSummary = (() => {
@@ -966,11 +1258,14 @@
 		const b = $unsavedBracketPrediction;
 		if (!b) return;
 		bracketSaveStatus = 'saving';
-		const ok = await saveBracketPredictions(bracketToPredictions(b));
-		bracketSaveStatus = ok ? 'saved' : 'error';
-		if (ok) {
+		try {
+			await saveBracketPredictions(bracketToPredictions(b));
+			bracketSaveStatus = 'saved';
 			unsavedBracketPrediction.set(null);
 			setTimeout(() => (bracketSaveStatus = 'idle'), 2000);
+		} catch (e) {
+			bracketSaveStatus = 'error';
+			routeSaveError(e, () => handleSaveBracket());
 		}
 	}
 
@@ -989,11 +1284,14 @@
 		if (!b) return;
 		phase2BracketSaveStatus = 'saving';
 		const preds = bracketToPredictions(b).filter((p) => p.stage !== 'round_of_32');
-		const ok = await saveBracketPredictions(preds);
-		phase2BracketSaveStatus = ok ? 'saved' : 'error';
-		if (ok) {
+		try {
+			await saveBracketPredictions(preds);
+			phase2BracketSaveStatus = 'saved';
 			unsavedPhase2BracketPrediction.set(null);
 			setTimeout(() => (phase2BracketSaveStatus = 'idle'), 2000);
+		} catch (e) {
+			phase2BracketSaveStatus = 'error';
+			routeSaveError(e, () => handleSavePhase2Bracket());
 		}
 	}
 
@@ -1016,44 +1314,39 @@
 		e.returnValue = '';
 	}
 
-	async function handleSaveAll() {
+	async function handleSaveAll(): Promise<boolean> {
 		saveStatus = 'saving';
 
-		// Matches (Phase 1 group-stage + any other locked-out edits).
-		// saveAllPredictions returns true vacuously when unsavedChanges
-		// is empty, so calling unconditionally is cheap and idempotent.
-		const matchesOk = await saveAllPredictions();
+		try {
+			// Matches (Phase 1 group-stage + any other locked-out edits).
+			// saveAllPredictions returns true vacuously when unsavedChanges
+			// is empty, so calling unconditionally is cheap and idempotent.
+			await saveAllPredictions();
 
-		// Phase 1 bracket. saveBracketPredictions takes the team-
-		// advancement list shape. On success we clear the unsaved
-		// store so the dirty flag re-derives to false.
-		let bracketOk = true;
-		if ($unsavedBracketPrediction) {
-			const b = $unsavedBracketPrediction;
-			bracketOk = await saveBracketPredictions(bracketToPredictions(b));
-			if (bracketOk) unsavedBracketPrediction.set(null);
-		}
+			// Phase 1 bracket. saveBracketPredictions takes the team-
+			// advancement list shape. On success we clear the unsaved
+			// store so the dirty flag re-derives to false.
+			if ($unsavedBracketPrediction) {
+				const b = $unsavedBracketPrediction;
+				await saveBracketPredictions(bracketToPredictions(b));
+				unsavedBracketPrediction.set(null);
+			}
 
-		// Phase 2 bracket (currently dormant; the conditional below
-		// is dead code in v1 but keeps the unified save honest if
-		// Phase 2 ever activates).
-		let phase2BracketOk = true;
-		if ($unsavedPhase2BracketPrediction) {
-			const b = $unsavedPhase2BracketPrediction;
-			const preds = bracketToPredictions(b).filter((p) => p.stage !== 'round_of_32');
-			phase2BracketOk = await saveBracketPredictions(preds);
-			if (phase2BracketOk) unsavedPhase2BracketPrediction.set(null);
-		}
+			// Phase 2 bracket (currently dormant; the conditional below
+			// is dead code in v1 but keeps the unified save honest if
+			// Phase 2 ever activates).
+			if ($unsavedPhase2BracketPrediction) {
+				const b = $unsavedPhase2BracketPrediction;
+				const preds = bracketToPredictions(b).filter((p) => p.stage !== 'round_of_32');
+				await saveBracketPredictions(preds);
+				unsavedPhase2BracketPrediction.set(null);
+			}
 
-		// Bonus picks (entry-scoped). Skip silently if no active entry
-		// (shouldn't happen on the predictions page but guarded for safety).
-		let bonusOk = true;
-		if (hasUnsavedBonus) {
-			const entryId = $activeEntryId;
-			if (!entryId) {
-				bonusOk = false;
-			} else {
-				try {
+			// Bonus picks (entry-scoped). Skip silently if no active entry
+			// (shouldn't happen on the predictions page but guarded for safety).
+			if (hasUnsavedBonus) {
+				const entryId = $activeEntryId;
+				if (entryId) {
 					const { saveBonusPredictions } = await import('$api/bonus');
 					const preds = Array.from(bonusAnswers.entries()).map(([question_id, answer]) => ({
 						question_id,
@@ -1064,16 +1357,23 @@
 					for (const p of saved) fresh.set(p.question_id, p.answer);
 					bonusAnswers = fresh;
 					bonusInitial = new Map(fresh);
-				} catch (e) {
-					console.error('Failed to save bonus', e);
-					bonusOk = false;
 				}
 			}
-		}
 
-		const ok = matchesOk && bracketOk && phase2BracketOk && bonusOk;
-		saveStatus = ok ? 'saved' : 'error';
-		if (ok) setTimeout(() => (saveStatus = 'idle'), 2000);
+			saveStatus = 'saved';
+			setTimeout(() => (saveStatus = 'idle'), 2000);
+			return true;
+		} catch (e) {
+			// Semantics: the FIRST failure halts the rest of the save flow
+			// and routes to a modal. Previously each phase ran regardless
+			// and a boolean `ok` flag rolled up at the end. That meant a
+			// lifecycle-locked save would still try the bracket (also
+			// lifecycle-locked) and pile up errors — now we short-circuit
+			// to one explicit recovery path.
+			saveStatus = 'error';
+			routeSaveError(e, () => handleSaveAll());
+			return false;
+		}
 	}
 
 	// ---- Bonus questions (real backend) ----------------------------------
@@ -1310,13 +1610,9 @@
 			     the hero — entry name lives in the topbar breadcrumb (desktop)
 			     and the mobile navbar-center, status is conveyed by the
 			     doughnut + BottomActionBar, and NO PRIZE is also rendered in
-			     the SheetSelector dropdown rows. Only lifecycle error feedback
-			     remains here (rare path; surfaces on submit/unlock failures). -->
-			{#if lifecycleError}
-				<div class="mt-4">
-					<span class="text-error text-xs">{lifecycleError}</span>
-				</div>
-			{/if}
+			     the SheetSelector dropdown rows. Save / lifecycle errors now
+			     surface via ErrorModal / LifecycleConflictModal mounted at
+			     the end of the page. -->
 
 		</div>
 
@@ -1784,6 +2080,41 @@
 			groupStandings={standingsMap}
 			{submissionMeta}
 			onClose={() => (printPreviewOpen = false)}
+		/>
+
+		<!-- Error modals — driven by routeSaveError() from every save /
+		     lifecycle catch block. ErrorModal handles generic failures;
+		     LifecycleConflictModal handles HTTP 409 with "is in status"
+		     (another tab submitted while this tab was editing). -->
+		<ErrorModal
+			open={errorModalOpen}
+			title={errorModalTitle}
+			message={errorModalMessage}
+			details={errorModalDetails}
+			onDismiss={handleErrorDismiss}
+		/>
+
+		<LifecycleConflictModal
+			open={lifecycleConflictOpen}
+			entryStatus={lifecycleConflictStatus}
+			canReopen={lifecycleConflictCanReopen}
+			onDiscard={handleLifecycleDiscard}
+			onReopen={handleLifecycleReopen}
+			onCancel={handleLifecycleCancel}
+		/>
+
+		<!-- CompletenessModal — fires from handleContinueStep when the
+		     section we're leaving (or a section it depends on) is
+		     incomplete. The Continue button is normally gated by
+		     `canContinue`, so this is defense-in-depth + the
+		     Bonus → Submit cross-section bracket check. -->
+		<CompletenessModal
+			open={completenessOpen}
+			title={completenessTitle}
+			missing={completenessMissing}
+			goToLabel={completenessGoToLabel}
+			onGoTo={handleCompletenessGoTo}
+			onCancel={handleCompletenessCancel}
 		/>
 	</div>
 

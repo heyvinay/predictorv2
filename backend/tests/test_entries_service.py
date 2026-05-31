@@ -306,7 +306,11 @@ class TestLifecycle:
         )
         await session.commit()
         phase = await entries_service.submit_entry(
-            session, entry=entry, user=user, competition=competition
+            session,
+            entry=entry,
+            user=user,
+            competition=competition,
+            validate_complete=False,
         )
         await session.commit()
         assert phase.status == EntryStatus.SUBMITTED
@@ -327,7 +331,11 @@ class TestLifecycle:
 
         with pytest.raises(EntryValidationError, match=r"(?i)paid"):
             await entries_service.submit_entry(
-                session, entry=entry, user=user, competition=competition
+                session,
+                entry=entry,
+                user=user,
+                competition=competition,
+                validate_complete=False,
             )
 
     async def test_submit_blocked_when_paid_to_is_whitespace(
@@ -344,7 +352,11 @@ class TestLifecycle:
 
         with pytest.raises(EntryValidationError, match=r"(?i)paid"):
             await entries_service.submit_entry(
-                session, entry=entry, user=user, competition=competition
+                session,
+                entry=entry,
+                user=user,
+                competition=competition,
+                validate_complete=False,
             )
 
     async def test_edit_reverts_submitted_to_draft(
@@ -355,7 +367,11 @@ class TestLifecycle:
         )
         await session.commit()
         await entries_service.submit_entry(
-            session, entry=entry, user=user, competition=competition
+            session,
+            entry=entry,
+            user=user,
+            competition=competition,
+            validate_complete=False,
         )
         await session.commit()
         phase = await entries_service.edit_entry(
@@ -375,7 +391,11 @@ class TestLifecycle:
         )
         await session.commit()
         await entries_service.submit_entry(
-            session, entry=entry, user=user, competition=competition
+            session,
+            entry=entry,
+            user=user,
+            competition=competition,
+            validate_complete=False,
         )
         await session.commit()
         competition.phase1_deadline = datetime.now(timezone.utc) - timedelta(minutes=5)
@@ -471,6 +491,114 @@ class TestLifecycle:
 
 
 # ---------------------------------------------------------------------------
+# Submit-time completeness validation (added 2026-05-31)
+#
+# Defense-in-depth against the frontend submitting an incomplete entry.
+# The validator runs by default; transition-mechanic tests opt out via
+# `validate_complete=False` (see TestLifecycle).
+# ---------------------------------------------------------------------------
+class TestSubmitCompleteness:
+    async def test_submit_rejects_empty_entry(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+    ):
+        """Empty entry (no predictions at all) should be rejected with a
+        message that names the missing pieces — bracket, bonus, etc."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        with pytest.raises(EntryValidationError) as exc_info:
+            await entries_service.submit_entry(
+                session, entry=entry, user=user, competition=competition
+            )
+        msg = str(exc_info.value).lower()
+        # Bracket gaps must be surfaced (the user's stated critical risk).
+        assert "round of 16" in msg
+        assert "winner" in msg
+        # Bonus gaps too (aggregated into the same message).
+        assert "bonus" in msg
+
+    async def test_submit_rejects_stale_winner_chain(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+    ):
+        """The hard case: bracket has all the expected counts per stage,
+        but a team at a later stage doesn't appear at the prior stage —
+        a stale row left behind when the user changed an upstream pick.
+        The frontend's `bracketIsComplete` catches this via
+        `predictionToBracketState`; the backend's equivalent walks the
+        flat stage rows and rejects when the chain is broken."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        # 16 round_of_16 teams.
+        r16_teams = [f"T{i:02d}" for i in range(1, 17)]
+        # 8 quarter_finals — 7 are a valid subset of R16; ONE is stale
+        # (not in R16). This is the bug pattern the validator must catch.
+        qf_teams = r16_teams[:7] + ["STALE_TEAM"]
+
+        for team in r16_teams:
+            session.add(
+                TeamPrediction(
+                    entry_id=entry.id,
+                    phase=PredictionPhase.PHASE_1,
+                    team=team,
+                    stage="round_of_16",
+                )
+            )
+        for team in qf_teams:
+            session.add(
+                TeamPrediction(
+                    entry_id=entry.id,
+                    phase=PredictionPhase.PHASE_1,
+                    team=team,
+                    stage="quarter_finals",
+                )
+            )
+        await session.commit()
+
+        with pytest.raises(EntryValidationError) as exc_info:
+            await entries_service.submit_entry(
+                session, entry=entry, user=user, competition=competition
+            )
+        msg = str(exc_info.value).lower()
+        assert "chain broken" in msg
+        assert "stale_team" in msg
+
+    async def test_submit_skips_validation_when_opted_out(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+    ):
+        """Sanity check: the `validate_complete=False` opt-out keeps
+        transition-mechanic tests working. With the kwarg disabled,
+        even an empty entry submits successfully."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        await session.commit()
+
+        phase = await entries_service.submit_entry(
+            session,
+            entry=entry,
+            user=user,
+            competition=competition,
+            validate_complete=False,
+        )
+        await session.commit()
+        assert phase.status == EntryStatus.SUBMITTED
+
+
+# ---------------------------------------------------------------------------
 # Withdraw
 # ---------------------------------------------------------------------------
 class TestWithdraw:
@@ -546,6 +674,7 @@ class TestDuplicateSubmissionCheck:
             entry=e1,
             user=user,
             competition=competition,
+            validate_complete=False,
         )
         await session.commit()
 
@@ -559,7 +688,11 @@ class TestDuplicateSubmissionCheck:
         # Submission must be rejected, naming e1's reference.
         with pytest.raises(EntryDuplicateError) as exc_info:
             await entries_service.submit_entry(
-                session, entry=e2, user=user, competition=competition
+                session,
+                entry=e2,
+                user=user,
+                competition=competition,
+                validate_complete=False,
             )
         assert exc_info.value.conflict_reference == e1.reference
 
@@ -580,6 +713,7 @@ class TestDuplicateSubmissionCheck:
             entry=e1,
             user=user,
             competition=competition,
+            validate_complete=False,
         )
         await session.commit()
 

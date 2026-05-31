@@ -223,6 +223,7 @@ class TestPhaseStatusLock:
             entry=alice_entry,
             user=alice,
             competition=competition,
+            validate_complete=False,
         )
         await session.commit()
         with pytest.raises(PredictionLockedError):

@@ -6,6 +6,25 @@ import type { ApiError } from '$types';
 
 const API_BASE = '/api';
 
+/**
+ * Thrown by the HTTP wrapper when the backend returns a non-2xx
+ * response. Subclasses `Error` so existing `catch (e) { e.message }`
+ * sites keep working — `super(detail)` populates `.message`. New code
+ * branches on `.status` / `.detail` / `instanceof ApiResponseError` to
+ * route errors to the right modal (e.g. HTTP 409 with "is in status"
+ * → LifecycleConflictModal).
+ */
+export class ApiResponseError extends Error {
+	constructor(
+		public status: number,
+		public detail: string,
+		public body: unknown
+	) {
+		super(detail);
+		this.name = 'ApiResponseError';
+	}
+}
+
 export class ApiClient {
 	private token: string | null = null;
 
@@ -32,10 +51,10 @@ export class ApiClient {
 		});
 
 		if (!response.ok) {
-			const error: ApiError = await response.json().catch(() => ({
+			const body: ApiError = await response.json().catch(() => ({
 				detail: `HTTP ${response.status}: ${response.statusText}`
 			}));
-			throw new Error(error.detail);
+			throw new ApiResponseError(response.status, body.detail, body);
 		}
 
 		// Handle empty responses

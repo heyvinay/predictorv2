@@ -203,7 +203,10 @@ export async function saveAllPredictions(): Promise<boolean> {
 		return true;
 	} catch (e) {
 		matchPredictionsError.set(e instanceof Error ? e.message : 'Failed to save predictions');
-		return false;
+		// Let the wizard route catch and pick the right modal (lifecycle
+		// conflict vs generic error). The error store above is kept for
+		// any other UI that subscribes to it.
+		throw e;
 	} finally {
 		matchPredictionsLoading.set(false);
 	}
@@ -264,7 +267,8 @@ export async function saveBracketPredictions(
 		return true;
 	} catch (e) {
 		bracketError.set(e instanceof Error ? e.message : 'Failed to save bracket');
-		return false;
+		// Let the wizard route catch and route to a modal.
+		throw e;
 	} finally {
 		bracketLoading.set(false);
 	}

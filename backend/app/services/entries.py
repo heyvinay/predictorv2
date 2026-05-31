@@ -663,6 +663,146 @@ def _entry_is_active(entry: PredictionEntry) -> bool:
 #   DRAFT → WITHDRAWN          (flip_drafts_past_deadline, system, at deadline)
 # Phase 2 is dormant — all functions hardcode PHASE_1.
 # ---------------------------------------------------------------------------
+async def _validate_phase1_complete(
+    session: AsyncSession,
+    *,
+    entry: PredictionEntry,
+) -> None:
+    """Raise EntryValidationError if Phase 1 isn't fully predicted.
+
+    Defense-in-depth against the frontend submitting an incomplete entry
+    (bypass via curl, stale state, tampering). Checks three things:
+
+    1. Every group fixture has a `MatchPrediction`.
+    2. The knockout bracket has the right number of `TeamPrediction`
+       rows per stage AND the **winner chain is intact** — every team
+       at a later stage must also appear at the prior stage. Catches
+       the case where the user changed an upstream pick and stale
+       downstream rows survived (e.g. the user changed an R32 winner,
+       so `round_of_16` was updated but the old winner's row still
+       lives at `quarter_finals` / `semi_finals` / `final`).
+    3. Every bonus question is answered (non-empty).
+
+    Aggregates all missing items into a single error message so the
+    user sees the full picture at once instead of fix-one-resubmit.
+    """
+    # Lazy imports: same pattern as the completion-summary query
+    # downstream — keeps the top-level import block lean.
+    from app.models.fixture import Fixture
+    from app.services.bonus import get_questions as get_bonus_questions
+
+    phase = PredictionPhase.PHASE_1
+    missing: list[str] = []
+
+    # --- 1. Groups: every group-stage fixture predicted ----------------
+    groups_total = int(
+        (
+            await session.execute(
+                select(func.count(Fixture.id)).where(Fixture.stage == "group")
+            )
+        ).scalar_one()
+    )
+    groups_done = int(
+        (
+            await session.execute(
+                select(func.count(MatchPrediction.id))
+                .join(Fixture, Fixture.id == MatchPrediction.fixture_id)
+                .where(
+                    MatchPrediction.entry_id == entry.id,
+                    Fixture.stage == "group",
+                )
+            )
+        ).scalar_one()
+    )
+    if groups_done < groups_total:
+        missing.append(
+            f"Group fixtures: {groups_total - groups_done} of "
+            f"{groups_total} unscored"
+        )
+
+    # --- 2. Bracket: counts per stage + winner-chain integrity ---------
+    rows = (
+        (
+            await session.execute(
+                select(TeamPrediction).where(
+                    TeamPrediction.entry_id == entry.id,
+                    TeamPrediction.phase == phase,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_stage: dict[str, set[str]] = {}
+    for tp in rows:
+        by_stage.setdefault(tp.stage, set()).add(tp.team)
+
+    # R32 picks are auto-derived from group winners; user picks WINNERS
+    # from R16 onward, plus the tournament winner. 16 + 8 + 4 + 2 + 1 = 31.
+    expected_counts = {
+        "round_of_16": 16,
+        "quarter_finals": 8,
+        "semi_finals": 4,
+        "final": 2,
+        "winner": 1,
+    }
+    for stage, expected in expected_counts.items():
+        got = len(by_stage.get(stage, set()))
+        if got < expected:
+            missing.append(
+                f"Bracket {stage.replace('_', ' ')}: {expected - got} of "
+                f"{expected} unpicked"
+            )
+
+    # Chain integrity. Each team at a later stage must also exist at the
+    # prior stage. Catches stale rows that survive when the user changes
+    # an upstream winner — the new winner replaces the old at one stage
+    # but the old winner's downstream chain (still rows in the DB) is
+    # now orphaned. The frontend's `predictionToBracketState` rebuild
+    # catches the same class of corruption from a different angle; this
+    # is the server-side equivalent operating on the flat row shape.
+    stage_order = [
+        "round_of_16",
+        "quarter_finals",
+        "semi_finals",
+        "final",
+        "winner",
+    ]
+    for i in range(1, len(stage_order)):
+        higher, lower = stage_order[i], stage_order[i - 1]
+        orphans = by_stage.get(higher, set()) - by_stage.get(lower, set())
+        if orphans:
+            sample = sorted(orphans)[0]
+            missing.append(
+                f"Bracket chain broken at {higher.replace('_', ' ')}: "
+                f"{sample!r} not present in {lower.replace('_', ' ')} "
+                "(stale pick — re-pick downstream rounds)"
+            )
+
+    # --- 3. Bonus: every question has a non-empty answer ---------------
+    bonus_total = len(get_bonus_questions())
+    bonus_done = int(
+        (
+            await session.execute(
+                select(func.count(BonusPrediction.id)).where(
+                    BonusPrediction.entry_id == entry.id,
+                    BonusPrediction.answer != "",
+                )
+            )
+        ).scalar_one()
+    )
+    if bonus_done < bonus_total:
+        missing.append(
+            f"Bonus questions: {bonus_total - bonus_done} of "
+            f"{bonus_total} unanswered"
+        )
+
+    if missing:
+        raise EntryValidationError(
+            "Entry is not complete:\n" + "\n".join(f"- {m}" for m in missing)
+        )
+
+
 async def submit_entry(
     session: AsyncSession,
     *,
@@ -671,8 +811,17 @@ async def submit_entry(
     competition: Competition,
     actor_role: ActorRole = ActorRole.USER,
     ctx: AuditContext | None = None,
+    validate_complete: bool = True,
 ) -> PredictionEntryPhase:
-    """`DRAFT → SUBMITTED`. Enforces ownership, deadline, payment + duplicate rules."""
+    """`DRAFT → SUBMITTED`. Enforces ownership, deadline, payment + duplicate rules.
+
+    `validate_complete=True` (default) also enforces Phase-1 completeness
+    — every group fixture predicted, every knockout-round winner picked
+    with an intact chain, every bonus question answered. Production
+    callers (the API route) use the default. Transition-mechanics tests
+    that don't care about completeness opt out with
+    `validate_complete=False`.
+    """
     phase = PredictionPhase.PHASE_1
     if actor_role == ActorRole.USER:
         await _ensure_owner(entry, user)
@@ -697,6 +846,16 @@ async def submit_entry(
         raise EntryValidationError(
             "Please record who you paid the fee to before submitting."
         )
+
+    # Phase-1 completeness — defense-in-depth against the frontend
+    # submitting an incomplete entry (curl bypass, stale state, tampering).
+    # The frontend already gates the Submit button on the same conditions;
+    # this is the server-side belt-and-braces. Critically: rejects
+    # knockout brackets whose winner chain is broken (stale teams that
+    # survived an upstream pick change). Tests that don't care about
+    # completeness pass `validate_complete=False` to skip.
+    if validate_complete:
+        await _validate_phase1_complete(session, entry=entry)
 
     # Duplicate-submission check — reject identical predictions.
     conflict = await _find_duplicate_eligible_entry(
