@@ -368,12 +368,26 @@
 
 	{:else if $entries.length === 0}
 		<div class="rounded-xl border border-base-300/50 bg-base-200/40">
-			<div class="flex flex-col items-center text-center py-14 px-6 gap-3">
+			<div class="flex flex-col items-center text-center py-14 px-6 gap-4">
 				<div class="text-3xl">📋</div>
 				<h2 class="font-semibold text-base">No entries yet</h2>
 				<p class="text-sm text-base-content/50 max-w-xs">
-					Click "New Entry" above to create your first prediction entry.
+					Name your entry, then fill in your picks. You can edit until the deadline.
 				</p>
+				<button
+					type="button"
+					class="btn btn-primary btn-lg gap-2 mt-2 shadow-glow-gold"
+					disabled={!canCreate || $entriesLoading}
+					title={!canCreate
+						? `Maximum of ${maxEntries} active ${maxEntries === 1 ? 'entry' : 'entries'} reached`
+						: undefined}
+					on:click={openNewEntryModal}
+				>
+					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+					</svg>
+					Create your first entry
+				</button>
 			</div>
 		</div>
 
