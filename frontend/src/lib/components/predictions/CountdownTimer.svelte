@@ -9,7 +9,9 @@
 	in the UI ticks on the same heartbeat.
 
 	Visual states:
-	  - normal       → subtle base-300 badge, base-content text
+	  - normal       → green-tinted pill (mirrors the landing-page calm-phase
+	                   countdown so the two timers read as the same object;
+	                   bg-success/10, border-success/40, text-success)
 	  - critical     → error-red bg/border/text when < criticalThresholdSec
 	                   remaining (defaults to 6 hours)
 	  - past deadline → renders nothing (component disappears entirely)
@@ -69,7 +71,7 @@
 		aria-label="{label}: {display} remaining"
 		class="inline-flex items-center {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {critical
 			? 'bg-error/10 border-error/40 text-error'
-			: 'bg-accent border-accent text-accent-content'}"
+			: 'bg-success/10 border-success/40 text-success'}"
 	>
 		{#if !compact}
 			<span class="text-[10px] uppercase tracking-wider opacity-80 font-bold">{label}</span>
