@@ -1841,7 +1841,7 @@
       "date": "2026-05-31",
       "type": "fix",
       "summary": "Landing page: the \"some goes to charity\" line now uses the gold brand color (theme-aware) and breaks onto its own line for clearer emphasis.",
-      "commit": "pending"
+      "commit": "70751a3"
     },
     {
       "version": "2.150.0",
@@ -1855,7 +1855,7 @@
       "date": "2026-05-31",
       "type": "internal",
       "summary": "Internal: corrected the position of the 2.150.0 changelog entry so it surfaces as the latest release in the admin Release Notes panel (was buried at the bottom due to a sort-order mistake).",
-      "commit": "pending"
+      "commit": "8d37e12"
     }
   ]
 }
