@@ -1,6 +1,7 @@
 {
   "baseline": "2.0.0",
   "generated_from": "git log --since=2026-05-01 --until=2026-06-01",
+  "_convention": "entries[] is stored OLDEST-FIRST (semver-ascending). The admin Release Notes panel reverses this for display. APPEND new entries to the end; never prepend. Each entry's commit field should be the real SHA; \"pending\" is tolerated as a placeholder but fill in soon. Invariants enforced by src/lib/data/changelog.test.ts — run `npx vitest run src/lib/data/changelog.test.ts` to verify.",
   "entries": [
     {
       "version": "2.0.0",
@@ -1856,6 +1857,13 @@
       "type": "internal",
       "summary": "Internal: corrected the position of the 2.150.0 changelog entry so it surfaces as the latest release in the admin Release Notes panel (was buried at the bottom due to a sort-order mistake).",
       "commit": "8d37e12"
+    },
+    {
+      "version": "2.150.2",
+      "date": "2026-05-31",
+      "type": "internal",
+      "summary": "Internal: added invariant tests for the Release Notes changelog and a defensive composite key in the admin renderer so a future ordering mistake or duplicate-SHA placeholder cannot blank the page again.",
+      "commit": "pending"
     }
   ]
 }

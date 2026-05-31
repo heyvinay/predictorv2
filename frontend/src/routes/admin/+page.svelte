@@ -1246,7 +1246,13 @@
 					</p>
 				{:else}
 					<ol class="space-y-2">
-						{#each visibleReleases as r (r.commit)}
+						<!-- Composite each-key: version + commit, not just commit. Rationale:
+						     entries can briefly hold commit: "pending" as a placeholder
+						     between committing-with-the-entry and filling in the real SHA.
+						     A bare `r.commit` key crashes the render with "duplicate keys"
+						     if two pending entries coexist. Version is always unique
+						     (enforced by src/lib/data/changelog.test.ts) and discriminates. -->
+						{#each visibleReleases as r (`${r.version}-${r.commit}`)}
 							<li
 								class="flex items-start gap-3 rounded-lg border border-base-300/40 p-3"
 							>
