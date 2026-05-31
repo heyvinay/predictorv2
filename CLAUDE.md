@@ -139,22 +139,45 @@ A failing migration takes the app down at startup — that's the safe default.
 
 ## Versioning
 
-**Bump the version before any production push.** Two files must stay in
-sync — both live at the same semver number:
+**Bump the version before any production push.** Three files must stay
+in sync — all at the same semver number:
 
 - `frontend/package.json` (also `frontend/package-lock.json` — both
   top-level `"version"` AND the in-tree `packages[""]` self-reference)
 - `backend/pyproject.toml`
 
-Bump rule (pre-1.0):
-- New user-visible behavior or new endpoint → **minor** (`0.x.0` → `0.(x+1).0`)
-- Bug fix / docs / refactor with no behavior change → **patch** (`0.x.y` → `0.x.(y+1)`)
-- Anything that breaks an existing contract — patience, this repo is
-  pre-1.0; treat it as minor and tighten the rule once we cut `1.0.0`.
+**Baseline reset (2026-05-31):** versions were renumbered from `0.x.x`
+to `2.x.x` starting at the first May 2026 commit (`2.0.0`). The current
+HEAD lives at `2.148.1`. The full chronological mapping commit → version
+lives in `frontend/src/lib/data/changelog.json` and is exposed in the
+admin console at `/admin` ("Release Notes" panel — filterable, latest
+first).
 
-Commit shape: a standalone `chore(version): bump to X.Y.Z` commit AFTER
-the feature/fix work has landed but BEFORE `git push` to origin. Keeps
-the deploy boundary visible in the log.
+Bump rule:
+- **Minor** (`2.x.0` → `2.(x+1).0`) — anything that adds capability:
+  `feat`, `refactor`, `perf`, or merges of those.
+- **Patch** (`2.x.y` → `2.x.(y+1)`) — anything that doesn't add capability:
+  `fix`, `chore`, `style`, `ui`, `docs`, `test`, `build`, `ci`, `revert`.
+
+**Process per release:**
+1. Land the feature/fix work.
+2. Bump the three version files.
+3. Add a new entry to `frontend/src/lib/data/changelog.json` at the
+   front of the `entries` array — keep the same shape
+   `{ version, date, type, summary, commit }`. The `type` enum:
+   `feature | improvement | fix | internal | merge`. The `summary` is
+   one user-friendly sentence (no dev jargon; the admin Release Notes
+   panel renders it verbatim to pool members on staff).
+4. Commit as `chore(version): bump to X.Y.Z` so the deploy boundary
+   stays visible in the log.
+5. `git push origin main` to publish.
+
+The bootstrap generator at `scripts/generate_changelog.py` walks
+`git log` to re-build the JSON from history. It's idempotent and safe
+to re-run, but the *source of truth* is the JSON file itself —
+hand-edits to summary wording persist if you avoid re-running the
+generator. Use the generator to seed a stale file; use direct JSON
+edits for ongoing release entries.
 
 ## Development
 

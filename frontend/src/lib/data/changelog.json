@@ -1,0 +1,1833 @@
+{
+  "baseline": "2.0.0",
+  "generated_from": "git log --since=2026-05-01 --until=2026-06-01",
+  "entries": [
+    {
+      "version": "2.0.0",
+      "date": "2026-05-02",
+      "type": "improvement",
+      "summary": "Results scatter chart now colors matches by outcome and highlights your own predictions.",
+      "commit": "8b92deb"
+    },
+    {
+      "version": "2.1.0",
+      "date": "2026-05-02",
+      "type": "feature",
+      "summary": "Knockout bracket on mobile now swipes between two-round pages for easier navigation.",
+      "commit": "bb93c78"
+    },
+    {
+      "version": "2.2.0",
+      "date": "2026-05-02",
+      "type": "feature",
+      "summary": "Profile page now shows Phase 1 and Phase 2 bracket predictions separately.",
+      "commit": "ea9f703"
+    },
+    {
+      "version": "2.2.1",
+      "date": "2026-05-02",
+      "type": "internal",
+      "summary": "Add design spec for WC2026 fixtures seeding.",
+      "commit": "beacbdf"
+    },
+    {
+      "version": "2.3.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Pivot fixture seeding to Football-Data.org after API-Football coverage gap.",
+      "commit": "f4d682b"
+    },
+    {
+      "version": "2.3.1",
+      "date": "2026-05-09",
+      "type": "fix",
+      "summary": "Rename Football-Data env var: API_FOOTBALL_DATA â†’ FOOTBALL_DATA_TOKEN.",
+      "commit": "33dbe02"
+    },
+    {
+      "version": "2.3.2",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Expand fixtures-seed spec to cover alpha consolidation refactor.",
+      "commit": "6f5a0d3"
+    },
+    {
+      "version": "2.3.3",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add implementation plan for WC2026 fixtures seeding.",
+      "commit": "ccd0dda"
+    },
+    {
+      "version": "2.4.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add Football-Data shared client skeleton with status mapping.",
+      "commit": "94f6596"
+    },
+    {
+      "version": "2.5.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add FootballDataClient HTTP methods (get_competition, get_matches, get_match).",
+      "commit": "df41559"
+    },
+    {
+      "version": "2.6.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add fixture_sync stage and group mapping helpers.",
+      "commit": "63aaf5b"
+    },
+    {
+      "version": "2.7.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add FixtureRecord and _record_from_match for resolved and null-team matches.",
+      "commit": "b8f5e14"
+    },
+    {
+      "version": "2.8.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add SyncResult and _upsert_fixtures with insert/update/unchanged/db-only counts.",
+      "commit": "7abdffc"
+    },
+    {
+      "version": "2.9.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Add sync_from_cache and 8-match sample test fixture.",
+      "commit": "781414e"
+    },
+    {
+      "version": "2.10.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Add sync_from_api with cache write and flags.ts mismatch detection.",
+      "commit": "f21da8c"
+    },
+    {
+      "version": "2.11.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add seed_fixtures CLI wrapper for sync_from_api and sync_from_cache.",
+      "commit": "0810c4b"
+    },
+    {
+      "version": "2.12.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Add smoke tests for refactored FootballDataScoreProvider (will pass after Task 10).",
+      "commit": "5257832"
+    },
+    {
+      "version": "2.12.1",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Refactor external_scores.py onto shared FootballDataClient; drop APIFootballProvider.",
+      "commit": "b54d455"
+    },
+    {
+      "version": "2.12.2",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Seed cache: 104 WC2026 fixtures from Football-Data.org as of 2026-05-09.",
+      "commit": "7710974"
+    },
+    {
+      "version": "2.12.3",
+      "date": "2026-05-09",
+      "type": "fix",
+      "summary": "Drop dead-end API-Football config now that we've committed to Football-Data.",
+      "commit": "ee63351"
+    },
+    {
+      "version": "2.12.4",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Reconcile plan.md with shipped reality.",
+      "commit": "d912368"
+    },
+    {
+      "version": "2.13.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add Competition.external_id column for live-scoring API mapping.",
+      "commit": "20f87ef"
+    },
+    {
+      "version": "2.14.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Live scores now update via a background scheduler with smarter match-window polling.",
+      "commit": "396ee26"
+    },
+    {
+      "version": "2.15.0",
+      "date": "2026-05-09",
+      "type": "improvement",
+      "summary": "Unfilled team slots now show as 'TBD' everywhere team names appear.",
+      "commit": "353a6e9"
+    },
+    {
+      "version": "2.16.0",
+      "date": "2026-05-09",
+      "type": "internal",
+      "summary": "Add flags.ts aliases for 4 Football-Data team-name variants.",
+      "commit": "8e72982"
+    },
+    {
+      "version": "2.17.0",
+      "date": "2026-05-09",
+      "type": "feature",
+      "summary": "Admin dashboard: user management and manual score sync added.",
+      "commit": "bf59aee"
+    },
+    {
+      "version": "2.17.1",
+      "date": "2026-05-10",
+      "type": "fix",
+      "summary": "Ignore worktrees/ and .worktrees/ directories.",
+      "commit": "68d9780"
+    },
+    {
+      "version": "2.17.2",
+      "date": "2026-05-10",
+      "type": "feature",
+      "summary": "Unsaved predictions now survive page refresh — drafts mirror to your browser's local storage.",
+      "commit": "fc65ebf"
+    },
+    {
+      "version": "2.18.0",
+      "date": "2026-05-10",
+      "type": "internal",
+      "summary": "Internal: every date/time across the app is now timezone-aware UTC — eliminates a class of off-by-N-hours bugs.",
+      "commit": "c6089cc"
+    },
+    {
+      "version": "2.19.0",
+      "date": "2026-05-10",
+      "type": "merge",
+      "summary": "Merge PR: Mirror unsaved predictions to localStorage.",
+      "commit": "5680d31"
+    },
+    {
+      "version": "2.19.1",
+      "date": "2026-05-10",
+      "type": "internal",
+      "summary": "Update plan.md and CLAUDE.md to reflect this session's work.",
+      "commit": "f745cf1"
+    },
+    {
+      "version": "2.19.2",
+      "date": "2026-05-10",
+      "type": "fix",
+      "summary": "When another tab saves predictions, this tab now refreshes its view so it doesn't show stale data.",
+      "commit": "980b1ca"
+    },
+    {
+      "version": "2.20.0",
+      "date": "2026-05-12",
+      "type": "feature",
+      "summary": "Production-ready: deployment stack hardened for VPS hosting.",
+      "commit": "7eded48"
+    },
+    {
+      "version": "2.20.1",
+      "date": "2026-05-12",
+      "type": "internal",
+      "summary": "Squash 4 alembic migrations into a single initial migration.",
+      "commit": "17228a6"
+    },
+    {
+      "version": "2.20.2",
+      "date": "2026-05-13",
+      "type": "fix",
+      "summary": "Drop obsolete version: 3.8 from docker-compose.yml.",
+      "commit": "5d1305d"
+    },
+    {
+      "version": "2.21.0",
+      "date": "2026-05-13",
+      "type": "feature",
+      "summary": "Daily automated backups of the production database to Cloudflare R2.",
+      "commit": "3e86d0e"
+    },
+    {
+      "version": "2.21.1",
+      "date": "2026-05-13",
+      "type": "fix",
+      "summary": "Skip rclone bucket-check so Object R&W token works.",
+      "commit": "218fc8b"
+    },
+    {
+      "version": "2.21.2",
+      "date": "2026-05-13",
+      "type": "feature",
+      "summary": "Search engines no longer index the site — your pool stays private.",
+      "commit": "a394d92"
+    },
+    {
+      "version": "2.21.3",
+      "date": "2026-05-14",
+      "type": "internal",
+      "summary": "Panini redesign: add foundation implementation plan.",
+      "commit": "1076668"
+    },
+    {
+      "version": "2.22.0",
+      "date": "2026-05-14",
+      "type": "feature",
+      "summary": "Panini redesign: load fonts and import additive base stylesheet.",
+      "commit": "6487296"
+    },
+    {
+      "version": "2.23.0",
+      "date": "2026-05-14",
+      "type": "feature",
+      "summary": "Panini redesign: add chrome Svelte components.",
+      "commit": "05366cb"
+    },
+    {
+      "version": "2.24.0",
+      "date": "2026-05-14",
+      "type": "feature",
+      "summary": "Panini redesign: add foundation sandbox at /panini-sandbox.",
+      "commit": "c123bed"
+    },
+    {
+      "version": "2.24.1",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Panini redesign: move @import above @tailwind directives so styles load.",
+      "commit": "6abca61"
+    },
+    {
+      "version": "2.24.2",
+      "date": "2026-05-15",
+      "type": "improvement",
+      "summary": "Panini redesign: drop card tilt rules per design preference.",
+      "commit": "bab2e78"
+    },
+    {
+      "version": "2.24.3",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Panini redesign: pass color not stroke-width to SVG stroke attribute.",
+      "commit": "8ff64b9"
+    },
+    {
+      "version": "2.25.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: add deterministic stubs module + vitest coverage.",
+      "commit": "32780db"
+    },
+    {
+      "version": "2.26.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: suppress legacy chrome on panini routes.",
+      "commit": "7bcf707"
+    },
+    {
+      "version": "2.27.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Dashboard to Panini design.",
+      "commit": "27acd0c"
+    },
+    {
+      "version": "2.28.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Leaderboard to Panini design.",
+      "commit": "5938648"
+    },
+    {
+      "version": "2.29.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Predictions wizard to Panini design.",
+      "commit": "b9d3c77"
+    },
+    {
+      "version": "2.30.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Results page to Panini design.",
+      "commit": "9f14f00"
+    },
+    {
+      "version": "2.31.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Login, Register, and Auth callback to Panini.",
+      "commit": "cf4b8cd"
+    },
+    {
+      "version": "2.31.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Panini redesign: add completion summary to decisions log.",
+      "commit": "e0d3eb5"
+    },
+    {
+      "version": "2.31.2",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Panini redesign: restyle GoogleLoginButton to match Panini design.",
+      "commit": "4bc7149"
+    },
+    {
+      "version": "2.31.3",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Docker compose: make frontend-dev work in parallel worktrees.",
+      "commit": "6359cab"
+    },
+    {
+      "version": "2.32.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: new Panini KnockoutBracket replaces legacy.",
+      "commit": "89da44d"
+    },
+    {
+      "version": "2.33.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: re-add row expander to Leaderboard in Panini style.",
+      "commit": "9949e63"
+    },
+    {
+      "version": "2.34.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Profile pages to Panini design.",
+      "commit": "299f5d2"
+    },
+    {
+      "version": "2.35.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: port Admin page to Panini design.",
+      "commit": "330597e"
+    },
+    {
+      "version": "2.35.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Panini redesign: closure summary for second-pass redesign.",
+      "commit": "b763b77"
+    },
+    {
+      "version": "2.36.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: wizard section toggle + 3rd place view + table polish.",
+      "commit": "213ae63"
+    },
+    {
+      "version": "2.37.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: gate Phase 1 bracket on group-stage completion.",
+      "commit": "dcdf41d"
+    },
+    {
+      "version": "2.38.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: cap match score inputs at 15 goals.",
+      "commit": "419978e"
+    },
+    {
+      "version": "2.39.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Panini redesign: add paid-status toggle to admin user list.",
+      "commit": "c3c5cf4"
+    },
+    {
+      "version": "2.39.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Pre-merge â€” CLAUDE.md Panini UI guidelines + compose tidy.",
+      "commit": "f5cdc9d"
+    },
+    {
+      "version": "2.40.0",
+      "date": "2026-05-15",
+      "type": "merge",
+      "summary": "Merge: Panini redesign (worktree-redesign).",
+      "commit": "24adea1"
+    },
+    {
+      "version": "2.40.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "claude.md: refresh sections to reflect Panini structure.",
+      "commit": "6bc54e6"
+    },
+    {
+      "version": "2.41.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Daily leaderboard snapshots + trajectory data for dashboard charts.",
+      "commit": "5e17cbc"
+    },
+    {
+      "version": "2.42.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Real social-signal counts per fixture + 'Hot Pick' widget powered by actual data.",
+      "commit": "89ab8b8"
+    },
+    {
+      "version": "2.43.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Real bracket exposure + bonus-haul breakdowns on the dashboard.",
+      "commit": "19af054"
+    },
+    {
+      "version": "2.44.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Bonus questions: schema, save/load endpoints, and wizard wiring.",
+      "commit": "6281786"
+    },
+    {
+      "version": "2.45.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Bonus questions: admin can manage answers; leaderboard scores bonus picks.",
+      "commit": "6a35f20"
+    },
+    {
+      "version": "2.45.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Database: alembic upgrade head on startup; drop SQLModel.create_all.",
+      "commit": "d87b6b6"
+    },
+    {
+      "version": "2.46.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Public /rules page explaining scoring, phases, and buy-in.",
+      "commit": "6f213e3"
+    },
+    {
+      "version": "2.46.1",
+      "date": "2026-05-15",
+      "type": "improvement",
+      "summary": "Rules page: currency to â‚¬ (Euros).",
+      "commit": "df51755"
+    },
+    {
+      "version": "2.46.2",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Capture deferred Panini flag-style decision.",
+      "commit": "6e1bfef"
+    },
+    {
+      "version": "2.47.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Live scores now appear on fixture data + dashboard.",
+      "commit": "a01bd17"
+    },
+    {
+      "version": "2.47.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Standings: cover group-table logic + FIFA third-place grid.",
+      "commit": "cda9826"
+    },
+    {
+      "version": "2.47.2",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Knockout bracket: cover bracketResolver + align tiebreaker with backend.",
+      "commit": "bdc522a"
+    },
+    {
+      "version": "2.48.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Group standings: full FIFA tiebreaker chain with alphabetical-tie warnings.",
+      "commit": "6fc0165"
+    },
+    {
+      "version": "2.49.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "standings/bracket: mirror FIFA chain + warnings in frontend.",
+      "commit": "325162b"
+    },
+    {
+      "version": "2.50.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Predictions wizard: tie-warning banner when alphabetical fallback decides standings.",
+      "commit": "6d1e54c"
+    },
+    {
+      "version": "2.51.0",
+      "date": "2026-05-15",
+      "type": "merge",
+      "summary": "Merge branch 'main' into worktree-redesign.",
+      "commit": "470a2cb"
+    },
+    {
+      "version": "2.51.1",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "API: add missing getCompetitionInfo + CompetitionInfo export.",
+      "commit": "0f30b58"
+    },
+    {
+      "version": "2.51.2",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Rules page: wire up Panini chrome + page-specific styles.",
+      "commit": "c59d89c"
+    },
+    {
+      "version": "2.52.0",
+      "date": "2026-05-15",
+      "type": "merge",
+      "summary": "Merge: live-scores, FIFA tiebreaker chain, tie-warning banners.",
+      "commit": "073508a"
+    },
+    {
+      "version": "2.52.1",
+      "date": "2026-05-15",
+      "type": "internal",
+      "summary": "Fixtures: live fixtures now include score (was excluded).",
+      "commit": "fc6f166"
+    },
+    {
+      "version": "2.52.2",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Panini redesign: override daisyUI .stat/.stats class collision.",
+      "commit": "00806cb"
+    },
+    {
+      "version": "2.52.3",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Leaderboard: raise climbers limit cap so dashboard call succeeds.",
+      "commit": "f4a5efa"
+    },
+    {
+      "version": "2.52.4",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Predictions wizard: equal-width toggles, larger progress bar, reactive save state + clearer copy.",
+      "commit": "deade65"
+    },
+    {
+      "version": "2.52.5",
+      "date": "2026-05-15",
+      "type": "fix",
+      "summary": "Predictions wizard: make groupProgress + bonusAnswer reactive.",
+      "commit": "9b3a9f3"
+    },
+    {
+      "version": "2.53.0",
+      "date": "2026-05-15",
+      "type": "feature",
+      "summary": "Predictions wizard: cross-tab and cross-refresh draft persistence restored.",
+      "commit": "63a634d"
+    },
+    {
+      "version": "2.54.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: add GF + GA columns to predicted standings tables.",
+      "commit": "8a89d8e"
+    },
+    {
+      "version": "2.55.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: 2-column group view with sticky standings (desktop).",
+      "commit": "27e424d"
+    },
+    {
+      "version": "2.56.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: 3-letter codes on match cards + position color legend.",
+      "commit": "3c595af"
+    },
+    {
+      "version": "2.57.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: editing-state UI (chip + gold cell with red offset shadow).",
+      "commit": "ab20382"
+    },
+    {
+      "version": "2.58.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: big-number progress treatment matching the original mock.",
+      "commit": "a13a52b"
+    },
+    {
+      "version": "2.58.1",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: wrap standings + legend so 2-col grid doesn't break.",
+      "commit": "bb68f65"
+    },
+    {
+      "version": "2.58.2",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: tone down editing-state â€” sticker chip + shadow-only highlight.",
+      "commit": "61054e5"
+    },
+    {
+      "version": "2.58.3",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: drop redundant match-card header + add chip tilt.",
+      "commit": "c41f063"
+    },
+    {
+      "version": "2.58.4",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: slim editing chip â€” drop paper outline, smaller size.",
+      "commit": "df5b081"
+    },
+    {
+      "version": "2.58.5",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: scrollbar, progress bar polish, KNOCKOUT button wrap.",
+      "commit": "206bb91"
+    },
+    {
+      "version": "2.58.6",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: close hero dead-zone â€” middle column stretches, not the title.",
+      "commit": "a26dbd9"
+    },
+    {
+      "version": "2.59.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: gate tie-warnings on group completion + red pill for tied groups.",
+      "commit": "2b26687"
+    },
+    {
+      "version": "2.59.1",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: strip vertical pipes on mobile + scale down progress block.",
+      "commit": "b4e2f5b"
+    },
+    {
+      "version": "2.59.2",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: explicit breakpoint hierarchy for hero + match grid.",
+      "commit": "9f07767"
+    },
+    {
+      "version": "2.59.3",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: auto-dismiss restoration banner after 5 seconds.",
+      "commit": "c82b3a9"
+    },
+    {
+      "version": "2.60.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: fade transition on restoration banner + grid pill layout.",
+      "commit": "15cabfa"
+    },
+    {
+      "version": "2.61.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Predictions wizard: structural pill nav â€” divisor-of-12 grid + mobile dropdown.",
+      "commit": "d9cd292"
+    },
+    {
+      "version": "2.61.1",
+      "date": "2026-05-16",
+      "type": "fix",
+      "summary": "Predictions wizard: pill centering, dropdown daisyUI collision, solid menu colours.",
+      "commit": "9eaa64e"
+    },
+    {
+      "version": "2.61.2",
+      "date": "2026-05-16",
+      "type": "internal",
+      "summary": "Added panini changes.",
+      "commit": "4206af0"
+    },
+    {
+      "version": "2.62.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Panini redesign: real SVG flags + shorter country display names.",
+      "commit": "c0eb655"
+    },
+    {
+      "version": "2.63.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Multi-entry foundation: users can now have multiple prediction entries per competition.",
+      "commit": "604ec90"
+    },
+    {
+      "version": "2.64.0",
+      "date": "2026-05-16",
+      "type": "feature",
+      "summary": "Multi-entry: frontend wizard, selector, and entry-scoped APIs.",
+      "commit": "e09f9bb"
+    },
+    {
+      "version": "2.65.0",
+      "date": "2026-05-17",
+      "type": "feature",
+      "summary": "Multi-entry: leaderboard hides other players' predictions until the deadline (blind pool).",
+      "commit": "8fc947f"
+    },
+    {
+      "version": "2.66.0",
+      "date": "2026-05-17",
+      "type": "feature",
+      "summary": "Multi-entry: admin panels for entry settings, Phase II open, and the entries table.",
+      "commit": "4fbc705"
+    },
+    {
+      "version": "2.67.0",
+      "date": "2026-05-17",
+      "type": "feature",
+      "summary": "Entries: yOU badge + conditional reference + profile entries list.",
+      "commit": "25a729a"
+    },
+    {
+      "version": "2.67.1",
+      "date": "2026-05-17",
+      "type": "fix",
+      "summary": "docker: bind frontend-dev port to 127.0.0.1 only.",
+      "commit": "6e1bed1"
+    },
+    {
+      "version": "2.67.2",
+      "date": "2026-05-17",
+      "type": "fix",
+      "summary": "Entries: load entries when $user.id resolves, not gated on competition_id.",
+      "commit": "1f14995"
+    },
+    {
+      "version": "2.68.0",
+      "date": "2026-05-17",
+      "type": "feature",
+      "summary": "Multi-entry: lifecycle actions wired — Mark Ready, Submit, Reopen, Withdraw + bonus gate.",
+      "commit": "675fb76"
+    },
+    {
+      "version": "2.69.0",
+      "date": "2026-05-18",
+      "type": "feature",
+      "summary": "Bonus + bracket: multi-answer ties, auto-resolver, and bracket alignment.",
+      "commit": "dae70d9"
+    },
+    {
+      "version": "2.69.1",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Sign-in: restore DaisyUI dark-theme login, register, callback.",
+      "commit": "32ef521"
+    },
+    {
+      "version": "2.69.2",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Profile: restore DaisyUI profile pages, keep entry-aware wiring.",
+      "commit": "83eee9b"
+    },
+    {
+      "version": "2.69.3",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Results page: restore DaisyUI results page with scatter + community.",
+      "commit": "cd16c6c"
+    },
+    {
+      "version": "2.69.4",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Leaderboard: daisyUI standings, keep entry-scoping + widgets.",
+      "commit": "7a67d8d"
+    },
+    {
+      "version": "2.69.5",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "dashboard: daisyUI dashboard, keep all widgets + entry-scoping.",
+      "commit": "ff39b89"
+    },
+    {
+      "version": "2.69.6",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Predictions wizard: daisyUI wizard, keep entries/bonus/bracket/persistence.",
+      "commit": "18fec74"
+    },
+    {
+      "version": "2.69.7",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Admin console: daisyUI admin console, keep entry/bonus/phase tooling.",
+      "commit": "2c73901"
+    },
+    {
+      "version": "2.69.8",
+      "date": "2026-05-20",
+      "type": "fix",
+      "summary": "Rules page: daisyUI rules page.",
+      "commit": "d2af094"
+    },
+    {
+      "version": "2.69.9",
+      "date": "2026-05-20",
+      "type": "internal",
+      "summary": "Dashboard widgets: port deterministic-fallback + sparkline tests to widgetFallbacks.",
+      "commit": "3d3c289"
+    },
+    {
+      "version": "2.69.10",
+      "date": "2026-05-20",
+      "type": "internal",
+      "summary": "Panini redesign: purge Panini surface, scope, fonts, and docs.",
+      "commit": "62138d0"
+    },
+    {
+      "version": "2.70.0",
+      "date": "2026-05-20",
+      "type": "feature",
+      "summary": "Theme picker added to the user avatar dropdown.",
+      "commit": "6fdc0c2"
+    },
+    {
+      "version": "2.71.0",
+      "date": "2026-05-20",
+      "type": "feature",
+      "summary": "Predictions wizard: redesign Phase 1 group view with header + standings + match grid.",
+      "commit": "4d02f80"
+    },
+    {
+      "version": "2.72.0",
+      "date": "2026-05-20",
+      "type": "feature",
+      "summary": "Theme: add 'premium' theme â€” editorial dark + champagne gold.",
+      "commit": "c56bee6"
+    },
+    {
+      "version": "2.73.0",
+      "date": "2026-05-20",
+      "type": "feature",
+      "summary": "Theme: rewrite 'premium' as a light editorial palette.",
+      "commit": "eeff234"
+    },
+    {
+      "version": "2.74.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: render all 12 groups sequentially with anchor-jump pills.",
+      "commit": "0c6e52a"
+    },
+    {
+      "version": "2.75.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: revert to single-group wizard with a richer selector.",
+      "commit": "dcccdf8"
+    },
+    {
+      "version": "2.75.1",
+      "date": "2026-05-21",
+      "type": "fix",
+      "summary": "Predictions wizard: row-4 alignment in v2 standings table.",
+      "commit": "28b8ea5"
+    },
+    {
+      "version": "2.76.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: mark 4th-place row as 'out' with a red pill + red bar.",
+      "commit": "0e1e4e3"
+    },
+    {
+      "version": "2.77.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Theme: rewrite 'premium' as the sports-broadcast palette.",
+      "commit": "850ef39"
+    },
+    {
+      "version": "2.78.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Theme: premium polish â€” navy navbar, deeper amber, bold team titles.",
+      "commit": "1ab6116"
+    },
+    {
+      "version": "2.79.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Per-match drill-down page with bubble plot and scrolling leaderboard.",
+      "commit": "75597e2"
+    },
+    {
+      "version": "2.80.0",
+      "date": "2026-05-21",
+      "type": "improvement",
+      "summary": "Entry lifecycle simplified from 6 statuses to 3: draft, submitted, withdrawn.",
+      "commit": "4f0b244"
+    },
+    {
+      "version": "2.81.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Background job auto-withdraws DRAFT entries past the competition deadline.",
+      "commit": "a42ce51"
+    },
+    {
+      "version": "2.81.1",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Database migrations: simplify entrystatus enum â€” 6 values â†’ 3.",
+      "commit": "63b2bd5"
+    },
+    {
+      "version": "2.81.2",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Entries: update backend tests for simplified lifecycle.",
+      "commit": "f1c1cea"
+    },
+    {
+      "version": "2.82.0",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Entries: frontend types + API client + store reflect new lifecycle.",
+      "commit": "d5a62be"
+    },
+    {
+      "version": "2.82.1",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Internal: exclude superpowers cache, panini mockup source, scratch state.",
+      "commit": "5509379"
+    },
+    {
+      "version": "2.82.2",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Internal: drop inline comments from new patterns.",
+      "commit": "22dcc5e"
+    },
+    {
+      "version": "2.83.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Logarithmic rarity-bonus scoring mode (default); legacy hybrid mode retired.",
+      "commit": "1582f82"
+    },
+    {
+      "version": "2.84.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Competition: scoring-config API for client-side rarity projection.",
+      "commit": "b720769"
+    },
+    {
+      "version": "2.85.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Per-match breakdown cards + Results page rebuild.",
+      "commit": "c2af978"
+    },
+    {
+      "version": "2.86.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Rules page: per-pool-size rarity bonus table.",
+      "commit": "394f54c"
+    },
+    {
+      "version": "2.87.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: mobile hero layout + predictions page polish.",
+      "commit": "58b2b7d"
+    },
+    {
+      "version": "2.88.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "App shell: sticky masthead/strip + Tailscale dev allowedHosts.",
+      "commit": "d636e43"
+    },
+    {
+      "version": "2.88.1",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Panini redesign: bump auth input to 16px to suppress iOS auto-zoom.",
+      "commit": "455942f"
+    },
+    {
+      "version": "2.88.2",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Internal scripts: seeders for Results UI manual testing.",
+      "commit": "5d3ddb4"
+    },
+    {
+      "version": "2.89.0",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Predictions wizard: collapse lifecycle UI to submit + edit, drop phase toggle.",
+      "commit": "34f8cd5"
+    },
+    {
+      "version": "2.90.0",
+      "date": "2026-05-21",
+      "type": "internal",
+      "summary": "Admin console: reshape entries table for simplified lifecycle.",
+      "commit": "3dfbaab"
+    },
+    {
+      "version": "2.91.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: sheet status dots (Prompt 2).",
+      "commit": "4f54997"
+    },
+    {
+      "version": "2.92.0",
+      "date": "2026-05-21",
+      "type": "feature",
+      "summary": "Predictions wizard: countdown timer (Prompt 3).",
+      "commit": "cd457ec"
+    },
+    {
+      "version": "2.93.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: sheet selector dropdown (Prompt 4).",
+      "commit": "ae899fe"
+    },
+    {
+      "version": "2.94.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: reusable confirmation modal (Prompt 5).",
+      "commit": "e4f220b"
+    },
+    {
+      "version": "2.95.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: score presets row (Prompt 6).",
+      "commit": "ba9600b"
+    },
+    {
+      "version": "2.96.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: score stepper + fixture row (Prompts 7 + 8 combined).",
+      "commit": "3f57ba6"
+    },
+    {
+      "version": "2.97.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: group accordion (Prompt 9).",
+      "commit": "25dfc6e"
+    },
+    {
+      "version": "2.98.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: restore standings + third-place + tied warnings.",
+      "commit": "7cce16f"
+    },
+    {
+      "version": "2.99.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: group quick-nav A-L strip (Prompt 10).",
+      "commit": "6c19f8f"
+    },
+    {
+      "version": "2.100.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: progress section + smart fill (Prompt 11).",
+      "commit": "0118e62"
+    },
+    {
+      "version": "2.101.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: status banner (Prompt 12).",
+      "commit": "4635f18"
+    },
+    {
+      "version": "2.102.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: bottom action bar (Prompt 13).",
+      "commit": "1fc1891"
+    },
+    {
+      "version": "2.102.1",
+      "date": "2026-05-22",
+      "type": "internal",
+      "summary": "Predictions wizard: assembly + polish (Prompt 14).",
+      "commit": "b48041f"
+    },
+    {
+      "version": "2.103.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: rename \"Lock In\" -> \"Submit\", gate on full completeness.",
+      "commit": "37d56ee"
+    },
+    {
+      "version": "2.103.1",
+      "date": "2026-05-22",
+      "type": "internal",
+      "summary": "Predictions wizard: remove duplicate top-of-hero Submit/Edit buttons.",
+      "commit": "0137d05"
+    },
+    {
+      "version": "2.103.2",
+      "date": "2026-05-22",
+      "type": "fix",
+      "summary": "Predictions wizard: save Draft now enables on bracket + Phase 2 changes.",
+      "commit": "0ddad2e"
+    },
+    {
+      "version": "2.103.3",
+      "date": "2026-05-22",
+      "type": "fix",
+      "summary": "Predictions wizard: bonus questions render â€” point client at entry-scoped endpoints.",
+      "commit": "8085ab5"
+    },
+    {
+      "version": "2.104.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: unified Save Draft covers matches + bracket + bonus.",
+      "commit": "2907ce0"
+    },
+    {
+      "version": "2.104.1",
+      "date": "2026-05-22",
+      "type": "fix",
+      "summary": "Predictions wizard: save Draft now actually persists the bracket too.",
+      "commit": "95fcc1f"
+    },
+    {
+      "version": "2.105.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: smart Fill extends to knockout bracket + checkbox modal.",
+      "commit": "bedbb95"
+    },
+    {
+      "version": "2.106.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: progress bar combines groups + bracket + bonus.",
+      "commit": "317dbd4"
+    },
+    {
+      "version": "2.107.0",
+      "date": "2026-05-22",
+      "type": "feature",
+      "summary": "Predictions wizard: progress bar shows three proportional segments.",
+      "commit": "88194b9"
+    },
+    {
+      "version": "2.107.1",
+      "date": "2026-05-22",
+      "type": "fix",
+      "summary": "Predictions wizard: segments fill partially â€” not solid color.",
+      "commit": "2b5f281"
+    },
+    {
+      "version": "2.108.0",
+      "date": "2026-05-23",
+      "type": "feature",
+      "summary": "New /entries hub: list of all your entries, plus admin table refactor.",
+      "commit": "6c85476"
+    },
+    {
+      "version": "2.109.0",
+      "date": "2026-05-24",
+      "type": "feature",
+      "summary": "Predictions wizard: wizard redesign â€” fixture cards, mobile standings drawer, third-place accordion.",
+      "commit": "1737535"
+    },
+    {
+      "version": "2.110.0",
+      "date": "2026-05-24",
+      "type": "feature",
+      "summary": "entries+wizard: /entries hub actions, wizard polish, print preview.",
+      "commit": "aab21e5"
+    },
+    {
+      "version": "2.111.0",
+      "date": "2026-05-24",
+      "type": "improvement",
+      "summary": "/entries: visual redesign — clean table, naming dialog, inline edit, completion chips, kebab menu.",
+      "commit": "9c7a230"
+    },
+    {
+      "version": "2.112.0",
+      "date": "2026-05-24",
+      "type": "feature",
+      "summary": "Entries: replace completion chips with ProgressSection doughnut.",
+      "commit": "440b2aa"
+    },
+    {
+      "version": "2.112.1",
+      "date": "2026-05-24",
+      "type": "fix",
+      "summary": "Entries: rename completion endpoint to avoid Starlette 1.0 hyphen-path bug.",
+      "commit": "0b29301"
+    },
+    {
+      "version": "2.112.2",
+      "date": "2026-05-24",
+      "type": "fix",
+      "summary": "Entries: remove dead zone in name cell â€” entire row now clickable.",
+      "commit": "50d0b83"
+    },
+    {
+      "version": "2.113.0",
+      "date": "2026-05-24",
+      "type": "feature",
+      "summary": "Bracket wallchart: symmetric desktop 9-column layout + mobile 4-page carousel.",
+      "commit": "6e2afae"
+    },
+    {
+      "version": "2.113.1",
+      "date": "2026-05-24",
+      "type": "fix",
+      "summary": "Knockout bracket: pin wallchart palette so it survives theme switches.",
+      "commit": "a1f54ca"
+    },
+    {
+      "version": "2.113.2",
+      "date": "2026-05-24",
+      "type": "fix",
+      "summary": "Knockout bracket: give the wallchart panel its own identity.",
+      "commit": "bf5d847"
+    },
+    {
+      "version": "2.114.0",
+      "date": "2026-05-24",
+      "type": "internal",
+      "summary": "Knockout bracket: use DaisyUI theme tokens â€” wallchart now follows theme.",
+      "commit": "078a2c0"
+    },
+    {
+      "version": "2.115.0",
+      "date": "2026-05-24",
+      "type": "internal",
+      "summary": "Knockout bracket: remap to neutral base tokens â€” quiet chart + vibrant accents.",
+      "commit": "fd02d51"
+    },
+    {
+      "version": "2.115.1",
+      "date": "2026-05-25",
+      "type": "improvement",
+      "summary": "Knockout bracket: green wash on winner row + pin FINAL pill to gold.",
+      "commit": "7351d3c"
+    },
+    {
+      "version": "2.115.2",
+      "date": "2026-05-25",
+      "type": "fix",
+      "summary": "Knockout bracket: render winner-row green that was being silently dropped.",
+      "commit": "8034b00"
+    },
+    {
+      "version": "2.115.3",
+      "date": "2026-05-25",
+      "type": "improvement",
+      "summary": "Knockout bracket: remove diagonal pinstripe from wallchart panel.",
+      "commit": "a6bc531"
+    },
+    {
+      "version": "2.115.4",
+      "date": "2026-05-25",
+      "type": "improvement",
+      "summary": "Knockout bracket: remove desktop champion strip â€” champion already in header.",
+      "commit": "b2bf967"
+    },
+    {
+      "version": "2.116.0",
+      "date": "2026-05-25",
+      "type": "feature",
+      "summary": "Knockout bracket: show full country name in chips with 3-letter fallback.",
+      "commit": "c52481f"
+    },
+    {
+      "version": "2.116.1",
+      "date": "2026-05-25",
+      "type": "improvement",
+      "summary": "Knockout bracket: full-bleed the desktop wallchart so chips can breathe.",
+      "commit": "15da3bc"
+    },
+    {
+      "version": "2.117.0",
+      "date": "2026-05-25",
+      "type": "feature",
+      "summary": "Magic-link (passwordless) sign-in added.",
+      "commit": "1cba18e"
+    },
+    {
+      "version": "2.117.1",
+      "date": "2026-05-25",
+      "type": "improvement",
+      "summary": "Sign-in: restyle login + onboarding pages from Panini to DaisyUI.",
+      "commit": "450dd31"
+    },
+    {
+      "version": "2.117.2",
+      "date": "2026-05-25",
+      "type": "fix",
+      "summary": "Magic-link sign-in: handle null user.name in every backend view + admin UI.",
+      "commit": "bef3054"
+    },
+    {
+      "version": "2.117.3",
+      "date": "2026-05-25",
+      "type": "internal",
+      "summary": "Update local Claude permission allowlist.",
+      "commit": "be989de"
+    },
+    {
+      "version": "2.118.0",
+      "date": "2026-05-25",
+      "type": "merge",
+      "summary": "Merge: feat/sheets-overview -> main (entries + bracket + magic-login + scoring upgrade).",
+      "commit": "5bc59f2"
+    },
+    {
+      "version": "2.118.1",
+      "date": "2026-05-25",
+      "type": "fix",
+      "summary": "Database migrations: merge sheets and main migration heads (post-merge fix).",
+      "commit": "cfb86f7"
+    },
+    {
+      "version": "2.119.0",
+      "date": "2026-05-25",
+      "type": "feature",
+      "summary": "results,rules: phase B â€” DaisyUI port of c2af978 breakdown cards + 394f54c rarity table.",
+      "commit": "5b67788"
+    },
+    {
+      "version": "2.120.0",
+      "date": "2026-05-25",
+      "type": "feature",
+      "summary": "Results page: phase C â€” DaisyUI port of 75597e2 match-detail drill-down.",
+      "commit": "9d1edb2"
+    },
+    {
+      "version": "2.120.1",
+      "date": "2026-05-25",
+      "type": "fix",
+      "summary": "Sign-in: await fetchUser in OAuth/magic-link callback.",
+      "commit": "1f4a1ed"
+    },
+    {
+      "version": "2.120.2",
+      "date": "2026-05-26",
+      "type": "fix",
+      "summary": "Database migration: use uppercase enum values in lifecycle simplification.",
+      "commit": "6ece066"
+    },
+    {
+      "version": "2.121.0",
+      "date": "2026-05-26",
+      "type": "feature",
+      "summary": "UI polish: predictions wizard + UI polish pass.",
+      "commit": "8e921b1"
+    },
+    {
+      "version": "2.122.0",
+      "date": "2026-05-26",
+      "type": "merge",
+      "summary": "Merge: feat/ui-polish -> main (predictions wizard + UI polish pass).",
+      "commit": "02db022"
+    },
+    {
+      "version": "2.122.1",
+      "date": "2026-05-27",
+      "type": "fix",
+      "summary": "Group standings tiebreak now applies head-to-head before overall goal difference per FWC2026 Article 13.",
+      "commit": "00c8f17"
+    },
+    {
+      "version": "2.122.2",
+      "date": "2026-05-27",
+      "type": "internal",
+      "summary": "Backend: fix stale lifecycle tests + green the backend suite.",
+      "commit": "80285c2"
+    },
+    {
+      "version": "2.122.3",
+      "date": "2026-05-27",
+      "type": "internal",
+      "summary": "Regulations docs: store official FWC2026 regulations + Article 13 index.",
+      "commit": "fdb8713"
+    },
+    {
+      "version": "2.123.0",
+      "date": "2026-05-27",
+      "type": "merge",
+      "summary": "Merge: fix/group-tiebreak-order -> main (FWC2026 Art.13 head-to-head-first tie-break).",
+      "commit": "c45457b"
+    },
+    {
+      "version": "2.124.0",
+      "date": "2026-05-27",
+      "type": "merge",
+      "summary": "Merge: chore/backend-test-hygiene -> main (green the backend suite).",
+      "commit": "f28334a"
+    },
+    {
+      "version": "2.125.0",
+      "date": "2026-05-27",
+      "type": "merge",
+      "summary": "Merge: docs/fwc2026-regulations -> main (store official regulations).",
+      "commit": "5971b96"
+    },
+    {
+      "version": "2.126.0",
+      "date": "2026-05-28",
+      "type": "feature",
+      "summary": "Onboarding overhaul + submit flow + email rebrand.",
+      "commit": "287cf2b"
+    },
+    {
+      "version": "2.126.1",
+      "date": "2026-05-28",
+      "type": "internal",
+      "summary": "Wire VITE_TURNSTILE_SITE_KEY as a build arg for prod.",
+      "commit": "8bb649c"
+    },
+    {
+      "version": "2.126.2",
+      "date": "2026-05-28",
+      "type": "internal",
+      "summary": "Refresh CLAUDE.md / AGENTS.md / project.md and archive stale briefs.",
+      "commit": "764fa90"
+    },
+    {
+      "version": "2.127.0",
+      "date": "2026-05-28",
+      "type": "feature",
+      "summary": "New app icons and PWA manifest installed.",
+      "commit": "c292b0c"
+    },
+    {
+      "version": "2.128.0",
+      "date": "2026-05-28",
+      "type": "merge",
+      "summary": "Merge: claude/sleepy-yalow-9e0602 -> main (docs cleanup + new app icons).",
+      "commit": "6a66a93"
+    },
+    {
+      "version": "2.128.1",
+      "date": "2026-05-29",
+      "type": "fix",
+      "summary": "Sign-in: extract logo fallback handlers (Svelte templates parse as JS).",
+      "commit": "3d93481"
+    },
+    {
+      "version": "2.128.2",
+      "date": "2026-05-29",
+      "type": "internal",
+      "summary": "Document Svelte template-TS + app.html hot-reload gotchas.",
+      "commit": "960a5e8"
+    },
+    {
+      "version": "2.129.0",
+      "date": "2026-05-29",
+      "type": "improvement",
+      "summary": "New premium-night / premium-day themes with Manrope + Inter typography.",
+      "commit": "74c2cc9"
+    },
+    {
+      "version": "2.130.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: claude/xenodochial-joliot-5d5821 -> main (premium-night/day themes + Manrope/Inter type system).",
+      "commit": "e729da0"
+    },
+    {
+      "version": "2.130.1",
+      "date": "2026-05-29",
+      "type": "fix",
+      "summary": "Theme: restore DaisyUI standard tokens for component rendering.",
+      "commit": "63a2e65"
+    },
+    {
+      "version": "2.131.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Landing page (/) built from the predictorv3 design handoff.",
+      "commit": "45e72f9"
+    },
+    {
+      "version": "2.132.0",
+      "date": "2026-05-29",
+      "type": "improvement",
+      "summary": "Landing page: mobile polish, FAQ section, news + auth-aware chrome fixes.",
+      "commit": "ffcd3d2"
+    },
+    {
+      "version": "2.133.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: feat/landing-page -> main (landing page v1 + mobile polish + FAQ + analytics).",
+      "commit": "18077a9"
+    },
+    {
+      "version": "2.133.1",
+      "date": "2026-05-29",
+      "type": "fix",
+      "summary": "Dependencies: regenerate package-lock.json so `npm ci` resolves cleanly.",
+      "commit": "9c08dfc"
+    },
+    {
+      "version": "2.133.2",
+      "date": "2026-05-29",
+      "type": "fix",
+      "summary": "Landing page: reach backend via BACKEND_INTERNAL_URL in server load.",
+      "commit": "86e5290"
+    },
+    {
+      "version": "2.134.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Smart Fill: scoreline suggestions from real betting odds.",
+      "commit": "9c6682e"
+    },
+    {
+      "version": "2.134.1",
+      "date": "2026-05-29",
+      "type": "internal",
+      "summary": "Docker compose: wire ODDS_API_KEY into frontend services.",
+      "commit": "5924093"
+    },
+    {
+      "version": "2.135.0",
+      "date": "2026-05-29",
+      "type": "improvement",
+      "summary": "Smart Fill: method radio, cache info, and help text in the modal.",
+      "commit": "cf4960c"
+    },
+    {
+      "version": "2.136.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Smart Fill: branch runSmartFill on odds vs FIFA in wizard.",
+      "commit": "33e0b97"
+    },
+    {
+      "version": "2.137.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Themes: add hybrid, vin-dark, vin-light, vin-hybrid (GitHub palettes + dark-chrome hybrids).",
+      "commit": "055cc06"
+    },
+    {
+      "version": "2.138.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: claude/pedantic-newton-dee865 -> main (4 new themes + theme picker).",
+      "commit": "84abf67"
+    },
+    {
+      "version": "2.139.0",
+      "date": "2026-05-29",
+      "type": "internal",
+      "summary": "Themes: keep only hybrid (light) + premium-night (dark).",
+      "commit": "4a1ab31"
+    },
+    {
+      "version": "2.140.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: claude/pedantic-newton-dee865 -> main (simplify themes to hybrid + premium-night).",
+      "commit": "29564cf"
+    },
+    {
+      "version": "2.141.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Smart Fill: gate action checkboxes on method selection.",
+      "commit": "4dc5a9c"
+    },
+    {
+      "version": "2.141.1",
+      "date": "2026-05-29",
+      "type": "fix",
+      "summary": "Smart Fill: resolve all 48 WC26 team names across fixture + API conventions.",
+      "commit": "5769f55"
+    },
+    {
+      "version": "2.142.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: feat/betting-odds -> main (Smart Fill from Betting Odds + team alias expansion).",
+      "commit": "523a97e"
+    },
+    {
+      "version": "2.143.0",
+      "date": "2026-05-29",
+      "type": "feature",
+      "summary": "Public /privacy route with the privacy statement.",
+      "commit": "74407dc"
+    },
+    {
+      "version": "2.144.0",
+      "date": "2026-05-29",
+      "type": "merge",
+      "summary": "Merge: claude/xenodochial-fermi-bfe474 -> main (add /privacy route).",
+      "commit": "ee8bd63"
+    },
+    {
+      "version": "2.145.0",
+      "date": "2026-05-30",
+      "type": "improvement",
+      "summary": "Rules page refreshed with new content and tone; single-deadline framing.",
+      "commit": "aef60bf"
+    },
+    {
+      "version": "2.146.0",
+      "date": "2026-05-30",
+      "type": "internal",
+      "summary": "Deadline copy: align deadline/lock language to one-deadline model.",
+      "commit": "8d36854"
+    },
+    {
+      "version": "2.146.1",
+      "date": "2026-05-30",
+      "type": "internal",
+      "summary": "Scoring copy: align ScoringAtAGlance R32 value to new bracket scale.",
+      "commit": "35fe7ac"
+    },
+    {
+      "version": "2.147.0",
+      "date": "2026-05-30",
+      "type": "merge",
+      "summary": "Merge: feat/rules-refresh -> main (refresh /rules page + unify deadline copy).",
+      "commit": "cbe8569"
+    },
+    {
+      "version": "2.147.1",
+      "date": "2026-05-30",
+      "type": "fix",
+      "summary": "Rules page: stack \"up to\" label above +10 to stop rarity row wrapping.",
+      "commit": "13ff459"
+    },
+    {
+      "version": "2.147.2",
+      "date": "2026-05-30",
+      "type": "fix",
+      "summary": "Rules page: align scoring rows top-anchored, drop stacked UP TO label.",
+      "commit": "1cb39f4"
+    },
+    {
+      "version": "2.147.3",
+      "date": "2026-05-30",
+      "type": "fix",
+      "summary": "Rules page: baseline-align scoring rows, restore full rarity body.",
+      "commit": "a562c20"
+    },
+    {
+      "version": "2.147.4",
+      "date": "2026-05-30",
+      "type": "fix",
+      "summary": "Rules page: restructure rarity table â€” Inter font, tighter columns, novice intro on top, nerd footnote with formula.",
+      "commit": "99476b9"
+    },
+    {
+      "version": "2.147.5",
+      "date": "2026-05-30",
+      "type": "fix",
+      "summary": "Rules page: rarity table matches paragraph width, columns close-packed.",
+      "commit": "1dc95ee"
+    },
+    {
+      "version": "2.147.6",
+      "date": "2026-05-30",
+      "type": "internal",
+      "summary": "Internal docs: sync project guidance with today's shipped changes.",
+      "commit": "0831ff6"
+    },
+    {
+      "version": "2.147.7",
+      "date": "2026-05-31",
+      "type": "improvement",
+      "summary": "entries+theme: polish wizard, warning recolor, displayTeamName sweep.",
+      "commit": "c3388d2"
+    },
+    {
+      "version": "2.147.8",
+      "date": "2026-05-31",
+      "type": "fix",
+      "summary": "Predictions wizard: drafts isolated per tab — sibling tabs no longer overwrite each other.",
+      "commit": "fc552e2"
+    },
+    {
+      "version": "2.147.9",
+      "date": "2026-05-31",
+      "type": "feature",
+      "summary": "Predictions wizard: save / submit errors now surface via clear modals, with strict completeness checks front + back.",
+      "commit": "89a9a51"
+    },
+    {
+      "version": "2.148.0",
+      "date": "2026-05-31",
+      "type": "feature",
+      "summary": "Predictions wizard: warns you when the same entry is open in another tab of this browser.",
+      "commit": "acf6496"
+    },
+    {
+      "version": "2.148.1",
+      "date": "2026-05-31",
+      "type": "internal",
+      "summary": "Internal: version bump policy documented in CLAUDE.md.",
+      "commit": "ed14e05"
+    }
+  ]
+}
