@@ -175,9 +175,16 @@
 >
 	<!-- Header strip: title + status meta + clear-all action -->
 	<header class="flex items-start justify-between mb-3 gap-6">
-		<h2 class="font-display text-2xl tracking-wide leading-none">
-			YOUR <span class="text-primary">BRACKET</span>
-		</h2>
+		<div>
+			<h2 class="font-display text-2xl tracking-wide leading-none">
+				YOUR <span class="text-primary">BRACKET</span>
+			</h2>
+			{#if !locked}
+				<p class="mt-2 text-[11px] font-mono uppercase tracking-[0.15em] text-base-content/55">
+					Tip · Click a team to advance them
+				</p>
+			{/if}
+		</div>
 
 		<div class="flex items-start gap-6">
 			<dl
@@ -222,7 +229,7 @@
 	<!-- 9-column wallchart -->
 	<div
 		class="grid gap-x-5 gap-y-3 items-stretch"
-		style="grid-template-columns: 1.1fr 1.1fr 1.1fr 1.1fr 1.5fr 1.1fr 1.1fr 1.1fr 1.1fr;"
+		style="grid-template-columns: repeat(4, minmax(0, 1.1fr)) minmax(0, 1.5fr) repeat(4, minmax(0, 1.1fr));"
 	>
 		<!-- Column header labels -->
 		<div class="col-label">R32 · L</div>

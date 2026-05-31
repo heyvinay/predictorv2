@@ -64,6 +64,7 @@
 	$: team1Selected = winner !== null && winner === team1;
 	$: team2Selected = winner !== null && winner === team2;
 	$: hasPick = winner !== null;
+	$: isIncomplete = !team1 || !team2;
 
 	// ── Full-name-or-code rendering ───────────────────────────────────────
 	// Render the full country name (e.g. "Germany") by default. After
@@ -122,10 +123,12 @@
 
 <div
 	bind:this={chipEl}
-	class="bracket-chip relative overflow-hidden rounded-md border
-		{isFinal
-			? 'border-primary/80 bg-base-200 text-base-content shadow-lg'
-			: 'border-base-content/15 bg-base-200 text-base-content shadow-sm'}
+	class="bracket-chip relative overflow-hidden rounded-md
+		{isIncomplete
+			? 'border-2 border-error bg-base-200 text-base-content shadow-sm'
+			: isFinal
+				? 'border border-primary/80 bg-base-200 text-base-content shadow-lg'
+				: 'border border-base-content/15 bg-base-200 text-base-content shadow-sm'}
 		{locked ? 'opacity-80' : ''}"
 >
 	{#if isFinal}
