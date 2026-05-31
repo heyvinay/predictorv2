@@ -96,7 +96,7 @@
 	);
 </script>
 
-<div class="rounded-xl border border-base-content/10 bg-base-200/30 overflow-hidden">
+<div class="group-accordion rounded-xl bg-base-200/30 overflow-hidden">
 	<!-- Header row. Non-button wrapper so the chip CAN be a sibling button
 	     (nested <button> is invalid HTML). Three click regions inside:
 	       1. Main toggle (group name + flag cluster + spacer)
@@ -208,7 +208,7 @@
 			     column is wide enough that side-by-side cards stop
 			     looking sparse and don't compress the stepper. `gap-3`
 			     instead of `space-y-3` so column gap works too. -->
-			<div class="px-3 py-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+			<div class="px-3 pt-1 pb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
 				{#each sortedFixtures as f (f.id)}
 					<FixtureCard
 						fixture={f}

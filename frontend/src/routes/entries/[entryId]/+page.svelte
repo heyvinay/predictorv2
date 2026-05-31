@@ -63,6 +63,7 @@
 		lastLocalSave
 	} from '$stores/unsavedPersistence';
 	import { teamCode } from '$lib/utils/teamCodes';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import type { Fixture, MatchPrediction, BracketPrediction, TeamAdvancementPrediction } from '$types';
 
@@ -1388,7 +1389,7 @@
 				       - not tied → View Table (mobile only via xl:hidden) -->
 				{@const thirdPlaceTieBreakNeeded =
 					allGroupsComplete && thirdPlaceWarnings.length > 0}
-				<div class="rounded-xl border border-base-content/10 bg-base-200/30 overflow-hidden mb-6">
+				<div class="group-accordion rounded-xl bg-base-200/30 overflow-hidden mb-6">
 					<div class="flex items-center gap-3 w-full px-4 py-3 hover:bg-base-300/30 min-h-12">
 						<button
 							type="button"
@@ -1460,16 +1461,74 @@
 						<div
 							id="group-thirdplace-body"
 							transition:slide={{ duration: 200, easing: cubicOut }}
-							class="px-4 py-3 text-sm text-base-content/70"
+							class="px-4 pt-1 pb-3 text-sm text-base-content/70"
 						>
 							{#if thirdPlaceStandings.length === 0}
 								<p>Fill in some group predictions to see third-place qualifying.</p>
 							{:else}
-								<p>
-									★ Top 8 of 12 third-placed teams qualify for the Round of 32
-									(FIFA 2026 format). Tap
-									<span class="font-semibold">View Table</span>
-									to see the live ranking.
+								<!-- Live third-place qualifying table — mirrors the StandingsPanel
+								     variant so the eye sees the same ranking in both surfaces.
+								     Top-8 rows tinted success; positions 9-12 stay neutral. -->
+								<div class="overflow-x-auto fixture-card rounded-xl border p-3">
+									<table class="w-full text-xs">
+										<thead class="text-base-content/40 uppercase tracking-wider">
+											<tr>
+												<th class="text-left font-normal pb-1 w-6">#</th>
+												<th class="text-center font-normal pb-1 w-8">Grp</th>
+												<th class="text-left font-normal pb-1">Team</th>
+												<th class="text-center font-normal pb-1">P</th>
+												<th class="text-center font-normal pb-1">W</th>
+												<th class="text-center font-normal pb-1">D</th>
+												<th class="text-center font-normal pb-1">L</th>
+												<th class="text-center font-normal pb-1">GD</th>
+												<th class="text-center font-normal pb-1">Pts</th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each thirdPlaceStandings as t, i (t.team)}
+												<tr class="border-t border-base-content/5 {i < 8 ? 'bg-success/5' : ''}">
+													<td class="py-1">
+														<span
+															class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono {i < 8
+																? 'bg-success/20 text-success'
+																: 'bg-base-300/40 text-base-content/50'}">{i + 1}</span
+														>
+													</td>
+													<td class="text-center text-[11px] font-mono py-1">{t.group}</td>
+													<td class="py-1">
+														<span class="flex items-center gap-1.5">
+															{#if hasFlag(t.team)}
+																<img
+																	src={getFlagUrl(t.team, 'sm')}
+																	alt=""
+																	class="w-4 h-auto rounded-sm flex-shrink-0"
+																/>
+															{/if}
+															<span class="truncate">{displayTeamName(t.team)}</span>
+														</span>
+													</td>
+													<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
+													<td class="text-center font-mono tabular-nums py-1">{t.won}</td>
+													<td class="text-center font-mono tabular-nums py-1">{t.drawn}</td>
+													<td class="text-center font-mono tabular-nums py-1">{t.lost}</td>
+													<td class="text-center font-mono tabular-nums py-1">
+														<span
+															class={t.goalDifference > 0
+																? 'text-success'
+																: t.goalDifference < 0
+																	? 'text-error'
+																	: 'opacity-60'}
+															>{t.goalDifference > 0 ? '+' : ''}{t.goalDifference}</span
+														>
+													</td>
+													<td class="text-center font-mono tabular-nums font-bold py-1">{t.points}</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+								<p class="text-[10px] text-base-content/50 mt-2 uppercase tracking-wider">
+									★ Top 8 third-placed teams qualify for the Round of 32 (FIFA 2026 format)
 								</p>
 							{/if}
 						</div>
@@ -1732,7 +1791,7 @@
 	     Decoupled from the mobile-drawer store so SSR's false default
 	     does not hide it on first render. -->
 	{#if activeSection === 'groups'}
-		<aside class="hidden xl:flex flex-col fixed top-12 right-0 bottom-0 w-[26rem] z-20">
+		<aside class="hidden xl:flex flex-col fixed top-12 right-0 bottom-24 w-[26rem] z-20">
 			<StandingsPanel
 				activeGroup={activeGroupPill || 'A'}
 				{activeSection}
@@ -1771,7 +1830,7 @@
 			     navbar stays bright above the backdrop (iOS-sheet
 			     pattern). -->
 			<div
-				class="absolute top-16 bottom-0 right-0 w-full max-w-[24rem] bg-base-200 shadow-2xl flex flex-col"
+				class="absolute top-16 bottom-36 right-0 w-full max-w-[24rem] bg-base-200 shadow-2xl flex flex-col"
 				transition:fly={{ x: 400, duration: 250, easing: cubicOut }}
 			>
 				<StandingsPanel

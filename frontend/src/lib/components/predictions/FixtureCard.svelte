@@ -25,6 +25,7 @@
 <script lang="ts">
 	import { unsavedChanges } from '$stores/predictions';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import type { Fixture } from '$lib/types';
 
 	export let fixture: Fixture;
@@ -77,8 +78,7 @@
 	});
 	$: fmtTime = kickoffDate.toLocaleTimeString('en-GB', {
 		hour: '2-digit',
-		minute: '2-digit',
-		timeZoneName: 'short'
+		minute: '2-digit'
 	});
 
 	function bump(side: 'home' | 'away', delta: number) {
@@ -96,15 +96,15 @@
 </script>
 
 <article
-	class="rounded-xl border bg-base-100 p-3 transition-colors {borderClass}"
+	class="fixture-card rounded-xl border bg-base-100 p-2.5 transition-colors {borderClass}"
 	aria-label="{fixture.home_team} vs {fixture.away_team}"
 >
 	<!-- Header: date · time on the left, Match # chip (with dirty dot) on the right -->
-	<header class="flex items-center justify-between gap-3 text-xs text-base-content/60 mb-2">
+	<header class="flex items-center justify-between gap-3 text-[11px] text-base-content/60 mb-1.5">
 		<span class="font-mono truncate">
-			<span aria-hidden="true">📅</span> {fmtDate}
+			{fmtDate}
 			<span class="opacity-50 mx-1">·</span>
-			<span aria-hidden="true">🕐</span> {fmtTime}
+			{fmtTime}
 		</span>
 		{#if fixture.match_number !== null}
 			<span class="badge badge-sm badge-ghost font-mono relative flex-shrink-0">
@@ -129,7 +129,7 @@
 
 	<!-- Team rows. Inline-rendered (six buttons total — not worth a separate component yet). -->
 	{#each [{ side: 'home', team: fixture.home_team, score: homeScore }, { side: 'away', team: fixture.away_team, score: awayScore }] as row (row.side)}
-		<div class="flex items-center gap-3 py-1.5">
+		<div class="flex items-center gap-3 py-1">
 			{#if hasFlag(row.team)}
 				<img
 					src={getFlagUrl(row.team, 'md')}
@@ -141,26 +141,26 @@
 			{/if}
 			<span
 				class="flex-1 truncate text-[0.9375rem] transition-colors {nameClass(row.side === 'home' ? 'home' : 'away')}"
-				title={row.team}>{row.team}</span>
+				title={row.team}>{displayTeamName(row.team)}</span>
 			<!-- Stepper trio: ring-style buttons + a "score tile" in the middle.
 			     The tile shares the buttons' border + neutral fill so the three
 			     pieces read as a single composite control. Digits use font-display
 			     to match the hero doughnut's numeric typography. -->
-			<div class="inline-flex items-center gap-2">
+			<div class="inline-flex items-center gap-1.5">
 				<button
 					type="button"
-					class="w-10 h-10 rounded-full border border-base-content/15 bg-base-100 text-base-content/80 hover:bg-base-200 hover:border-base-content/25 disabled:opacity-30 disabled:hover:bg-base-100 disabled:hover:border-base-content/15 transition-colors flex items-center justify-center text-lg leading-none"
+					class="w-8 h-8 rounded-full border border-base-content/15 bg-base-100 text-base-content/80 hover:bg-base-200 hover:border-base-content/25 disabled:opacity-30 disabled:hover:bg-base-100 disabled:hover:border-base-content/15 transition-colors flex items-center justify-center text-base leading-none"
 					disabled={locked || (row.score ?? 0) <= 0}
 					on:click={() => bump(row.side === 'home' ? 'home' : 'away', -1)}
 					aria-label="Decrease {row.team} score"
 				>−</button>
 				<span
-					class="inline-flex items-center justify-center w-12 h-10 rounded-xl border border-base-content/15 bg-base-200/40 font-display font-bold text-[0.9375rem] tabular-nums text-base-content leading-none"
+					class="inline-flex items-center justify-center w-10 h-8 rounded-xl border border-base-content/15 bg-base-200/40 font-display font-bold text-sm tabular-nums text-base-content leading-none"
 					aria-label="{row.team} predicted score"
 				>{row.score ?? '-'}</span>
 				<button
 					type="button"
-					class="w-10 h-10 rounded-full border border-base-content/15 bg-base-100 text-base-content/80 hover:bg-base-200 hover:border-base-content/25 disabled:opacity-30 disabled:hover:bg-base-100 disabled:hover:border-base-content/15 transition-colors flex items-center justify-center text-lg leading-none"
+					class="w-8 h-8 rounded-full border border-base-content/15 bg-base-100 text-base-content/80 hover:bg-base-200 hover:border-base-content/25 disabled:opacity-30 disabled:hover:bg-base-100 disabled:hover:border-base-content/15 transition-colors flex items-center justify-center text-base leading-none"
 					disabled={locked || (row.score ?? 0) >= 15}
 					on:click={() => bump(row.side === 'home' ? 'home' : 'away', +1)}
 					aria-label="Increase {row.team} score"

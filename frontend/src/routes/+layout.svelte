@@ -237,7 +237,7 @@
 		     and help-icon button (right). Renders on desktop ≥700px. -->
 		<div
 			data-theme={chromeTheme}
-			class="hidden min-[700px]:flex sticky top-0 z-40 h-14 items-center justify-between gap-4 bg-base-100/95 backdrop-blur-md border-b border-base-300/50 px-6 min-[700px]:pl-[13.5rem]"
+			class="hidden min-[700px]:flex sticky top-0 z-40 h-14 items-center justify-between gap-4 bg-base-100/95 bg-stadium-glow backdrop-blur-md border-b border-base-300/50 px-6 min-[700px]:pl-[13.5rem]"
 		>
 			<div class="flex items-center min-w-0 flex-1">
 				{#if isWizardRoute && wizardCrumbs.length > 0}
@@ -285,7 +285,7 @@
 		</div>
 
 		<!-- Mobile top navbar (≤699px only). Logo + page title + deadline + avatar. -->
-		<nav data-theme={chromeTheme} class="navbar bg-base-200 border-b border-base-300/50 sticky top-0 z-50 min-[700px]:hidden">
+		<nav data-theme={chromeTheme} class="navbar bg-base-200 bg-stadium-glow border-b border-base-300/50 sticky top-0 z-50 min-[700px]:hidden">
 			<div class="navbar-start gap-1 min-w-0 flex-1">
 				{#if isWizardRoute}
 					<!-- Back button (icon-only to save room) + left-aligned

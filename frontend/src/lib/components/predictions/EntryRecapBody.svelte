@@ -19,6 +19,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import type { FixturesByGroup, BracketPrediction, Employer } from '$types';
 	import type { BonusQuestion } from '$api/bonus';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import { user } from '$stores/auth';
 	import {
 		predictionToBracketState,
@@ -282,9 +283,9 @@
 						{@const outcome = fixtureOutcome(f.id)}
 						<div class="flex items-center gap-1 py-0.5 font-mono {fixtureTextSize}">
 							<span class="text-base-content/40 w-6 flex-shrink-0 text-right">{f.match_number ?? ''}.</span>
-							<span class="flex-1 text-right truncate {outcome === 'home' ? winnerClass : loserClass}">{f.home_team}</span>
+							<span class="flex-1 text-right truncate {outcome === 'home' ? winnerClass : loserClass}">{displayTeamName(f.home_team)}</span>
 							<span class={scoreClass}>{scoreDisplay(f.id)}</span>
-							<span class="flex-1 truncate {outcome === 'away' ? winnerClass : loserClass}">{f.away_team}</span>
+							<span class="flex-1 truncate {outcome === 'away' ? winnerClass : loserClass}">{displayTeamName(f.away_team)}</span>
 						</div>
 				{/each}
 			</div>

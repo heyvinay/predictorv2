@@ -77,8 +77,8 @@ export default {
 					'info-content': '#F8FAFC',
 					'success': '#059669',           // mint — exact score
 					'success-content': '#F8FAFC',
-					'warning': '#D97706',           // amber — lock / outcome
-					'warning-content': '#F8FAFC',
+					'warning': '#221703',           // deep amber — tie-break / soft alert
+					'warning-content': '#FDE68A',
 					'error':   '#B91C1C',           // red — miss
 					'error-content': '#F8FAFC',
 					'base-100': '#0B1329',          // canvas
@@ -108,8 +108,8 @@ export default {
 					'info-content': '#F8FAFC',
 					'success': '#059669',
 					'success-content': '#F8FAFC',
-					'warning': '#B45309',
-					'warning-content': '#F8FAFC',
+					'warning': '#FEF3C7',           // soft cream — light alert surface
+					'warning-content': '#78350F',
 					'error':   '#B91C1C',
 					'error-content': '#F8FAFC',
 					'base-100': '#E2E7F0',          // DIM canvas (body background)

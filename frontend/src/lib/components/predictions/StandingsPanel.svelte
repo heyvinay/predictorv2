@@ -26,6 +26,7 @@
 	} from '$lib/utils/standings';
 	import type { MatchPrediction } from '$lib/types';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import KnockoutBracket from '$components/bracket/KnockoutBracket.svelte';
 	import type { BonusQuestion } from '$api/bonus';
 
@@ -108,7 +109,7 @@
 	// here as full class strings.
 	const POS_CLASS = {
 		advance: 'bg-success/15 text-success',
-		best3rd: 'bg-warning/15 text-warning',
+		best3rd: 'bg-warning-content/15 text-warning-content',
 		out: 'bg-error/15 text-error'
 	} as const;
 	function posTone(i: number): 'advance' | 'best3rd' | 'out' {
@@ -233,7 +234,7 @@
 															{#if hasFlag(team.team)}
 																<img src={getFlagUrl(team.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
 															{/if}
-															<span class="truncate">{team.team}</span>
+															<span class="truncate">{displayTeamName(team.team)}</span>
 														</span>
 													</td>
 													<td class="text-center font-mono tabular-nums py-1">{team.played}</td>
@@ -288,7 +289,7 @@
 														{#if hasFlag(t.team)}
 															<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
 														{/if}
-														<span class="truncate">{t.team}</span>
+														<span class="truncate">{displayTeamName(t.team)}</span>
 													</span>
 												</td>
 												<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
@@ -314,7 +315,7 @@
 										<div class="font-semibold mb-0.5">⚠ Tied teams · alphabetical fallback</div>
 										{#each thirdPlaceWarnings as w (w.tiedTeams.join('-'))}
 											<p class="text-[11px] opacity-90">
-												{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place teams come from different groups so head-to-head isn't applicable; ranked alphabetically. Adjust scores to change qualification.
+												{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place teams come from different groups so head-to-head isn't applicable; ranked alphabetically. Adjust scores to change which team qualifies if you want a different team to progress. You can submit this entry as is without any changes. Note: FIFA official tie-break rules use disciplinary points and ranking to break ties.
 											</p>
 										{/each}
 									</div>
@@ -368,7 +369,7 @@
 														class="w-4 h-auto rounded-sm flex-shrink-0"
 													/>
 												{/if}
-												<span class="truncate">{t.team}</span>
+												<span class="truncate">{displayTeamName(t.team)}</span>
 											</span>
 										</td>
 										<td class="text-center font-mono tabular-nums py-1">{t.played}</td>
@@ -407,7 +408,10 @@
 									<p class="text-[11px] opacity-90">
 										{w.tiedTeams.join(', ')} — tied on points, GD and GF. Third-place
 										teams come from different groups so head-to-head isn't applicable;
-										ranked alphabetically. Adjust scores to change qualification.
+										ranked alphabetically. Adjust scores to change which team qualifies
+										if you want a different team to progress. You can submit this entry
+										as is without any changes. Note: FIFA official tie-break rules use
+										disciplinary points and ranking to break ties.
 									</p>
 								{/each}
 							</div>
@@ -465,7 +469,7 @@
 													class="w-4 h-auto rounded-sm flex-shrink-0"
 												/>
 											{/if}
-											<span class="truncate">{team.team}</span>
+											<span class="truncate">{displayTeamName(team.team)}</span>
 										</span>
 									</td>
 									<td class="text-center font-mono tabular-nums py-1">{team.played}</td>
@@ -493,7 +497,7 @@
 						><span class="w-1 h-2.5 bg-success rounded"></span>Advances (top 2)</span
 					>
 					<span class="flex items-center gap-1"
-						><span class="w-1 h-2.5 bg-warning rounded"></span>Best 3rd candidate</span
+						><span class="w-1 h-2.5 bg-warning-content rounded"></span>Best 3rd candidate</span
 					>
 					<span class="flex items-center gap-1"
 						><span class="w-1 h-2.5 bg-error rounded"></span>Out</span
@@ -515,7 +519,10 @@
 							{#each groupWarnings as w (w.tiedTeams.join('-'))}
 								<p class="text-[11px] opacity-90">
 									{w.tiedTeams.join(', ')} — tied on points, GD, GF + head-to-head;
-									ranked alphabetically as fallback. Adjust scores to break the tie.
+									ranked alphabetically as fallback. Adjust scores to break the tie if
+									you want a different team to progress. You can submit this entry as is
+									without any changes. Note: FIFA official tie-break rules use
+									disciplinary points and ranking to break ties.
 								</p>
 							{/each}
 						</div>
@@ -551,10 +558,4 @@
 			{/if}
 		{/if}
 	</div>
-
-	<footer
-		class="flex-shrink-0 px-4 py-2 border-t border-base-300/60 bg-base-100 text-[10px] text-base-content/40 uppercase tracking-wider"
-	>
-		Updates live as you predict
-	</footer>
 </aside>

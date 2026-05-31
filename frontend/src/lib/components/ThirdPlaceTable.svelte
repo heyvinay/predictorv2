@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import type { TeamStanding } from '$lib/utils/standings';
 
 	export let standings: TeamStanding[];
@@ -53,7 +54,7 @@
 								{:else}
 									<div class="w-5 h-3.5 bg-base-300 rounded-sm flex-shrink-0"></div>
 								{/if}
-								<span class="team-name-table">{standing.team}</span>
+								<span class="team-name-table">{displayTeamName(standing.team)}</span>
 							</div>
 						</td>
 						<td class="text-center text-base-content/70">{standing.played}</td>

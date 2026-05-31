@@ -110,13 +110,14 @@
 	<div class="h-8 bg-gradient-to-t from-base-100 to-transparent"></div>
 
 	<!-- The actual bar — sits above the mobile bottom nav (~64px).
-	     When there are unsaved changes, a gold glow + thin gold border
-	     pulls the eye to the bar without introducing a separate banner. -->
+	     Always carries a gold top border + soft glow so the bar reads as
+	     a distinct surface against scrollable content. When there are
+	     unsaved changes the intensity ramps up to pull the eye to Save. -->
 	<div
-		class="bg-base-100 pb-16 sm:pb-3 pt-2 px-3 pointer-events-auto border-t border-base-300/40 transition-[box-shadow,border-color] duration-300 ease-out
+		class="bg-base-100 pb-16 sm:pb-3 pt-2 px-3 pointer-events-auto border-t transition-[box-shadow,border-color] duration-300 ease-out
 			{hasUnsavedChanges
-				? 'shadow-[0_-2px_18px_-2px_rgba(212,175,55,0.55)] border-primary/40'
-				: ''}"
+				? 'shadow-[0_-2px_18px_-2px_rgba(212,175,55,0.55)] border-primary/55'
+				: 'shadow-[0_-1px_10px_-4px_rgba(212,175,55,0.35)] border-primary/30'}"
 	>
 		<div class="max-w-3xl mx-auto flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
 			{#if status === 'draft'}
