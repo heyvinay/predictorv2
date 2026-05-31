@@ -100,7 +100,7 @@
 					text-base-content/80 max-w-2xl leading-relaxed"
 			>
 				Pick scores, build a bracket, watch the World Cup like it matters. Last tournament's pot:
-				<strong class="text-base-content font-semibold">€600</strong>. <span class="text-amber-500">Some goes to charity.</span> The
+				<strong class="text-base-content font-semibold">€600</strong>. <span class="block text-primary">Some goes to charity.</span> The
 				rest goes to whoever calls the final right.
 			</p>
 

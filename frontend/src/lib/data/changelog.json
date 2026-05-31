@@ -1835,6 +1835,13 @@
       "type": "improvement",
       "summary": "Pre-launch polish: wizard step labels and warning text are readable again, entry errors now appear inline (no more browser dialogs), the empty entries list has a prominent first-entry button, and the Standings and Results pages tell you when they go live.",
       "commit": "ce2e9ec"
+    },
+    {
+      "version": "2.149.1",
+      "date": "2026-05-31",
+      "type": "fix",
+      "summary": "Landing page: the \"some goes to charity\" line now uses the gold brand color (theme-aware) and breaks onto its own line for clearer emphasis.",
+      "commit": "pending"
     }
   ]
 }
