@@ -81,7 +81,13 @@
 	import ErrorModal from '$components/predictions/ErrorModal.svelte';
 	import LifecycleConflictModal from '$components/predictions/LifecycleConflictModal.svelte';
 	import CompletenessModal from '$components/predictions/CompletenessModal.svelte';
+	import MultiTabConfirmModal from '$components/predictions/MultiTabConfirmModal.svelte';
 	import { ApiResponseError } from '$api/client';
+	import {
+		registerTabPresence,
+		unregisterTabPresence,
+		otherTabCount
+	} from '$lib/utils/tabPresence';
 	import GroupAccordion from '$components/predictions/GroupAccordion.svelte';
 	import WizardStepper from '$components/predictions/WizardStepper.svelte';
 	import SubmitSummary from '$components/predictions/SubmitSummary.svelte';
@@ -207,6 +213,7 @@
 		resetPredictions();
 		if (prev && $user) {
 			teardownPersistence($user.id, prev);
+			unregisterTabPresence($user.id, prev);
 		}
 		hydrated = false;
 		fetchesDone = false;
@@ -231,6 +238,7 @@
 	) {
 		hydrated = true;
 		initPersistence($user.id, $activeEntryId);
+		registerTabPresence($user.id, $activeEntryId);
 		const r = hydrateFromStorage(
 			$user.id,
 			$activeEntryId,
@@ -390,6 +398,47 @@
 
 	function handleCompletenessCancel(): void {
 		completenessOpen = false;
+	}
+
+	// ---- Same-browser tab-presence warning ----------------------------
+	// `otherTabCount` is a readable store wired in onMount/onDestroy via
+	// register/unregisterTabPresence. When >0, a soft banner appears and
+	// every save action runs through `confirmMultiTabIfNeeded()` which
+	// resolves the promise via the modal's button clicks. Same-browser
+	// only — cross-device collisions stay in LifecycleConflictModal's lane.
+	let multiTabConfirmOpen = false;
+	let multiTabConfirmResolve: ((value: boolean) => void) | null = null;
+	let multiTabBannerDismissed = false;
+	let lastSeenTabCount = 0;
+	// Reset the banner-dismissed flag whenever the count changes — a new
+	// tab joining (or one leaving) is fresh information worth re-surfacing.
+	$: if ($otherTabCount !== lastSeenTabCount) {
+		multiTabBannerDismissed = false;
+		lastSeenTabCount = $otherTabCount;
+	}
+
+	function confirmMultiTabIfNeeded(): Promise<boolean> {
+		if ($otherTabCount === 0) return Promise.resolve(true);
+		return new Promise<boolean>((resolve) => {
+			multiTabConfirmResolve = resolve;
+			multiTabConfirmOpen = true;
+		});
+	}
+
+	function handleMultiTabConfirm(): void {
+		multiTabConfirmOpen = false;
+		multiTabConfirmResolve?.(true);
+		multiTabConfirmResolve = null;
+	}
+
+	function handleMultiTabCancel(): void {
+		multiTabConfirmOpen = false;
+		multiTabConfirmResolve?.(false);
+		multiTabConfirmResolve = null;
+	}
+
+	function dismissMultiTabBanner(): void {
+		multiTabBannerDismissed = true;
 	}
 
 	$: currentPhaseEnum = (activePhase === 'phase2' ? 'phase_2' : 'phase_1') as
@@ -726,6 +775,13 @@
 		// Clear the breadcrumb section crumb so it doesn't persist to the
 		// next route's topbar.
 		wizardSectionLabel.set(null);
+		// Drop this tab from the same-browser presence map for the
+		// currently-active entry. tabPresence's own beforeunload handler
+		// also runs, but onDestroy fires for SPA route changes (where
+		// beforeunload would NOT fire) — both paths must clean up.
+		if ($user && lastActiveEntryId) {
+			unregisterTabPresence($user.id, lastActiveEntryId);
+		}
 	});
 
 	// Default the active group pill to the first group once fixtures load
@@ -1257,6 +1313,7 @@
 	async function handleSaveBracket() {
 		const b = $unsavedBracketPrediction;
 		if (!b) return;
+		if (!(await confirmMultiTabIfNeeded())) return;
 		bracketSaveStatus = 'saving';
 		try {
 			await saveBracketPredictions(bracketToPredictions(b));
@@ -1282,6 +1339,7 @@
 	async function handleSavePhase2Bracket() {
 		const b = $unsavedPhase2BracketPrediction;
 		if (!b) return;
+		if (!(await confirmMultiTabIfNeeded())) return;
 		phase2BracketSaveStatus = 'saving';
 		const preds = bracketToPredictions(b).filter((p) => p.stage !== 'round_of_32');
 		try {
@@ -1315,6 +1373,9 @@
 	}
 
 	async function handleSaveAll(): Promise<boolean> {
+		// Same-browser tab-presence gate. confirmSubmit reaches here via
+		// its own save, so the gate covers Submit too without double-prompting.
+		if (!(await confirmMultiTabIfNeeded())) return false;
 		saveStatus = 'saving';
 
 		try {
@@ -1548,6 +1609,28 @@
 					— remember to press Save when you're done.
 				</span>
 				<button class="btn btn-ghost btn-xs" on:click={() => (restorationBanner = null)}>×</button>
+			</div>
+		{/if}
+
+		{#if $otherTabCount > 0 && !multiTabBannerDismissed}
+			<div class="alert alert-warning text-xs py-2 mb-4" transition:fade={{ duration: 400 }}>
+				<div>
+					<div class="font-semibold mb-0.5">
+						⚠ Another tab in this browser is editing this entry
+					</div>
+					<p class="text-[11px] opacity-90">
+						Saves will ask you to confirm so you don't accidentally overwrite
+						the other tab's work. Same-browser detection only — won't notice a
+						session on another device.
+					</p>
+				</div>
+				<button
+					class="btn btn-ghost btn-xs"
+					on:click={dismissMultiTabBanner}
+					aria-label="Dismiss tab warning"
+				>
+					×
+				</button>
 			</div>
 		{/if}
 
@@ -2115,6 +2198,15 @@
 			goToLabel={completenessGoToLabel}
 			onGoTo={handleCompletenessGoTo}
 			onCancel={handleCompletenessCancel}
+		/>
+
+		<!-- Same-browser tab-presence confirmation. Fires before any
+		     save when otherTabCount > 0. Cross-device collisions live
+		     in LifecycleConflictModal's lane, not here. -->
+		<MultiTabConfirmModal
+			open={multiTabConfirmOpen}
+			onConfirm={handleMultiTabConfirm}
+			onCancel={handleMultiTabCancel}
 		/>
 	</div>
 
