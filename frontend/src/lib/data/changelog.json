@@ -1892,6 +1892,13 @@
       "type": "internal",
       "summary": "Internal: nginx now sends no-cache on HTML and long-cache on hashed bundles so deploys reach users immediately.",
       "commit": "pending"
+    },
+    {
+      "version": "2.153.0",
+      "date": "2026-06-01",
+      "type": "feature",
+      "summary": "You can now contact support directly from inside the app — tap the Help icon at the top (or in the mobile bottom nav) to open a quick message form, and your reply address comes through automatically so we can get back to you.",
+      "commit": "pending"
     }
   ]
 }
