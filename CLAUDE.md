@@ -20,6 +20,21 @@ Football-Data.org (`backend/app/services/external/football_data.py`).
 
 **Infra:** Docker Compose for dev, Nginx + Cloudflare Tunnel in prod.
 
+**Production deploy:**
+
+```bash
+ssh root@167.235.145.76 'cd /opt/predictor && git pull && docker compose --profile prod up -d --build'
+```
+
+→ https://wc26.heyvinay.com. Production lives at `/opt/predictor` on
+the VPS; nginx config is bind-mounted from `nginx/nginx.conf` in the
+repo. **When the release touches `nginx/nginx.conf`, append
+`&& docker compose --profile prod up -d --force-recreate nginx`** —
+`up -d --build` does not restart `image:`-only services, so the
+bind-mounted edit never reaches the running nginx process. The
+force-recreate is a no-op when nginx.conf hasn't changed, so it is
+safe to make permanent in the deploy line if you prefer.
+
 ## Layout
 
 ```
@@ -136,11 +151,12 @@ in sync — all at the same semver number:
 - `backend/pyproject.toml`
 
 **Baseline reset (2026-05-31):** versions were renumbered from `0.x.x`
-to `2.x.x` starting at the first May 2026 commit (`2.0.0`). The current
-HEAD lives at `2.148.1`. The full chronological mapping commit → version
-lives in `frontend/src/lib/data/changelog.json` and is exposed in the
-admin console at `/admin` ("Release Notes" panel — filterable, latest
-first).
+to `2.x.x` starting at the first May 2026 commit (`2.0.0`). The full
+chronological mapping commit → version lives in
+`frontend/src/lib/data/changelog.json` and is exposed in the admin
+console at `/admin` ("Release Notes" panel — filterable, latest first).
+For the current `HEAD` version, read `frontend/package.json` — the
+docs deliberately don't pin it because it changes every push.
 
 Bump rule:
 - **Minor** (`2.x.0` → `2.(x+1).0`) — anything that adds capability:
@@ -151,12 +167,15 @@ Bump rule:
 **Process per release:**
 1. Land the feature/fix work.
 2. Bump the three version files.
-3. Add a new entry to `frontend/src/lib/data/changelog.json` at the
-   front of the `entries` array — keep the same shape
+3. Append a new entry to the **end** of the `entries` array in
+   `frontend/src/lib/data/changelog.json` (oldest-first; the admin
+   Release Notes panel reverses for display, reading the last entry as
+   the newest release). Keep the same shape
    `{ version, date, type, summary, commit }`. The `type` enum:
    `feature | improvement | fix | internal | merge`. The `summary` is
    one user-friendly sentence (no dev jargon; the admin Release Notes
-   panel renders it verbatim to pool members on staff).
+   panel renders it verbatim to pool members on staff). `"commit":
+   "pending"` is tolerated as a placeholder.
 4. Commit as `chore(version): bump to X.Y.Z` so the deploy boundary
    stays visible in the log.
 5. `git push origin main` to publish.
