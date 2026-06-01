@@ -53,9 +53,15 @@ export interface EntryBadge {
 	class: string;
 }
 
+// Note: `ready` and `draft` deliberately render the same user-visible
+// badge ("DRAFT", warning-amber). The internal `'ready'` state is kept
+// distinct so wizard / Submit flow can branch on "all picks filled but
+// not yet submitted" — e.g. enabling the Submit button — but the badge
+// shouldn't read READY because that implies the user is done. Until
+// they tick the disclaimer and tap Submit, the entry is still a draft.
 const BADGE: Record<EntryUiStatus, EntryBadge> = {
 	draft: { label: 'DRAFT', class: 'badge-warning' },
-	ready: { label: 'READY', class: 'badge-info' },
+	ready: { label: 'DRAFT', class: 'badge-warning' },
 	locked: { label: '🔒 LOCKED', class: 'badge-success' },
 	scored: { label: '✓ SCORED', class: 'badge-success' },
 	missed: { label: '✗ NOT SUBMITTED', class: 'badge-error' },
@@ -65,7 +71,7 @@ const BADGE: Record<EntryUiStatus, EntryBadge> = {
 
 const DOT_FILL: Record<EntryUiStatus, string> = {
 	draft: 'bg-warning',
-	ready: 'bg-info',
+	ready: 'bg-warning',
 	locked: 'bg-success',
 	scored: 'bg-success',
 	missed: 'bg-error',

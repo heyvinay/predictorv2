@@ -197,8 +197,17 @@
 								<span aria-hidden="true">→</span>
 							</button>
 						{:else}
-							<span class="text-xs italic text-base-content/60 whitespace-nowrap">
-								Scroll down to submit ↓
+							<!-- Reinforces the top-of-step warning banner in SubmitSummary:
+							     until the user submits, the entry is a draft. Warning-toned,
+							     not italic, more weight so it doesn't read as a decorative
+							     UX hint. ⚠ glyph is decorative; semantics live in the prose.
+							     `whitespace-nowrap` dropped — at narrow viewports the line
+							     wraps to two lines rather than overflowing the bar. -->
+							<span
+								class="text-sm font-medium text-warning-text inline-flex items-center gap-1.5"
+							>
+								<span aria-hidden="true">⚠</span>
+								Not entered yet — scroll down to acknowledge &amp; submit
 							</span>
 						{/if}
 					</div>

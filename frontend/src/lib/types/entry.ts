@@ -64,6 +64,10 @@ export interface CompletionSummary {
 	groups: CompletionCount;
 	bracket: CompletionCount;
 	bonus: CompletionCount;
+	/** Team picked at `stage='winner'` in the bracket, or null if not yet
+	 *  predicted. Surfaced on the entries list/card view so users see
+	 *  their champion at a glance without opening the wizard. */
+	predicted_winner: string | null;
 }
 
 export interface EntryCreate {

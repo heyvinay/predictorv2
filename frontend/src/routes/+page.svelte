@@ -12,8 +12,9 @@
 	  7. StakesBanner          €600 / charity / bragging rights
 	  8. FromTheTouchline      featured + grid + all-headlines tile
 	  9. FinalCTABand          closing "Ready to pick?" call
-	  10. LandingFooter         thin closing row
-	  11. ThemeTogglePill       fixed bottom-right toggle
+	  10. ThemeTogglePill       fixed bottom-right toggle
+	  (Site footer is rendered globally by +layout.svelte for every
+	  non-wizard route — no longer landing-specific.)
 
 	Server load (+page.server.ts) provides total_players, phase1Deadline,
 	firstKickoff, and news[]. Each value has a documented null/empty
@@ -42,7 +43,6 @@
 	import StakesBanner from '$lib/components/landing/StakesBanner.svelte';
 	import FromTheTouchline from '$lib/components/landing/FromTheTouchline.svelte';
 	import FinalCTABand from '$lib/components/landing/FinalCTABand.svelte';
-	import LandingFooter from '$lib/components/landing/LandingFooter.svelte';
 	import ThemeTogglePill from '$lib/components/landing/ThemeTogglePill.svelte';
 	import TrackedSection from '$lib/components/landing/TrackedSection.svelte';
 
@@ -114,7 +114,8 @@
 	<FinalCTABand />
 </TrackedSection>
 
-<LandingFooter />
+<!-- SiteFooter now renders globally via +layout.svelte — no longer
+     mounted here. Removed 2026-06-01 to avoid double-render. -->
 
 {#if !$isAuthenticated}
 	<ThemeTogglePill />

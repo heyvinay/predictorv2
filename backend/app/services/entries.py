@@ -1327,6 +1327,20 @@ async def get_completion_summary(
     ).all()
     bonus_done_map: dict[uuid.UUID, int] = {r[0]: r[1] for r in bonus_done_rows}
 
+    # ---------- predicted winner: at most one row per entry ----------------
+    # Surfaced on the entries list/card view so users can see their champion
+    # pick at a glance. Maps entry_id → team name; absent when not predicted.
+    winner_rows = (
+        await session.execute(
+            select(TeamPrediction.entry_id, TeamPrediction.team)
+            .where(
+                TeamPrediction.entry_id.in_(entry_ids),
+                TeamPrediction.stage == "winner",
+            )
+        )
+    ).all()
+    winner_map: dict[uuid.UUID, str] = {r[0]: r[1] for r in winner_rows}
+
     return [
         {
             "entry_id": e.id,
@@ -1342,6 +1356,7 @@ async def get_completion_summary(
                 "done": bonus_done_map.get(e.id, 0),
                 "total": bonus_total,
             },
+            "predicted_winner": winner_map.get(e.id),
         }
         for e in entries
     ]

@@ -31,7 +31,9 @@
 
 	function logoFallbackHero(e: Event) {
 		const el = e.currentTarget as HTMLImageElement;
-		el.outerHTML = '<span class="font-display text-xl leading-none">P</span>';
+		// Sized to roughly match the w-24 image (96px) — text-5xl ≈ 48px,
+		// giving a visible "P" badge that fills the same anchor weight.
+		el.outerHTML = '<span class="font-display text-5xl leading-none">P</span>';
 	}
 	function logoFallbackMobile(e: Event) {
 		const el = e.currentTarget as HTMLImageElement;
@@ -51,12 +53,15 @@
 		<!-- soft gold glow accent -->
 		<div class="absolute inset-0 bg-stadium-glow opacity-60 pointer-events-none"></div>
 
-		<!-- Brand lockup (top) -->
+		<!-- Brand lockup (top). Hero-scale logo (w-24 = 96px) — 2× the
+		     previous 48px to give the brand more presence on the login
+		     poster panel; lives beside the "Atlas World Cup 2026 Pools"
+		     wordmark, which stays at text-2xl. -->
 		<div class="relative flex items-center gap-3">
 			<img
 				src="/logo.png"
 				alt="Predictor"
-				class="w-12 h-12 rounded-full object-cover"
+				class="w-24 h-24 rounded-full object-cover"
 				on:error={logoFallbackHero}
 			/>
 			<span class="font-display text-2xl tracking-wide">Atlas World Cup 2026 Pools</span>

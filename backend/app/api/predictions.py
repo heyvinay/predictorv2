@@ -27,7 +27,10 @@ from app.models.prediction import MatchPrediction
 from app.models.user import User
 from app.schemas.fixture import FixtureScore
 from app.schemas.prediction import CommunityPrediction, CommunityPredictionsResponse
-from app.services.bonus import get_questions as get_bonus_questions
+from app.services.bonus import (
+    get_meta as get_bonus_meta,
+    get_questions as get_bonus_questions,
+)
 
 router = APIRouter()
 
@@ -38,8 +41,21 @@ class BonusQuestionResponse(BaseModel):
     id: str
     category: str  # 'group_stage' | 'top_flop' | 'awards'
     label: str
-    input_type: str  # 'team' | 'player'
+    # 'team' | 'player' | 'team_outside_top_n' | 'team_in_top_n'
+    input_type: str
     points: int
+
+
+class BonusMetaResponse(BaseModel):
+    """FIFA top_n cutoff and the team list it expands to.
+
+    Consumed by the wizard so the dark_horse / flop dropdowns can be
+    filtered against the YAML's `fifa_top_teams` list without the frontend
+    needing its own copy. Order = FIFA rank (1..N).
+    """
+
+    top_n: int
+    fifa_top_teams: list[str]
 
 
 LOCK_MINUTES = 5
@@ -160,3 +176,20 @@ async def get_bonus_questions_route(
         )
         for q in qs
     ]
+
+
+@router.get("/bonus/meta", response_model=BonusMetaResponse)
+async def get_bonus_meta_route(
+    _user: OptionalUser,
+) -> BonusMetaResponse:
+    """FIFA top_n cutoff and the team list it expands to.
+
+    Used by the wizard to filter the dark_horse / flop dropdowns. Public —
+    matches the auth level of /bonus/questions. The list is whatever the
+    YAML's `bonus.fifa_top_teams` holds, in YAML order (= FIFA rank).
+    """
+    meta = get_bonus_meta()
+    return BonusMetaResponse(
+        top_n=meta.top_n,
+        fifa_top_teams=meta.fifa_top_teams,
+    )

@@ -72,27 +72,16 @@ See `docs/scoring-system.md` for the formula, bonus table, and rationale.
 
 **Rule:** no scoring logic changes without a corresponding `pytest` case.
 
-**⚠ Rules-page vs. backend-config divergence (intentional, pending sync).**
-The `/rules` page hardcodes a scoring scale that does NOT yet match the
-backend config. Until you sync them, leaderboards reflect backend
-values, not page advertising:
-
-| Aspect | Page advertises (rules/+page.svelte) | Backend config (worldcup2026.yml) |
-|---|---|---|
-| Bracket: Round of 32 | **20** | 10 |
-| Bracket: Round of 16 | **30** | 15 |
-| Bracket: Quarter-final | **40** | 20 |
-| Bracket: Semi-final | **50** | 40 |
-| Bracket: Final | **75** | 60 |
-| Bracket: Winner | 100 | 100 ✓ |
-| Bracket: Group advance | (not mentioned) | 10 (still awarded) |
-| Bracket: Group position | (not mentioned) | 5 (still awarded) |
-| Bonus question points | **+20 flat** | 15 / 20 / 20 by category |
-| Rarity worked example | Fixed at 100 predictors | Computed at live pool size |
-
-To sync: change values in `config/worldcup2026.yml`, update tests in
-`backend/tests/test_entry_scoring.py` and related, then a one-shot
-leaderboard recompute on the next request will pick up new totals.
+**Scoring sync (resolved 2026-06-01).** `config/worldcup2026.yml` is the
+single source of truth for both the scoring engine and rules-page copy.
+The rules page hand-mirrors YAML values via the `BONUS_POINTS` map and the
+`BRACKET_STAGES` constant — change one without the other and users will
+see different numbers from what scoring actually pays out. The bonus
+question structure was simultaneously trimmed from 10 questions to 4
+(two group-stage, two knockout-stage with FIFA-aware dropdowns); the
+internal `top_flop` category literal is preserved across code, DB, and
+tests for backward compatibility, but the user-facing label is
+"Knockout Stage — Top / Flop" everywhere.
 
 ### Datetime rule (system-wide)
 

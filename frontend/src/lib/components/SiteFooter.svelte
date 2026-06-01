@@ -1,6 +1,14 @@
 <!--
-	LandingFooter — thin closing row. Brand mark + tagline + minimal
-	links. Visible at the bottom of every landing-page view.
+	SiteFooter — thin closing row, brand mark + tagline + minimal links.
+	Rendered globally by +layout.svelte for every route EXCEPT the entry
+	wizard (`/entries/[entryId]`), where vertical room is at a premium and
+	the BottomActionBar already anchors the page.
+
+	The "Home" link points at the absolute production URL
+	(https://wc26.heyvinay.com/) rather than a relative `/` per design call
+	— "Home" here means "the canonical landing page on production". In
+	dev/staging this jumps out of the local environment to production;
+	swap to `href="/"` if that becomes undesirable.
 -->
 <script lang="ts">
 	import { supportOpen } from '$stores/supportPanel';
@@ -37,6 +45,10 @@
 			class="flex items-center gap-5 text-xs font-mono uppercase tracking-widest text-base-content/55"
 			aria-label="Footer"
 		>
+			<a href="https://wc26.heyvinay.com/" class="hover:text-primary transition-colors">
+				Home
+			</a>
+			<span class="text-base-content/20" aria-hidden="true">·</span>
 			<a href="/rules" class="hover:text-primary transition-colors" on:click={onRulesClick}>
 				Rules
 			</a>

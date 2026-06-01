@@ -61,21 +61,45 @@
 		const pad = (n: number) => n.toString().padStart(2, '0');
 		return `${days}d ${pad(hours)}:${pad(mins)}:${pad(secs)}`;
 	}
+
+	/**
+	 * Compact rendering — shorter formats that scale with how-far-away the
+	 * deadline is, so the mobile navbar pill never wraps. When days remain,
+	 * seconds are noise (the user has 13 days, not 13 seconds, to act).
+	 * Under one day, full precision matters again.
+	 *
+	 *   ≥ 1 day  → "Nd HH:MM"    (e.g. "13d 01:16",  9 chars)
+	 *   < 1 day  → "HH:MM:SS"    (e.g. "23:45:12",   8 chars)
+	 *   < 1 hour → "MM:SS"       (e.g. "59:42",      5 chars — last-hour urgency)
+	 */
+	function formatCompact(ms: number): string {
+		if (ms <= 0) return '00:00';
+		const totalSec = Math.floor(ms / 1000);
+		const days = Math.floor(totalSec / 86400);
+		const hours = Math.floor((totalSec % 86400) / 3600);
+		const mins = Math.floor((totalSec % 3600) / 60);
+		const secs = totalSec % 60;
+		const pad = (n: number) => n.toString().padStart(2, '0');
+		if (days >= 1) return `${days}d ${pad(hours)}:${pad(mins)}`;
+		if (hours >= 1) return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+		return `${pad(mins)}:${pad(secs)}`;
+	}
 </script>
 
 {#if visible}
-	{@const display = formatDdHhMmSs(remainingMs)}
+	{@const display = compact ? formatCompact(remainingMs) : formatDdHhMmSs(remainingMs)}
+	{@const ariaDisplay = formatDdHhMmSs(remainingMs)}
 	<div
 		role="timer"
 		aria-live={critical ? 'polite' : 'off'}
-		aria-label="{label}: {display} remaining"
-		class="inline-flex items-center {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {critical
+		aria-label="{label}: {ariaDisplay} remaining"
+		class="inline-flex items-center whitespace-nowrap {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {critical
 			? 'bg-error/10 border-error/40 text-error'
 			: 'bg-success/10 border-success/40 text-success'}"
 	>
 		{#if !compact}
 			<span class="text-[10px] uppercase tracking-wider opacity-80 font-bold">{label}</span>
 		{/if}
-		<span class="font-mono {compact ? 'text-xs' : 'text-sm'} tabular-nums font-bold">{display}</span>
+		<span class="font-mono {compact ? 'text-xs' : 'text-sm'} tabular-nums font-bold whitespace-nowrap">{display}</span>
 	</div>
 {/if}

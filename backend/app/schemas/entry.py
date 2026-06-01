@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -190,3 +191,8 @@ class EntryCompletionSummary(BaseModel):
     groups: CompletionCount
     bracket: CompletionCount
     bonus: CompletionCount
+    # The team the user has picked at `stage='winner'` in their bracket
+    # prediction, or `None` if not yet predicted. Surfaced on the entries
+    # list / card view so users can see their champion pick at a glance
+    # without opening the wizard. Added 2026-06-01.
+    predicted_winner: Optional[str] = None
