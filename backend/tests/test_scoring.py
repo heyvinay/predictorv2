@@ -529,7 +529,9 @@ class TestCalculateAdvancementPoints:
             round_of_16_prediction, actual_advancement, PredictionPhase.PHASE_1
         )
 
-        assert points == 15  # Phase 1 R16 points
+        # Phase 1 R16 points. Bumped 2026-06-01 from 15 to 30 to match the
+        # /rules page (scoring.advancement.round_of_16 in worldcup2026.yml).
+        assert points == 30
 
     def test_team_eliminated_before_prediction(self, round_of_16_prediction):
         """Should award 0 points when team is eliminated early."""

@@ -59,12 +59,14 @@ scoring:
     group_advance: 10
     # Bonus for predicting correct group position (1st vs 2nd)
     group_position: 5
-    # Knockout round advancement points
-    round_of_32: 10
-    round_of_16: 15
-    quarter_final: 20
-    semi_final: 40
-    final: 60
+    # Knockout round advancement points. Source of truth: /rules page
+    # (BRACKET_STAGES constant). Bumped 2026-06-01 to match the rules-page
+    # values; the prior 10/15/20/40/60 scale undercut what users saw.
+    round_of_32: 20
+    round_of_16: 30
+    quarter_final: 40
+    semi_final: 50
+    final: 75
     winner: 100
 
   # Phase-specific multipliers
@@ -75,8 +77,11 @@ scoring:
     phase_2: 0.7
 
 # Bonus questions
-# These are pre-tournament predictions that lock with Phase 1 and are scored
-# when the admin enters the correct answer in /admin. Three categories.
+# These are pre-tournament predictions that lock with the deadline and are
+# scored when the admin enters the correct answer in /admin. Two categories:
+# Group stage and Top / Flop (rendered as "Knockout Stage — Top / Flop" in
+# user-facing copy; the internal `top_flop` literal is preserved across
+# code, DB, and tests for backward compatibility).
 #
 # Each question has a stable `id` used as the foreign key in bonus_predictions
 # and bonus_answers. Labels support {top_n} substitution so changing top_n
@@ -92,87 +97,70 @@ bonus:
   # to decide "dark horse" (best progress among teams OUTSIDE this list) and
   # "bottlers" (earliest exit among teams INSIDE this list). Only teams that
   # are actually in the competition contribute — others are ignored.
+  # Order = current FIFA rank. Refreshed 2026-06-01 against the April 2026
+  # FIFA Men's World Ranking; Italy (rank 12, did not qualify for 2026 WC)
+  # dropped, Morocco (rank 8) added. Every team in this list is verified
+  # qualified for the 2026 tournament.
   fifa_top_teams:
-    - "Argentina"
-    - "France"
-    - "Spain"
-    - "England"
-    - "Brazil"
-    - "Belgium"
-    - "Portugal"
-    - "Netherlands"
-    - "Italy"
-    - "Germany"
+    - "France"        # 1
+    - "Spain"         # 2
+    - "Argentina"     # 3
+    - "England"       # 4
+    - "Portugal"      # 5
+    - "Brazil"        # 6
+    - "Netherlands"   # 7
+    - "Morocco"       # 8
+    - "Belgium"       # 9
+    - "Germany"       # 10
 
-  # Point values per category. Flat within a category, so all 4 group-stage
+  # Point values per category. Flat within a category, so all group-stage
   # questions are worth the same. Tweak here without code changes.
+  # `awards` is kept defensively in case awards questions are re-added; no
+  # current question references it.
   points:
     group_stage: 15
     top_flop: 20
     awards: 20
 
   # Question definitions. `input_type` drives the wizard UI:
-  #   - 'team'   → 48-team dropdown sourced from the groups: section above
-  #   - 'player' → free-text input until the squads table ships, at which
-  #                point answers get normalized against player_id lookups.
+  #   - 'team'                 → 48-team dropdown sourced from the groups: section above
+  #   - 'team_outside_top_n'   → dropdown filtered to teams NOT in fifa_top_teams
+  #   - 'team_in_top_n'        → dropdown of exactly the fifa_top_teams list (intersected with allTeams)
+  #   - 'player'               → free-text input (legacy; no current questions use it)
   questions:
     # ── Group stage ──────────────────────────────────────────────────
     - id: most_goals_scored_group
       category: group_stage
-      label: "Goal Machine — team that scored the most goals in the group stage"
-      input_type: team
-    - id: least_goals_scored_group
-      category: group_stage
-      label: "Toothless Attack — team that scored the fewest goals in the group stage"
+      label: "Goal Machine — team that scores the most goals in the group stage"
       input_type: team
     - id: most_goals_conceded_group
       category: group_stage
-      label: "The Sieve — team that conceded the most goals in the group stage"
-      input_type: team
-    - id: least_goals_conceded_group
-      category: group_stage
-      label: "The Fortress — team that conceded the fewest goals in the group stage"
+      label: "The Sieve — team that concedes the most goals in the group stage"
       input_type: team
 
-    # ── Top / Flop (FIFA top_n cutoff) ───────────────────────────────
+    # ── Top / Flop (FIFA top_n cutoff) — rendered as "Knockout Stage — Top / Flop" in UI ──
     - id: dark_horse
       category: top_flop
       label: "Dark Horse — team outside FIFA top {top_n} that progresses furthest"
-      input_type: team
+      input_type: team_outside_top_n
     - id: flop
       category: top_flop
       label: "Bottlers — team inside FIFA top {top_n} eliminated earliest"
-      input_type: team
+      input_type: team_in_top_n
 
-    # ── Awards (FIFA awards ceremony) ────────────────────────────────
-    - id: best_player
-      category: awards
-      label: "Golden Ball — best player of the tournament"
-      input_type: player
-    - id: top_scorer
-      category: awards
-      label: "Golden Boot — top scorer of the tournament"
-      input_type: player
-    - id: best_young_player
-      category: awards
-      label: "Golden Boy — best young player of the tournament"
-      input_type: player
-    - id: golden_glove
-      category: awards
-      label: "Golden Glove — best goalkeeper of the tournament"
-      input_type: player
-
-# Group stage configuration
+# Group stage configuration. Source: official FIFA 2026 World Cup Final
+# Draw, held 2025-12-05 at the Kennedy Center, Washington D.C. First team
+# is the seeded host or top-pot team per group.
 groups:
-  A: ["United States", "Morocco", "Jamaica", "TBD"]
-  B: ["France", "Denmark", "Poland", "TBD"]
-  C: ["Brazil", "Nigeria", "Cameroon", "TBD"]
-  D: ["Argentina", "Chile", "Peru", "TBD"]
-  E: ["Germany", "Netherlands", "Belgium", "TBD"]
-  F: ["Spain", "Portugal", "Italy", "TBD"]
-  G: ["England", "Wales", "Scotland", "TBD"]
-  H: ["Japan", "South Korea", "Australia", "TBD"]
-  I: ["Mexico", "Colombia", "Ecuador", "TBD"]
-  J: ["Uruguay", "Paraguay", "Venezuela", "TBD"]
-  K: ["Canada", "Costa Rica", "Panama", "TBD"]
-  L: ["Saudi Arabia", "Iran", "Qatar", "TBD"]
+  A: ["Mexico", "South Africa", "South Korea", "Czech Republic"]
+  B: ["Canada", "Bosnia and Herzegovina", "Qatar", "Switzerland"]
+  C: ["Brazil", "Morocco", "Haiti", "Scotland"]
+  D: ["United States", "Paraguay", "Australia", "Turkey"]
+  E: ["Germany", "Curaçao", "Ivory Coast", "Ecuador"]
+  F: ["Netherlands", "Japan", "Sweden", "Tunisia"]
+  G: ["Belgium", "Egypt", "Iran", "New Zealand"]
+  H: ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"]
+  I: ["France", "Senegal", "Iraq", "Norway"]
+  J: ["Argentina", "Algeria", "Austria", "Jordan"]
+  K: ["Portugal", "DR Congo", "Uzbekistan", "Colombia"]
+  L: ["England", "Croatia", "Ghana", "Panama"]

@@ -49,14 +49,16 @@ def _fixed_scoring_config():
     config = {
         "mode": "fixed",
         "match": {"correct_outcome": 5, "exact_score": 10, "hybrid_cap": 10},
+        # Bracket points bumped 2026-06-01 to match the /rules page —
+        # 20/30/40/50/75/100 ladder (was 10/15/20/40/60/100).
         "advancement": {
             "group_advance": 10,
             "group_position": 5,
-            "round_of_32": 10,
-            "round_of_16": 15,
-            "quarter_final": 20,
-            "semi_final": 40,
-            "final": 60,
+            "round_of_32": 20,
+            "round_of_16": 30,
+            "quarter_final": 40,
+            "semi_final": 50,
+            "final": 75,
             "winner": 100,
         },
         "phase_multipliers": {"phase_1": 1.0, "phase_2": 0.7},

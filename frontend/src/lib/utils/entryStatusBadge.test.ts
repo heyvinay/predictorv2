@@ -138,7 +138,9 @@ describe('entryUiStatus', () => {
 describe('entryStatusBadge', () => {
 	it.each<[EntryUiStatus, string, string]>([
 		['draft', 'DRAFT', 'badge-warning'],
-		['ready', 'READY', 'badge-info'],
+		// 'ready' deliberately renders the same DRAFT/warning treatment
+		// as 'draft' — see comment on BADGE in entryStatusBadge.ts.
+		['ready', 'DRAFT', 'badge-warning'],
 		['locked', '🔒 LOCKED', 'badge-success'],
 		['scored', '✓ SCORED', 'badge-success'],
 		['missed', '✗ NOT SUBMITTED', 'badge-error'],
@@ -154,7 +156,7 @@ describe('entryStatusBadge', () => {
 describe('entryStatusDot', () => {
 	it.each<[EntryUiStatus, string]>([
 		['draft', 'bg-warning'],
-		['ready', 'bg-info'],
+		['ready', 'bg-warning'],
 		['locked', 'bg-success'],
 		['scored', 'bg-success'],
 		['missed', 'bg-error'],

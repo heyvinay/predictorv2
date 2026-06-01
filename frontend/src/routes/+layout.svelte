@@ -17,6 +17,7 @@
 	} from '$stores/adminAttention';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import { needsOnboarding } from '$lib/utils/onboarding';
@@ -101,14 +102,15 @@
 	}
 
 	// Logo fallback — if /logo.png is missing, swap the <img> for the
-	// letter-P brand mark. Two sizes: rail (text-2xl) and mobile (text-xl).
+	// letter-P brand mark. Sized to roughly match the image dimensions
+	// (rail w-10 ≈ 40px → text-3xl; mobile w-10 ≈ 40px → text-3xl).
 	function logoFallbackRail(e: Event) {
 		const el = e.currentTarget as HTMLImageElement;
-		el.outerHTML = '<span class="nav-brand text-2xl leading-none">P</span>';
+		el.outerHTML = '<span class="nav-brand text-3xl leading-none">P</span>';
 	}
 	function logoFallbackMobile(e: Event) {
 		const el = e.currentTarget as HTMLImageElement;
-		el.outerHTML = '<span class="nav-brand text-xl leading-none">P</span>';
+		el.outerHTML = '<span class="nav-brand text-3xl leading-none">P</span>';
 	}
 </script>
 
@@ -125,19 +127,24 @@
 			class="fixed left-0 top-0 h-screen w-48 z-50 hidden min-[700px]:flex flex-col bg-base-200 border-r border-base-300/50"
 			aria-label="Primary navigation"
 		>
-			<!-- Brand mark — circular logo image with letter-P fallback. -->
+			<!-- Brand mark — circular logo image with letter-P fallback.
+			     Wordmark "PREDICTOR" removed 2026-06-01 per design call —
+			     the icon alone carries the brand. Left-aligned with px-3 so
+			     the logo's left edge sits in the same column as the nav-item
+			     icons below it (those use px-3 + gap-3, so their icons
+			     start at 12px from the rail's left edge). Sized w-10 h-10 to
+			     match the rail avatar at the bottom of the rail. -->
 			<a
 				href="/"
-				class="h-16 flex items-center justify-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0 px-4"
+				class="h-16 flex items-center justify-start hover:opacity-80 transition-opacity flex-shrink-0 px-3"
 				aria-label="Predictor home"
 			>
 				<img
 					src="/logo.png"
 					alt="Predictor"
-					class="h-9 w-9 rounded-full object-cover"
+					class="h-10 w-10 rounded-full object-cover"
 					on:error={logoFallbackRail}
 				/>
-				<span class="nav-brand text-lg leading-none">PREDICTOR</span>
 			</a>
 
 			<!-- Primary nav items — icon + label rows. -->
@@ -184,7 +191,9 @@
 						class="btn btn-ghost h-12 w-full justify-start px-2 gap-2"
 					>
 						<div class="relative">
-							<UserAvatar name={$user?.name ?? null} />
+							<!-- Sized to match the rail brand logo at the top of the rail
+							     (w-10 h-10) so both ends of the rail have matched anchor weights. -->
+							<UserAvatar name={$user?.name ?? null} sizeClass="w-10 h-10" />
 							{#if $user?.is_admin && $adminAttentionCount > 0}
 								<span
 									class="absolute -top-1 -right-1 badge badge-warning badge-xs font-mono"
@@ -314,25 +323,29 @@
 						</div>
 					{/if}
 				{:else}
-					<a href="/" class="flex items-center gap-2 px-3 hover:opacity-80 transition-opacity">
+					<a href="/" class="flex items-center px-3 hover:opacity-80 transition-opacity">
+						<!-- Mobile logo sized to match the mobile avatar (w-10 h-10) at
+						     the right end of this navbar — balanced weights at both ends.
+						     The DaisyUI navbar already accommodates w-10 children
+						     (the avatar at line ~377 uses the same size). -->
 						<img
 							src="/logo.png"
 							alt="Predictor"
-							class="h-7 w-7 rounded-full object-cover"
+							class="h-10 w-10 rounded-full object-cover"
 							on:error={logoFallbackMobile}
 						/>
-						<span class="nav-brand">PREDICTOR</span>
 					</a>
+					<!-- Page title sits next to the logo (left-aligned) rather than
+					     in navbar-center, which would compete for room with the
+					     deadline pill + theme/help/avatar in navbar-end. `truncate`
+					     + parent `min-w-0 flex-1` handle long titles gracefully. -->
+					{#if $pageTitle}
+						<span class="font-display text-lg tracking-wide truncate">
+							{$pageTitle}
+						</span>
+					{/if}
 				{/if}
 			</div>
-
-			{#if !isWizardRoute && $pageTitle}
-				<div class="navbar-center flex min-w-0 px-2">
-					<span class="font-display text-lg tracking-wide truncate max-w-[50vw]">
-						{$pageTitle}
-					</span>
-				</div>
-			{/if}
 
 			<div class="navbar-end gap-1">
 				{#if hasLiveDeadline}
@@ -457,4 +470,14 @@
 	<main class="flex-1 {$isAuthenticated ? 'pb-16 min-[700px]:pb-0 min-[700px]:pl-48' : ''}">
 		<slot />
 	</main>
+
+	<!-- Site footer renders on every route except the entry wizard
+	     (`/entries/[entryId]`), where vertical real-estate is at a premium
+	     and the BottomActionBar already anchors the page. Promoted from
+	     landing-only to global on 2026-06-01. -->
+	{#if !isWizardRoute}
+		<div class="{$isAuthenticated ? 'min-[700px]:pl-48' : ''}">
+			<SiteFooter />
+		</div>
+	{/if}
 </div>

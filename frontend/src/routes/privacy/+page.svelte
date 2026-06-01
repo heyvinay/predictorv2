@@ -5,9 +5,13 @@
 	// bundle (one page does not justify the dependency).
 	import { onMount } from 'svelte';
 	import { pageTitle } from '$stores/pageTitle';
+	import { supportOpen } from '$stores/supportPanel';
 
 	const LAST_UPDATED = '29 May 2026';
-	const CONTACT = 'wc26@heyvinay.com';
+	// Operator-contact email removed 2026-06-01. Both prior touchpoints
+	// (sections 05 and 09) now route users through the in-app support
+	// flow (supportOpen.set(true) → SupportPanel modal) instead of a
+	// mailto link.
 
 	onMount(() => {
 		pageTitle.set('Privacy');
@@ -100,10 +104,13 @@
 	<section class="stadium-card no-glow p-5">
 		<h2 class="text-lg font-display tracking-wide mb-3">05 · Your Rights</h2>
 		<p class="text-sm text-base-content/80">
-			You can request a copy of your data, have it corrected, or have your
-			account and email deleted at any time — email
-			<a href="mailto:{CONTACT}" class="link link-primary">{CONTACT}</a>
-			and it will be handled within a few days.
+			You can have your data corrected, or have your account and email
+			deleted at any time —
+			<button
+				type="button"
+				class="link link-primary"
+				on:click={() => supportOpen.set(true)}
+			>send a support request</button>.
 		</p>
 	</section>
 
@@ -140,7 +147,11 @@
 		<h2 class="text-lg font-display tracking-wide mb-3">09 · Contact</h2>
 		<p class="text-sm text-base-content/80">
 			Questions or removal requests:
-			<a href="mailto:{CONTACT}" class="link link-primary">{CONTACT}</a>
+			<button
+				type="button"
+				class="link link-primary"
+				on:click={() => supportOpen.set(true)}
+			>send a support request</button>.
 		</p>
 	</section>
 </div>

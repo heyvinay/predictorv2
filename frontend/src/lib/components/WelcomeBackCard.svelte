@@ -14,10 +14,13 @@
 	Props:
 	  phase1Deadline?: string | null  — ISO datetime when Phase 1 locks
 	                                    (typically `competition.phase1_deadline`).
-	  dashboardHref?: string          — destination for the "Open dashboard"
-	                                    ghost button. Defaults to /profile
-	                                    until a real /home dashboard exists.
 	  placement?: string              — analytics tag for cta_clicked.
+
+	Note: The "Open dashboard" ghost button (and its `dashboardHref` prop +
+	`onDashboardClick` handler) were removed 2026-06-01 per design call —
+	the single primary CTA ("Enter your predictions") is the only intended
+	exit from this card. If a dashboard route is ever added, restore the
+	prop + button + analytics handler together.
 -->
 <script lang="ts">
 	import { user } from '$stores/auth';
@@ -25,7 +28,6 @@
 	import { track } from '$lib/analytics';
 
 	export let phase1Deadline: string | null = null;
-	export let dashboardHref: string = '/profile';
 	export let placement: string = 'hero';
 
 	/** First word of the user's display name, uppercased for the hero
@@ -80,14 +82,6 @@
 			auth_state: 'authenticated'
 		});
 	}
-
-	function onDashboardClick() {
-		track('cta_clicked', {
-			placement,
-			cta_label: 'open_dashboard',
-			auth_state: 'authenticated'
-		});
-	}
 </script>
 
 <div class="stadium-card no-glow p-7">
@@ -107,12 +101,5 @@
 		on:click={onPredictionsClick}
 	>
 		Enter your predictions →
-	</a>
-	<a
-		href={dashboardHref}
-		class="btn btn-ghost btn-sm w-full mt-2 text-base-content/70"
-		on:click={onDashboardClick}
-	>
-		Open dashboard
 	</a>
 </div>

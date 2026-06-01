@@ -47,7 +47,9 @@
       "Bash(docker --context predictor compose -f /Users/lukeaarohi/pyfiles/predictorv2/docker-compose.yml --profile prod logs --tail=60 cloudflared)",
       "Bash(git checkout *)",
       "Bash(npm install *)",
-      "Bash(git ls-tree *)"
+      "Bash(git ls-tree *)",
+      "Bash(docker network *)",
+      "Bash(docker run *)"
     ]
   },
   "outputStyle": "Explanatory"

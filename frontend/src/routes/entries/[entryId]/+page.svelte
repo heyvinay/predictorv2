@@ -31,6 +31,7 @@
 		loadEntries,
 		refreshEntries,
 		entries,
+		editableEntries,
 		activeEntryId,
 		activeEntry,
 		setActiveEntry,
@@ -99,6 +100,13 @@
 	import { standingsPanelOpen } from '$stores/uiPreferences';
 	import { wizardSectionLabel } from '$stores/wizardCrumb';
 	import { smartFillScoreline, smartFillBracket } from '$lib/utils/smartFill';
+	import {
+		bonusBorderClass as bonusBorderClassFn,
+		countAnsweredQuestions,
+		filterTeamsInTopN,
+		filterTeamsOutsideTopN,
+		validateBonusAnswer
+	} from '$lib/utils/bonusLogic';
 	import { getOdds, getCacheInfo } from '$lib/utils/oddsCache';
 	import { oddsScoreline } from '$lib/utils/oddsScoreline';
 	import { tick } from 'svelte';
@@ -767,6 +775,34 @@
 			lifecycleBusy = false;
 		}
 	}
+
+	/**
+	 * Create a new entry from the locked-state CTA on the submission card.
+	 * Server auto-generates the display name ("Entry N" via the next-number
+	 * sequence). Once created, refresh the entries list and navigate
+	 * straight into the new entry's wizard so the user lands ready to fill
+	 * picks — no intermediate stop at /entries. Gated by `canCreateNewEntry`
+	 * in the parent's prop so the CTA only renders when there's room under
+	 * max_entries_per_user.
+	 */
+	async function handleNewEntry(): Promise<void> {
+		if (!$user) return;
+		try {
+			const fresh = await entriesApi.createEntry({});
+			await loadEntries($user.id);
+			await goto(`/entries/${fresh.id}`);
+		} catch (e) {
+			console.error('Failed to create new entry from locked card', e);
+		}
+	}
+
+	// Compute whether the user has room to create another entry under the
+	// competition's max_entries_per_user cap. Used to gate the "+ New Entry"
+	// CTA on the SubmitSummary locked card. Defaults to false until both
+	// editableEntries and entrySettings have loaded.
+	$: canCreateNewEntry =
+		!!$entrySettings &&
+		$editableEntries.length < $entrySettings.max_entries_per_user;
 
 	onDestroy(() => {
 		if (typeof window !== 'undefined') {
@@ -1441,6 +1477,11 @@
 	let bonusQuestions: import('$api/bonus').BonusQuestion[] = [];
 	let bonusAnswers: Map<string, string> = new Map(); // question_id → answer
 	let bonusInitial: Map<string, string> = new Map(); // for change tracking
+	// FIFA top_n team list — sourced from /api/predictions/bonus/meta on
+	// loadBonus(). Drives the dark_horse / flop dropdown filters; empty
+	// until the meta call resolves, so dropdowns render with whatever
+	// subset of allTeams is appropriate.
+	let fifaTopTeams: string[] = [];
 	let bonusSaveStatus: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
 
 	$: hasUnsavedBonus = (() => {
@@ -1457,14 +1498,40 @@
 		const entryId = $activeEntryId;
 		// Questions are static — always loadable. Predictions are entry-scoped;
 		// skip the fetch (and any error from a not-yet-resolved active entry).
-		const qs = await bonusApi.getBonusQuestions();
+		// Meta (top_n + fifa_top_teams) drives the dark_horse / flop dropdowns
+		// and is fetched in parallel for one round-trip on wizard open.
+		const [qs, meta] = await Promise.all([
+			bonusApi.getBonusQuestions(),
+			bonusApi.getBonusMeta()
+		]);
 		bonusQuestions = qs;
+		fifaTopTeams = meta.fifa_top_teams;
 		if (entryId) {
 			try {
 				const preds = await bonusApi.getMyBonusPredictions(entryId);
+				// Drop any stored answer that no longer satisfies its
+				// question's input_type filter — e.g. a 'Brazil' saved for
+				// dark_horse when it was input_type:team, now invalid under
+				// team_outside_top_n. Without this scrub, the select renders
+				// blank but the counter still counts it (the 4-of-4 bug).
+				// We pass an undefined allTeams here because $groupFixtures
+				// may not have resolved yet — fifa-only validation is enough
+				// to catch the headline bug.
+				const byId = new Map<string, (typeof qs)[number]>(qs.map((q) => [q.id, q]));
 				const map = new Map<string, string>();
-				for (const p of preds) map.set(p.question_id, p.answer);
+				for (const p of preds) {
+					const q = byId.get(p.question_id);
+					if (!q) continue; // orphan (question removed from YAML)
+					if (validateBonusAnswer(q, p.answer, meta.fifa_top_teams)) {
+						map.set(p.question_id, p.answer);
+					}
+				}
 				bonusAnswers = map;
+				// Anchor `bonusInitial` to the cleaned set, NOT the raw
+				// server response, so the dirty-detector doesn't
+				// permanently mark the entry dirty just because the server
+				// still holds a stale value. If the user picks a fresh
+				// answer the change still registers vs. this baseline.
 				bonusInitial = new Map(map);
 			} catch (e) {
 				// Predictions failed but questions still render — better UX
@@ -1497,6 +1564,20 @@
 	}
 
 	$: bonusAnswer = (qid: string): string => bonusAnswers.get(qid) ?? '';
+
+	// Counter ignores answers tied to question IDs not currently served
+	// by the API — guards against stale drafts. Reactive: recomputes
+	// when bonusQuestions or bonusAnswers shifts.
+	$: answeredCount = countAnsweredQuestions(
+		bonusQuestions.map((q) => q.id),
+		bonusAnswers
+	);
+
+	// Per-card red/green border. Wrapping the pure helper so the markup
+	// can call it with just an id.
+	function bonusBorderClass(id: string): string {
+		return bonusBorderClassFn(Boolean(bonusAnswer(id)));
+	}
 
 	function formatLocalTime(d: Date): string {
 		return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1536,7 +1617,10 @@
 
 	const CATEGORY_LABEL: Record<string, string> = {
 		group_stage: 'Group stage',
-		top_flop: 'Top / Flop',
+		// Internal literal stays `top_flop`; display is the longer phrase.
+		top_flop: 'Knockout Stage — Top / Flop',
+		// Kept defensively in case awards questions are re-added; no
+		// current YAML question uses this category.
 		awards: 'Awards'
 	};
 
@@ -1941,18 +2025,34 @@
 						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{#each qs as bq (bq.id)}
 								{@const answer = bonusAnswer(bq.id)}
-								<div class="stadium-card no-glow p-4 relative">
-									{#if answer}
-										<span class="badge badge-xs badge-success absolute top-2 right-2">✓</span>
-									{/if}
+								<!-- Card surface lifts above the panel: bg-base-200 →
+								     white in hybrid (light), premium navy in
+								     premium-night (dark). Dropdowns stay on bg-base-100
+								     to give the requested two-tone contrast (canvas
+								     dim slate vs. card white, or canvas midnight vs.
+								     card navy). Border thickness signals state. -->
+								<div class="rounded-xl border-2 bg-base-200 p-4 transition-colors {bonusBorderClass(bq.id)} relative">
 									<div class="text-sm font-medium mb-2">{bq.label}</div>
 									{#if bq.input_type === 'team'}
-										<select class="select select-bordered select-sm w-full" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
 											<option value="">— Select a team —</option>
 											{#each allTeams as t (t)}<option value={t}>{t}</option>{/each}
 										</select>
+									{:else if bq.input_type === 'team_outside_top_n'}
+										<!-- Dark Horse — every team NOT in the FIFA top_n list. -->
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+											<option value="">— Select a team —</option>
+											{#each filterTeamsOutsideTopN(allTeams, fifaTopTeams) as t (t)}<option value={t}>{t}</option>{/each}
+										</select>
+									{:else if bq.input_type === 'team_in_top_n'}
+										<!-- Bottlers — only the FIFA top_n teams (intersected
+										     with allTeams; preserves FIFA-rank order). -->
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+											<option value="">— Select a team —</option>
+											{#each filterTeamsInTopN(allTeams, fifaTopTeams) as t (t)}<option value={t}>{t}</option>{/each}
+										</select>
 									{:else}
-										<input type="text" class="input input-bordered input-sm w-full" value={answer} on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)} placeholder="Type a player name…" />
+										<input type="text" class="input input-bordered input-sm w-full bg-base-100" value={answer} on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)} placeholder="Type a player name…" />
 									{/if}
 									<div class="text-xs text-accent mt-2">+{bq.points} pts</div>
 								</div>
@@ -1962,12 +2062,12 @@
 				{/each}
 
 				<div class="flex justify-end items-center gap-3 mt-4">
-					<span class="text-xs text-base-content/50">{bonusAnswers.size} of {bonusQuestions.length} answered · use Save Draft below to persist</span>
+					<span class="text-xs text-base-content/50">{answeredCount} of {bonusQuestions.length} answered · use Save Draft below to persist</span>
 					<button class="btn btn-primary btn-sm hidden" on:click={handleSaveBonus} disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}>
 						{bonusSaveStatus === 'saving' ? 'Saving…' : bonusSaveStatus === 'saved' ? '✓ Saved' : bonusSaveStatus === 'error' ? '× Error — retry' : 'Save bonus picks'}
 					</button>
 				</div>
-				<p class="text-xs text-base-content/50 mt-3 uppercase tracking-wider">★ Bonus picks lock with Phase I · admin reveals correct answers as the tournament resolves</p>
+				<p class="text-xs text-base-content/50 mt-3 normal-case tracking-normal leading-relaxed">★ Admin will reveal correct answers as the tournament progresses. If multiple teams qualify — e.g. Germany and Spain both score 20 goals in the group stage — users who picked either team will get the bonus points.</p>
 			{:else if activeSection === 'submit'}
 				<!-- ============================ SUBMIT STEP ============================ -->
 				<!-- Full read-only recap (groups + bracket + bonus) plus a state-aware
@@ -1991,9 +2091,11 @@
 					canSubmit={phase1AllComplete}
 					submittedAt={$activeEntry?.phases?.find((p) => p.phase === 'phase_1')?.submitted_at ?? null}
 					canUnlock={uiStatus === 'locked' && !$isPhase1Locked}
+					{canCreateNewEntry}
 					on:editStep={(e) => setStep(e.detail.step)}
 					on:submit={(e) => confirmSubmit(e.detail.paidTo)}
 					on:unlock={handleEdit}
+					on:newEntry={handleNewEntry}
 				/>
 			{/if}
 

@@ -1864,6 +1864,20 @@
       "type": "internal",
       "summary": "Internal: added invariant tests for the Release Notes changelog and a defensive composite key in the admin renderer so a future ordering mistake or duplicate-SHA placeholder cannot blank the page again.",
       "commit": "pending"
+    },
+    {
+      "version": "2.151.0",
+      "date": "2026-06-01",
+      "type": "improvement",
+      "summary": "Bonus questions streamlined to four (two group-stage, two knockout) with smart FIFA-aware dropdowns; group draw and FIFA top-10 refreshed; bonus cards now show red/green completion state; rules-page scoring brought into sync with backend.",
+      "commit": "pending"
+    },
+    {
+      "version": "2.152.0",
+      "date": "2026-06-01",
+      "type": "improvement",
+      "summary": "Post-submit screen now offers Back to Entries and New Entry CTAs; entries list shows your predicted winner chip and uses the full page width consistently across all data pages; sitewide footer with Home link replaces landing-only footer; privacy page routes users to the in-app help button; clearer DRAFT badge wording, louder Unlock button, and assorted mobile-nav, login-logo, tooltip and warning-copy refinements.",
+      "commit": "pending"
     }
   ]
 }

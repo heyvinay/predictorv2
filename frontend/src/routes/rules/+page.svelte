@@ -6,11 +6,14 @@
 	// the API is unreachable.
 	//
 	// SCORING NOTE: the rarity cap, outcome/exact/rarity match-scoring
-	// numbers, the BRACKET_STAGES values, and the +20 hardcoded on bonus
-	// questions are all maintained BY HAND in this file (no public
+	// numbers, the BRACKET_STAGES values, and the per-category BONUS_POINTS
+	// map are all maintained BY HAND in this file (no public
 	// /scoring-config endpoint exists). If you tune scoring config in
 	// config/worldcup2026.yml, mirror the values here too — there's no
-	// runtime check that the two are in sync.
+	// runtime check that the two are in sync. As of 2026-06-01, the YAML
+	// has been brought up to match this file (both for bracket and bonus
+	// points), so this page is once again the source of truth visible to
+	// users — keep them aligned.
 	import { onMount } from 'svelte';
 	import { getCompetitionInfo, type CompetitionInfo } from '$api/competition';
 	import { getBonusQuestions, type BonusQuestion } from '$api/bonus';
@@ -33,10 +36,16 @@
 	 *  real predictor pool is known. */
 	const rarityPredictorCount = 100;
 
-	/** Flat per-question bonus value, displayed against every bonus
-	 *  question. Mirror this in config/worldcup2026.yml (bonus.points)
-	 *  when you sync backend scoring to the rules-page values. */
-	const BONUS_POINTS = 20;
+	/** Per-category bonus point values, displayed against each bonus
+	 *  question's badge. Mirror this in config/worldcup2026.yml
+	 *  (bonus.points) when you tune — the runtime scoring engine uses
+	 *  the YAML; this constant just dictates what the rules page
+	 *  advertises. Both should agree. */
+	const BONUS_POINTS: Record<string, number> = {
+		group_stage: 15,
+		top_flop: 20,
+		awards: 20
+	};
 
 	/** Group consecutive correct-predictor counts (1..P) that yield the
 	 *  same logarithmic rarity bonus into bands so the published table is
@@ -100,7 +109,10 @@
 
 	const CATEGORY_LABEL: Record<string, string> = {
 		group_stage: 'Group stage',
-		top_flop: 'Top / Flop',
+		// Internal `top_flop` literal stays; display flips to the longer
+		// phrase so users understand these are knockout-stage outcomes.
+		top_flop: 'Knockout Stage — Top / Flop',
+		// Kept defensively in case awards questions are re-added.
 		awards: 'Awards'
 	};
 	$: bonusByCategory = (() => {
@@ -255,8 +267,8 @@
 
 	<!-- 04 — Bonus questions -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">04 · Bonus Questions <span class="text-xs text-base-content/40">· {bonusQuestions.length || 9} questions · lock with the deadline</span></h2>
-		<p class="text-sm text-base-content/80 mb-4">A small set of pre-tournament wagers on side-stories beyond the bracket. Submit your picks before the deadline; the admin reveals the correct answer as each question resolves (group-stage questions at the end of the group stage, awards at the FIFA ceremony, etc.). Player-name answers are matched leniently — capitalisation and accents don't matter.</p>
+		<h2 class="text-lg font-display tracking-wide mb-3">04 · Bonus Questions <span class="text-xs text-base-content/40">· {bonusQuestions.length || 4} questions · lock with the deadline</span></h2>
+		<p class="text-sm text-base-content/80 mb-4">A small set of pre-tournament wagers on side-stories beyond the bracket. Submit your picks before the deadline; the admin reveals each correct answer as it resolves (group-stage questions at the end of the group stage; knockout questions once the tournament progresses far enough). If multiple teams qualify — e.g. two teams tied on goals — anyone who picked either gets the points.</p>
 		{#each ['group_stage', 'top_flop', 'awards'] as cat (cat)}
 			{@const qs = bonusByCategory[cat] ?? []}
 			{#if qs.length > 0}
@@ -265,7 +277,7 @@
 					{#each qs as q (q.id)}
 						<div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-base-300/30">
 							<span class="text-sm">{q.label}</span>
-							<span class="badge badge-accent">+{BONUS_POINTS}</span>
+							<span class="badge badge-accent">+{BONUS_POINTS[q.category] ?? 20}</span>
 						</div>
 					{/each}
 				</div>

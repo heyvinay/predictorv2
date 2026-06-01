@@ -9,7 +9,14 @@
 import { api } from './client';
 
 export type BonusCategory = 'group_stage' | 'top_flop' | 'awards';
-export type BonusInputType = 'team' | 'player';
+// `top_flop` is rendered as "Knockout Stage — Top / Flop" in user-facing
+// copy; the literal stays for backward compatibility with stored data.
+// The filtered input_types added 2026-06-01 drive FIFA-rank-aware dropdowns.
+export type BonusInputType =
+	| 'team'
+	| 'player'
+	| 'team_outside_top_n'
+	| 'team_in_top_n';
 
 export interface BonusQuestion {
 	id: string;
@@ -43,6 +50,19 @@ export interface BonusAnswerView {
 
 export async function getBonusQuestions(): Promise<BonusQuestion[]> {
 	return api.get<BonusQuestion[]>('/predictions/bonus/questions');
+}
+
+/** FIFA top_n cutoff + the team list it expands to, sourced from
+ *  config/worldcup2026.yml. Used by the wizard to filter the
+ *  dark_horse / flop dropdowns. Public — same auth surface as
+ *  getBonusQuestions(). */
+export interface BonusMeta {
+	top_n: number;
+	fifa_top_teams: string[];
+}
+
+export async function getBonusMeta(): Promise<BonusMeta> {
+	return api.get<BonusMeta>('/predictions/bonus/meta');
 }
 
 export async function getMyBonusPredictions(entryId: string): Promise<BonusPrediction[]> {

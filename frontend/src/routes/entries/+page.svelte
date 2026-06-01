@@ -449,7 +449,13 @@
 {/if}
 
 <!-- ── Page ───────────────────────────────────────────────────────────────── -->
-<div class="container mx-auto px-4 py-6 max-w-6xl">
+<!-- No explicit max-w — matches the data-page convention used by /admin,
+     /leaderboard, /results, /profile. Falls back to Tailwind's default
+     `container` cap (1536px at the 2xl breakpoint), so all data pages
+     share the same visual width on wide desktops. Long-form text pages
+     (/rules, /privacy) keep their narrower max-w-4xl. Standardized
+     2026-06-01. -->
+<div class="container mx-auto mobile-padding py-6">
 
 	<!-- Header -->
 	<header class="flex items-center justify-between mb-6 gap-4">
@@ -734,21 +740,37 @@
 						</p>
 					{/if}
 
-					<!-- Contextual CTA (chip on bottom-right) -->
-					{#if s.cta}
-						<button
-							type="button"
-							class="btn btn-xs self-end gap-1.5 {s.cta.kind === 'primary' ? 'btn-primary' : 'btn-ghost'}"
-							on:click|stopPropagation={s.cta.action}
-						>
-							{#if s.cta.locked}
-								<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-								</svg>
+					<!-- Bottom row: predicted winner (left) + contextual CTA (right).
+					     Winner chip sits opposite the CTA so the eye can read
+					     "this is my champion pick → this is the action I'd take" in
+					     one horizontal scan. Hidden while completion is loading to
+					     avoid flickering 'TBD' for entries whose winner is picked. -->
+					<div class="flex items-end justify-between gap-2 mt-auto">
+						<div class="min-w-0">
+							{#if s.completion}
+								<span
+									class="badge badge-ghost badge-sm whitespace-nowrap"
+									title={s.completion.predicted_winner ? `Predicted winner: ${s.completion.predicted_winner}` : 'Winner not yet predicted'}
+								>
+									🏆 {s.completion.predicted_winner ?? 'TBD'}
+								</span>
 							{/if}
-							{s.cta.label}
-						</button>
-					{/if}
+						</div>
+						{#if s.cta}
+							<button
+								type="button"
+								class="btn btn-xs gap-1.5 {s.cta.kind === 'primary' ? 'btn-primary' : 'btn-ghost'}"
+								on:click|stopPropagation={s.cta.action}
+							>
+								{#if s.cta.locked}
+									<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+									</svg>
+								{/if}
+								{s.cta.label}
+							</button>
+						{/if}
+					</div>
 				</article>
 			{/each}
 
@@ -768,8 +790,14 @@
 		</div>
 
 	{:else}
-		<!-- ── List view (table) ────────────────────────────────────────────────── -->
-		<div class="rounded-xl border border-base-300/50 overflow-hidden bg-base-100">
+		<!-- ── List view (table) ──────────────────────────────────────────────────
+		     overflow-hidden removed 2026-06-01 — it was clipping the row-kebab
+		     dropdown when it opened below the last row (very visible with a single
+		     entry; less visible but still present at the last row of longer lists).
+		     The rounded-xl outer border still draws crisply; the thead's
+		     bg-base-300 paints under it with a sub-pixel artifact at 12px radius
+		     that's effectively invisible in practice. -->
+		<div class="rounded-xl border border-base-300/50 bg-base-100">
 			<table class="w-full text-sm">
 				<thead class="bg-base-300">
 					<tr>
@@ -851,6 +879,15 @@
 									<span class="badge badge-sm {s.badge.class} whitespace-nowrap">{s.badge.label}</span>
 									{#if s.showNoPrize}
 										<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Not eligible for the prize pool">NO PRIZE</span>
+									{/if}
+									<!-- Predicted winner chip — mirrors the card view. -->
+									{#if s.completion}
+										<span
+											class="badge badge-ghost badge-sm whitespace-nowrap"
+											title={s.completion.predicted_winner ? `Predicted winner: ${s.completion.predicted_winner}` : 'Winner not yet predicted'}
+										>
+											🏆 {s.completion.predicted_winner ?? 'TBD'}
+										</span>
 									{/if}
 								</span>
 							</td>

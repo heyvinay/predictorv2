@@ -27,7 +27,15 @@ from app.models.fixture import Fixture, MatchStatus
 
 
 BonusCategory = Literal["group_stage", "top_flop", "awards"]
-BonusInputType = Literal["team", "player"]
+# Note: `top_flop` stays the internal literal; only display strings change to
+# "Knockout Stage — Top / Flop". Filtered input_types added 2026-06-01 to
+# drive the dark_horse / flop dropdowns off `fifa_top_teams`.
+BonusInputType = Literal[
+    "team",
+    "player",
+    "team_outside_top_n",
+    "team_in_top_n",
+]
 
 
 @dataclass
@@ -39,6 +47,19 @@ class BonusQuestion:
     label: str  # already has {top_n} substituted
     input_type: BonusInputType
     points: int
+
+
+@dataclass
+class BonusMeta:
+    """FIFA top_n cutoff and the team list it expands to.
+
+    Ships to the wizard so the dark_horse / flop dropdowns can be filtered
+    without duplicating the team list on the frontend. The list is whatever
+    the YAML's `bonus.fifa_top_teams` holds, in YAML order.
+    """
+
+    top_n: int
+    fifa_top_teams: list[str]
 
 
 # ---- Config loading ---------------------------------------------------------
@@ -56,6 +77,20 @@ def _get_bonus_config() -> dict:
 def _category_points(bonus_cfg: dict, category: BonusCategory) -> int:
     """Look up the configured point value for a category, defaulting to 0."""
     return int(bonus_cfg.get("points", {}).get(category, 0))
+
+
+def get_meta() -> BonusMeta:
+    """Load the FIFA top_n cutoff and team list from YAML.
+
+    Used by the wizard's dark_horse / flop dropdowns to filter the 48-team
+    pool by FIFA rank without duplicating the list on the frontend. Order
+    preserved from YAML (which is in FIFA-rank order).
+    """
+    cfg = _get_bonus_config()
+    return BonusMeta(
+        top_n=int(cfg.get("top_n", 10)),
+        fifa_top_teams=list(cfg.get("fifa_top_teams", []) or []),
+    )
 
 
 def get_questions() -> list[BonusQuestion]:

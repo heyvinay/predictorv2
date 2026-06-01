@@ -596,7 +596,10 @@
 
 	const BONUS_CATEGORY_LABEL: Record<string, string> = {
 		group_stage: 'Group stage',
-		top_flop: 'Top / Flop',
+		// Internal literal `top_flop` preserved; display is the longer
+		// phrase so admins see the same heading users do.
+		top_flop: 'Knockout Stage — Top / Flop',
+		// Kept defensively; no current YAML question uses this category.
 		awards: 'Awards'
 	};
 
@@ -830,7 +833,7 @@
 			{/if}
 
 			<!-- Score Sync -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">Score Sync <span class="text-xs text-base-content/40">· Football-Data.org</span></h2>
 				{#if syncError}<div class="alert alert-error text-sm mb-3">{syncError}</div>{/if}
 				{#if syncResult}
@@ -855,7 +858,7 @@
 			<!-- Competition start datetime — at this moment, any DRAFT entries
 			     auto-flip to WITHDRAWN (scheduler tick), and SUBMITTED entries
 			     become read-only and start scoring. -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">Competition starts at <span class="text-xs text-base-content/40">· locks predictions, kicks off scoring</span></h2>
 				<div class="text-sm mb-3">
 					<b>Starts:</b>
@@ -871,7 +874,7 @@
 			</section>
 
 			<!-- Phase 2 Activation -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">Phase II Activation <span class="text-xs text-base-content/40">· Knockout stage</span></h2>
 				<div class="text-sm mb-3">
 					<b>Status:</b>
@@ -891,7 +894,7 @@
 			     dormant in the backend; the markup + handler are dropped from the UI. -->
 
 			<!-- Entry Settings -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">Entry Settings {#if entrySettings}<span class="text-xs text-base-content/40">· max {entrySettings.max_entries_per_user}/user · {entrySettings.payment_mode}</span>{/if}</h2>
 				{#if settingsLoading && !entrySettings}
 					<p class="text-sm text-base-content/50">Loading…</p>
@@ -926,7 +929,7 @@
 			</section>
 
 			<!-- Entries admin table -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">
 					Entries
 					<span class="text-xs text-base-content/40">· {entriesTotal} total</span>
@@ -1153,7 +1156,7 @@
 			</section>
 
 			<!-- Bonus question answers -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">Bonus Question Answers <span class="text-xs text-base-content/40">· {bonusAnswerViews.filter((v) => v.correct_answers.length > 0).length} of {bonusAnswerViews.length} resolved</span></h2>
 				{#if bonusError}<div class="alert alert-error text-sm mb-3">{bonusError}</div>{/if}
 				{#each ['group_stage', 'top_flop', 'awards'] as cat}
@@ -1177,7 +1180,7 @@
 			</section>
 
 			<!-- User Management -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">User Management <span class="text-xs text-base-content/40">· {filteredUsers.length} of {users.length}</span></h2>
 				{#if userActionError}<div class="alert alert-error text-sm mb-3">{userActionError}</div>{/if}
 				<input class="input input-bordered input-sm w-full max-w-md mb-3" placeholder="Search by name or email…" bind:value={userSearch} type="search" />
@@ -1212,7 +1215,7 @@
 			     Sourced from frontend/src/lib/data/changelog.json (bundled
 			     at build time). Filterable by type; defaults to showing
 			     the 50 most-recent entries with a "Show more" button. -->
-			<section class="stadium-card no-glow p-5">
+			<section class="rounded-xl border bg-base-200 shadow-card p-5">
 				<h2 class="text-lg font-display tracking-wide mb-3">
 					Release Notes
 					<span class="text-xs text-base-content/40">
