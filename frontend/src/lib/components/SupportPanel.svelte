@@ -1,6 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { supportOpen } from '$stores/supportPanel';
+	import { user } from '$stores/auth';
+	import TallyEmbed from '$components/help/TallyEmbed.svelte';
+
+	// Tally form ID — public form URL is https://tally.so/r/D4Mbo5.
+	// The notification recipient is configured inside the Tally dashboard.
+	// We pass the logged-in user's email as a hidden field (ref="email" on
+	// the form) so it appears in the notification body — Tally free tier
+	// doesn't expose Reply-To customisation, so this is how we know who
+	// sent the message.
+	const SUPPORT_TALLY_FORM_ID = 'D4Mbo5';
 
 	function close() {
 		supportOpen.set(false);
@@ -46,22 +56,16 @@
 			</button>
 		</header>
 
-		<div class="flex-1 overflow-y-auto p-5">
-			<!-- Placeholder card. The future Tally embed drops in here:
-			     <iframe src="https://tally.so/embed/…"> -->
-			<div class="card bg-base-200 border border-base-300/50">
-				<div class="card-body items-center text-center py-10">
-					<div class="w-12 h-12 rounded-full bg-accent/20 grid place-items-center mb-2">
-						<svg class="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-					</div>
-					<h3 class="font-display text-xl tracking-wide">Support form coming soon</h3>
-					<p class="text-sm text-base-content/60 max-w-xs">
-						We're wiring this up — for now please ping Vinay directly.
-					</p>
-				</div>
-			</div>
+		<div class="flex-1 flex flex-col min-h-0 p-5">
+			<p class="text-sm text-base-content/60 mb-4">
+				Send us a message and we'll get back to you as soon as possible.
+			</p>
+			<TallyEmbed
+				formId={SUPPORT_TALLY_FORM_ID}
+				title="Support form"
+				class="flex-1 min-h-0"
+				hiddenFields={{ email: $user?.email }}
+			/>
 		</div>
 	</aside>
 {/if}
