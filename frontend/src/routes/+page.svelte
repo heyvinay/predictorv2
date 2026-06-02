@@ -30,7 +30,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
-	import { loadEntries, loadCompletionSummaries } from '$stores/entries';
+	import { loadEntries } from '$stores/entries';
 	import { pageTitle } from '$stores/pageTitle';
 	import { track } from '$lib/analytics';
 
@@ -59,16 +59,15 @@
 		});
 	});
 
-	// Hydrate the entries + per-entry completion summary so the
-	// WelcomeBackCard can reflect real entry state on a fresh
-	// post-magic-link landing. Root +layout.svelte only fetches phase
-	// status on auth — entries hydration was previously gated behind a
-	// /entries navigation, which made the landing card silently report 0
-	// entries for new sessions.
+	// Hydrate entries so the WelcomeBackCard reflects real state on a
+	// fresh post-magic-link landing. Root +layout.svelte only fetches
+	// phase status on auth; entries hydration was previously gated
+	// behind a /entries navigation, which made the landing card silently
+	// report 0 entries for new sessions.
 	let hasLoadedLanding = false;
 	$: if ($isAuthenticated && $user?.id && !hasLoadedLanding) {
 		hasLoadedLanding = true;
-		void Promise.all([loadEntries($user.id), loadCompletionSummaries()]);
+		void loadEntries($user.id);
 	}
 </script>
 

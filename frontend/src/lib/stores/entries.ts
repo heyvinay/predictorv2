@@ -21,7 +21,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import * as entriesApi from '$api/entries';
-import type { CompletionSummary, Entry, EntrySettings } from '$lib/types/entry';
+import { computeDisplayStatus, type Entry, type EntrySettings } from '$lib/types/entry';
 
 export const entries = writable<Entry[]>([]);
 export const entrySettings = writable<EntrySettings | null>(null);
@@ -34,13 +34,18 @@ export const activeEntry = derived(
 	([$entries, $id]) => $entries.find((e) => e.id === $id) ?? null
 );
 
-/** Entries still in DRAFT (user can edit). */
+/**
+ * Entries still in DRAFT (user can edit). Status is read from the
+ * entry's user-facing phase row via `computeDisplayStatus` — Phase 2
+ * is dormant for this tournament, so the source-of-truth status is
+ * the phase_1 row's status, not "any phase has draft."
+ */
 export const editableEntries = derived(entries, ($entries) =>
 	$entries.filter(
 		(e) =>
 			!e.is_disabled &&
 			!e.withdrawn_at &&
-			e.phases.some((p) => p.status === 'draft')
+			computeDisplayStatus(e, 'phase_1') === 'draft'
 	)
 );
 
@@ -50,7 +55,7 @@ export const submittedEntries = derived(entries, ($entries) =>
 		(e) =>
 			!e.is_disabled &&
 			!e.withdrawn_at &&
-			e.phases.some((p) => p.status === 'submitted')
+			computeDisplayStatus(e, 'phase_1') === 'submitted'
 	)
 );
 
@@ -65,30 +70,6 @@ export const isSingleEntryMode = derived(
 	entrySettings,
 	($s) => ($s?.max_entries_per_user ?? 1) === 1
 );
-
-/**
- * Per-entry completion summaries keyed by entry id. Populated by
- * `loadCompletionSummaries()` — currently called from the landing page
- * so the WelcomeBackCard can distinguish "draft, still picking" from
- * "draft, fully picked but unsubmitted" (the silent-failure state).
- * Empty object when not yet loaded; consumers should treat a missing
- * key as "unknown completion."
- */
-export const completionSummaries = writable<Record<string, CompletionSummary>>({});
-
-/**
- * True when every pick category (groups, bracket, bonus) is fully
- * filled in. A `false` for a missing summary is intentional — we don't
- * want to claim readiness before we've loaded the data.
- */
-export function isEntryComplete(s: CompletionSummary | undefined): boolean {
-	if (!s) return false;
-	return (
-		s.groups.done === s.groups.total &&
-		s.bracket.done === s.bracket.total &&
-		s.bonus.done === s.bonus.total
-	);
-}
 
 function activeEntryStorageKey(userId: string): string {
 	return `predictor_active_entry_${userId}`;
@@ -176,23 +157,6 @@ export async function loadEntries(userId: string): Promise<void> {
 }
 
 /**
- * Hydrate the per-entry completion summary map. Safe to call alongside
- * `loadEntries` — they hit independent endpoints and the response is
- * keyed by entry id so order doesn't matter. Failures are swallowed
- * (the card just falls back to "unknown completion" copy).
- */
-export async function loadCompletionSummaries(): Promise<void> {
-	try {
-		const list = await entriesApi.getCompletionSummary();
-		const next: Record<string, CompletionSummary> = {};
-		for (const s of list) next[s.entry_id] = s;
-		completionSummaries.set(next);
-	} catch {
-		// Soft failure — leave the map empty; consumers treat that as unknown.
-	}
-}
-
-/**
  * Refresh the list without disturbing the active entry. Use after a
  * create / rename / duplicate / withdraw round-trip so the dropdown
  * reflects the new state.
@@ -235,6 +199,5 @@ export function resetEntries(): void {
 	entrySettings.set(null);
 	activeEntryId.set(null);
 	entriesError.set(null);
-	completionSummaries.set({});
 	hydrationContext = null;
 }
