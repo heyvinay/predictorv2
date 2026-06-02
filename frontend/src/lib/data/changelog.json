@@ -1899,6 +1899,13 @@
       "type": "feature",
       "summary": "You can now contact support directly from inside the app — tap the Help icon at the top (or in the mobile bottom nav) to open a quick message form, and your reply address comes through automatically so we can get back to you.",
       "commit": "pending"
+    },
+    {
+      "version": "2.154.0",
+      "date": "2026-06-02",
+      "type": "feature",
+      "summary": "The home-page welcome card now adapts to where you are in the competition — celebrates a submitted entry and invites a second, or loudly flags a fully-picked draft that hasn't been submitted yet so a completed entry can't slip through unsubmitted. Plus the homepage's 'a cut to charity' line now uses the brand gold for visual consistency.",
+      "commit": "pending"
     }
   ]
 }

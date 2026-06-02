@@ -26,7 +26,7 @@
 				class="font-hero text-[clamp(42px,6vw,98px)] leading-[0.92] tracking-[0.01em] text-base-content"
 			>
 				<span class="block">€600 LAST TIME.</span>
-				<span class="block" style="color: gold;">A CUT TO CHARITY.</span>
+				<span class="block text-primary">A CUT TO CHARITY.</span>
 				<span class="block">THE REST IS BRAGGING RIGHTS.</span>
 			</h2>
 		</div>
