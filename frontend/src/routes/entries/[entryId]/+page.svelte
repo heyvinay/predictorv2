@@ -199,13 +199,34 @@
 	// redirects silently to the list.
 	$: entryParam = $page.params.entryId;
 
-	let entriesEnsured = false;
-	$: if ($isAuthenticated && $user?.id && !entriesEnsured) {
-		entriesEnsured = true;
-		if ($entries.length === 0) void loadEntries($user.id);
+	// Always re-fetch the entries list on entry-detail mount before
+	// activating the URL's entry. A stale `$entries` store can still
+	// contain an entry the admin disabled in another tab — without this
+	// refresh, the entry-match block below would happily accept the stale
+	// row and render the wizard. After re-fetch the backend filter
+	// (v2.154.2) drops disabled entries, so a since-disabled URL falls
+	// through to the redirect. Also closes the saved-deep-link case
+	// (e.g. clicking a submission-confirmation email link after admin
+	// has disabled the entry).
+	let refreshStarted = false;
+	let refreshDone = false;
+	$: if ($isAuthenticated && $user?.id && !refreshStarted) {
+		refreshStarted = true;
+		void (async () => {
+			if ($entries.length === 0) {
+				await loadEntries($user!.id);
+			} else {
+				await refreshEntries();
+			}
+			refreshDone = true;
+		})();
 	}
 
-	$: if (entryParam && $entries.length > 0) {
+	// Gated on `refreshDone` so we never activate a stale entry id.
+	// Without the gate this block would fire against the pre-refresh
+	// store and briefly start the predictions fetch for a disabled
+	// entry (which the backend 403s but only after a visible flash).
+	$: if (refreshDone && entryParam) {
 		if ($entries.some((e) => e.id === entryParam)) {
 			if ($activeEntryId !== entryParam) setActiveEntry(entryParam);
 		} else {

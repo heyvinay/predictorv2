@@ -1913,6 +1913,13 @@
       "type": "fix",
       "summary": "Simplified the home-page welcome card so it shows a clean entry summary and a deadline-aware message instead of a per-entry list (and fixed a bug where a submitted entry could appear twice). Tapping 'Add new entry' from the home page now opens the new-entry dialog directly instead of just dropping you on the entries list.",
       "commit": "pending"
+    },
+    {
+      "version": "2.154.2",
+      "date": "2026-06-02",
+      "type": "internal",
+      "summary": "If an admin disables an entry, it now disappears completely from the player's view — no leftover badges, drafts, or stale rows. The data is preserved internally and the change is reversible.",
+      "commit": "pending"
     }
   ]
 }

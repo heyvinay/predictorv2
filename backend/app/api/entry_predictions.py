@@ -101,7 +101,12 @@ def _raise_for(exc: Exception) -> None:
 async def _get_competition_and_entry(
     session: AsyncSession, entry_id: uuid.UUID, user
 ):
-    """Resolve the active competition + load the entry with ownership check."""
+    """Resolve the active competition + load the entry with ownership check.
+
+    Used by mutating routes (upsert / batch / replace / save). Service-layer
+    guards (`_entry_is_active`) reject mutations on disabled entries
+    independently — keep this helper on the strict owner check.
+    """
     try:
         competition = await entries_service.get_active_competition(session)
     except EntryConfigError as exc:
@@ -112,6 +117,33 @@ async def _get_competition_and_entry(
     try:
         entry = await entries_service.get_entry(
             session, entry_id=entry_id, requesting_user=user
+        )
+    except Exception as exc:
+        _raise_for(exc)
+    return competition, entry
+
+
+async def _get_competition_and_entry_for_view(
+    session: AsyncSession, entry_id: uuid.UUID, user
+):
+    """Resolve the active competition + load the entry through the
+    visibility gate.
+
+    Used by GET routes that return entry-prediction data. Routing through
+    `get_entry_for_view` ensures the owner cannot read predictions for
+    their own disabled entry (ghost mode), while preserving the existing
+    blind-pool rule for non-owners.
+    """
+    try:
+        competition = await entries_service.get_active_competition(session)
+    except EntryConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+
+    try:
+        entry = await entries_service.get_entry_for_view(
+            session, entry_id=entry_id, viewer=user
         )
     except Exception as exc:
         _raise_for(exc)
@@ -145,7 +177,7 @@ def _to_match_read(pred, fixture) -> MatchPredictionRead:
 async def list_match_predictions(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser
 ) -> list[MatchPredictionRead]:
-    _competition, entry = await _get_competition_and_entry(
+    _competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     rows = await predictions_service.get_match_predictions(session, entry=entry)
@@ -282,7 +314,7 @@ async def get_bracket_predictions(
     phase: str | None = Query(default=None),
 ) -> BracketPrediction | None:
     """Read bracket picks for an entry. Defaults to the current active phase."""
-    _competition, entry = await _get_competition_and_entry(
+    _competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     target_phase = (
@@ -353,7 +385,7 @@ async def __get_current_phase(session: AsyncSession) -> PredictionPhase:
 async def get_bonus_predictions(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser
 ) -> list[BonusPredictionResponse]:
-    _competition, entry = await _get_competition_and_entry(
+    _competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     rows = await predictions_service.get_bonus_predictions(session, entry=entry)
@@ -412,7 +444,7 @@ async def get_bracket_exposure(
     current_user: CurrentUser,
     phase: str = Query(default="phase_1"),
 ) -> BracketExposureResponse:
-    _competition, entry = await _get_competition_and_entry(
+    _competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     phase_enum = (
@@ -438,7 +470,7 @@ async def get_agreements(
     current_user: CurrentUser,
     fixture_ids: list[uuid.UUID] | None = Query(default=None),
 ) -> list[FixtureAgreement]:
-    _competition, entry = await _get_competition_and_entry(
+    _competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     rows = await predictions_service.compute_agreements(
