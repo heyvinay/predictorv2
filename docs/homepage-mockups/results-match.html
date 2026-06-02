@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<!-- Mockup ONLY — Results: single-match drill-down. premium-night.
-     Shows the actual result, your pick + point breakdown, a pick-distribution
-     bar, and how the whole pool called it (community predictions). -->
+<!-- Mockup ONLY — Results: single-match drill-down (FINISHED), rarity-forward.
+     Flagship example is an upset (Italy beats Argentina, backed by 3/31) so the
+     rarity bonus is the story. Shows: scoreline hero, your-pick breakdown,
+     a dedicated "how the rarity bonus was assigned" panel with the tier scale,
+     a scoreline bubble grid coloured by accuracy, and the full pool sorted by
+     points with a pinned "you" row. premium-night tokens + house fonts. -->
 <html lang="en"><head>
 <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Results — Match detail (mockup)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" />
+<link rel="stylesheet" href="flags.css" />
 <style>
   :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
     --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
@@ -30,69 +33,89 @@
   .round-sel .chev{opacity:.5;}
 
   /* scoreline hero */
-  .score-hero{background:linear-gradient(135deg,var(--base-200),color-mix(in srgb,var(--base-300) 50%,var(--base-200)));
-    border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:var(--box);padding:22px 18px 20px;box-shadow:var(--card-shadow);
-    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;}
-  .sh-team{display:flex;flex-direction:column;align-items:center;gap:9px;}
-  .sh-team .fimg{width:54px;height:39px;object-fit:cover;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 8px 20px -10px rgba(0,0,0,.6);}
+  .score-hero{background:linear-gradient(135deg,var(--base-200),color-mix(in srgb,var(--base-300) 50%,var(--base-200)));border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:var(--box);padding:22px 18px 20px;box-shadow:var(--card-shadow);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;position:relative;overflow:hidden;}
+  .upset-tag{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.14em;background:rgba(212,175,55,.18);color:var(--primary);padding:3px 10px;border-radius:999px;}
+  .sh-team{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:10px;}
+  .sh-team .fi{width:54px;height:39px;border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 8px 20px -10px rgba(0,0,0,.6);}
   .sh-team .nm{font-family:'Manrope';font-weight:700;font-size:14px;}
-  .sh-mid{text-align:center;}
+  .sh-team.winner .nm{color:var(--primary);}
+  .sh-mid{text-align:center;margin-top:10px;}
   .sh-mid .ft{font-size:10.5px;letter-spacing:.18em;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);}
-  .sh-mid .sc{font-family:'Manrope';font-weight:800;font-size:42px;line-height:1.05;letter-spacing:.02em;}
+  .sh-mid .sc{font-family:'Manrope';font-weight:800;font-size:42px;line-height:1.05;}
   .sh-mid .gp{font-size:10.5px;color:color-mix(in srgb,var(--content) 45%,transparent);margin-top:2px;}
 
   /* your pick band */
-  .yourpick{margin-top:12px;background:linear-gradient(135deg,rgba(217,119,6,.15),rgba(217,119,6,.04));
-    border:1px solid rgba(217,119,6,.35);border-radius:var(--box);padding:14px 16px;display:flex;align-items:center;gap:13px;}
+  .yourpick{margin-top:12px;background:linear-gradient(135deg,rgba(5,150,105,.16),rgba(5,150,105,.04));border:1px solid rgba(5,150,105,.4);border-radius:var(--box);padding:14px 16px;display:flex;align-items:center;gap:13px;}
   .yourpick .ph{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);border:2px solid var(--primary);display:grid;place-items:center;font-family:'Manrope';font-weight:800;color:var(--primary);font-size:13px;flex:none;}
   .yourpick .lab{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);}
   .yourpick .pk{font-family:'Manrope';font-weight:800;font-size:18px;}
-  .yourpick .pillwrap{margin-left:auto;text-align:right;}
-  .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px 5px 8px;font-size:12px;font-weight:800;letter-spacing:.03em;}
+  .pillwrap{margin-left:auto;text-align:right;}
+  .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px 5px 8px;font-size:12px;font-weight:800;}
   .pill .n{font-family:'Manrope';font-weight:800;font-size:15px;}
-  .pill.out{background:rgba(217,119,6,.22);color:#fbbf24;}
-  .pill.exact{background:rgba(5,150,105,.22);color:#34d399;}
-  .pill.miss{background:rgba(185,28,28,.2);color:#f87171;}
+  .pill.exact{background:rgba(5,150,105,.24);color:#34d399;}
 
-  /* breakdown chips */
-  .breakdown{margin-top:10px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:13px 15px;}
-  .breakdown .h{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin-bottom:9px;}
-  .chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;}
-  .chip{padding:4px 9px;border-radius:7px;font-weight:600;background:color-mix(in srgb,var(--base-300) 55%,transparent);}
-  .chip.ok{background:rgba(217,119,6,.18);color:#fbbf24;}
-  .chip.rar{background:rgba(212,175,55,.16);color:var(--primary);}
-  .chip.eq{font-family:'Manrope';font-weight:800;background:transparent;color:var(--content);}
-  .breakdown .why{font-size:11.5px;margin-top:9px;color:color-mix(in srgb,var(--content) 60%,transparent);}
-  .breakdown .why b{color:var(--primary);}
+  /* three-pill breakdown */
+  .breakdown{margin-top:10px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:14px 15px;}
+  .breakdown .h{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin-bottom:11px;}
+  .pills3{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;align-items:stretch;}
+  .bp{border-radius:var(--btn);padding:10px 8px;text-align:center;border:1px solid transparent;}
+  .bp .t{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+  .bp .v{font-family:'Manrope';font-weight:800;font-size:19px;margin-top:3px;}
+  .bp.out{background:rgba(217,119,6,.14);border-color:rgba(217,119,6,.3);} .bp.out .t{color:#fbbf24;} .bp.out .v{color:#fbbf24;}
+  .bp.rar{background:rgba(212,175,55,.14);border-color:rgba(212,175,55,.35);} .bp.rar .t{color:var(--primary);} .bp.rar .v{color:var(--primary);}
+  .bp.ex{background:rgba(5,150,105,.14);border-color:rgba(5,150,105,.32);} .bp.ex .t{color:#34d399;} .bp.ex .v{color:#34d399;}
+  .bp.tot{background:linear-gradient(135deg,rgba(212,175,55,.2),rgba(212,175,55,.06));border-color:rgba(212,175,55,.4);min-width:78px;display:flex;flex-direction:column;justify-content:center;}
+  .bp.tot .t{color:var(--primary);} .bp.tot .v{font-size:24px;color:var(--primary);}
 
-  /* distribution */
+  /* RARITY explainer panel */
+  .rarity-panel{margin-top:10px;background:linear-gradient(180deg,color-mix(in srgb,var(--base-300) 35%,var(--base-200)),var(--base-200));border:1px solid rgba(212,175,55,.3);border-radius:var(--box);padding:15px 16px;}
+  .rarity-panel .h{font-size:12px;font-weight:800;color:var(--primary);display:flex;align-items:center;gap:7px;margin-bottom:9px;}
+  .rarity-panel p{font-size:12.5px;color:color-mix(in srgb,var(--content) 80%,transparent);}
+  .rarity-panel p b{color:var(--primary);}
+  /* rarity scale */
+  .scale{margin-top:13px;}
+  .scalebar{height:12px;border-radius:999px;position:relative;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--base-300) 70%,transparent) 0%,color-mix(in srgb,var(--base-300) 70%,transparent) 28%,rgba(212,175,55,.55) 60%,var(--primary) 100%);}
+  .scalebar .mk{position:absolute;top:-4px;width:3px;height:20px;background:#fff;border-radius:2px;box-shadow:0 0 0 2px var(--base-200);}
+  .scalebar .mk .cap{position:absolute;top:-19px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9.5px;font-weight:800;color:var(--primary);}
+  .scaleticks{display:flex;justify-content:space-between;font-size:9px;margin-top:6px;color:color-mix(in srgb,var(--content) 45%,transparent);}
+  .scaleends{display:flex;justify-content:space-between;font-size:10px;margin-top:3px;font-weight:700;}
+  .scaleends .l{color:color-mix(in srgb,var(--content) 55%,transparent);} .scaleends .r{color:var(--primary);}
+
   .sect-h{font-family:'Manrope';font-weight:800;font-size:16px;margin:20px 0 11px;display:flex;align-items:center;justify-content:space-between;}
   .sect-h .sub{font-size:11px;font-weight:500;}
-  .dist{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:14px 15px;}
-  .dist-row{display:grid;grid-template-columns:46px 1fr 30px;gap:10px;align-items:center;margin-bottom:8px;}
-  .dist-row:last-child{margin-bottom:0;}
-  .dist-row .lab{font-family:'Manrope';font-weight:700;font-size:13px;}
-  .dist-row .lab.you{color:var(--primary);}
-  .dtrack{height:11px;border-radius:999px;background:color-mix(in srgb,var(--base-300) 55%,transparent);overflow:hidden;}
-  .dtrack i{display:block;height:100%;border-radius:999px;}
-  .dist-row .ct{font-size:11.5px;text-align:right;color:color-mix(in srgb,var(--content) 60%,transparent);}
 
-  /* pool list */
-  .pool{margin-top:8px;}
-  .prow{display:grid;grid-template-columns:34px 1fr auto auto;gap:11px;align-items:center;
-    background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:9px 12px;margin-bottom:6px;}
-  .prow.you{background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.4);}
+  /* bubble grid (accuracy-coloured) */
+  .grid-card{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:16px 15px 14px;}
+  .bubble-wrap{display:grid;grid-template-columns:auto repeat(4,1fr);}
+  .corner{font-size:9.5px;font-weight:700;color:color-mix(in srgb,var(--content) 45%,transparent);display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;}
+  .colh{text-align:center;font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);padding-bottom:5px;}
+  .rowh{font-family:'JetBrains Mono';font-size:11px;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);display:flex;align-items:center;justify-content:center;padding-right:6px;}
+  .cell{aspect-ratio:1;display:grid;place-items:center;}
+  .bub{border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#0b1329;}
+  .bub.miss{background:color-mix(in srgb,var(--content) 22%,transparent);color:var(--content);}
+  .bub.out{background:#fbbf24;}
+  .bub.exact{background:#34d399;}
+  .bub.you{box-shadow:0 0 0 2.5px #fff,0 0 0 5px var(--primary);}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;margin-top:11px;color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:10px;height:10px;border-radius:50%;}
+
+  /* pool leaderboard */
+  .you-row{background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.4);}
+  .prow{display:grid;grid-template-columns:26px 30px 1fr auto auto;gap:10px;align-items:center;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:9px 12px;margin-bottom:6px;}
+  .prow .rk{font-family:'Manrope';font-weight:800;font-size:13px;text-align:center;color:color-mix(in srgb,var(--content) 55%,transparent);}
   .prow .ph{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);display:grid;place-items:center;font-size:11px;font-weight:700;color:color-mix(in srgb,var(--content) 70%,transparent);}
+  .prow .ph.you{border:1.5px solid var(--primary);color:var(--primary);}
   .prow .nm{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;}
-  .badge-you{font-size:9px;font-weight:800;background:rgba(212,175,55,.18);color:var(--primary);padding:2px 6px;border-radius:999px;letter-spacing:.04em;}
-  .medal{font-size:13px;}
+  .badge-you{font-size:9px;font-weight:800;background:rgba(212,175,55,.18);color:var(--primary);padding:2px 6px;border-radius:999px;}
   .prow .pk{font-family:'JetBrains Mono';font-weight:700;font-size:13px;color:color-mix(in srgb,var(--content) 75%,transparent);}
   .prow .pk b{color:var(--content);}
-  .mini-pill{font-size:10px;font-weight:800;border-radius:999px;padding:3px 8px;min-width:54px;text-align:center;}
+  .mini-pill{font-size:10px;font-weight:800;border-radius:999px;padding:3px 8px;min-width:74px;text-align:center;}
   .mini-pill.exact{background:rgba(5,150,105,.2);color:#34d399;}
   .mini-pill.out{background:rgba(217,119,6,.2);color:#fbbf24;}
-  .mini-pill.miss{background:rgba(185,28,28,.18);color:#f87171;}
-
+  .mini-pill.miss{background:rgba(185,28,28,.16);color:#f87171;}
+  .sep{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 40%,transparent);margin:12px 2px 8px;}
   .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:22px 0 26px;}
 </style></head>
 <body><main>
@@ -102,54 +125,87 @@
 
     <!-- scoreline -->
     <div class="score-hero">
-      <div class="sh-team"><img class="fimg" src="https://flagcdn.com/w160/mx.png" alt="" /><span class="nm">Mexico</span></div>
-      <div class="sh-mid"><div class="ft">FULL TIME</div><div class="sc">1–0</div><div class="gp">Group A</div></div>
-      <div class="sh-team"><img class="fimg" src="https://flagcdn.com/w160/za.png" alt="" /><span class="nm">South Africa</span></div>
+      <div class="upset-tag">★ UPSET OF THE ROUND</div>
+      <div class="sh-team winner"><span class="fi fi-it"></span><span class="nm">Italy</span></div>
+      <div class="sh-mid"><div class="ft">FULL TIME</div><div class="sc">1–0</div><div class="gp">Group C</div></div>
+      <div class="sh-team"><span class="fi fi-ar"></span><span class="nm">Argentina</span></div>
     </div>
 
     <!-- your pick -->
     <div class="yourpick">
       <div class="ph">VS</div>
-      <div><div class="lab">Your pick</div><div class="pk">2–1 Mexico</div></div>
-      <div class="pillwrap"><span class="pill out"><span class="n">+6</span>OUTCOME</span></div>
+      <div><div class="lab">Your pick · nailed it</div><div class="pk">1–0 Italy</div></div>
+      <div class="pillwrap"><span class="pill exact"><span class="n">+21</span>EXACT</span></div>
     </div>
 
     <!-- breakdown -->
     <div class="breakdown">
-      <div class="h">How those points were assigned</div>
-      <div class="chips">
-        <span class="chip ok">Right winner +5</span><span>+</span>
-        <span class="chip rar">★ Rarity +1</span><span>+</span>
-        <span class="chip">Exact +0</span><span class="eq">= +6</span>
+      <div class="h">How those 21 points were assigned</div>
+      <div class="pills3">
+        <div class="bp out"><div class="t">Right winner</div><div class="v">+5</div></div>
+        <div class="bp rar"><div class="t">★ Rarity</div><div class="v">+6</div></div>
+        <div class="bp ex"><div class="t">Exact score</div><div class="v">+10</div></div>
+        <div class="bp tot"><div class="t">Total</div><div class="v">+21</div></div>
       </div>
-      <div class="why">You called Mexico to win — worth the base <b>+5</b>. 22 of 31 also took Mexico, so the rarity premium is modest at <b>+1</b>. Nail the exact <b>1–0</b> and this would've been <b>+18</b>.</div>
     </div>
 
-    <!-- distribution -->
-    <div class="sect-h">Scoreline spread <span class="sub muted">31 entries</span></div>
-    <div class="dist">
-      <div class="dist-row"><span class="lab">1–0</span><div class="dtrack"><i style="width:26%;background:linear-gradient(90deg,#0e7a52,var(--success));"></i></div><span class="ct">8 · exact ✓</span></div>
-      <div class="dist-row"><span class="lab you">2–1</span><div class="dtrack"><i style="width:32%;background:linear-gradient(90deg,#b9870f,var(--primary));"></i></div><span class="ct">10 · you</span></div>
-      <div class="dist-row"><span class="lab">2–0</span><div class="dtrack"><i style="width:16%;background:color-mix(in srgb,var(--content) 32%,transparent);"></i></div><span class="ct">5</span></div>
-      <div class="dist-row"><span class="lab">1–1</span><div class="dtrack"><i style="width:13%;background:color-mix(in srgb,var(--content) 22%,transparent);"></i></div><span class="ct">4</span></div>
-      <div class="dist-row"><span class="lab">0–1</span><div class="dtrack"><i style="width:13%;background:color-mix(in srgb,var(--content) 22%,transparent);"></i></div><span class="ct">4</span></div>
+    <!-- RARITY explainer -->
+    <div class="rarity-panel">
+      <div class="h">★ How the rarity bonus was assigned</div>
+      <p>Italy beating Argentina was the call of the round — only <b>3 of 31 players (9.7%)</b> backed an Italy win. The rarer the correct outcome, the bigger the premium, on a logarithmic scale that caps at +10 for a near-solo call. At <b>9.7%</b> this lands in the <b>Rare</b> band, worth <b>+6</b> on top of your base +5. The 28 who drew or took Argentina banked nothing.</p>
+      <div class="scale">
+        <div class="scalebar">
+          <div class="mk" style="left:90.3%;"><span class="cap">you · 9.7% → +6</span></div>
+        </div>
+        <div class="scaleticks"><span>50% picked</span><span>33%</span><span>19%</span><span>11%</span><span>~3%</span></div>
+        <div class="scaleends"><span class="l">Common +0 (consensus)</span><span class="r">Only you +10 (cap)</span></div>
+      </div>
+    </div>
+
+    <!-- bubble grid -->
+    <div class="sect-h">Scoreline spread <span class="sub muted">31 entries · size ∝ picks</span></div>
+    <div class="grid-card">
+      <div class="bubble-wrap">
+        <div class="corner">ITA↓ ARG→</div>
+        <div class="colh">0</div><div class="colh">1</div><div class="colh">2</div><div class="colh">3</div>
+        <div class="rowh">0</div>
+          <div class="cell"><div class="bub miss" style="width:44%;">3</div></div>
+          <div class="cell"><div class="bub miss" style="width:66%;">6</div></div>
+          <div class="cell"><div class="bub miss" style="width:52%;">4</div></div>
+          <div class="cell"></div>
+        <div class="rowh">1</div>
+          <div class="cell"><div class="bub exact you" style="width:32%;">2</div></div>
+          <div class="cell"><div class="bub miss" style="width:60%;">5</div></div>
+          <div class="cell"><div class="bub miss" style="width:52%;">4</div></div>
+          <div class="cell"><div class="bub miss" style="width:30%;"></div></div>
+        <div class="rowh">2</div>
+          <div class="cell"><div class="bub out" style="width:30%;">1</div></div>
+          <div class="cell"><div class="bub miss" style="width:32%;">2</div></div>
+          <div class="cell"></div>
+          <div class="cell"><div class="bub miss" style="width:22%;"></div></div>
+        <div class="rowh">3</div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#34d399"></span>exact (1–0)</span>
+        <span><span class="dot" style="background:#fbbf24"></span>right winner</span>
+        <span><span class="dot" style="background:color-mix(in srgb,var(--content) 22%,transparent)"></span>miss</span>
+        <span><span class="dot" style="box-shadow:0 0 0 2px #fff,0 0 0 4px var(--primary);background:transparent"></span>your pick</span>
+      </div>
     </div>
 
     <!-- pool -->
     <div class="sect-h">How the pool called it <span class="sub muted">sorted by points</span></div>
-    <div class="pool">
-      <div class="prow"><div class="ph">co</div><div class="nm">connor <span class="medal">🥇</span></div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +18</span></div>
-      <div class="prow"><div class="ph">St</div><div class="nm">Steve <span class="medal">🥈</span></div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +18</span></div>
-      <div class="prow"><div class="ph">Hu</div><div class="nm">Hutch</div><div class="pk">2–1</div><span class="mini-pill out">OUT +6</span></div>
-      <div class="prow"><div class="ph">Ge</div><div class="nm">The General</div><div class="pk">2–0</div><span class="mini-pill out">OUT +6</span></div>
-      <div class="prow you"><div class="ph" style="border:1.5px solid var(--primary);color:var(--primary);">VS</div><div class="nm">Samba Kings <span class="badge-you">YOU</span></div><div class="pk">2–1</div><span class="mini-pill out">OUT +6</span></div>
-      <div class="prow"><div class="ph">Sl</div><div class="nm">Slacker</div><div class="pk">3–1</div><span class="mini-pill out">OUT +5</span></div>
-      <div class="prow"><div class="ph">da</div><div class="nm">dawid87</div><div class="pk">1–1</div><span class="mini-pill miss">MISS 0</span></div>
-      <div class="prow"><div class="ph">bl</div><div class="nm">blaasvlam</div><div class="pk">1–1</div><span class="mini-pill miss">MISS 0</span></div>
-      <div class="prow"><div class="ph">Ga</div><div class="nm">Gazza</div><div class="pk">0–1</div><span class="mini-pill miss">MISS 0</span></div>
-      <div class="prow"><div class="ph">Ja</div><div class="nm">Jack</div><div class="pk">0–1</div><span class="mini-pill miss">MISS 0</span></div>
-    </div>
+    <div class="sep">— 3 of 31 banked points —</div>
+    <div class="prow"><div class="rk">1</div><div class="ph">co</div><div class="nm">connor 🥇</div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +21</span></div>
+    <div class="prow you-row"><div class="rk" style="color:var(--primary)">2</div><div class="ph you">VS</div><div class="nm">Samba Kings <span class="badge-you">YOU</span></div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +21</span></div>
+    <div class="prow"><div class="rk">3</div><div class="ph">Hu</div><div class="nm">Hutch</div><div class="pk">2–1</div><span class="mini-pill out">OUT +11</span></div>
+    <div class="sep">— didn't score —</div>
+    <div class="prow"><div class="rk">—</div><div class="ph">Ge</div><div class="nm">The General</div><div class="pk">1–1</div><span class="mini-pill miss">MISS 0</span></div>
+    <div class="prow"><div class="rk">—</div><div class="ph">Sl</div><div class="nm">Slacker</div><div class="pk">0–1</div><span class="mini-pill miss">MISS 0</span></div>
+    <div class="prow"><div class="rk">—</div><div class="ph">da</div><div class="nm">dawid87</div><div class="pk">0–2</div><span class="mini-pill miss">MISS 0</span></div>
+    <div class="prow"><div class="rk">—</div><div class="ph">Ga</div><div class="nm">Gazza</div><div class="pk">0–1</div><span class="mini-pill miss">MISS 0</span></div>
 
-    <p class="footer-note">Mockup · single-match results drill-down · premium-night theme.</p>
+    <p class="footer-note">Mockup · single-match results drill-down (rarity-forward) · premium-night theme.</p>
   </div>
 </main></body></html>
