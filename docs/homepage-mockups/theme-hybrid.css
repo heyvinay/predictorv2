@@ -1,0 +1,17 @@
+/* Shared hybrid (light) theme override for the mockups. Link this in a screen
+   and render with document.body.classList.add('hybrid') to preview the light
+   theme. Token values mirror the `hybrid` DaisyUI theme in CLAUDE.md /
+   tailwind.config.js. (Dark app chrome — top bars — intentionally stays dark,
+   matching the real hybrid theme.) Mockup-only; not used by the app. */
+body.hybrid{
+  --primary:#B8941F;
+  --warning:#B45309;
+  --base-100:#E2E7F0;
+  --base-200:#FFFFFF;
+  --base-300:#D3DBE7;
+  --content:#0B1329;
+  --card-shadow:0 12px 30px -18px rgba(15,25,50,.25);
+}
+body.hybrid::before{
+  background:radial-gradient(950px 520px at 78% -12%,rgba(184,148,31,.10),transparent 60%) !important;
+}

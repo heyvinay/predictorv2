@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="flags.css" />
+<link rel="stylesheet" href="theme-hybrid.css" />
 <style>
   :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
     --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
@@ -53,6 +54,11 @@
   .total-band .pts{font-family:'Manrope';font-weight:800;font-size:24px;color:var(--primary);}
   .total-band .rk{font-size:11.5px;}
 
+  /* filter/sort bar */
+  .filterbar{display:flex;align-items:center;gap:7px;margin-top:14px;flex-wrap:wrap;}
+  .fchip{font-size:12px;font-weight:700;padding:6px 13px;border-radius:999px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .fchip.on{background:rgba(212,175,55,.16);color:var(--primary);border-color:rgba(212,175,55,.35);}
+  .sortby{margin-left:auto;font-size:12px;font-weight:600;color:color-mix(in srgb,var(--content) 65%,transparent);} .sortby b{color:var(--content);}
   /* list header */
   .list-head{display:grid;grid-template-columns:1fr 78px 92px;gap:10px;padding:18px 14px 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);}
   .list-head .r{text-align:right;}
@@ -110,6 +116,12 @@
     <div class="total-band">
       <div><div class="lab">Round 1 total</div><div class="rk muted">2nd of 31 this round · ▲ climbed 11</div></div>
       <div class="pts">+128</div>
+    </div>
+
+    <!-- filters / sort (revision) -->
+    <div class="filterbar">
+      <span class="fchip on">All</span><span class="fchip">Exact</span><span class="fchip">Outcome</span><span class="fchip">Missed</span>
+      <span class="sortby">Sort <b>Points</b> ▾</span>
     </div>
 
     <!-- list -->
