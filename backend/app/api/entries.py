@@ -476,6 +476,10 @@ async def admin_list_entries(
     _admin: AdminUser,
     user_id: uuid.UUID | None = Query(default=None),
     reference: str | None = Query(default=None),
+    search: str | None = Query(
+        default=None,
+        description="Case-insensitive substring match against either user email or entry reference.",
+    ),
     status_: EntryStatus | None = Query(default=None, alias="status"),
     paid: bool | None = Query(default=None),
     disabled: bool | None = Query(default=None),
@@ -484,13 +488,20 @@ async def admin_list_entries(
 ) -> AdminEntriesPage:
     """Paginated admin list. Pass `limit=None` (omit it) to return every
     matching row — used for CSV export. Otherwise client provides
-    page-sized `limit` and `offset`; response carries the total."""
+    page-sized `limit` and `offset`; response carries the total.
+
+    `search` is the user-facing free-text filter; it OR-matches user
+    email and entry reference (Tweak 6 in
+    stay-in-plan-mode-dynamic-adleman.md). `reference` is the legacy
+    exact-match param — preserved for any existing bookmarked URLs.
+    """
     competition = await _get_competition(session)
     rows, total = await entries_service.admin_list_entries(
         session,
         competition=competition,
         user_id=user_id,
         reference=reference,
+        search=search,
         status=status_,
         paid=paid,
         disabled=disabled,

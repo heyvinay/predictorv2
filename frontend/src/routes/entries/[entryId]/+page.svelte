@@ -84,6 +84,7 @@
 	import CompletenessModal from '$components/predictions/CompletenessModal.svelte';
 	import MultiTabConfirmModal from '$components/predictions/MultiTabConfirmModal.svelte';
 	import { ApiResponseError } from '$api/client';
+	import { track } from '$api/telemetry';
 	import {
 		registerTabPresence,
 		unregisterTabPresence,
@@ -384,6 +385,25 @@
 			pendingRetry = null;
 			if (retry) await retry();
 		} catch (e) {
+			// Swallow no-op transition (entry already in DRAFT — race with
+			// another tab/device that already reopened it). The user's
+			// intent is satisfied; refresh, continue the retry chain, and
+			// exit silently. Tweak 4b in plan file. The retry callback is
+			// usually `confirmEdit`, which has its own draft→draft swallow,
+			// so the chain naturally self-resolves.
+			if (
+				e instanceof ApiResponseError &&
+				e.status === 409 &&
+				typeof e.detail === 'string' &&
+				e.detail.includes('Transition draft → draft')
+			) {
+				await refreshEntries();
+				lifecycleConflictOpen = false;
+				const r = pendingRetry;
+				pendingRetry = null;
+				if (r) await r();
+				return;
+			}
 			lifecycleConflictOpen = false;
 			pendingRetry = null;
 			routeSaveError(e);
@@ -640,6 +660,9 @@
 		fillBracket: boolean;
 		method: 'fifa' | 'odds';
 	}): Promise<void> {
+		// Telemetry: capture what the user picked before anything else.
+		// Fire-and-forget — no await; analytics never blocks UI work.
+		void track('smartfill_applied', opts);
 		smartFillModalOpen = false;
 		const user = $user;
 		if (!user || !$activeEntry) return;
@@ -783,38 +806,63 @@
 	}
 
 	async function confirmEdit(): Promise<void> {
-		unlockModalOpen = false;
 		const current = $activeEntry;
 		if (!current) return;
+		// Set lifecycleBusy BEFORE closing the modal so the ConfirmModal's
+		// `disabled={lifecycleBusy === 'edit'}` prop kicks in before the
+		// user's next click can land. Modal closes in finally — either
+		// after editEntry succeeds, or after the swallow-on-409 returns,
+		// or after a real error has been routed.
 		lifecycleBusy = 'edit';
 		try {
 			await entriesApi.editEntry(current.id);
 			await refreshEntries();
 		} catch (e) {
+			// No-op transition: server says the entry is already in the
+			// desired (DRAFT) state. The user clicked Unlock and the entry
+			// IS unlocked — refresh and exit silently. Tweak 4b in
+			// stay-in-plan-mode-dynamic-adleman.md. Specific substring
+			// match — only the backend transition formatter generates
+			// "Transition X → Y is not allowed", and DRAFT → DRAFT is its
+			// unique no-op case.
+			if (
+				e instanceof ApiResponseError &&
+				e.status === 409 &&
+				typeof e.detail === 'string' &&
+				e.detail.includes('Transition draft → draft')
+			) {
+				await refreshEntries();
+				return;
+			}
 			routeSaveError(e, () => confirmEdit());
 		} finally {
 			lifecycleBusy = false;
+			unlockModalOpen = false;
 		}
 	}
 
 	/**
 	 * Create a new entry from the locked-state CTA on the submission card.
-	 * Server auto-generates the display name ("Entry N" via the next-number
-	 * sequence). Once created, refresh the entries list and navigate
-	 * straight into the new entry's wizard so the user lands ready to fill
-	 * picks — no intermediate stop at /entries. Gated by `canCreateNewEntry`
-	 * in the parent's prop so the CTA only renders when there's room under
-	 * max_entries_per_user.
+	 *
+	 * Routes through the entries-list page's new-entry modal so the user
+	 * has an explicit naming + cancel opportunity (Tweak 2c in
+	 * stay-in-plan-mode-dynamic-adleman.md). The principle "no
+	 * intermediate stop at /entries [after Create]" is preserved — the
+	 * modal's Create button (handleCreate in entries/+page.svelte, see
+	 * Tweak 2a) navigates straight to the new entry's wizard. /entries
+	 * only "sticks" if the user explicitly clicks Cancel in the modal,
+	 * at which point staying on the list with a fresh status is the
+	 * correct destination.
+	 *
+	 * Gated by `canCreateNewEntry` in the parent's prop so the CTA only
+	 * renders when there's room under `max_entries_per_user`.
 	 */
 	async function handleNewEntry(): Promise<void> {
 		if (!$user) return;
-		try {
-			const fresh = await entriesApi.createEntry({});
-			await loadEntries($user.id);
-			await goto(`/entries/${fresh.id}`);
-		} catch (e) {
-			console.error('Failed to create new entry from locked card', e);
-		}
+		// Refresh so the list (the Cancel destination) reflects the
+		// just-submitted entry's status when the user lands there.
+		await refreshEntries();
+		await goto('/entries?new=1');
 	}
 
 	// Compute whether the user has room to create another entry under the
@@ -1774,24 +1822,39 @@
 				</div>
 			</div>
 
-			<!-- Smart Fill + Print row. Smart Fill only on drafts. Print always visible. -->
-			<div class="mt-3 flex items-center gap-2 flex-wrap">
+			<!-- Smart Fill + Print row. Smart Fill only on drafts. Print always
+			     visible. Right-aligned under the Submit step pill on every
+			     viewport — compact and content-width so they sit side-by-side
+			     even at 375 px (no Print wrap, no full-width SmartFill).
+			     SmartFill carries a soft-gold accent treatment so users
+			     actually see it (Tweak 1 in stay-in-plan-mode-dynamic-adleman.md). -->
+			<div class="mt-3 flex items-center justify-end gap-2 flex-wrap">
 				{#if uiStatus === 'draft'}
+					<div class="tooltip tooltip-bottom" data-tip="Auto-fill blank matches with FIFA rankings or betting odds">
+						<button
+							type="button"
+							class="px-3 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-sm font-medium font-display text-primary min-h-10 transition-colors whitespace-nowrap shadow-glow-gold inline-flex items-center"
+							on:click={() => {
+								void track('smartfill_opened');
+								smartFillModalOpen = true;
+							}}
+						>
+							<svg class="w-3.5 h-3.5 -mt-0.5 mr-1" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+								<path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+							</svg>
+							SmartFill
+						</button>
+					</div>
+				{/if}
+				<div class="tooltip tooltip-bottom" data-tip="Open a printable summary of your predictions">
 					<button
 						type="button"
-						class="w-full sm:w-auto px-3 rounded-lg border border-dashed border-base-content/30 bg-base-200/30 hover:bg-base-200/60 text-sm font-medium text-base-content/80 min-h-10 transition-colors whitespace-nowrap"
-						on:click={() => (smartFillModalOpen = true)}
+						class="btn btn-ghost btn-sm gap-1"
+						on:click={() => (printPreviewOpen = true)}
 					>
-						⚡ SmartFill
+						🖨 Print
 					</button>
-				{/if}
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm gap-1"
-					on:click={() => (printPreviewOpen = true)}
-				>
-					🖨 Print
-				</button>
+				</div>
 			</div>
 
 			<!-- Entry name + READY/LOCKED badge + NO PRIZE chip removed from
@@ -2240,6 +2303,7 @@
 				: ''}
 			confirmLabel="Revert"
 			confirmVariant="warning"
+			disabled={lifecycleBusy === 'edit'}
 			onConfirm={confirmEdit}
 			onCancel={() => (unlockModalOpen = false)}
 		/>

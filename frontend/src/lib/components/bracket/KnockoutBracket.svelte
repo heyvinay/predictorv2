@@ -180,8 +180,14 @@
 				YOUR <span class="text-primary">BRACKET</span>
 			</h2>
 			{#if !locked}
-				<p class="mt-2 text-[11px] font-mono uppercase tracking-[0.15em] text-base-content/55">
-					Tip · Click a team to advance them
+				<!-- Soft-gold pill so the interaction hint actually reads against
+				     the wallchart's busy backdrop. No glow — this is a helper,
+				     not a CTA. "Select" works for click and tap. -->
+				<p class="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-primary/30 bg-primary/10 text-primary">
+					<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path d="M9 3l12 8-5 1 3 7-3 1-3-7-4 4V3z"/>
+					</svg>
+					Tip · Select a team to advance them
 				</p>
 			{/if}
 		</div>
@@ -429,6 +435,18 @@
 			</button>
 		</div>
 	</header>
+
+	{#if !locked}
+		<!-- Mobile parity for the desktop interaction hint. Touch users
+		     especially benefit from being told that selecting a team
+		     advances them. Sits between header and the page-label bar. -->
+		<p class="mb-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-primary/30 bg-primary/10 text-primary">
+			<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+				<path d="M9 3l12 8-5 1 3 7-3 1-3-7-4 4V3z"/>
+			</svg>
+			Tip · Select a team to advance them
+		</p>
+	{/if}
 
 	<!-- Current page label -->
 	<div

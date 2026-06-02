@@ -136,10 +136,15 @@
 		actionError = null;
 		newEntryBusy = true;
 		try {
-			await createEntry({ display_name: newEntryName.trim() || undefined });
+			const fresh = await createEntry({ display_name: newEntryName.trim() || undefined });
+			// Hydrate both stores BEFORE navigating so the wizard mounts
+			// with full state (no flash of empty doughnut). Tweak 2a in
+			// stay-in-plan-mode-dynamic-adleman.md — every "Create" click
+			// now lands the user on the new entry's picks screen.
 			await Promise.all([loadEntries($user!.id), loadCompletion()]);
 			newEntryModalOpen = false;
 			newEntryName = '';
+			await goto(`/entries/${fresh.id}`);
 		} catch (e) {
 			actionError = e instanceof Error ? e.message : 'Failed to create entry';
 		} finally {

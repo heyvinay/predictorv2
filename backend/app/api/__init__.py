@@ -12,6 +12,7 @@ from app.api import (
     leaderboard,
     predictions,
     scores,
+    telemetry,
     users,
 )
 
@@ -33,3 +34,5 @@ api_router.include_router(entries.admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(
     entry_predictions.router, prefix="/entries", tags=["entries"]
 )
+# Authenticated client telemetry → server-side PostHog forwarder
+api_router.include_router(telemetry.router, prefix="/telemetry", tags=["telemetry"])

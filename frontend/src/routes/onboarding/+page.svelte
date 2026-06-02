@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
 	import { user, loading, error as authError } from '$stores/auth';
 	import { updateProfile } from '$api/auth';
 	import { needsOnboarding } from '$lib/utils/onboarding';
+	import { loadEntries, entries } from '$stores/entries';
+	import { createEntry } from '$api/entries';
 	import type { Employer, UserUpdate } from '$types';
 
 	const EMPLOYER_OPTIONS: { v: Employer; l: string }[] = [
@@ -17,6 +20,12 @@
 	let localError = '';
 	let saving = false;
 	let prefilled = false;
+	// While handleSubmit is mid-flight, the user.set(updated) call below
+	// would otherwise trip the "needsOnboarding → goto('/')" reactive
+	// below and race our ensure-entry + goto-wizard flow. The flag
+	// suppresses that redirect path; handleSubmit owns navigation while
+	// it's running.
+	let handlingSubmit = false;
 
 	// Prefill name for users who already have one (e.g. Google sign-ups
 	// routed here to complete the new mandatory fields).
@@ -27,8 +36,10 @@
 		prefilled = true;
 	}
 
-	// Onboarding complete — go to the dashboard.
-	$: if ($user && !needsOnboarding($user)) {
+	// Onboarding complete — go to the dashboard. Suppressed while
+	// handleSubmit is owning the navigation (it routes to a wizard
+	// instead of /, see Tweak 2b in stay-in-plan-mode-dynamic-adleman.md).
+	$: if ($user && !needsOnboarding($user) && !handlingSubmit) {
 		goto('/', { replaceState: true });
 	}
 
@@ -57,12 +68,27 @@
 		if (employer === 'neither') payload.company_contact = trimmedContact;
 
 		saving = true;
+		handlingSubmit = true;
 		try {
 			const updated = await updateProfile(payload);
 			user.set(updated);
-			goto('/');
+
+			// Ensure the user has at least one entry, then jump straight to
+			// picks. loadEntries auto-creates when settings.auto_create_first_entry
+			// is true (stores/entries.ts:142). When the flag is false, fall
+			// through to a manual createEntry so the user still lands on a
+			// usable wizard rather than the `/` zero-state card.
+			await loadEntries(updated.id);
+			let firstId = get(entries)[0]?.id;
+			if (!firstId) {
+				const created = await createEntry({});
+				await loadEntries(updated.id);
+				firstId = created.id;
+			}
+			await goto(`/entries/${firstId}`);
 		} catch (e) {
 			localError = e instanceof Error ? e.message : 'Could not save your details';
+			handlingSubmit = false;
 		} finally {
 			saving = false;
 		}

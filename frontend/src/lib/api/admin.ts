@@ -152,6 +152,13 @@ export interface Phase2OpenResponse {
 export interface AdminEntryFilters {
 	user_id?: string;
 	reference?: string;
+	/**
+	 * Free-text smart search — OR-matches user email and entry reference
+	 * (substring, case-insensitive). Backend wires this through
+	 * `services/entries.py:admin_list_entries`'s `search` param. See
+	 * Tweak 6 in stay-in-plan-mode-dynamic-adleman.md.
+	 */
+	search?: string;
 	status?: string; // 'draft' | 'ready' | 'submitted' | 'locked' | 'withdrawn' | 'disabled'
 	paid?: boolean;
 	disabled?: boolean;
@@ -211,6 +218,7 @@ export async function adminListEntries(
 	const params = new URLSearchParams();
 	if (filters.user_id) params.set('user_id', filters.user_id);
 	if (filters.reference) params.set('reference', filters.reference);
+	if (filters.search) params.set('search', filters.search);
 	if (filters.status) params.set('status', filters.status);
 	if (filters.paid !== undefined) params.set('paid', String(filters.paid));
 	if (filters.disabled !== undefined) params.set('disabled', String(filters.disabled));

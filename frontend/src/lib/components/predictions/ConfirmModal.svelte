@@ -46,6 +46,11 @@
 	} | null = null;
 	export let onConfirm: () => void = () => {};
 	export let onCancel: () => void = () => {};
+	// Disable the confirm (and any secondary action) button while an
+	// async lifecycle op is in-flight. Default false preserves every
+	// existing call-site's behaviour — opt-in only. The Cancel button
+	// stays enabled regardless so the user can always escape.
+	export let disabled = false;
 
 	const dispatch = createEventDispatcher<{ confirm: void; cancel: void }>();
 
@@ -139,6 +144,7 @@
 						type="button"
 						class="btn flex-1 min-h-11 basis-28 {VARIANT_CLASS[secondaryAction.variant]}"
 						on:click={handleSecondary}
+						{disabled}
 					>
 						{secondaryAction.label}
 					</button>
@@ -148,6 +154,7 @@
 					type="button"
 					class="btn flex-1 min-h-11 basis-28 {VARIANT_CLASS[confirmVariant]}"
 					on:click={handleConfirm}
+					{disabled}
 				>
 					{confirmLabel}
 				</button>

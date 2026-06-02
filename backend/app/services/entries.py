@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1739,6 +1739,7 @@ async def admin_list_entries(
     competition: Competition,
     user_id: uuid.UUID | None = None,
     reference: str | None = None,
+    search: str | None = None,
     status: EntryStatus | None = None,
     paid: bool | None = None,
     disabled: bool | None = None,
@@ -1751,6 +1752,13 @@ async def admin_list_entries(
     matching the filters before pagination. Pass ``limit=None`` (the
     default) to return every match — preserves the pre-pagination API
     for callers that don't paginate (CSV export, tests).
+
+    ``search`` is the user-facing free-text filter (Tweak 6 in
+    stay-in-plan-mode-dynamic-adleman.md): case-insensitive substring
+    matched against ``User.email`` OR ``PredictionEntry.reference``.
+    Joins ``User`` only when set, so the common-case query plan is
+    unchanged. ``reference`` is the legacy exact-match path preserved
+    for bookmarked URLs.
     """
     base = (
         select(PredictionEntry)
@@ -1760,6 +1768,17 @@ async def admin_list_entries(
         base = base.where(PredictionEntry.user_id == user_id)
     if reference is not None:
         base = base.where(PredictionEntry.reference == reference)
+    if search is not None and search.strip():
+        # OR-match on user email or entry reference. ilike with %…%
+        # gives substring + case-insensitive semantics admins expect
+        # when typing "vin" or "000020" or "@gmail".
+        like_pattern = f"%{search.strip()}%"
+        base = base.join(User, User.id == PredictionEntry.user_id).where(
+            or_(
+                User.email.ilike(like_pattern),
+                PredictionEntry.reference.ilike(like_pattern),
+            )
+        )
     if paid is not None:
         base = base.where(PredictionEntry.paid == paid)
     if disabled is not None:

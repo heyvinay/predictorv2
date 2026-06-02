@@ -131,7 +131,10 @@
 	let entriesExporting = false;
 	let entriesError: string | null = null;
 	let entryFilters: AdminEntryFilters = {};
-	let entryRefSearch = '';
+	// Free-text search: matches user email OR entry reference (substring,
+	// case-insensitive) via the new backend `search` param. Tweak 6 in
+	// stay-in-plan-mode-dynamic-adleman.md.
+	let entrySearch = '';
 	let entryStatusFilter: '' | EntryStatus = '';
 	let entryPaidFilter: '' | 'paid' | 'unpaid' = '';
 	let entryDisabledFilter: '' | 'disabled' | 'active' = '';
@@ -233,7 +236,9 @@
 
 	function buildFilters(): AdminEntryFilters {
 		const f: AdminEntryFilters = {};
-		if (entryRefSearch.trim()) f.reference = entryRefSearch.trim();
+		// Use the wider `search` field (matches email OR reference) so admins
+		// can find entries by whichever fragment they remember.
+		if (entrySearch.trim()) f.search = entrySearch.trim();
 		if (entryStatusFilter) f.status = entryStatusFilter;
 		if (entryPaidFilter === 'paid') f.paid = true;
 		else if (entryPaidFilter === 'unpaid') f.paid = false;
@@ -937,8 +942,8 @@
 				{#if entryActionError}<div class="alert alert-error text-sm mb-3">{entryActionError}</div>{/if}
 
 				<Toolbar
-					bind:search={entryRefSearch}
-					searchPlaceholder="Reference (WC26-…)"
+					bind:search={entrySearch}
+					searchPlaceholder="Email or reference (e.g. vinay or 000020)"
 					onSearchCommit={() => loadEntries()}
 				>
 					<svelte:fragment slot="filters">

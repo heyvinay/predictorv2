@@ -1920,6 +1920,13 @@
       "type": "internal",
       "summary": "If an admin disables an entry, it now disappears completely from the player's view — no leftover badges, drafts, or stale rows. The data is preserved internally and the change is reversible.",
       "commit": "pending"
+    },
+    {
+      "version": "2.154.3",
+      "date": "2026-06-03",
+      "type": "improvement",
+      "summary": "Several wizard polish wins: the SmartFill auto-fill button and the knockout-bracket interaction tip are now far easier to spot; the SmartFill modal's checkboxes read clearly on the light theme; creating a new entry — whether you're a first-time user finishing onboarding, an existing user picking 'Add new entry' on the home page, or hitting '+ New Entry' on a just-submitted card — always lands you straight on the picks screen, while still letting you cancel safely back to the entries list; the rare 'Couldn't save your edits' error when unlocking a submitted entry no longer surfaces; and the admin Entries search now matches by either user email or entry reference.",
+      "commit": "pending"
     }
   ]
 }
