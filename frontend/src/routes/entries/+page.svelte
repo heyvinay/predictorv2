@@ -75,6 +75,18 @@
 		pageTitle.set('Entries');
 		viewMode = loadViewMode();
 		void loadCompletion();
+
+		// Deep-link from elsewhere (e.g. the landing-page WelcomeBackCard's
+		// "Add new entry" CTA): if the URL has `?new=1`, open the new-entry
+		// modal and strip the query param so a refresh doesn't re-trigger.
+		const params = new URLSearchParams(window.location.search);
+		if (params.get('new') === '1') {
+			openNewEntryModal();
+			params.delete('new');
+			const qs = params.toString();
+			const cleanUrl = window.location.pathname + (qs ? `?${qs}` : '');
+			void goto(cleanUrl, { replaceState: true, noScroll: true });
+		}
 	});
 
 	// ── Action state ─────────────────────────────────────────────────────────

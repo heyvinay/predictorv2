@@ -1906,6 +1906,13 @@
       "type": "feature",
       "summary": "The home-page welcome card now adapts to where you are in the competition — celebrates a submitted entry and invites a second, or loudly flags a fully-picked draft that hasn't been submitted yet so a completed entry can't slip through unsubmitted. Plus the homepage's 'a cut to charity' line now uses the brand gold for visual consistency.",
       "commit": "pending"
+    },
+    {
+      "version": "2.154.1",
+      "date": "2026-06-02",
+      "type": "fix",
+      "summary": "Simplified the home-page welcome card so it shows a clean entry summary and a deadline-aware message instead of a per-entry list (and fixed a bug where a submitted entry could appear twice). Tapping 'Add new entry' from the home page now opens the new-entry dialog directly instead of just dropping you on the entries list.",
+      "commit": "pending"
     }
   ]
 }
