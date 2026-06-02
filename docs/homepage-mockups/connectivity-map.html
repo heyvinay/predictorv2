@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — how the surfaces link together. The entry is the join key:
+     every name/rank/result is a doorway to the next view. premium-night. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connectivity map (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--primary:#D4AF37;--base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(900px 500px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  .title{text-align:center;font-family:'Manrope';font-weight:800;font-size:22px;padding:26px 0 4px;position:relative;}
+  .sub{text-align:center;font-size:13px;color:color-mix(in srgb,var(--content) 55%,transparent);margin-bottom:8px;position:relative;}
+  .canvas{position:relative;width:840px;height:600px;margin:0 auto;}
+  .node{position:absolute;border-radius:14px;padding:13px 15px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);box-shadow:0 16px 36px -20px rgba(0,0,0,.6);width:210px;z-index:2;}
+  .node.hero{border-color:var(--primary);background:linear-gradient(135deg,rgba(212,175,55,.12),var(--base-200));}
+  .node .ic{font-size:18px;} .node .nm{font-family:'Manrope';font-weight:800;font-size:15px;margin-top:5px;}
+  .node .ds{font-size:11px;color:color-mix(in srgb,var(--content) 58%,transparent);margin-top:3px;line-height:1.35;}
+  .node .pill{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(212,175,55,.16);color:var(--primary);margin-top:7px;}
+  /* link labels */
+  .lbl{position:absolute;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--base-100);padding:2px 7px;border-radius:6px;border:1px solid color-mix(in srgb,var(--primary) 30%,transparent);z-index:3;white-space:nowrap;}
+  svg{position:absolute;inset:0;z-index:1;overflow:visible;}
+  .legend{max-width:840px;margin:6px auto 30px;text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 50%,transparent);}
+</style></head>
+<body>
+  <div class="title">One app, every door connected</div>
+  <div class="sub">The <b style="color:var(--primary)">entry</b> is the join key — tap any name, rank, or result to travel between views.</div>
+  <div class="canvas">
+    <svg viewBox="0 0 840 600">
+      <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#D4AF37"/></marker></defs>
+      <g stroke="#D4AF37" stroke-width="1.8" fill="none" opacity=".75" marker-end="url(#ah)" marker-start="url(#ah)">
+        <!-- mc<->leaderboard -->
+        <path d="M360,118 C300,160 230,170 195,205"/>
+        <!-- mc<->match -->
+        <path d="M520,118 C600,160 640,170 650,205"/>
+        <!-- leaderboard<->entry -->
+        <path d="M205,290 C320,360 430,360 470,392"/>
+        <!-- leaderboard<->results -->
+        <path d="M150,300 C140,340 150,360 175,392"/>
+        <!-- entry<->match -->
+        <path d="M580,392 C620,350 650,320 655,300"/>
+        <!-- results<->match -->
+        <path d="M285,430 C440,470 560,440 645,300" opacity=".5"/>
+        <!-- match<->entry already; results<->entry via match -->
+      </g>
+    </svg>
+
+    <!-- nodes -->
+    <div class="node hero" style="left:330px;top:48px;"><div class="ic">🏟️</div><div class="nm">Mission Control · Home</div><div class="ds">Best entry rank, live matches, recent points, Newsroom, you-vs-field.</div><div class="pill">launches on first kickoff</div></div>
+
+    <div class="node" style="left:60px;top:222px;"><div class="ic">🏆</div><div class="nm">Leaderboard</div><div class="ds">All entries ranked. Search, sort, filter, follow ★.</div></div>
+
+    <div class="node" style="left:560px;top:222px;"><div class="ic">⚽</div><div class="nm">Match detail / pool split</div><div class="ds">Result, your pick + rarity, how the whole pool called it.</div></div>
+
+    <div class="node" style="left:70px;top:410px;"><div class="ic">📋</div><div class="nm">Results · My Round</div><div class="ds">Your slate per round, points + rarity per match.</div></div>
+
+    <div class="node" style="left:470px;top:410px;"><div class="ic">👤</div><div class="nm">Entry detail</div><div class="ds">Any entry: points, form, their upcoming picks. Follow / head-to-head.</div></div>
+
+    <!-- link labels -->
+    <div class="lbl" style="left:238px;top:150px;">You vs field</div>
+    <div class="lbl" style="left:556px;top:150px;">Match rail · recent points</div>
+    <div class="lbl" style="left:320px;top:330px;">Open an entry</div>
+    <div class="lbl" style="left:70px;top:352px;">My entries</div>
+    <div class="lbl" style="left:600px;top:345px;">Their picks → match</div>
+    <div class="lbl" style="left:420px;top:452px;">Tap a match</div>
+  </div>
+  <p class="legend">Every arrow is bidirectional — e.g. a match's pool list links out to each entry, and an entry's picks link back to each match. The entry switcher rides along on every entry-scoped view.</p>
+</body></html>
