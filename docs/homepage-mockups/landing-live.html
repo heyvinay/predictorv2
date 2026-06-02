@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — GUEST "live" landing: what a signed-out visitor sees once the
+     tournament is underway. Public leaderboard teaser + live/recent results +
+     a lighter signup CTA (entries are locked, so the pitch is "follow / be
+     ready next time"). premium-night. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Guest live landing (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(950px 520px at 78% -12%,rgba(212,175,55,.12),transparent 60%);}
+  main{position:relative;z-index:1;} .wrap{max-width:760px;margin:0 auto;padding:0 16px;} .muted{color:color-mix(in srgb,var(--content) 55%,transparent);} .font-hero{font-family:'Bebas Neue',sans-serif;letter-spacing:.02em;}
+  .topbar{height:58px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .topbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .brand{display:flex;align-items:center;gap:9px;} .brand .lg{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#a87f20);display:grid;place-items:center;color:#0B1329;font-weight:800;font-family:'Manrope';font-size:13px;} .brand .nm{font-family:'Manrope';font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:lowercase;opacity:.85;}
+  .topbar .actions{display:flex;gap:9px;} .lk{font-size:13px;font-weight:700;padding:8px 14px;border-radius:var(--btn);} .lk.ghost{color:var(--content);opacity:.8;} .lk.primary{background:var(--primary);color:#0b1329;}
+  .livepill{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;background:rgba(185,28,28,.16);color:#fca5a5;padding:5px 11px;border-radius:999px;} .dot{width:7px;height:7px;border-radius:50%;background:#ef4444;animation:p 1.6s infinite;} @keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .hero{text-align:center;padding:30px 0 8px;}
+  .hero .htitle{font-family:'Bebas Neue';font-size:clamp(38px,7vw,62px);line-height:.9;} .hero .htitle .ac{color:var(--primary);}
+  .hero .sub{font-size:14px;color:color-mix(in srgb,var(--content) 72%,transparent);margin-top:10px;max-width:46ch;margin-left:auto;margin-right:auto;}
+
+  /* live ticker */
+  .ticker{display:flex;gap:10px;overflow:hidden;margin-top:18px;}
+  .tk{flex:0 0 150px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--btn);padding:10px 12px;} .tk.live{border-color:rgba(185,28,28,.5);}
+  .tk .st{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:color-mix(in srgb,var(--content) 50%,transparent);} .tk .st.lv{color:#f87171;}
+  .tk .mt{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;margin-top:7px;} .tk .mt .fi{width:18px;height:13px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3);} .tk .sc{font-family:'Manrope';font-weight:800;}
+
+  .sect-h{font-family:'Manrope';font-weight:800;font-size:16px;margin:24px 0 11px;display:flex;align-items:center;justify-content:space-between;} .sect-h .sub{font-size:11px;font-weight:500;}
+
+  /* public leaderboard teaser */
+  .lrow{display:grid;grid-template-columns:28px 34px 1fr auto;gap:11px;align-items:center;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:10px 12px;margin-bottom:6px;}
+  .lrow .rk{font-family:'Manrope';font-weight:800;text-align:center;} .lrow .rk.g{color:var(--primary);}
+  .lrow .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);display:grid;place-items:center;font-size:12px;font-weight:700;color:color-mix(in srgb,var(--content) 70%,transparent);}
+  .lrow .nm{font-family:'Manrope';font-weight:700;font-size:14px;} .lrow .ow{font-size:11px;color:color-mix(in srgb,var(--content) 50%,transparent);}
+  .lrow .pts{font-family:'Manrope';font-weight:800;font-size:16px;}
+  .locked-tease{text-align:center;font-size:12px;color:color-mix(in srgb,var(--content) 55%,transparent);padding:10px;border:1px dashed color-mix(in srgb,var(--base-300) 80%,transparent);border-radius:var(--btn);margin-top:4px;}
+
+  /* CTA band */
+  .cta{margin-top:24px;text-align:center;background:linear-gradient(135deg,rgba(212,175,55,.14),rgba(212,175,55,.04));border:1px solid rgba(212,175,55,.32);border-radius:var(--box);padding:22px 18px;}
+  .cta .t{font-family:'Manrope';font-weight:800;font-size:19px;} .cta .d{font-size:13px;color:color-mix(in srgb,var(--content) 72%,transparent);margin:7px 0 14px;}
+  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:14px;padding:12px 22px;border-radius:var(--btn);background:var(--primary);color:#0b1329;border:0;}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:22px 0 26px;}
+</style></head>
+<body><main>
+  <div class="topbar"><div class="wrap inner"><div class="brand"><span class="lg">P</span><span class="nm">the&nbsp;predictor</span></div><div class="actions"><span class="lk ghost">Log in</span><span class="lk primary">Sign up</span></div></div></div>
+  <div class="wrap">
+    <div class="hero">
+      <span class="livepill"><span class="dot"></span>WORLD CUP 2026 · LIVE</span>
+      <div class="htitle" style="margin-top:14px;">THE TOURNAMENT<br><span class="ac">IS UNDERWAY</span></div>
+      <div class="sub">31 friends locked in their picks and are battling for the pot. Entries are closed for this one — but you can follow every twist.</div>
+    </div>
+
+    <div class="ticker">
+      <div class="tk live"><div class="st lv">● LIVE 67'</div><div class="mt"><span><span class="fi fi-br"></span> BRA</span><span class="sc">1</span></div><div class="mt"><span><span class="fi fi-de"></span> GER</span><span class="sc">1</span></div></div>
+      <div class="tk"><div class="st">FULL TIME</div><div class="mt"><span><span class="fi fi-ar"></span> ARG</span><span class="sc">3</span></div><div class="mt"><span><span class="fi fi-ng"></span> NGA</span><span class="sc">0</span></div></div>
+      <div class="tk"><div class="st">19:30</div><div class="mt"><span><span class="fi fi-fr"></span> FRA</span><span class="sc muted">–</span></div><div class="mt"><span><span class="fi fi-es"></span> ESP</span><span class="sc muted">–</span></div></div>
+    </div>
+
+    <div class="sect-h">Who's winning <span class="sub muted">live leaderboard · top 5</span></div>
+    <div class="lrow"><div class="rk g">1</div><div class="av">DR</div><div><div class="nm">Group of Death Dave</div><div class="ow">Dave R.</div></div><div class="pts">229</div></div>
+    <div class="lrow"><div class="rk g">2</div><div class="av">PM</div><div><div class="nm">Tiki-Taka Dreams</div><div class="ow">Priya M.</div></div><div class="pts">219</div></div>
+    <div class="lrow"><div class="rk g">3</div><div class="av">VS</div><div><div class="nm">Samba Kings</div><div class="ow">Vinay S.</div></div><div class="pts">218</div></div>
+    <div class="lrow"><div class="rk">4</div><div class="av">TB</div><div><div class="nm">Penalty Box Heroes</div><div class="ow">Tom B.</div></div><div class="pts">205</div></div>
+    <div class="lrow"><div class="rk">5</div><div class="av">SK</div><div><div class="nm">The Bottlers</div><div class="ow">Sara K.</div></div><div class="pts">198</div></div>
+    <div class="locked-tease">🔒 Sign up to open any entry and see how they picked every match</div>
+
+    <div class="cta">
+      <div class="t">Want in next time?</div>
+      <div class="d">Create a free account to follow this tournament live — and be first in line when the next pool opens.</div>
+      <button class="btn">Sign up to follow →</button>
+    </div>
+
+    <p class="footer-note">Mockup · guest "live" landing (tournament underway) · premium-night theme.</p>
+  </div>
+</main></body></html>
