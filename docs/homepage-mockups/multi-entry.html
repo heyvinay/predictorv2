@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — how MULTIPLE ENTRIES per user resolve across the views.
+     Shows: a global entry switcher, a "your picks across entries" cluster on
+     a match, and the pool list with ALL your entries highlighted (each entry
+     is its own competitor). premium-night tokens + house fonts. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Multi-entry handling (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 480px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  main{position:relative;z-index:1;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .muted{color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  .appbar{height:54px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .appbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .appbar .back{font-size:14px;font-weight:600;opacity:.8;} .appbar .ttl{font-family:'Manrope';font-weight:800;font-size:15px;} .appbar .ic{width:30px;height:30px;border-radius:50%;background:var(--base-300);display:grid;place-items:center;font-size:13px;}
+
+  .label{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin:20px 0 9px;}
+
+  /* 1. global entry switcher */
+  .switcher{display:flex;gap:8px;overflow:hidden;align-items:center;}
+  .echip{flex:none;display:flex;flex-direction:column;gap:2px;padding:9px 14px;border-radius:var(--btn);background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);min-width:120px;}
+  .echip.active{border-color:var(--primary);background:rgba(212,175,55,.1);box-shadow:0 0 0 1px rgba(212,175,55,.3);}
+  .echip .en{font-family:'Manrope';font-weight:800;font-size:13.5px;}
+  .echip .er{font-size:11px;color:color-mix(in srgb,var(--content) 60%,transparent);display:flex;align-items:center;gap:6px;}
+  .echip .up{color:#34d399;font-weight:700;} .echip .dn{color:#f87171;font-weight:700;}
+  .eadd{flex:none;width:42px;height:42px;border-radius:var(--btn);border:1px dashed color-mix(in srgb,var(--base-300) 80%,transparent);display:grid;place-items:center;color:color-mix(in srgb,var(--content) 45%,transparent);font-size:20px;}
+  .scope-note{font-size:11.5px;color:color-mix(in srgb,var(--content) 50%,transparent);margin-top:8px;display:flex;align-items:center;gap:6px;}
+
+  /* card */
+  .card{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:16px;box-shadow:var(--card-shadow);}
+
+  /* mini scoreline */
+  .mini-score{display:flex;align-items:center;justify-content:center;gap:14px;padding:4px 0 14px;border-bottom:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);margin-bottom:14px;}
+  .mini-score .fi{width:30px;height:22px;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.3);}
+  .mini-score .t{font-family:'Manrope';font-weight:700;font-size:14px;}
+  .mini-score .sc{font-family:'Manrope';font-weight:800;font-size:22px;padding:0 6px;}
+  .mini-score .ft{font-size:9.5px;letter-spacing:.14em;font-weight:700;color:color-mix(in srgb,var(--content) 45%,transparent);}
+
+  /* your picks across entries */
+  .yourpicks .h{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin-bottom:10px;}
+  .epick{display:grid;grid-template-columns:1fr auto auto;gap:11px;align-items:center;padding:10px 12px;border-radius:var(--btn);background:rgba(212,175,55,.07);border:1px solid rgba(212,175,55,.28);margin-bottom:7px;}
+  .epick .en{font-family:'Manrope';font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px;}
+  .badge-you{font-size:9px;font-weight:800;background:rgba(212,175,55,.2);color:var(--primary);padding:2px 6px;border-radius:999px;}
+  .epick .pk{font-family:'JetBrains Mono';font-weight:700;font-size:13px;}
+  .mini-pill{font-size:10px;font-weight:800;border-radius:999px;padding:3px 9px;min-width:72px;text-align:center;}
+  .mini-pill.exact{background:rgba(5,150,105,.2);color:#34d399;} .mini-pill.out{background:rgba(217,119,6,.2);color:#fbbf24;} .mini-pill.miss{background:rgba(185,28,28,.16);color:#f87171;}
+  .combined{font-size:11.5px;margin-top:4px;color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .combined b{color:var(--primary);}
+
+  /* pool with multiple of your entries highlighted */
+  .prow{display:grid;grid-template-columns:26px 30px 1fr auto auto;gap:10px;align-items:center;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:9px 12px;margin-bottom:6px;}
+  .prow.you{background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.4);}
+  .prow .rk{font-family:'Manrope';font-weight:800;font-size:13px;text-align:center;color:color-mix(in srgb,var(--content) 55%,transparent);}
+  .prow.you .rk{color:var(--primary);}
+  .prow .ph{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);display:grid;place-items:center;font-size:10px;font-weight:700;color:color-mix(in srgb,var(--content) 70%,transparent);}
+  .prow.you .ph{border:1.5px solid var(--primary);color:var(--primary);}
+  .prow .nm{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .prow .pk{font-family:'JetBrains Mono';font-weight:700;font-size:13px;color:color-mix(in srgb,var(--content) 75%,transparent);} .prow .pk b{color:var(--content);}
+
+  .principle{background:linear-gradient(180deg,color-mix(in srgb,var(--base-300) 30%,var(--base-200)),var(--base-200));border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:15px 16px;font-size:12.5px;}
+  .principle .pr{display:flex;gap:9px;padding:7px 0;} .principle .pr+.pr{border-top:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);}
+  .principle .k{font-weight:800;color:var(--primary);min-width:106px;flex:none;}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:22px 0 26px;}
+</style></head>
+<body><main>
+  <div class="appbar"><div class="wrap inner"><span class="back">‹ Results</span><span class="ttl">Multiple entries</span><span class="ic">⤴</span></div></div>
+  <div class="wrap">
+
+    <!-- 1. switcher -->
+    <div class="label">Global entry switcher — appears on every entry-scoped view</div>
+    <div class="switcher">
+      <div class="echip active"><span class="en">Samba Kings</span><span class="er"><span class="up">3rd</span> · 218 pts</span></div>
+      <div class="echip"><span class="en">Dark Horse</span><span class="er"><span class="up">14th</span> · 191 pts</span></div>
+      <div class="echip"><span class="en">Wildcard</span><span class="er"><span class="dn">22nd</span> · 176 pts</span></div>
+      <div class="eadd">+</div>
+    </div>
+    <div class="scope-note">↑ Switching changes which entry the homepage hero, My Round list, and stats are scoped to. Your best entry leads by default.</div>
+
+    <!-- 2. your picks across entries on a match -->
+    <div class="label">On any match — all your entries' picks together</div>
+    <div class="card">
+      <div class="mini-score">
+        <span class="fi fi-it"></span><span class="t">Italy</span>
+        <span class="sc">1–0</span>
+        <span class="t">Argentina</span><span class="fi fi-ar"></span>
+        <span class="ft">FT</span>
+      </div>
+      <div class="yourpicks">
+        <div class="h">Your picks across 3 entries</div>
+        <div class="epick"><span class="en">Samba Kings <span class="badge-you">ACTIVE</span></span><span class="pk">1–0</span><span class="mini-pill exact">EXACT +21</span></div>
+        <div class="epick"><span class="en">Dark Horse</span><span class="pk">2–1</span><span class="mini-pill out">OUT +11</span></div>
+        <div class="epick"><span class="en">Wildcard</span><span class="pk">1–1</span><span class="mini-pill miss">MISS 0</span></div>
+        <div class="combined">Across all your entries you banked <b>+32</b> on this match — your spread of picks meant one of them nailed the upset.</div>
+      </div>
+    </div>
+
+    <!-- 3. pool with all your entries highlighted -->
+    <div class="label">In the pool / standings — each entry is its own competitor</div>
+    <div class="prow you"><div class="rk">1</div><div class="ph">VS</div><div class="nm">Samba Kings <span class="badge-you">YOU</span></div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +21</span></div>
+    <div class="prow"><div class="rk">2</div><div class="ph">co</div><div class="nm">connor</div><div class="pk"><b>1–0</b></div><span class="mini-pill exact">EXACT +21</span></div>
+    <div class="prow you"><div class="rk">3</div><div class="ph">VS</div><div class="nm">Dark Horse <span class="badge-you">YOU</span></div><div class="pk">2–1</div><span class="mini-pill out">OUT +11</span></div>
+    <div class="prow"><div class="rk">—</div><div class="ph">Ge</div><div class="nm">The General</div><div class="pk">1–1</div><span class="mini-pill miss">MISS 0</span></div>
+    <div class="prow you"><div class="rk">—</div><div class="ph">VS</div><div class="nm">Wildcard <span class="badge-you">YOU</span></div><div class="pk">1–1</div><span class="mini-pill miss">MISS 0</span></div>
+
+    <!-- principle -->
+    <div class="label">The rule, per surface</div>
+    <div class="principle">
+      <div class="pr"><span class="k">Homepage hero</span><span>Leads with your <b>best</b> entry; an "all your entries" strip shows each one's rank, tap to switch.</span></div>
+      <div class="pr"><span class="k">My Round / stats</span><span>Entry-<b>scoped</b> — the switcher picks which entry's picks &amp; points you're viewing.</span></div>
+      <div class="pr"><span class="k">Match views</span><span><b>Aggregated</b> — every match shows all your entries' picks at once (a match is shared across entries).</span></div>
+      <div class="pr"><span class="k">Pool / standings</span><span>Each entry is a <b>separate row</b> &amp; competitor; all of yours are highlighted.</span></div>
+    </div>
+
+    <p class="footer-note">Mockup · multi-entry handling · premium-night theme.</p>
+  </div>
+</main></body></html>
