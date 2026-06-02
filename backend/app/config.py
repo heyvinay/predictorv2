@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # Tournament config
     tournament_config_path: str = "config/worldcup2026.yml"
 
+    # PostHog analytics
+    posthog_api_key: str = ""
+    posthog_host: str = "https://eu.i.posthog.com"
+
     # CORS - stored as string, parsed via computed property
     cors_origins_str: str = "http://localhost:5173,http://localhost:3000"
 

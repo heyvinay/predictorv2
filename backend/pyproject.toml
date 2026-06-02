@@ -17,6 +17,7 @@ dependencies = [
     "httpx>=0.26.0",
     "pyyaml>=6.0.1",
     "fastapi-sso>=0.10.0",
+    "posthog>=3.0.0",
 ]
 
 [project.optional-dependencies]

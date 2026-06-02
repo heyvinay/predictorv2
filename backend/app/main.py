@@ -2,12 +2,13 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.config import get_settings
 from app.database import init_db
+from app.services.analytics import flush_async, init_posthog, shutdown_posthog
 from app.services.score_scheduler import scheduler_lifespan
 
 
@@ -19,9 +20,11 @@ async def lifespan(app: FastAPI):
     converges to the migration head before requests start serving. No
     manual `alembic upgrade head` step required in dev or prod.
     """
+    init_posthog()
     await init_db()
     async with scheduler_lifespan():
         yield
+    shutdown_posthog()
 
 
 def create_app() -> FastAPI:
@@ -45,6 +48,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Flush PostHog events after every request so nothing is lost between
+    # process cycles in long-running async workers.
+    @app.middleware("http")
+    async def posthog_flush_middleware(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        await flush_async()
+        return response
 
     # Include API routes
     app.include_router(api_router, prefix=settings.api_prefix)
