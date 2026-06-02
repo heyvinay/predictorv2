@@ -221,8 +221,11 @@ async def check_entry_visibility(
     leaderboard breakdown, profile views, trajectory) use this so the
     "blind pool" rule is enforced consistently:
 
-    - Admins: always allowed.
-    - Owner: always allowed (even for own withdrawn/disabled entries).
+    - Admins: always allowed (forensics / support).
+    - Owner: allowed for their own active or *withdrawn* entries —
+      withdrawn is a user-initiated, reversible state and the owner must
+      still see it to reinstate. BLOCKED on their own *disabled* entry
+      so disable means "as if the entry never existed" (ghost mode).
     - Non-owner / unauthenticated: allowed iff the competition's Phase 1
       deadline has passed AND the entry is eligible (not disabled, not
       withdrawn).
@@ -230,11 +233,25 @@ async def check_entry_visibility(
     The lock signal is :func:`app.services.locking.is_phase1_locked`. Once
     that passes, all prediction contents are public knowledge and rank
     standings can be shared without compromising the blind pool.
+
+    Check order is load-bearing:
+      1. Admin bypass (unconditional — admins always see).
+      2. Owner branch — return unless their own entry is disabled
+         (withdrawn entries stay visible to the owner so they can
+         reinstate; admins use a separate withdrawn-visible flow).
+      3. Disabled / withdrawn check for any remaining non-owner.
+      4. Blind pool check (`is_phase1_locked`).
+    Do not reorder — non-owners must continue to fall through to the
+    blind-pool gate untouched.
     """
     if viewer is not None:
         if viewer.is_admin:
             return
         if entry.user_id == viewer.id:
+            if entry.is_disabled:
+                raise EntryAccessDeniedError(
+                    f"Entry {entry.id} is not visible to its owner"
+                )
             return
     if entry.is_disabled or entry.withdrawn_at is not None:
         raise EntryAccessDeniedError(
@@ -449,13 +466,20 @@ async def create_entry(
 async def list_user_entries(
     session: AsyncSession, *, user: User, competition: Competition
 ) -> list[PredictionEntry]:
-    """All entries owned by `user` in `competition`, with phases."""
+    """All entries owned by `user` in `competition`, with phases.
+
+    Disabled entries (`is_disabled=true`) are excluded — once an admin
+    disables an entry it disappears from the owner's view entirely
+    ("ghost mode"). Admin tooling (`admin_list_entries`) keeps its own
+    explicit filter and still sees everything.
+    """
     result = await session.execute(
         select(PredictionEntry)
         .options(selectinload(PredictionEntry.phases))
         .where(
             PredictionEntry.user_id == user.id,
             PredictionEntry.competition_id == competition.id,
+            PredictionEntry.is_disabled == False,  # noqa: E712
         )
         .order_by(PredictionEntry.entry_number)
     )

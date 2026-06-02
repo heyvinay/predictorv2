@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models._datetime import utc_now
+from app.models.entry import PredictionEntry
 from app.models.leaderboard_snapshot import LeaderboardSnapshot
 from app.services.leaderboard import calculate_leaderboard
 
@@ -87,12 +88,21 @@ async def get_entry_trajectory(
     Includes today's snapshot if one exists; doesn't fabricate missing days.
     The API endpoint appends a live "now" point on top of this so the chart's
     final dot is always the current rank.
+
+    Returns an empty list if the entry is disabled — historical snapshot
+    rows are preserved on disk (re-enable should restore the trajectory
+    without holes) but withheld at read-time. Belt-and-braces with the
+    visibility check in `check_entry_visibility`; the API routes call
+    that first and 403 before reaching this function, but a future
+    direct caller wouldn't.
     """
     floor_date = utc_now().date() - timedelta(days=days - 1)
     result = await session.execute(
         select(LeaderboardSnapshot)
+        .join(PredictionEntry, PredictionEntry.id == LeaderboardSnapshot.entry_id)
         .where(LeaderboardSnapshot.entry_id == entry_id)
         .where(LeaderboardSnapshot.captured_date >= floor_date)
+        .where(PredictionEntry.is_disabled == False)  # noqa: E712
         .order_by(LeaderboardSnapshot.captured_date.asc())
     )
     return list(result.scalars().all())
