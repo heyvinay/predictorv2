@@ -61,6 +61,17 @@
 		@apply animate-score-pop;
 	}
 
+	/* Allow tooltip bubbles to wrap to multiple lines instead of clipping
+	   at the viewport edge. DaisyUI's default `.tooltip::before` uses
+	   `white-space: pre`, which forces single-line tips and causes
+	   clipping when the text is long or the viewport is narrow. Opt-in
+	   per-tooltip by adding the `tooltip-wrap` class to the wrapper. */
+	.tooltip-wrap::before {
+		white-space: normal;
+		max-width: 16rem;
+		text-align: left;
+	}
+
 	/* Match card - Enhanced sports style */
 	.match-card {
 		@apply bg-gradient-to-br from-base-200 to-base-300 rounded-xl p-3 sm:p-5;

@@ -1927,6 +1927,13 @@
       "type": "improvement",
       "summary": "Several wizard polish wins: the SmartFill auto-fill button and the knockout-bracket interaction tip are now far easier to spot; the SmartFill modal's checkboxes read clearly on the light theme; creating a new entry — whether you're a first-time user finishing onboarding, an existing user picking 'Add new entry' on the home page, or hitting '+ New Entry' on a just-submitted card — always lands you straight on the picks screen, while still letting you cancel safely back to the entries list; the rare 'Couldn't save your edits' error when unlocking a submitted entry no longer surfaces; and the admin Entries search now matches by either user email or entry reference.",
       "commit": "pending"
+    },
+    {
+      "version": "2.154.4",
+      "date": "2026-06-03",
+      "type": "fix",
+      "summary": "Four fixes to v2.154.3: the SmartFill tooltip on the picks-wizard toolbar no longer cuts off mid-sentence or bleeds into the section below; the 'Overwrite existing picks' checkbox in the SmartFill modal now reads clearly on the dark theme; the SmartFill button itself stands out properly on the light theme instead of fading into the card background; and once you submit an entry, the bracket and bonus questions are now properly read-only (matching the groups step) — they unlock again only if you click 'Edit entry' before the deadline.",
+      "commit": "pending"
     }
   ]
 }

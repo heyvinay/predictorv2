@@ -594,6 +594,13 @@
 		return $isPhase1Locked ? 'missed' : 'draft';
 	})();
 
+	// Phase 1 is read-only in three states: submitted-pre-deadline ('locked',
+	// reversible via the Edit affordance), submitted-post-deadline ('scored',
+	// permanent), and missed-the-deadline ('missed', permanent). Only 'draft'
+	// stays editable. Used to gate KnockoutBracket and the bonus inputs;
+	// groups already gate via isPhaseEditable($activeEntry, 'phase_1').
+	$: phase1ReadOnly = uiStatus !== 'draft';
+
 	// Smart Fill modal state.
 	let smartFillModalOpen = false;
 	let printPreviewOpen = false;
@@ -1792,7 +1799,7 @@
 		     stays compact even on 375px screens. The deadline countdown
 		     lives in the global topbar — not here.
 		     Padding: tighter on mobile (12px) than desktop (16px). -->
-		<div class="stadium-card no-glow p-3 sm:p-4 mb-6">
+		<div class="stadium-card no-glow p-3 sm:p-4 mb-6 overflow-visible">
 			<!-- TOP ROW: nav toggles on the left, doughnut on the right.
 			     items-center so the tabs and doughnut share a baseline;
 			     flex-wrap only kicks in if BOTH Phase I/II + section tabs
@@ -1830,23 +1837,23 @@
 			     actually see it (Tweak 1 in stay-in-plan-mode-dynamic-adleman.md). -->
 			<div class="mt-3 flex items-center justify-end gap-2 flex-wrap">
 				{#if uiStatus === 'draft'}
-					<div class="tooltip tooltip-bottom" data-tip="Auto-fill blank matches with FIFA rankings or betting odds">
+					<div class="tooltip tooltip-bottom tooltip-wrap z-50" data-tip="Auto-fill blank picks using FIFA rankings or odds">
 						<button
 							type="button"
-							class="px-3 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-sm font-medium font-display text-primary min-h-10 transition-colors whitespace-nowrap shadow-glow-gold inline-flex items-center"
+							class="px-3 rounded-lg border-2 border-primary bg-primary/20 hover:bg-primary/30 text-sm font-medium font-display text-primary min-h-10 transition-colors whitespace-nowrap shadow-glow-gold inline-flex items-center"
 							on:click={() => {
 								void track('smartfill_opened');
 								smartFillModalOpen = true;
 							}}
 						>
-							<svg class="w-3.5 h-3.5 -mt-0.5 mr-1" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<svg class="w-3.5 h-3.5 -mt-0.5 mr-1 text-info" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 								<path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
 							</svg>
 							SmartFill
 						</button>
 					</div>
 				{/if}
-				<div class="tooltip tooltip-bottom" data-tip="Open a printable summary of your predictions">
+				<div class="tooltip tooltip-bottom tooltip-wrap z-50" data-tip="Open a printable summary of your predictions">
 					<button
 						type="button"
 						class="btn btn-ghost btn-sm gap-1"
@@ -2091,7 +2098,7 @@
 					bind:this={bracketComponent}
 					prediction={displayBracket}
 					groupStandings={standingsMap}
-					locked={$isPhase1Locked}
+					locked={phase1ReadOnly}
 					phase="phase_1"
 					on:update={handleBracketUpdate}
 					on:clear={handleBracketClear}
@@ -2118,25 +2125,25 @@
 								<div class="rounded-xl border-2 bg-base-200 p-4 transition-colors {bonusBorderClass(bq.id)} relative">
 									<div class="text-sm font-medium mb-2">{bq.label}</div>
 									{#if bq.input_type === 'team'}
-										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} disabled={phase1ReadOnly} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
 											<option value="">— Select a team —</option>
 											{#each allTeams as t (t)}<option value={t}>{t}</option>{/each}
 										</select>
 									{:else if bq.input_type === 'team_outside_top_n'}
 										<!-- Dark Horse — every team NOT in the FIFA top_n list. -->
-										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} disabled={phase1ReadOnly} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
 											<option value="">— Select a team —</option>
 											{#each filterTeamsOutsideTopN(allTeams, fifaTopTeams) as t (t)}<option value={t}>{t}</option>{/each}
 										</select>
 									{:else if bq.input_type === 'team_in_top_n'}
 										<!-- Bottlers — only the FIFA top_n teams (intersected
 										     with allTeams; preserves FIFA-rank order). -->
-										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
+										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} disabled={phase1ReadOnly} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
 											<option value="">— Select a team —</option>
 											{#each filterTeamsInTopN(allTeams, fifaTopTeams) as t (t)}<option value={t}>{t}</option>{/each}
 										</select>
 									{:else}
-										<input type="text" class="input input-bordered input-sm w-full bg-base-100" value={answer} on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)} placeholder="Type a player name…" />
+										<input type="text" class="input input-bordered input-sm w-full bg-base-100" value={answer} disabled={phase1ReadOnly} on:input={(e) => setBonusAnswer(bq.id, e.currentTarget.value)} placeholder="Type a player name…" />
 									{/if}
 									<div class="text-xs text-accent mt-2">+{bq.points} pts</div>
 								</div>

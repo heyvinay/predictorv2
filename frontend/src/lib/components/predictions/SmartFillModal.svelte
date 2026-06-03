@@ -266,7 +266,7 @@
 				>
 					<input
 						type="checkbox"
-						class="checkbox checkbox-warning [&:not(:checked)]:opacity-60 mt-0.5 flex-shrink-0"
+						class="checkbox checkbox-primary [&:not(:checked)]:opacity-60 mt-0.5 flex-shrink-0"
 						bind:checked={overwriteChecked}
 						disabled={aDisabled || actionsDisabled}
 					/>
