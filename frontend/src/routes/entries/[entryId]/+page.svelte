@@ -84,7 +84,7 @@
 	import CompletenessModal from '$components/predictions/CompletenessModal.svelte';
 	import MultiTabConfirmModal from '$components/predictions/MultiTabConfirmModal.svelte';
 	import { ApiResponseError } from '$api/client';
-	import { track } from '$api/telemetry';
+	import { track } from '$lib/analytics';
 	import {
 		registerTabPresence,
 		unregisterTabPresence,
@@ -669,7 +669,8 @@
 	}): Promise<void> {
 		// Telemetry: capture what the user picked before anything else.
 		// Fire-and-forget — no await; analytics never blocks UI work.
-		void track('smartfill_applied', opts);
+		// alsoServer: critical conversion event — ad-block-resistant.
+		void track('smartfill_applied', opts, { alsoServer: true });
 		smartFillModalOpen = false;
 		const user = $user;
 		if (!user || !$activeEntry) return;

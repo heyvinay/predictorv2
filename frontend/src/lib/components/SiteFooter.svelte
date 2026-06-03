@@ -14,11 +14,19 @@
 	import { supportOpen } from '$stores/supportPanel';
 	import { track } from '$lib/analytics';
 
+	function trackFooterNav(target: string, label: string) {
+		track('nav_clicked', { source: 'footer', target, label });
+	}
+
 	function onRulesClick() {
+		// Keep the pre-existing rules_link_clicked event for backwards-compat
+		// with funnels that reference it. nav_clicked fires alongside.
 		track('rules_link_clicked', { placement: 'footer' });
+		trackFooterNav('/rules', 'Rules');
 	}
 
 	function onContactClick() {
+		trackFooterNav('support_panel', 'Contact');
 		supportOpen.set(true);
 	}
 </script>
@@ -45,7 +53,11 @@
 			class="flex items-center gap-5 text-xs font-mono uppercase tracking-widest text-base-content/55"
 			aria-label="Footer"
 		>
-			<a href="https://wc26.heyvinay.com/" class="hover:text-primary transition-colors">
+			<a
+				href="https://wc26.heyvinay.com/"
+				class="hover:text-primary transition-colors"
+				on:click={() => trackFooterNav('https://wc26.heyvinay.com/', 'Home')}
+			>
 				Home
 			</a>
 			<span class="text-base-content/20" aria-hidden="true">·</span>
@@ -53,7 +65,11 @@
 				Rules
 			</a>
 			<span class="text-base-content/20" aria-hidden="true">·</span>
-			<a href="/privacy" class="hover:text-primary transition-colors">Privacy</a>
+			<a
+				href="/privacy"
+				class="hover:text-primary transition-colors"
+				on:click={() => trackFooterNav('/privacy', 'Privacy')}
+			>Privacy</a>
 			<span class="text-base-content/20" aria-hidden="true">·</span>
 			<button
 				type="button"

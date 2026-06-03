@@ -72,9 +72,17 @@ services:
       # through nginx (/api/* → backend); SvelteKit's internal fetch does
       # not, so it needs the absolute service URL.
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://backend:8000}
-      # Analytics — substituted into app.html via %sveltekit.env.PUBLIC_*%
-      # at request time. Empty → corresponding script tag no-ops.
-      - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
+      # Analytics — read at runtime via $env/dynamic/public OR substituted
+      # into app.html via %sveltekit.env.PUBLIC_*%. Empty → corresponding
+      # SDK init / script tag no-ops.
+      # PostHog (v2.155.0): browser SDK reads PUBLIC_POSTHOG_KEY via
+      # lib/analytics/index.ts. Defaults to the same phc_* value the
+      # backend uses (POSTHOG_API_KEY) — Project API keys are write-only
+      # and safe to expose in client bundles per PostHog's docs.
+      - PUBLIC_POSTHOG_KEY=${PUBLIC_POSTHOG_KEY:-${POSTHOG_API_KEY:-}}
+      - PUBLIC_POSTHOG_HOST=${PUBLIC_POSTHOG_HOST:-${POSTHOG_HOST:-https://eu.i.posthog.com}}
+      # Cloudflare Web Analytics — Core Web Vitals beacon only. Loaded
+      # via app.html's <script> tag.
       - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
       # The Odds API key — read server-side by /odds/+server.ts via
       # $env/dynamic/private. Empty → proxy returns { error: 'not_configured' }
@@ -102,7 +110,8 @@ services:
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://backend:8000}
       # Analytics env vars — see `frontend` service above. Empty on dev
       # by default so local sessions don't pollute prod metrics.
-      - PUBLIC_UMAMI_WEBSITE_ID=${PUBLIC_UMAMI_WEBSITE_ID:-}
+      - PUBLIC_POSTHOG_KEY=${PUBLIC_POSTHOG_KEY:-}
+      - PUBLIC_POSTHOG_HOST=${PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
       - PUBLIC_CF_WA_TOKEN=${PUBLIC_CF_WA_TOKEN:-}
       # See `frontend` service for rationale.
       - ODDS_API_KEY=${ODDS_API_KEY:-}

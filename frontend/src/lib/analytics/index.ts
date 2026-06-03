@@ -1,24 +1,51 @@
 /**
- * Analytics wrapper — thin abstraction over Umami Cloud.
+ * Analytics wrapper — single source of truth for event tracking.
  *
- * Loaded globally via the script tag in `frontend/src/app.html`, which
- * attaches `window.umami` when `PUBLIC_UMAMI_WEBSITE_ID` is set. This
- * module hides that global so components don't reach for `window.*`
- * directly — keeps the tool swappable in one file.
+ * v2.155.0 migrated this from Umami Cloud to PostHog (browser SDK +
+ * optional server-side path for ad-block resistance). The public API
+ * — `track()` and `identify()` — is unchanged so the 12+ existing
+ * call sites work without modification.
  *
- * Cloudflare Web Analytics is also loaded in app.html for Core Web
- * Vitals + simple pageviews; it has no custom-event API and isn't
- * exposed here.
+ * Architecture:
+ *   USER ACTION → track('event_name', {props}, { alsoServer?: true })
+ *      │
+ *      ├─► posthog.capture() ─────────► PostHog EU (browser path)
+ *      │                                 ├─ Autocapture
+ *      │                                 ├─ Heatmaps (derived)
+ *      │                                 └─ Custom events
+ *      │
+ *      └─► POST /api/telemetry/event ─► Backend → PostHog EU
+ *           (only when alsoServer=true; ad-block-resistant)
+ *
+ * Privacy:
+ *   - Honours navigator.doNotTrack — DNT users produce ZERO events
+ *     (both browser and server paths skip).
+ *   - Session recording is explicitly disabled (privacy concern with
+ *     typed predictions / paid_to / score inputs).
+ *   - Autocapture records element selectors + visible text, NOT typed
+ *     input contents. Sensitive inputs additionally carry
+ *     `data-ph-no-capture` to be excluded even from element-identity
+ *     capture.
+ *   - distinct_id is the user's UUID — never name/email.
  *
  * SSR-safe: every public function short-circuits when `window` is
- * undefined (i.e. during server `load`). Also honours the browser's
- * Do-Not-Track signal — DNT users produce zero analytics traffic.
+ * undefined (i.e. during server `load`).
+ *
+ * Cloudflare Web Analytics continues to run via app.html's separate
+ * script tag for Core Web Vitals + edge-level pageview counts — it's
+ * independent of this module.
  */
 
-/** Discriminated event names used across the landing page. Adding a
- *  new event? Add it here first so callsites get autocomplete and the
- *  build catches typos. */
+import posthog from 'posthog-js';
+import { browser } from '$app/environment';
+import { env as publicEnv } from '$env/dynamic/public';
+
+/** Discriminated event names used across the app. Adding a new event?
+ *  Add it here first so call sites get autocomplete and the build
+ *  catches typos. Backend's ALLOWED_EVENTS set in api/telemetry.py
+ *  mirrors this list for any event fired with `alsoServer: true`. */
 export type EventName =
+	// Landing-page funnels (pre-existing — kept verbatim from v2.154.x)
 	| 'landing_view'
 	| 'section_viewed'
 	| 'cta_clicked'
@@ -28,55 +55,121 @@ export type EventName =
 	| 'signin_abandoned'
 	| 'news_card_clicked'
 	| 'rules_link_clicked'
-	| 'countdown_phase';
+	| 'countdown_phase'
+	// SmartFill (v2.154.3 — now flow through this wrapper)
+	| 'smartfill_opened'
+	| 'smartfill_applied'
+	// Navigation (v2.155.0)
+	| 'page_viewed'
+	| 'nav_clicked'
+	// Reserved for future server-side fires (declared in advance so
+	// allow-list and dashboards stay aligned). Add backend
+	// analytics.capture() call sites for these as they get wired.
+	| 'entry_created'
+	| 'entry_submitted'
+	| 'entry_unlocked'
+	| 'user_signed_in'
+	| 'user_onboarded'
+	| 'prediction_saved';
 
-/** Umami's track() accepts only flat primitive props. */
-export type EventProps = Record<string, string | number | boolean>;
+/** Event property payload. Flat primitives only — PostHog stores these
+ *  as searchable filterable fields. Avoid nested objects (PostHog
+ *  flattens via dot-notation but you lose typed filtering). */
+export type EventProps = Record<string, string | number | boolean | null | undefined>;
 
-interface UmamiGlobal {
-	track?: (event: string, props?: EventProps) => void;
-	identify?: (id: string, props?: EventProps) => void;
+export interface TrackOptions {
+	/** Also POST the event to /api/telemetry/event for ad-block-resistant
+	 *  capture. Use for events you can't afford to lose to ~25% of
+	 *  users running ad-blockers (e.g. `entry_submitted`,
+	 *  `smartfill_applied`, `signin_succeeded`). Default false. */
+	alsoServer?: boolean;
 }
 
-/** Fetch the window-attached `umami` object if present. Returns
- *  `undefined` during SSR or before the script tag has loaded. */
-function getUmami(): UmamiGlobal | undefined {
-	if (typeof window === 'undefined') return undefined;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	return (window as any).umami as UmamiGlobal | undefined;
-}
+let initialized = false;
 
-/** True when the user has explicitly opted out via `navigator.doNotTrack`.
- *  We honour DNT — Umami events stop firing entirely; Cloudflare's beacon
- *  is similarly minimal and we don't try to suppress it client-side. */
+/** True when the user has explicitly opted out via navigator.doNotTrack.
+ *  Both browser and server paths honour this — DNT users produce zero
+ *  events. */
 function isDntActive(): boolean {
 	if (typeof navigator === 'undefined') return false;
 	return navigator.doNotTrack === '1';
 }
 
-/** Fire a custom event. No-op during SSR, when Umami isn't loaded yet,
- *  or when DNT is on. Never throws. */
-export function track(event: EventName, props?: EventProps): void {
+/** Initialise the PostHog browser SDK. Call once from the root layout's
+ *  onMount. Idempotent (safe to call multiple times). No-op when:
+ *    - SSR (no `window`)
+ *    - Already initialised
+ *    - PUBLIC_POSTHOG_KEY empty (dev/local without analytics)
+ *    - User has DNT enabled
+ *
+ *  Init config favours privacy and the user's stated preferences:
+ *    - capture_pageview: true     (powers heatmaps + funnels)
+ *    - autocapture: true          (click tracking without instrumentation)
+ *    - disable_session_recording: true (privacy)
+ *    - respect_dnt: true          (belt-and-braces with isDntActive)
+ *    - persistence: localStorage  (no third-party cookies)
+ */
+export function initAnalytics(): void {
+	if (!browser || initialized) return;
+	const key = publicEnv.PUBLIC_POSTHOG_KEY;
+	if (!key) return;
 	if (isDntActive()) return;
-	const umami = getUmami();
-	if (!umami?.track) return;
 	try {
-		umami.track(event, props ?? {});
+		posthog.init(key, {
+			api_host: publicEnv.PUBLIC_POSTHOG_HOST || 'https://eu.i.posthog.com',
+			capture_pageview: true,
+			autocapture: true,
+			disable_session_recording: true,
+			respect_dnt: true,
+			persistence: 'localStorage',
+		});
+		initialized = true;
 	} catch {
-		// Swallow — analytics must never break the page.
+		// Analytics init must never break the app.
 	}
 }
 
-/** Tag the current session with a stable, anonymous user id (typically
- *  the user's DB id, NOT email). Call from `+layout.svelte` once auth
- *  hydrates. Optional — used for cross-session funnels. */
+/** Fire a custom event. Browser-side via posthog-js + optionally
+ *  server-side via /api/telemetry/event for ad-block resistance. */
+export function track(event: EventName, props?: EventProps, opts?: TrackOptions): void {
+	if (!browser || isDntActive()) return;
+
+	// Browser-side capture. Silent no-op if posthog-js isn't initialised
+	// (e.g. no key configured, init not yet called) or if the call throws.
+	if (initialized) {
+		try {
+			posthog.capture(event, props as Record<string, unknown> | undefined);
+		} catch {
+			// noop — analytics must never break the app
+		}
+	}
+
+	// Optional server-side capture for guaranteed delivery. Fire-and-forget;
+	// failures (network down, 400 on unknown event) are swallowed.
+	if (opts?.alsoServer) {
+		void fetch('/api/telemetry/event', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ event, properties: props }),
+			credentials: 'include',
+		}).catch(() => {
+			// noop
+		});
+	}
+}
+
+/** Tag the current session with a stable, anonymous user id (the user's
+ *  DB UUID, NOT email). Call from +layout.svelte once auth hydrates so
+ *  events get attributed to a user across pageloads / devices.
+ *
+ *  Per PostHog identify() semantics: subsequent events under this
+ *  distinct_id will be associated with this user. No PII passes through —
+ *  PostHog only sees the UUID. */
 export function identify(userId: string, props?: EventProps): void {
-	if (isDntActive()) return;
-	const umami = getUmami();
-	if (!umami?.identify) return;
+	if (!browser || !initialized || isDntActive()) return;
 	try {
-		umami.identify(userId, props);
+		posthog.identify(userId, props as Record<string, unknown> | undefined);
 	} catch {
-		// Swallow.
+		// noop
 	}
 }

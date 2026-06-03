@@ -210,6 +210,59 @@ docker-compose exec frontend-dev npx vitest run
 docker-compose exec backend python scripts/seed_phase2_test.py
 ```
 
+## Analytics
+
+**One wrapper, one dashboard.** As of v2.155.0, all event tracking
+flows through `frontend/src/lib/analytics/index.ts` and lands in
+PostHog Cloud EU (`eu.i.posthog.com`). Umami was retired in the same
+release. Cloudflare Web Analytics remains for Core Web Vitals only —
+separate beacon in `app.html`, independent of the wrapper.
+
+### Firing an event
+
+```ts
+import { track } from '$lib/analytics';
+
+track('event_name', { prop: 'value' });
+// Critical events (e.g. submissions) — also POST through the backend
+// so ad-blocked users still get captured:
+track('entry_submitted', { entry_id }, { alsoServer: true });
+```
+
+Adding a new event: append the name to the `EventName` union in
+`lib/analytics/index.ts` AND to `ALLOWED_EVENTS` in
+`backend/app/api/telemetry.py` (only required if any caller passes
+`alsoServer: true` or if a backend service fires it via
+`analytics.capture()`).
+
+### Privacy posture
+
+- **No session recording** — `disable_session_recording: true` in init
+- **DNT honoured** — `respect_dnt: true` + manual short-circuit in wrapper
+- **Sensitive inputs masked** — `class="ph-no-capture"` on the `paid_to`
+  field (PII-ish). Score inputs aren't masked — predictions aren't PII
+- **distinct_id is the user UUID** — no name/email passed via `identify()`
+
+### Environment variables
+
+- `POSTHOG_API_KEY` (backend, server-side capture)
+- `POSTHOG_HOST` (backend, defaults to EU instance)
+- `PUBLIC_POSTHOG_KEY` (frontend, browser SDK — same `phc_*` value as
+  backend; safe to expose per PostHog docs since it's write-only)
+- `PUBLIC_POSTHOG_HOST` (frontend, defaults to EU instance)
+- `PUBLIC_CF_WA_TOKEN` (frontend, Cloudflare Web Analytics beacon)
+
+Project API keys (`phc_*`) are write-only ingestion keys; safe in
+client bundles. Rotate via PostHog → Project Settings → API Keys.
+
+### Backend-originated events
+
+Some events make more sense fired from the backend (e.g.
+`entry_submitted` after the DB transition commits). Fire those via
+`app.services.analytics.capture(distinct_id=str(user.id), event=...)`
+in the relevant service function — NOT through the `/api/telemetry/event`
+endpoint (that's for frontend-originated events).
+
 ## UI
 
 Two DaisyUI themes registered in `frontend/tailwind.config.js`: **`premium-night`** (dark, default — champagne gold on midnight navy) and **`hybrid`** (light — deeper gold on a dim slate canvas with white cards lifting above it). Themes change colour, not voice — same fonts, same hierarchy. The choice is persisted in `localStorage['predictor:theme']` and applied FOUC-safely by a script in `frontend/src/app.html`; the store lives at `frontend/src/lib/stores/theme.ts`. Legacy `'light'` / `'premium-day'` values migrate to `'hybrid'` on load. Layout + mobile bottom nav are in `frontend/src/routes/+layout.svelte`.

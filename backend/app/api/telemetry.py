@@ -31,9 +31,29 @@ router = APIRouter()
 # surfaces ship. Unknown event names return 400 — the frontend wrapper
 # swallows that so it doesn't break the app, but a 4xx surfaces in
 # logs/inspection if a typo ships.
+#
+# IMPORTANT: this list mirrors `EventName` in
+# frontend/src/lib/analytics/index.ts. Keep them in sync. The frontend
+# wrapper fires events via posthog.capture() directly (browser path); only
+# events flagged with `alsoServer: true` come through this endpoint for
+# ad-block-resistant capture. Add an event here if (and only if) any
+# call site uses alsoServer=true OR if you plan to fire it from a
+# backend service (in which case route via analytics.capture() directly
+# from the service, NOT this endpoint).
 ALLOWED_EVENTS: set[str] = {
+    # SmartFill (v2.154.3 → v2.155.0)
     "smartfill_opened",
     "smartfill_applied",
+    # Navigation (v2.155.0)
+    "page_viewed",
+    "nav_clicked",
+    # Reserved for future server-side wiring (entry lifecycle, auth, etc.)
+    "entry_created",
+    "entry_submitted",
+    "entry_unlocked",
+    "user_signed_in",
+    "user_onboarded",
+    "prediction_saved",
 }
 
 

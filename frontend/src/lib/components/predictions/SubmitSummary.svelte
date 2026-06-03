@@ -199,10 +199,13 @@
 						</span>
 					</span>
 				</label>
+				<!-- ph-no-capture: defence-in-depth so PostHog autocapture never
+				     records a pool treasurer's name (PII-ish reference). Session
+				     recording is OFF globally, so this is belt-and-braces. -->
 				<input
 					id="submit-paid-to"
 					type="text"
-					class="input input-bordered w-full max-w-md"
+					class="input input-bordered w-full max-w-md ph-no-capture"
 					placeholder="Required"
 					bind:value={paidToInput}
 					maxlength="100"

@@ -1934,6 +1934,13 @@
       "type": "fix",
       "summary": "Four fixes to v2.154.3: the SmartFill tooltip on the picks-wizard toolbar no longer cuts off mid-sentence or bleeds into the section below; the 'Overwrite existing picks' checkbox in the SmartFill modal now reads clearly on the dark theme; the SmartFill button itself stands out properly on the light theme instead of fading into the card background; and once you submit an entry, the bracket and bonus questions are now properly read-only (matching the groups step) — they unlock again only if you click 'Edit entry' before the deadline.",
       "commit": "pending"
+    },
+    {
+      "version": "2.155.0",
+      "date": "2026-06-03",
+      "type": "internal",
+      "summary": "Behind-the-scenes analytics consolidation. We can now see which buttons and menu paths get used most across the site — including which footer links, rail items, and mobile-nav tabs people click — and visualise click hotspots on each screen. Session video recording is explicitly disabled and the pool-treasurer reference field is masked, so no typed content ever leaves your browser. Do-Not-Track is honoured. Cloudflare's performance reporting (Core Web Vitals) stays separate; everything else now lands in one dashboard.",
+      "commit": "pending"
     }
   ]
 }

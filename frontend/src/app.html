@@ -38,17 +38,15 @@
 			} catch (e) {}
 		</script>
 
-		<!-- Analytics — two complementary tools, both cookie-less & async.
-		     Umami Cloud  → behaviour (pageviews + custom events; see
-		                    lib/analytics/index.ts for the wrapper).
-		     Cloudflare WA → real-user Core Web Vitals (LCP/FCP/CLS/TTFB).
-		     Both no-op when their env var is empty (dev default). -->
-		<script
-			async
-			defer
-			src="https://cloud.umami.is/script.js"
-			data-website-id="%sveltekit.env.PUBLIC_UMAMI_WEBSITE_ID%"
-		></script>
+		<!-- Analytics — v2.155.0 consolidated to PostHog + Cloudflare.
+		     PostHog (browser SDK)  → behaviour (pageviews, custom events,
+		                              autocapture, heatmaps). Loaded lazily
+		                              by lib/analytics/index.ts; no <script>
+		                              tag needed here.
+		     Cloudflare WA          → real-user Core Web Vitals
+		                              (LCP/FCP/CLS/TTFB) at the network edge.
+		                              No-op when PUBLIC_CF_WA_TOKEN is empty.
+		     Umami removed in v2.155.0; events migrated to PostHog. -->
 		<script
 			async
 			defer

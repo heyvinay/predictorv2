@@ -1,9 +1,10 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
+	import { initAnalytics, identify, track } from '$lib/analytics';
 	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
 	import { theme, chromeThemeFor } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
@@ -26,7 +27,35 @@
 
 	onMount(() => {
 		initAuth();
+		// Bootstrap PostHog browser SDK (autocapture, heatmaps, pageviews).
+		// Idempotent + DNT-aware + SSR-safe. See lib/analytics/index.ts.
+		initAnalytics();
 	});
+
+	// Tag the session with the user's UUID once auth hydrates so events
+	// across pageloads attribute to the same distinct_id. No PII sent —
+	// PostHog only sees the UUID.
+	$: if ($user) identify($user.id);
+
+	// Universal page-view capture for every successful route transition.
+	// Catches rail clicks, footer clicks, programmatic goto(), browser
+	// back/forward — everything. nav.type is SvelteKit's discriminator
+	// ('link' | 'goto' | 'enter' | 'popstate' | 'leave' | 'form').
+	afterNavigate((nav) => {
+		void track('page_viewed', {
+			path: nav.to?.url.pathname ?? '',
+			referrer_path: nav.from?.url.pathname ?? null,
+			nav_type: nav.type,
+		});
+	});
+
+	/** Source-tagged nav-click helper. Fires `nav_clicked` with which UI
+	 *  the user came from, where they're going, and the visible label.
+	 *  Complements `page_viewed` — same destination reached from
+	 *  different surfaces tells us which UI users actually use. */
+	function trackNav(source: string, target: string, label: string) {
+		void track('nav_clicked', { source, target, label });
+	}
 
 	// Fetch phase status when user becomes authenticated
 	$: if ($isAuthenticated && !hasLoadedPhase) {
@@ -161,6 +190,7 @@
 						{/if}
 						<a
 							href={item.href}
+							on:click={() => trackNav('left-rail', item.href, item.label)}
 							class="relative w-full flex items-center gap-3 h-10 px-3 rounded-lg transition-colors
 								{isActive
 									? 'text-primary bg-base-300/40'
@@ -443,6 +473,7 @@
 				{@const badge = item.href === '/entries' ? $editableEntries.length : 0}
 				<a
 					href={item.href}
+					on:click={() => trackNav('mobile-bottom-nav', item.href, item.label)}
 					class="flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors duration-200
 						{isActive ? 'text-primary' : 'text-base-content/50'}"
 				>
