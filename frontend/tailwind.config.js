@@ -7,8 +7,19 @@ export default {
 			// `warning-text` is the readable amber FOREGROUND token — use it as
 			// `text-warning-text` on base canvases where bare `text-warning` would
 			// vanish into the surface color. Channels live in app.css per theme.
+			//
+			// `primary-soft` / `primary-deep` (v2.156.0) are the lighter / darker
+			// gold variants used by gradient avatars, status pills, and the
+			// admin sub-nav active state. `base-150` / `base-250` are
+			// intermediate elevations between base-100/base-200 and base-200/base-300
+			// — used by the admin redesign's noise-reduced flat cards and
+			// the audit feed's day-separator backdrops.
 			colors: {
 				'warning-text': 'rgb(var(--warning-text) / <alpha-value>)',
+				'primary-soft': 'rgb(var(--primary-soft) / <alpha-value>)',
+				'primary-deep': 'rgb(var(--primary-deep) / <alpha-value>)',
+				'base-150': 'rgb(var(--base-150) / <alpha-value>)',
+				'base-250': 'rgb(var(--base-250) / <alpha-value>)',
 			},
 			fontFamily: {
 				'display': ['Manrope', 'system-ui', 'sans-serif'],

@@ -421,7 +421,9 @@ async def request_magic_link(
 
 
 @router.get("/verify-magic-link")
-async def verify_magic_link(token: str, session: DbSession) -> RedirectResponse:
+async def verify_magic_link(
+    token: str, session: DbSession, ctx: AuditCtx
+) -> RedirectResponse:
     """Validate a magic link token and redirect to the frontend with a JWT.
 
     Called by the user's browser when they click the link in their
@@ -464,6 +466,21 @@ async def verify_magic_link(token: str, session: DbSession) -> RedirectResponse:
         await session.commit()
         raise invalid
 
+    # v2.156.0 — fire auth.login_succeeded so magic-link verifies show up
+    # in the audit log alongside password + Google logins. Makes
+    # audit_events the authoritative source for "last login" derived on
+    # /admin/users without needing a separate last_login_at column.
+    record_audit_event(
+        session,
+        event_type="auth.login_succeeded",
+        actor_user_id=user.id,
+        actor_role=ActorRole.USER,
+        subject_type="user",
+        subject_id=user.id,
+        ctx=ctx,
+        metadata={"email": user.email, "auth_provider": "magic_link"},
+    )
+
     await session.commit()
 
     access_token = create_access_token(
@@ -488,17 +505,35 @@ async def get_current_user_info(current_user: CurrentUser) -> UserRead:
 
 @router.patch("/me", response_model=UserRead)
 async def update_current_user(
-    payload: UserUpdate, current_user: CurrentUser, session: DbSession
+    payload: UserUpdate,
+    current_user: CurrentUser,
+    session: DbSession,
+    ctx: AuditCtx,
 ) -> UserRead:
     """Update the current user's profile.
 
     Primary caller is the /onboarding page (new magic-link users
     setting their display name for the first time), but also handles
     later profile edits.
+
+    v2.156.0 — fires a ``user.profile_updated`` audit event listing the
+    field names that actually changed (not values, to keep audit rows
+    light and PII-clean). Idempotent no-op PATCHes do NOT fire the
+    event — we compare each incoming field against the current value
+    and only record genuinely-changed keys. This closes the "Last
+    activity" signal gap: profile edits now land in the audit stream
+    alongside auth and entry events.
     """
-    if payload.name is not None:
+    # Track which fields actually changed so the audit metadata only
+    # records real diffs. Comparing against the *current* value before
+    # assignment is the cleanest way — an `is not None` payload that
+    # repeats the existing value isn't an edit.
+    changed: list[str] = []
+
+    if payload.name is not None and payload.name != current_user.name:
         current_user.name = payload.name
-    if payload.email is not None:
+        changed.append("name")
+    if payload.email is not None and payload.email != current_user.email:
         # Email changes go through their own flow normally; we accept
         # here for parity with the schema but enforce uniqueness.
         existing = await session.execute(
@@ -510,14 +545,36 @@ async def update_current_user(
                 detail="That email is already in use.",
             )
         current_user.email = payload.email
-    if payload.employer is not None:
+        changed.append("email")
+    if payload.employer is not None and payload.employer != current_user.employer:
         current_user.employer = payload.employer
-    if payload.company_contact is not None:
+        changed.append("employer")
+    if (
+        payload.company_contact is not None
+        and payload.company_contact != current_user.company_contact
+    ):
         current_user.company_contact = payload.company_contact
-    if payload.paid_to is not None:
+        changed.append("company_contact")
+    if payload.paid_to is not None and payload.paid_to != current_user.paid_to:
         current_user.paid_to = payload.paid_to
+        changed.append("paid_to")
 
-    current_user.updated_at = utc_now()
+    if changed:
+        # Only audit when something actually changed. Idempotent no-op
+        # PATCHes (all fields unchanged) leave no audit trail — they
+        # didn't change state, so they shouldn't show up in the "Last
+        # activity" / audit feed as if they did.
+        current_user.updated_at = utc_now()
+        record_audit_event(
+            session,
+            event_type="user.profile_updated",
+            actor_user_id=current_user.id,
+            actor_role=ActorRole.USER,
+            subject_type="user",
+            subject_id=current_user.id,
+            ctx=ctx,
+            metadata={"changed": changed},
+        )
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)

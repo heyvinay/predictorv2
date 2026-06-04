@@ -59,9 +59,16 @@ class Settings(BaseSettings):
     # Tournament config
     tournament_config_path: str = "config/worldcup2026.yml"
 
-    # PostHog analytics
+    # PostHog analytics — write side (existing).
     posthog_api_key: str = ""
     posthog_host: str = "https://eu.i.posthog.com"
+    # PostHog analytics — read side (v2.156.0, admin engagement card).
+    # Personal API key (phx_*) with "Read project events" scope; project
+    # id is the numeric id from the PostHog URL. If either is empty the
+    # read service short-circuits to "PostHog disabled" mode and the
+    # frontend renders graceful "—" placeholders on the engagement card.
+    posthog_personal_api_key: str = ""
+    posthog_project_id: str = ""
 
     # CORS - stored as string, parsed via computed property
     cors_origins_str: str = "http://localhost:5173,http://localhost:3000"

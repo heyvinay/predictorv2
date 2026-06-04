@@ -191,3 +191,107 @@ class TestAdminListEntriesSearch:
             paid=True,
         )
         assert total == 0
+
+
+class TestAdminListEntriesNameSearch:
+    """v2.156.0 — search now ALSO matches User.name (was email + reference)."""
+
+    async def test_search_by_name_substring(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        vinay, _bob = two_users_with_entries
+        # "Vin" matches Vinay's name (not just email — exercising the
+        # User.name branch of the search OR).
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, search="Vin"
+        )
+        assert total == 1
+        assert rows[0].user_id == vinay.id
+
+    async def test_search_by_name_is_case_insensitive(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, search="BOB"
+        )
+        assert total == 1
+
+
+class TestAdminListEntriesModifiedWithin:
+    """v2.156.0 — `modified_within` filter on PredictionEntry.updated_at."""
+
+    async def test_modified_within_24h_returns_entries_inside_window(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # The fixture-created entries have updated_at = now (default
+        # factory), so they're well inside any reasonable window.
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, modified_within="24h"
+        )
+        assert total == 2
+
+    async def test_modified_within_excludes_older_entries(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # Push one entry's updated_at far into the past — outside any
+        # of the named windows.
+        from datetime import datetime, timezone, timedelta
+
+        vinay, _bob = two_users_with_entries
+        entries_all, _ = await entries_service.admin_list_entries(
+            session, competition=competition
+        )
+        # Find vinay's entry and back-date it
+        vinay_entry = next(e for e in entries_all if e.user_id == vinay.id)
+        vinay_entry.updated_at = datetime.now(tz=timezone.utc) - timedelta(
+            days=60
+        )
+        session.add(vinay_entry)
+        await session.commit()
+
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, modified_within="30d"
+        )
+        # Only bob's entry is within the 30-day window now.
+        assert total == 1
+        assert rows[0].user_id != vinay.id
+
+    async def test_modified_within_combines_with_search(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # AND semantics — name search + time window both applied.
+        rows, total = await entries_service.admin_list_entries(
+            session,
+            competition=competition,
+            search="bob",
+            modified_within="24h",
+        )
+        assert total == 1
+
+    async def test_unknown_modified_within_value_is_ignored(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # Defensive forgiveness — unknown tokens silently become no-filter
+        # so stale URLs / typos don't ghost-empty the results.
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, modified_within="not-a-window"
+        )
+        assert total == 2  # both entries returned, filter ignored

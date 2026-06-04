@@ -1941,6 +1941,13 @@
       "type": "internal",
       "summary": "Behind-the-scenes analytics consolidation. We can now see which buttons and menu paths get used most across the site — including which footer links, rail items, and mobile-nav tabs people click — and visualise click hotspots on each screen. Session video recording is explicitly disabled and the pool-treasurer reference field is masked, so no typed content ever leaves your browser. Do-Not-Track is honoured. Cloudflare's performance reporting (Core Web Vitals) stays separate; everything else now lands in one dashboard.",
       "commit": "pending"
+    },
+    {
+      "version": "2.156.0",
+      "date": "2026-06-09",
+      "type": "feature",
+      "summary": "Admin console redesigned — dedicated Users, Entries, and Audit pages with a slide-over entry-detail panel, plus three-cohort filtering (Active / Signed-up-only / Verified-only) so the admins can identify and re-engage users who started signup but never finished. New: Engagement card on user-detail (last seen, last page, sessions, avg duration, 14-day sparkline — read from PostHog); reason-required confirmation modal on every destructive admin action with the reason captured in the audit log; clickable stat cards that filter the table below; local-time everywhere in the admin UI (storage stays UTC). Magic-link verifies and profile edits now fire audit events too, so 'Last activity' on the Users list is meaningful end-to-end.",
+      "commit": "pending"
     }
   ]
 }
