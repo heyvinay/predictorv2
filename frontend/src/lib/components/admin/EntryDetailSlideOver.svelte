@@ -103,7 +103,7 @@
 					<div class="min-w-0">
 						<p class="text-[10px] font-mono uppercase tracking-[0.2em] text-primary">Entry detail</p>
 						<div class="flex items-center gap-3 mt-1 flex-wrap">
-							<h2 class="font-display font-extrabold text-xl">{entry.name ?? `Entry ${entry.entry_number}`}</h2>
+							<h2 class="font-display font-extrabold text-xl">{entry.display_name ?? `Entry ${entry.entry_number}`}</h2>
 							<span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-2 py-0.5">{entry.reference}</span>
 						</div>
 						<div class="flex gap-2 mt-2 flex-wrap">

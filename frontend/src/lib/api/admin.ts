@@ -212,7 +212,7 @@ export async function openPhase2(): Promise<Phase2OpenResponse> {
 // --- Entries listing + per-row actions ---
 
 export async function adminListEntries(
-	filters: AdminEntryFilters = {},
+	filters: AdminEntryFiltersV2 = {},
 	opts: AdminEntriesPageOpts = {}
 ): Promise<AdminEntriesPage> {
 	const params = new URLSearchParams();
@@ -222,6 +222,7 @@ export async function adminListEntries(
 	if (filters.status) params.set('status', filters.status);
 	if (filters.paid !== undefined) params.set('paid', String(filters.paid));
 	if (filters.disabled !== undefined) params.set('disabled', String(filters.disabled));
+	if (filters.modified_within) params.set('modified_within', filters.modified_within);
 	if (opts.limit !== undefined) params.set('limit', String(opts.limit));
 	if (opts.offset !== undefined) params.set('offset', String(opts.offset));
 	const qs = params.toString();

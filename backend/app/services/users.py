@@ -28,10 +28,10 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entry import EntryStatus, PredictionEntry
+from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.magic_link_token import MagicLinkToken
 from app.models.prediction import MatchPrediction
 from app.models.user import AuthProvider, User
@@ -141,26 +141,44 @@ async def list_users_with_cohort(
 
     user_ids = [u.id for u in users]
 
-    # Batch the supplementary lookups so every page is exactly 4 queries
-    # regardless of page size (entries, predictions, verified-token-set,
-    # last_login, last_activity).
-    counts_stmt = (
-        select(
-            PredictionEntry.user_id,
-            func.count(PredictionEntry.id).label("total"),
-            func.sum(
-                case((PredictionEntry.status == EntryStatus.SUBMITTED, 1), else_=0)
-            ).label("submitted"),
-            func.sum(
-                case((PredictionEntry.status == EntryStatus.DRAFT, 1), else_=0)
-            ).label("draft"),
-        )
+    # Batch the supplementary lookups. Entry status lives on
+    # PredictionEntryPhase, NOT PredictionEntry (which only has the
+    # orthogonal `is_disabled` flag). So we run two queries: a total
+    # count per user, and a submitted-distinct-entries count per user
+    # via the phase join. Draft = total - submitted (entries that have
+    # never reached SUBMITTED in any phase).
+    total_stmt = (
+        select(PredictionEntry.user_id, func.count(PredictionEntry.id))
         .where(PredictionEntry.user_id.in_(user_ids))
         .group_by(PredictionEntry.user_id)
     )
+    totals: dict[UUID, int] = {
+        uid: int(c or 0) for uid, c in (await session.execute(total_stmt)).all()
+    }
+    submitted_stmt = (
+        select(
+            PredictionEntry.user_id,
+            func.count(func.distinct(PredictionEntry.id)),
+        )
+        .join(
+            PredictionEntryPhase,
+            PredictionEntryPhase.entry_id == PredictionEntry.id,
+        )
+        .where(PredictionEntry.user_id.in_(user_ids))
+        .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+        .group_by(PredictionEntry.user_id)
+    )
+    submitted_counts: dict[UUID, int] = {
+        uid: int(c or 0)
+        for uid, c in (await session.execute(submitted_stmt)).all()
+    }
     entry_counts: dict[UUID, tuple[int, int, int]] = {}
-    for uid, total_c, sub_c, draft_c in (await session.execute(counts_stmt)).all():
-        entry_counts[uid] = (int(total_c or 0), int(sub_c or 0), int(draft_c or 0))
+    for uid in user_ids:
+        total_c = totals.get(uid, 0)
+        sub_c = submitted_counts.get(uid, 0)
+        # Draft count is total minus submitted; bounded at 0 just in case.
+        draft_c = max(0, total_c - sub_c)
+        entry_counts[uid] = (total_c, sub_c, draft_c)
 
     pred_stmt = (
         select(PredictionEntry.user_id, func.count(MatchPrediction.id))

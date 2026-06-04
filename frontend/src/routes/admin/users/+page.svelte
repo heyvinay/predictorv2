@@ -121,7 +121,7 @@
 		<button on:click={() => setCohort('paid')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Paid</div>
 			<div class="value">{stats.paid}<span class="unit">/{stats.active}</span></div>
-			<div class="delta up">+12 this week</div>
+			<div class="delta">payment status</div>
 		</button>
 		<button on:click={() => setCohort('admins')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Admins</div>
@@ -179,6 +179,8 @@
 							<th>Member</th>
 							<th>Status</th>
 							<th>Entries</th>
+							<th>Works at</th>
+							<th>Atlas/JMFA contact</th>
 							<th>Paid to</th>
 							<th title="MAX(audit_events.created_at) across ALL event types">Last activity</th>
 							<th>Joined</th>
@@ -192,16 +194,9 @@
 								on:click={() => location.assign(`/admin/users/${u.id}`)}
 							>
 								<td>
-									<div class="flex items-center gap-3">
-										<span class="avatar avatar-placeholder">
-											<div class="w-9 h-9 rounded-full bg-gradient-to-br from-primary-soft via-primary to-primary-deep text-primary-content font-bold flex items-center justify-center text-sm">
-												{(u.name ?? u.email).slice(0,2).toUpperCase()}
-											</div>
-										</span>
-										<div class="min-w-0">
-											<div class="font-medium truncate">{u.name ?? u.email}</div>
-											<div class="text-[11px] text-base-content/40 truncate">{u.email} · {u.auth_provider}</div>
-										</div>
+									<div class="min-w-0">
+										<div class="font-medium truncate">{u.name ?? u.email}</div>
+										<div class="text-[11px] text-base-content/40 truncate">{u.email} · {u.auth_provider}</div>
 									</div>
 								</td>
 								<td>
@@ -220,6 +215,8 @@
 										<span class="text-base-content/40">—</span>
 									{/if}
 								</td>
+								<td class="text-base-content/60 text-xs">{u.employer ?? '—'}</td>
+								<td class="text-base-content/60 text-xs">{u.company_contact ?? '—'}</td>
 								<td class="text-base-content/60 text-xs">{u.paid_to ?? '—'}</td>
 								<td class="text-base-content/60 text-xs" title={u.last_activity_at ?? ''}>
 									{formatDate(u.last_activity_at)} <span class="text-base-content/40">{daysAgo(u.last_activity_at)}</span>

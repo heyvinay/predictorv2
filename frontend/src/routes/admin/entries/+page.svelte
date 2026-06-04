@@ -40,8 +40,7 @@
 				search: search || undefined,
 				status: statusFilter || undefined,
 				paid: paidFilter ? paidFilter === 'paid' : undefined,
-				// modified_within passes through via extra URL param when
-				// the backend supports it.
+				modified_within: modifiedWithin || undefined,
 			},
 			{ limit: 100, offset: 0 }
 		);
@@ -194,7 +193,7 @@
 						{#each listing.items as e (e.id)}
 							<tr class="cursor-pointer hover:bg-primary/[0.04]" on:click={() => openSlideOver(e)}>
 								<td><span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-1.5 py-0.5">{e.reference}</span></td>
-								<td><div class="font-medium">{e.name ?? `Entry ${e.entry_number}`}</div></td>
+								<td><div class="font-medium">{e.display_name ?? `Entry ${e.entry_number}`}</div></td>
 								<td>
 									{#if e.is_disabled}<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
 									{:else}<span class="status-pill s-success"><span class="dot"></span>Submitted</span>{/if}
