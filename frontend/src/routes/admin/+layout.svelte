@@ -40,11 +40,15 @@
 		}
 	});
 
-	function isActive(prefix: string): boolean {
-		const path = $page.url.pathname;
-		if (prefix === '/admin') return path === '/admin';
-		return path === prefix || path.startsWith(prefix + '/');
-	}
+	// Reactive path + per-route active flags. Function calls inside
+	// `class:` directives don't always re-evaluate when the $page store
+	// updates on client-side navigation, so we explicitly derive the
+	// booleans via `$:` and reference those in the template.
+	$: currentPath = $page.url.pathname;
+	$: isOverview = currentPath === '/admin';
+	$: isUsers = currentPath === '/admin/users' || currentPath.startsWith('/admin/users/');
+	$: isEntries = currentPath === '/admin/entries' || currentPath.startsWith('/admin/entries/');
+	$: isAudit = currentPath === '/admin/audit' || currentPath.startsWith('/admin/audit/');
 </script>
 
 <div class="min-h-screen bg-base-100">
@@ -81,22 +85,22 @@
 				<a
 					href="/admin"
 					class="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isActive('/admin')}
-					class:from-primary-soft={isActive('/admin')}
-					class:to-primary={isActive('/admin')}
-					class:text-primary-content={isActive('/admin')}
-					class:text-base-content={!isActive('/admin')}
-					class:opacity-60={!isActive('/admin')}
+					class:bg-gradient-to-b={isOverview}
+					class:from-primary-soft={isOverview}
+					class:to-primary={isOverview}
+					class:text-primary-content={isOverview}
+					class:text-base-content={!isOverview}
+					class:opacity-60={!isOverview}
 				>Overview</a>
 				<a
 					href="/admin/users"
 					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isActive('/admin/users')}
-					class:from-primary-soft={isActive('/admin/users')}
-					class:to-primary={isActive('/admin/users')}
-					class:text-primary-content={isActive('/admin/users')}
-					class:text-base-content={!isActive('/admin/users')}
-					class:opacity-60={!isActive('/admin/users')}
+					class:bg-gradient-to-b={isUsers}
+					class:from-primary-soft={isUsers}
+					class:to-primary={isUsers}
+					class:text-primary-content={isUsers}
+					class:text-base-content={!isUsers}
+					class:opacity-60={!isUsers}
 				>
 					Users
 					{#if stats}<span class="font-mono text-[10px] bg-base-content/10 rounded-full px-1.5 py-0.5">{stats.total_users}</span>{/if}
@@ -104,22 +108,22 @@
 				<a
 					href="/admin/entries"
 					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isActive('/admin/entries')}
-					class:from-primary-soft={isActive('/admin/entries')}
-					class:to-primary={isActive('/admin/entries')}
-					class:text-primary-content={isActive('/admin/entries')}
-					class:text-base-content={!isActive('/admin/entries')}
-					class:opacity-60={!isActive('/admin/entries')}
+					class:bg-gradient-to-b={isEntries}
+					class:from-primary-soft={isEntries}
+					class:to-primary={isEntries}
+					class:text-primary-content={isEntries}
+					class:text-base-content={!isEntries}
+					class:opacity-60={!isEntries}
 				>Entries</a>
 				<a
 					href="/admin/audit"
 					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isActive('/admin/audit')}
-					class:from-primary-soft={isActive('/admin/audit')}
-					class:to-primary={isActive('/admin/audit')}
-					class:text-primary-content={isActive('/admin/audit')}
-					class:text-base-content={!isActive('/admin/audit')}
-					class:opacity-60={!isActive('/admin/audit')}
+					class:bg-gradient-to-b={isAudit}
+					class:from-primary-soft={isAudit}
+					class:to-primary={isAudit}
+					class:text-primary-content={isAudit}
+					class:text-base-content={!isAudit}
+					class:opacity-60={!isAudit}
 				>Audit</a>
 			</div>
 		</div>
