@@ -11,19 +11,46 @@
 	import EntryDetailSlideOver from '$lib/components/admin/EntryDetailSlideOver.svelte';
 	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
 
-	/** True iff the entry is effectively paid — either the per-entry
-	 *  paid flag is set OR the per-user localStorage cache says so
-	 *  (legacy per-user payment mode). Matches the legacy /admin
-	 *  page's logic so the stats agree across both views. */
+	/** True iff the entry is effectively paid.
+	 *
+	 *  As of v2.157.0 the admin entries response carries `owner.paid`
+	 *  (the per-user payment flag) from the backend, so we prefer it.
+	 *  Falls back to the legacy localStorage cache when the field is
+	 *  missing (e.g. cached responses pre-rollout) — getPaidLocal will
+	 *  also be retired once we're confident nothing depends on it.
+	 */
 	function isEffectivelyPaid(e: Entry): boolean {
-		return e.paid || getPaidLocal(e.user_id);
+		if (e.paid) return true;
+		if (e.owner?.paid) return true;
+		return getPaidLocal(e.user_id);
+	}
+
+	/** Derive the Prize-eligibility chip state.
+	 *
+	 *  - `eligible` — entry is prize_eligible, submitted, and paid.
+	 *  - `pending`  — entry is prize_eligible, submitted, but unpaid.
+	 *  - `excluded` — anything else (not eligible, withdrawn, disabled,
+	 *                 or still draft).
+	 */
+	function prizeChipState(e: Entry): 'eligible' | 'pending' | 'excluded' {
+		if (e.is_disabled || e.withdrawn_at) return 'excluded';
+		if (!e.prize_eligible) return 'excluded';
+		const isSubmitted = computeDisplayStatus(e, 'phase_1') === 'submitted';
+		if (!isSubmitted) return 'excluded';
+		return isEffectivelyPaid(e) ? 'eligible' : 'pending';
 	}
 
 	let listing: AdminEntriesPage = { items: [], total: 0 };
 	let search = '';
 	let statusFilter = '';
+	// Lifecycle filter is orthogonal to status — 'disabled' (entry.is_disabled)
+	// and 'withdrawn' (entry.withdrawn_at) are entry-level overlays, not
+	// phase statuses. Collapsing them into the same dropdown as draft/submitted
+	// was the source of the v2.156.1 "Disabled stat card 422" bug.
+	let lifecycleFilter: '' | 'disabled' | 'withdrawn' = '';
 	let paidFilter = '';
 	let modifiedWithin = '';
+	let refreshError: string | null = null;
 	let tableEl: HTMLDivElement | null = null;
 
 	// Slide-over state — entry to show + deep-link sync via ?entry=REF
@@ -31,31 +58,33 @@
 	let slideOverOpen = false;
 
 	async function refresh(): Promise<void> {
-		const filters: Record<string, string | boolean | undefined> = {
-			search: search || undefined,
-		};
-		if (statusFilter) filters.status = statusFilter;
-		if (paidFilter) filters.paid = paidFilter === 'paid';
-		// modified_within is passed via the v2 filter param — extend
-		// adminListEntries when we wire it cleanly. For now the URL
-		// includes it but the API client doesn't.
-		const params = new URLSearchParams();
-		Object.entries(filters).forEach(([k, v]) => {
-			if (v !== undefined) params.set(k, String(v));
-		});
-		if (modifiedWithin) params.set('modified_within', modifiedWithin);
-		// Use direct fetch via api client wrapper inside adminListEntries
-		// (it already supports search + status + paid via the v1 shape).
-		// For modified_within we'd need to extend; for now pass through.
-		listing = await adminListEntries(
-			{
-				search: search || undefined,
-				status: statusFilter || undefined,
-				paid: paidFilter ? paidFilter === 'paid' : undefined,
-				modified_within: modifiedWithin || undefined,
-			},
-			{ limit: 100, offset: 0 }
-		);
+		try {
+			refreshError = null;
+			// Resolve the lifecycle filter to the right backend params.
+			// Lifecycle overlays take precedence over the status dropdown
+			// because they're a *different* axis: disabled / withdrawn
+			// entries don't have a meaningful draft/submitted state to surface.
+			let effectiveStatus: string | undefined = statusFilter || undefined;
+			let effectiveDisabled: boolean | undefined;
+			if (lifecycleFilter === 'disabled') {
+				effectiveDisabled = true;
+				effectiveStatus = undefined;
+			} else if (lifecycleFilter === 'withdrawn') {
+				effectiveStatus = 'withdrawn'; // backend special-cases this
+			}
+			listing = await adminListEntries(
+				{
+					search: search || undefined,
+					status: effectiveStatus,
+					disabled: effectiveDisabled,
+					paid: paidFilter ? paidFilter === 'paid' : undefined,
+					modified_within: modifiedWithin || undefined,
+				},
+				{ limit: 100, offset: 0 }
+			);
+		} catch (err) {
+			refreshError = err instanceof Error ? err.message : 'Failed to load entries.';
+		}
 	}
 
 	function openSlideOver(entry: Entry): void {
@@ -105,6 +134,15 @@
 
 	async function setStatusFilter(s: string): Promise<void> {
 		statusFilter = s;
+		lifecycleFilter = ''; // clear overlay when selecting a phase status
+		await refresh();
+		await tick();
+		tableEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	async function setLifecycleFilter(l: '' | 'disabled' | 'withdrawn'): Promise<void> {
+		lifecycleFilter = l;
+		statusFilter = ''; // clear status when filtering by lifecycle overlay
 		await refresh();
 		await tick();
 		tableEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -155,7 +193,7 @@
 
 	<!-- Stat strip -->
 	<div class="grid grid-cols-2 sm:grid-cols-4 border border-base-300/30 rounded-2xl overflow-hidden mb-4">
-		<button on:click={() => setStatusFilter('')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
+		<button on:click={() => { setStatusFilter(''); setLifecycleFilter(''); }} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Total entries</div>
 			<div class="value">{listing.total}</div>
 		</button>
@@ -168,11 +206,18 @@
 			<div class="label">Paid</div>
 			<div class="value">{paid}<span class="unit">/{submitted}</span></div>
 		</button>
-		<button on:click={() => setStatusFilter('disabled')} class="kpi-card is-clickable text-left border-b border-base-300/30 rounded-none">
+		<button on:click={() => setLifecycleFilter('disabled')} class="kpi-card is-clickable text-left border-b border-base-300/30 rounded-none">
 			<div class="label">Disabled / withdrawn</div>
 			<div class="value">{disabled}</div>
 		</button>
 	</div>
+
+	{#if refreshError}
+		<div role="alert" class="alert alert-error alert-soft mb-3 text-sm">
+			<span>Couldn't load entries: {refreshError}</span>
+			<button class="btn btn-ghost btn-xs" on:click={() => refresh()}>Retry</button>
+		</div>
+	{/if}
 
 	<!-- Filter bar -->
 	<div class="flex flex-wrap gap-2 items-center mb-3">
@@ -183,12 +228,15 @@
 			placeholder="Search by email, name, or reference"
 			class="input input-bordered input-sm max-w-xs flex-1"
 		/>
-		<select bind:value={statusFilter} on:change={() => refresh()} class="select select-bordered select-sm">
+		<select bind:value={statusFilter} on:change={() => setStatusFilter(statusFilter)} class="select select-bordered select-sm">
 			<option value="">All status</option>
 			<option value="draft">Draft</option>
 			<option value="submitted">Submitted</option>
-			<option value="withdrawn">Withdrawn</option>
+		</select>
+		<select bind:value={lifecycleFilter} on:change={() => setLifecycleFilter(lifecycleFilter)} class="select select-bordered select-sm" title="Lifecycle overlay: disabled or withdrawn entries">
+			<option value="">Active entries</option>
 			<option value="disabled">Disabled</option>
+			<option value="withdrawn">Withdrawn</option>
 		</select>
 		<select bind:value={paidFilter} on:change={() => refresh()} class="select select-bordered select-sm">
 			<option value="">All payment</option>
@@ -215,8 +263,11 @@
 						<tr class="text-[10px] uppercase tracking-widest text-base-content/40">
 							<th>Reference</th>
 							<th>Entry</th>
+							<th>Owner</th>
 							<th>Status</th>
 							<th>Paid</th>
+							<th>Paid to</th>
+							<th>Prize</th>
 							<th>Modified</th>
 							<th></th>
 						</tr>
@@ -226,6 +277,14 @@
 							<tr class="cursor-pointer hover:bg-primary/[0.04]" on:click={() => openSlideOver(e)}>
 								<td><span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-1.5 py-0.5">{e.reference}</span></td>
 								<td><div class="font-medium">{e.display_name ?? `Entry ${e.entry_number}`}</div></td>
+								<td>
+									{#if e.owner}
+										<div class="text-[12.5px] font-medium leading-tight">{e.owner.name ?? '—'}</div>
+										<div class="text-[11px] text-base-content/55 leading-tight">{e.owner.email}</div>
+									{:else}
+										<span class="text-base-content/30">—</span>
+									{/if}
+								</td>
 								<td>
 									{#if e.is_disabled}
 										<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
@@ -238,6 +297,18 @@
 									{/if}
 								</td>
 								<td>{#if isEffectivelyPaid(e)}<span class="status-pill s-success"><span class="dot"></span>Paid</span>{:else}<span class="status-pill s-ghost"><span class="dot"></span>Unpaid</span>{/if}</td>
+								<td class="text-[12px] text-base-content/60">
+									{#if e.owner?.paid_to}{e.owner.paid_to}{:else}<span class="text-base-content/30">—</span>{/if}
+								</td>
+								<td>
+									{#if prizeChipState(e) === 'eligible'}
+										<span class="status-pill s-ghost">Eligible</span>
+									{:else if prizeChipState(e) === 'pending'}
+										<span class="status-pill s-warning">Pending payment</span>
+									{:else}
+										<span class="text-base-content/30">—</span>
+									{/if}
+								</td>
 								<td class="text-xs text-base-content/60" title={e.updated_at}>{formatDate(e.updated_at)}</td>
 								<td class="text-right text-base-content/40">›</td>
 							</tr>

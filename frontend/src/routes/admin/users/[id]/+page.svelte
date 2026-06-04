@@ -19,7 +19,7 @@
 		type EngagementSummary,
 		type AuditEventRead,
 	} from '$lib/api/admin';
-	import type { Entry } from '$lib/types/entry';
+	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
 	import EntryDetailSlideOver from '$lib/components/admin/EntryDetailSlideOver.svelte';
 
 	let user: UserDetailRead | null = null;
@@ -210,7 +210,7 @@
 						</p>
 					</div>
 					<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1 min-w-[300px]">
-						<div class="kpi-card"><div class="label">Entries</div><div class="value">{user.entries_count}</div><div class="delta">{user.submitted_entries_count} sub · {user.draft_entries_count} draft</div></div>
+						<div class="kpi-card"><div class="label">Submitted</div><div class="value">{user.submitted_entries_count}<span class="unit">/{user.entries_count}</span></div><div class="delta">{user.draft_entries_count} draft{user.draft_entries_count === 1 ? '' : 's'} pending</div></div>
 						<div class="kpi-card"><div class="label">Paid</div><div class="value">{user.paid ? '1' : '0'}<span class="unit">/{user.entries_count || 1}</span></div></div>
 						<div class="kpi-card"><div class="label">Last login</div><div class="value !text-xs !font-semibold" title={user.last_login_at ?? ''}>{formatDate(user.last_login_at)}</div><div class="delta">audit-derived</div></div>
 						<div class="kpi-card"><div class="label">Last activity</div><div class="value !text-xs !font-semibold" title={user.last_activity_at ?? ''}>{formatDate(user.last_activity_at)}</div><div class="delta">all event types</div></div>
@@ -289,24 +289,44 @@
 					{:else}
 						<div class="grid gap-3 grid-cols-1 sm:grid-cols-2">
 							{#each entries as e (e.id)}
+								<!-- Whole card is the click target. v2.157.0 fixes:
+								     (a) status pill now branches on computeDisplayStatus,
+								     (b) "Entry #N" subtitle dropped — display_name is enough,
+								     (c) Paid pill moved next to the reference badge,
+								     (d) bottom metadata row removed, paddings tightened,
+								     (g) inner "View picks →" button removed to fix the
+								     nested-button anti-pattern (outer role="button" + inner
+								     <button> made keyboard focus inert). The card itself
+								     is the affordance; the chevron at the right is the
+								     visible cue. -->
 								<div
-									class="entry-mini cursor-pointer"
+									class="entry-mini cursor-pointer flex items-start justify-between gap-3"
 									role="button"
 									tabindex="0"
 									on:click={() => openSlideOver(e)}
 									on:keydown={(ev) => ev.key === 'Enter' && openSlideOver(e)}
 								>
-									<div class="flex items-center justify-between gap-2 mb-2">
-										<span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-1.5 py-0.5">{e.reference}</span>
-										{#if e.is_disabled}<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
-										{:else}<span class="status-pill s-success"><span class="dot"></span>Submitted</span>{/if}
+									<div class="flex-1 min-w-0">
+										<div class="flex items-center gap-2 flex-wrap mb-1">
+											<span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-1.5 py-0.5">{e.reference}</span>
+											{#if e.paid}
+												<span class="status-pill s-success" style="padding: 2px 8px;"><span class="dot"></span>Paid</span>
+											{:else}
+												<span class="status-pill s-ghost" style="padding: 2px 8px;"><span class="dot"></span>Unpaid</span>
+											{/if}
+											{#if e.is_disabled}
+												<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
+											{:else if e.withdrawn_at}
+												<span class="status-pill s-warning"><span class="dot"></span>Withdrawn</span>
+											{:else if computeDisplayStatus(e, 'phase_1') === 'submitted'}
+												<span class="status-pill s-success"><span class="dot"></span>Submitted</span>
+											{:else}
+												<span class="status-pill s-ghost"><span class="dot"></span>Draft</span>
+											{/if}
+										</div>
+										<div class="font-semibold text-sm truncate">{e.display_name ?? `Entry ${e.entry_number}`}</div>
 									</div>
-									<div class="font-semibold text-sm mb-2">{e.display_name ?? `Entry ${e.entry_number}`}</div>
-									<div class="flex items-center gap-2 flex-wrap text-[11px] text-base-content/40">
-										{#if e.paid}<span class="status-pill s-success" style="padding: 2px 8px;"><span class="dot"></span>Paid</span>{:else}<span class="status-pill s-ghost" style="padding: 2px 8px;"><span class="dot"></span>Unpaid</span>{/if}
-										<span>Entry #{e.entry_number}</span>
-									</div>
-									<button class="btn btn-outline btn-xs mt-2 self-start">View picks →</button>
+									<span class="text-base-content/40 text-lg leading-none mt-0.5" aria-hidden="true">›</span>
 								</div>
 							{/each}
 						</div>

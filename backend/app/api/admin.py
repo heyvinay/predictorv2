@@ -21,6 +21,8 @@ from app.models.prediction import MatchPrediction
 from app.models.score import Score, ScoreSource
 from app.models.user import User
 from app.schemas.admin import (
+    AdminBonusAnswer,
+    AdminEntryPredictions,
     AuditEventPage,
     EngagementSummary,
     FixtureMini,
@@ -944,3 +946,85 @@ async def get_user_engagement(
     copy will reuse the same service function unchanged.
     """
     return await posthog_read.get_engagement_summary(user_id, days=days)
+
+
+# ── Admin entry predictions (slide-over Group/Knockout/Bonus tabs) ──────────
+
+
+@router.get(
+    "/entries/{entry_id}/predictions",
+    response_model=AdminEntryPredictions,
+)
+async def get_admin_entry_predictions(
+    entry_id: uuid.UUID,
+    session: DbSession,
+    _admin: AdminUser,
+) -> AdminEntryPredictions:
+    """Read-only view of one entry's predictions for the admin slide-over.
+
+    Single round-trip — returns match predictions (Phase 1), the
+    aggregated bracket, and the user's bonus answers. Admin-only;
+    bypasses the blind-pool visibility check via the same
+    ``get_entry_for_view`` precedent as the existing admin entry-detail
+    loader. No deadline gate per v2.157.0 decision — admins have full
+    read access at all times.
+
+    Audit: deliberately NOT logged. Reads stay invisible by convention
+    (the audit log is mutation-focused).
+    """
+    # Local imports avoid circular references between admin.py and
+    # entry_predictions.py (the latter imports the bracket aggregator we
+    # reuse here).
+    from app.api.entry_predictions import _organize_bracket, _to_match_read
+    from app.models.prediction import PredictionPhase
+    from app.services import entries as entries_service
+    from app.services import predictions as predictions_service
+
+    # Load entry through the visibility helper. AdminUser short-circuits
+    # the blind-pool gate.
+    entry = await entries_service.get_entry_for_view(
+        session, entry_id=entry_id, viewer=_admin
+    )
+
+    # Phase 1 match predictions (with fixture join for team names + kickoff).
+    match_rows = await predictions_service.get_match_predictions(
+        session, entry=entry
+    )
+    match_predictions = [_to_match_read(p, f) for p, f in match_rows]
+
+    # Phase 1 bracket — aggregated into the shape KnockoutBracket expects.
+    team_rows = await predictions_service.get_bracket_predictions(
+        session, entry=entry, phase=PredictionPhase.PHASE_1
+    )
+    bracket = _organize_bracket(team_rows) if team_rows else None
+
+    # Bonus answers — join question_id to the YAML title.
+    bonus_rows = await predictions_service.get_bonus_predictions(
+        session, entry=entry
+    )
+    title_by_id = {q.id: q.label for q in get_bonus_questions()}
+    bonus_answers = [
+        AdminBonusAnswer(
+            question_id=r.question_id,
+            question_title=title_by_id.get(r.question_id, r.question_id),
+            answer=r.answer or None,
+        )
+        for r in bonus_rows
+    ]
+    # If the user answered NO bonus questions, still return the 4 question
+    # placeholders so the slide-over UI is consistent. Each placeholder
+    # has answer=None which the frontend renders as an em-dash.
+    answered_ids = {r.question_id for r in bonus_rows}
+    for q in get_bonus_questions():
+        if q.id not in answered_ids:
+            bonus_answers.append(
+                AdminBonusAnswer(
+                    question_id=q.id, question_title=q.label, answer=None
+                )
+            )
+
+    return AdminEntryPredictions(
+        match_predictions=match_predictions,
+        bracket=bracket,
+        bonus_answers=bonus_answers,
+    )

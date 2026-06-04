@@ -295,3 +295,116 @@ class TestAdminListEntriesModifiedWithin:
             session, competition=competition, modified_within="not-a-window"
         )
         assert total == 2  # both entries returned, filter ignored
+
+
+class TestAdminListEntriesStatusFilter:
+    """v2.157.0 — status filter bug fixes:
+
+    Bug 0a: every entry is created with BOTH phase_1 and phase_2 rows in
+    DRAFT (Phase 2 is dormant but the rows exist). The pre-fix code joined
+    PredictionEntryPhase without scoping phase=PHASE_1, so `status=draft`
+    matched every entry via its dormant phase_2=DRAFT row.
+
+    Bug 0b: withdrawn is an entry-level overlay (entry.withdrawn_at), not
+    a phase status — phase rows never transition to WITHDRAWN in the
+    lifecycle code.
+    """
+
+    async def test_status_draft_does_not_match_submitted_entries(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # Submit one entry (transition its phase_1 row → SUBMITTED).
+        # The phase_2 row stays in DRAFT — that's the bait the bug bit on.
+        from app.models.entry import EntryStatus
+        from app.models.prediction import PredictionPhase
+
+        all_entries, _ = await entries_service.admin_list_entries(
+            session, competition=competition
+        )
+        target = all_entries[0]
+        # Reload with phases to mutate
+        from sqlmodel import select
+        from sqlalchemy.orm import selectinload
+        from app.models.entry import PredictionEntry, PredictionEntryPhase
+
+        target = (
+            await session.execute(
+                select(PredictionEntry)
+                .options(selectinload(PredictionEntry.phases))
+                .where(PredictionEntry.id == target.id)
+            )
+        ).scalar_one()
+        phase_1 = next(
+            p for p in target.phases if p.phase == PredictionPhase.PHASE_1
+        )
+        phase_1.status = EntryStatus.SUBMITTED
+        session.add(phase_1)
+        await session.commit()
+
+        # status=draft must now return ONLY the un-submitted entry —
+        # not BOTH entries via their dormant phase_2=DRAFT rows.
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, status=EntryStatus.DRAFT
+        )
+        assert total == 1, "Pre-fix bug: would return 2 via phase_2=DRAFT"
+        assert rows[0].id != target.id
+
+        # status=submitted returns only the submitted one.
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, status=EntryStatus.SUBMITTED
+        )
+        assert total == 1
+        assert rows[0].id == target.id
+
+    async def test_status_filter_total_count_not_inflated_by_join(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # Both entries are draft (phase_1 + phase_2 both DRAFT). Pre-fix
+        # the count would have inflated to 4 because each entry matched
+        # via two phase rows. With phase=PHASE_1 scope it stays at 2.
+        from app.models.entry import EntryStatus
+
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, status=EntryStatus.DRAFT
+        )
+        assert total == len(rows) == 2
+
+    async def test_status_withdrawn_filters_on_entry_withdrawn_at(
+        self,
+        session: AsyncSession,
+        competition: Competition,
+        two_users_with_entries: tuple[User, User],
+    ):
+        # Withdraw one entry by setting withdrawn_at directly (avoids the
+        # full admin_withdraw_entry path which has additional deps).
+        from app.models.entry import EntryStatus
+        from app.models._datetime import utc_now
+
+        all_entries, _ = await entries_service.admin_list_entries(
+            session, competition=competition
+        )
+        target = all_entries[0]
+        target.withdrawn_at = utc_now()
+        target.withdrawn_reason = "test"
+        session.add(target)
+        await session.commit()
+
+        # status=withdrawn returns exactly the withdrawn entry.
+        rows, total = await entries_service.admin_list_entries(
+            session, competition=competition, status=EntryStatus.WITHDRAWN
+        )
+        assert total == 1
+        assert rows[0].id == target.id
+        assert rows[0].withdrawn_at is not None
+
+        # status=draft excludes the withdrawn entry.
+        rows, _ = await entries_service.admin_list_entries(
+            session, competition=competition, status=EntryStatus.DRAFT
+        )
+        assert all(r.id != target.id for r in rows)

@@ -1811,21 +1811,45 @@ async def admin_list_entries(
             cutoff = utc_now() - delta
             base = base.where(PredictionEntry.updated_at >= cutoff)
     if status is not None:
-        # Filter on whether the entry has at least one phase with this
-        # status. Status is per-phase, not per-entry, so this is the
-        # most useful semantic for admin search.
-        base = base.join(
-            PredictionEntryPhase,
-            PredictionEntry.id == PredictionEntryPhase.entry_id,
-        ).where(PredictionEntryPhase.status == status)
+        # WITHDRAWN is an entry-level overlay (entry.withdrawn_at), not a
+        # phase status — entries' phase rows don't transition to WITHDRAWN
+        # in the lifecycle code. Special-case it.
+        if status == EntryStatus.WITHDRAWN:
+            base = base.where(PredictionEntry.withdrawn_at.is_not(None))
+        else:
+            # DRAFT / SUBMITTED filter must scope to PHASE_1. Every entry
+            # carries a phase_2 = DRAFT row (Phase 2 is dormant in
+            # production but the rows exist from creation), so a naive
+            # join-and-match would return every entry for status=draft.
+            # Also exclude withdrawn entries — they have phase_1=DRAFT
+            # but the user-facing "Draft" category never includes them
+            # (the frontend stat-card derivation has the same exclusion).
+            base = base.join(
+                PredictionEntryPhase,
+                PredictionEntry.id == PredictionEntryPhase.entry_id,
+            ).where(
+                PredictionEntryPhase.phase == PredictionPhase.PHASE_1,
+                PredictionEntryPhase.status == status,
+                PredictionEntry.withdrawn_at.is_(None),
+            )
 
     # Count the filtered set BEFORE paginating, against the same query
-    # graph (so joins added by the status filter are honoured).
-    total_q = select(func.count()).select_from(base.subquery())
+    # graph (so joins added by the status filter are honoured). The
+    # PHASE_1 scope above guarantees at most one phase row per entry, so
+    # DISTINCT isn't strictly required — but use distinct() defensively
+    # in case future code adds another join.
+    total_q = select(func.count()).select_from(base.distinct().subquery())
     total = int((await session.execute(total_q)).scalar_one())
 
     items_q = (
-        base.options(selectinload(PredictionEntry.phases))
+        base.options(
+            selectinload(PredictionEntry.phases),
+            # v2.157.0 — admin Entries page needs owner display name, email
+            # and paid_to per row. Eager-loaded here so the page renders
+            # without an N+1 hit. User-facing endpoints use the same
+            # service but their response schemas (EntryRead) drop owner.
+            selectinload(PredictionEntry.user),
+        )
         .order_by(PredictionEntry.entry_number)
         .offset(offset)
     )

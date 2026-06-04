@@ -18,6 +18,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.prediction import BracketPrediction, MatchPredictionRead
+
 
 # ---------------------------------------------------------------------------
 # Audit log
@@ -232,3 +234,32 @@ class FixtureMini(BaseModel):
     home_score: int | None
     away_score: int | None
     status: str
+
+
+# ---------------------------------------------------------------------------
+# Admin entry predictions (v2.157.0 — F1+F2+F3 slide-over real data)
+# ---------------------------------------------------------------------------
+class AdminBonusAnswer(BaseModel):
+    """Minimal bonus answer for the admin slide-over Bonus tab.
+
+    Carries the question's human-readable title server-side so the
+    frontend doesn't need to know about the YAML config layout.
+    """
+
+    question_id: str
+    question_title: str
+    answer: str | None
+
+
+class AdminEntryPredictions(BaseModel):
+    """One round-trip payload for the slide-over Group / Knockout / Bonus tabs.
+
+    Match predictions reuse `MatchPredictionRead` (already serializes
+    home_team / away_team / kickoff / is_locked via fixture). Bracket is
+    the existing aggregated shape. Bonus is a minimal projection — no
+    category chip, no points value per user direction (v2.157.0 scope).
+    """
+
+    match_predictions: list[MatchPredictionRead]
+    bracket: BracketPrediction | None
+    bonus_answers: list[AdminBonusAnswer]

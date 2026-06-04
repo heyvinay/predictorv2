@@ -29,6 +29,8 @@ from app.models.prediction import PredictionPhase
 logger = logging.getLogger(__name__)
 from app.schemas.entry import (
     AdminEntriesPage,
+    AdminEntryOwner,
+    AdminEntryRead,
     EntryCompletionSummary,
     EntryCreate,
     EntryDisable,
@@ -483,6 +485,10 @@ async def admin_list_entries(
     status_: EntryStatus | None = Query(default=None, alias="status"),
     paid: bool | None = Query(default=None),
     disabled: bool | None = Query(default=None),
+    modified_within: str | None = Query(
+        default=None,
+        description="'1h' | '24h' | '7d' | '30d' — filters entries with updated_at within the window. Unknown values are silently ignored.",
+    ),
     limit: int | None = Query(default=None, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> AdminEntriesPage:
@@ -505,13 +511,17 @@ async def admin_list_entries(
         status=status_,
         paid=paid,
         disabled=disabled,
+        modified_within=modified_within,
         limit=limit,
         offset=offset,
     )
-    return AdminEntriesPage(
-        items=[EntryRead.model_validate(r) for r in rows],
-        total=total,
-    )
+    items: list[AdminEntryRead] = []
+    for r in rows:
+        item = AdminEntryRead.model_validate(r)
+        if r.user is not None:
+            item.owner = AdminEntryOwner.model_validate(r.user)
+        items.append(item)
+    return AdminEntriesPage(items=items, total=total)
 
 
 @admin_router.post(

@@ -18,8 +18,11 @@
 		adminDisableEntry,
 		adminSetEntryPaid,
 		adminSetEntryPrizeEligible,
+		getAdminEntryPredictions,
 		type EntryEvent,
+		type AdminEntryPredictions,
 	} from '$lib/api/admin';
+	import KnockoutBracket from '$lib/components/bracket/KnockoutBracket.svelte';
 	import type { Entry } from '$lib/types/entry';
 
 	export let entry: Entry | null = null;
@@ -29,6 +32,13 @@
 
 	type Tab = 'groups' | 'knockout' | 'bonus' | 'audit';
 	let activeTab: Tab = 'groups';
+
+	// Predictions state — lazy-loaded on first switch to any of the
+	// groups / knockout / bonus tabs (one fetch covers all three).
+	let predictions: AdminEntryPredictions | null = null;
+	let predictionsLoaded = false;
+	let predictionsLoading = false;
+	let predictionsError: string | null = null;
 
 	const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
 		{ key: 'groups', label: '⚽ Group stage' },
@@ -56,11 +66,48 @@
 		}
 	}
 
+	async function loadPredictions(): Promise<void> {
+		if (!entry || predictionsLoaded || predictionsLoading) return;
+		predictionsLoading = true;
+		predictionsError = null;
+		try {
+			predictions = await getAdminEntryPredictions(entry.id);
+			predictionsLoaded = true;
+		} catch (err) {
+			predictionsError =
+				err instanceof Error ? err.message : 'Failed to load predictions.';
+		} finally {
+			predictionsLoading = false;
+		}
+	}
+
 	// Audit tab loads events on first view.
 	$: if (entry && open && activeTab === 'audit') loadEvents();
 
+	// Group / Knockout / Bonus all share the same fetch — one round-trip
+	// satisfies all three. The guard inside loadPredictions() makes this
+	// idempotent.
+	$: if (
+		entry &&
+		open &&
+		(activeTab === 'groups' || activeTab === 'knockout' || activeTab === 'bonus')
+	)
+		loadPredictions();
+
 	// Reset to first tab whenever the entry changes (different entry → fresh view).
-	$: if (entry) activeTab = 'groups';
+	// Also reset the predictions cache so the new entry doesn't show stale data.
+	$: if (entry) {
+		activeTab = 'groups';
+		predictions = null;
+		predictionsLoaded = false;
+		predictionsError = null;
+	}
+
+	// Derived: group match predictions by `home_team`/`away_team`'s group letter.
+	// The backend `MatchPredictionRead` doesn't ship the group letter so we
+	// fall back to a sort by kickoff and label the section "All group fixtures".
+	// (A future iteration can join fixture.group_name into the response.)
+	$: matchPredictions = predictions?.match_predictions ?? [];
 
 	function close(): void {
 		dispatch('close');
@@ -179,52 +226,84 @@
 			<!-- ════════ Body ════════ -->
 			<div class="flex-1 overflow-y-auto p-6">
 				{#if activeTab === 'groups'}
-					<!-- F1 — group stage predictions placeholder with informative copy -->
-					<div class="space-y-4">
-						<div class="kpi-card !p-4">
-							<div class="label">Group stage scorelines</div>
-							<div class="value mt-2">— / 72</div>
-							<div class="delta">Predicted scorelines from this entry's <span class="font-mono">MatchPrediction</span> rows</div>
+					<!-- F1 — real group-stage match predictions -->
+					{#if predictionsLoading}
+						<p class="text-sm text-base-content/55">Loading predictions…</p>
+					{:else if predictionsError}
+						<div class="alert alert-error alert-soft text-sm">
+							<span>Couldn't load predictions: {predictionsError}</span>
+							<button class="btn btn-ghost btn-xs" on:click={loadPredictions}>Retry</button>
 						</div>
-						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
-							<p class="font-medium mb-2">Group fixture rendering — coming in v2.157.0</p>
-							<p class="text-xs text-base-content/60 leading-relaxed">
-								This tab will render all 12 groups (A–L) with the user's predicted scorelines for every fixture (72 in total), grouped as cards. Needs a small admin endpoint that returns the entry's <span class="font-mono">MatchPrediction</span> rows filtered to group-stage fixtures. Today the data exists; the surface to fetch it on behalf of another user isn't wired yet.
-							</p>
+					{:else if matchPredictions.length === 0}
+						<p class="text-sm text-base-content/55">No group-stage predictions submitted yet.</p>
+					{:else}
+						<div class="space-y-2">
+							<p class="text-[10px] font-mono uppercase tracking-[0.2em] text-primary mb-2">{matchPredictions.length} scoreline{matchPredictions.length === 1 ? '' : 's'} predicted</p>
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+								{#each matchPredictions as m (m.id)}
+									<div class="rounded-lg border border-base-300/30 bg-base-100/40 p-3 flex items-center justify-between gap-3">
+										<div class="min-w-0 flex-1">
+											<div class="text-sm font-medium truncate">{m.home_team ?? '—'} <span class="text-base-content/40">vs</span> {m.away_team ?? '—'}</div>
+											<div class="text-[11px] text-base-content/50 mt-0.5" title={m.kickoff ?? ''}>{m.kickoff ? formatDate(m.kickoff) : '—'}</div>
+										</div>
+										<div class="font-display font-bold text-lg tabular-nums">
+											<span class="text-primary">{m.home_score}</span>
+											<span class="text-base-content/30 mx-1">–</span>
+											<span class="text-primary">{m.away_score}</span>
+										</div>
+									</div>
+								{/each}
+							</div>
 						</div>
-					</div>
+					{/if}
 
 				{:else if activeTab === 'knockout'}
-					<!-- F2 — knockout bracket placeholder with informative copy -->
-					<div class="space-y-4">
-						<div class="kpi-card !p-4">
-							<div class="label">Bracket picks</div>
-							<div class="value mt-2">— / 31</div>
-							<div class="delta">R16 (8) + QF (4) + SF (2) + Final (1) → 15 advancement picks · plus champion</div>
+					<!-- F2 — real knockout bracket via the shared component, locked -->
+					{#if predictionsLoading}
+						<p class="text-sm text-base-content/55">Loading bracket…</p>
+					{:else if predictionsError}
+						<div class="alert alert-error alert-soft text-sm">
+							<span>Couldn't load predictions: {predictionsError}</span>
+							<button class="btn btn-ghost btn-xs" on:click={loadPredictions}>Retry</button>
 						</div>
-						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
-							<p class="font-medium mb-2">Knockout bracket rendering — coming in v2.157.0</p>
-							<p class="text-xs text-base-content/60 leading-relaxed">
-								This tab will render the user's picks for Round of 16 → QF → SF → Final with a champion hero. R32 advancement is derived from the predicted group standings via <span class="font-mono">bracketResolver.ts::buildGroupPositions</span>. Needs the admin endpoint that returns the entry's <span class="font-mono">TeamPrediction</span> rows.
-							</p>
-						</div>
-					</div>
+					{:else if !predictions?.bracket}
+						<p class="text-sm text-base-content/55">No knockout bracket submitted yet.</p>
+					{:else}
+						<KnockoutBracket
+							prediction={predictions.bracket}
+							locked={true}
+							phase="phase_1"
+						/>
+					{/if}
 
 				{:else if activeTab === 'bonus'}
-					<!-- F3 — bonus answers placeholder with informative copy -->
-					<div class="space-y-4">
-						<div class="kpi-card !p-4">
-							<div class="label">Bonus answers</div>
-							<div class="value mt-2">— / 4</div>
-							<div class="delta">Goal Machine · The Sieve · Dark Horse · Bottlers</div>
+					<!-- F3 — minimal bonus answers (question + answer only per v2.157.0 scope) -->
+					{#if predictionsLoading}
+						<p class="text-sm text-base-content/55">Loading bonus answers…</p>
+					{:else if predictionsError}
+						<div class="alert alert-error alert-soft text-sm">
+							<span>Couldn't load predictions: {predictionsError}</span>
+							<button class="btn btn-ghost btn-xs" on:click={loadPredictions}>Retry</button>
 						</div>
-						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
-							<p class="font-medium mb-2">Bonus answers rendering — coming in v2.157.0</p>
-							<p class="text-xs text-base-content/60 leading-relaxed">
-								This tab will render the user's four bonus picks (Goal Machine, The Sieve, Dark Horse, Bottlers) in a 2-col grid with the points value and category. Needs the admin endpoint that returns the entry's <span class="font-mono">BonusPrediction</span> rows.
-							</p>
+					{:else if !predictions || predictions.bonus_answers.length === 0}
+						<p class="text-sm text-base-content/55">No bonus answers submitted yet.</p>
+					{:else}
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							{#each predictions.bonus_answers as b (b.question_id)}
+								<div class="rounded-lg border border-base-300/30 bg-base-100/40 p-3">
+									<div class="text-[10px] font-mono uppercase tracking-[0.2em] text-base-content/40">{b.question_id}</div>
+									<div class="font-medium text-sm mt-1">{b.question_title}</div>
+									<div class="mt-2 text-sm">
+										{#if b.answer}
+											<span class="font-display font-semibold text-primary">{b.answer}</span>
+										{:else}
+											<span class="text-base-content/30">—</span>
+										{/if}
+									</div>
+								</div>
+							{/each}
 						</div>
-					</div>
+					{/if}
 
 				{:else if activeTab === 'audit'}
 					<!-- E1 — Audit log as its own dedicated tab -->

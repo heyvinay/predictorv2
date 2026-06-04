@@ -23,6 +23,21 @@ export interface EntryPhase {
 	status_reason: string | null;
 }
 
+/**
+ * Owner projection embedded on admin entry list responses (v2.157.0).
+ *
+ * Only populated by `GET /api/admin/entries`. User-facing endpoints that
+ * return the same shape omit this field — backend privacy boundary.
+ */
+export interface EntryOwner {
+	name: string | null;
+	email: string;
+	/** Per-user payment flag (legacy mode). OR with `entry.paid` to get
+	 *  the effective paid state. */
+	paid: boolean;
+	paid_to: string | null;
+}
+
 export interface Entry {
 	id: string;
 	competition_id: string;
@@ -41,6 +56,8 @@ export interface Entry {
 	created_at: string;
 	updated_at: string;
 	phases: EntryPhase[];
+	/** Present only on admin entries-list responses. */
+	owner?: EntryOwner | null;
 }
 
 export interface EntrySettings {

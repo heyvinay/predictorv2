@@ -158,6 +158,39 @@ class Phase2OpenResponse(BaseModel):
     entries_already_open: int
 
 
+class AdminEntryOwner(BaseModel):
+    """Lightweight owner projection embedded in `AdminEntryRead`.
+
+    Added in v2.157.0 to power the Owner / Paid to columns on the admin
+    Entries page without forcing the frontend to make a second roundtrip
+    per row. NOT included in `EntryRead` — that schema is also returned
+    by user-facing endpoints, and leaking another user's email / paid_to
+    via the entries list there would be a PII regression.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str | None
+    email: str
+    # Per-user payment flag (legacy single-entry mode). Independent of
+    # the per-entry `paid` field — the frontend renders the effective
+    # paid state by OR-ing the two.
+    paid: bool
+    paid_to: str | None
+
+
+class AdminEntryRead(EntryRead):
+    """Admin-only superset of `EntryRead` carrying the entry's owner.
+
+    A subclass (not a sibling) so endpoints that previously returned
+    `EntryRead` and now return `AdminEntryRead` are JSON-compatible —
+    the new `owner` field is optional and any consumer typed against
+    `EntryRead` keeps working without changes.
+    """
+
+    owner: AdminEntryOwner | None = None
+
+
 class AdminEntriesPage(BaseModel):
     """Paginated response from `GET /admin/entries`.
 
@@ -167,7 +200,7 @@ class AdminEntriesPage(BaseModel):
     Prev / Next buttons.
     """
 
-    items: list[EntryRead]
+    items: list[AdminEntryRead]
     total: int
 
 

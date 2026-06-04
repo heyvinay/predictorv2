@@ -269,6 +269,54 @@ export async function adminSetEntryPrizeEligible(
 }
 
 // ===========================================================================
+// v2.157.0 — admin slide-over real prediction data (F1+F2+F3)
+// ===========================================================================
+
+/** One bonus answer with its question title resolved server-side. */
+export interface AdminBonusAnswer {
+	question_id: string;
+	question_title: string;
+	answer: string | null;
+}
+
+/** Aggregated bracket (mirrors backend `BracketPrediction`). */
+export interface AdminBracketPrediction {
+	group_winners: Record<string, string[]>;
+	round_of_32: string[];
+	round_of_16: string[];
+	quarter_finals: string[];
+	semi_finals: string[];
+	final: string[];
+	winner: string;
+}
+
+/** One round-trip payload for the slide-over Group / Knockout / Bonus tabs. */
+export interface AdminEntryPredictions {
+	match_predictions: Array<{
+		id: string;
+		fixture_id: string;
+		home_score: number;
+		away_score: number;
+		phase: 'phase_1' | 'phase_2';
+		locked_at: string | null;
+		home_team: string | null;
+		away_team: string | null;
+		kickoff: string | null;
+		is_locked: boolean;
+	}>;
+	bracket: AdminBracketPrediction | null;
+	bonus_answers: AdminBonusAnswer[];
+}
+
+export async function getAdminEntryPredictions(
+	entryId: string
+): Promise<AdminEntryPredictions> {
+	return api.get<AdminEntryPredictions>(
+		`/admin/entries/${entryId}/predictions`
+	);
+}
+
+// ===========================================================================
 // v2.156.0 — admin redesign API additions
 // ===========================================================================
 
