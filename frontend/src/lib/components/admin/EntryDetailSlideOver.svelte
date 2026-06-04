@@ -22,8 +22,18 @@
 		type EntryEvent,
 		type AdminEntryPredictions,
 	} from '$lib/api/admin';
-	import KnockoutBracket from '$lib/components/bracket/KnockoutBracket.svelte';
 	import type { Entry } from '$lib/types/entry';
+
+	// Stage display config for the Knockout tab. Lives in the script so the
+	// typed array literal isn't parsed in template-expression context (per
+	// the CLAUDE.md frontend gotcha about `<script lang="ts">`).
+	const KNOCKOUT_STAGES = [
+		{ key: 'round_of_32', label: 'Round of 32', unit: 'teams' },
+		{ key: 'round_of_16', label: 'Round of 16', unit: 'teams' },
+		{ key: 'quarter_finals', label: 'Quarter-finals', unit: 'teams' },
+		{ key: 'semi_finals', label: 'Semi-finals', unit: 'teams' },
+		{ key: 'final', label: 'Final', unit: 'team' }
+	] as const;
 
 	export let entry: Entry | null = null;
 	export let open: boolean = false;
@@ -108,6 +118,16 @@
 	// fall back to a sort by kickoff and label the section "All group fixtures".
 	// (A future iteration can join fixture.group_name into the response.)
 	$: matchPredictions = predictions?.match_predictions ?? [];
+
+	// Total knockout picks across the five stages. Excludes the Champion
+	// card to match the user-facing "31 picks" total (16 + 8 + 4 + 2 + 1).
+	$: knockoutPicksTotal = predictions?.bracket
+		? predictions.bracket.round_of_32.length +
+			predictions.bracket.round_of_16.length +
+			predictions.bracket.quarter_finals.length +
+			predictions.bracket.semi_finals.length +
+			predictions.bracket.final.length
+		: 0;
 
 	function close(): void {
 		dispatch('close');
@@ -258,7 +278,11 @@
 					{/if}
 
 				{:else if activeTab === 'knockout'}
-					<!-- F2 — real knockout bracket via the shared component, locked -->
+					<!-- F2 — compact stage-list view (v2.157.1).
+					     Replaces the user-facing <KnockoutBracket> wallchart, which
+					     bailed to a blank state when groupStandings={} (the slide-over
+					     has no source of standings). Admin diagnostic view: one card
+					     per stage with chip-pill teams + a Champion card. -->
 					{#if predictionsLoading}
 						<p class="text-sm text-base-content/55">Loading bracket…</p>
 					{:else if predictionsError}
@@ -266,14 +290,39 @@
 							<span>Couldn't load predictions: {predictionsError}</span>
 							<button class="btn btn-ghost btn-xs" on:click={loadPredictions}>Retry</button>
 						</div>
-					{:else if !predictions?.bracket}
-						<p class="text-sm text-base-content/55">No knockout bracket submitted yet.</p>
+					{:else if !predictions?.bracket || (knockoutPicksTotal === 0 && !predictions.bracket.winner)}
+						<p class="text-sm text-base-content/55">No knockout picks submitted yet.</p>
 					{:else}
-						<KnockoutBracket
-							prediction={predictions.bracket}
-							locked={true}
-							phase="phase_1"
-						/>
+						{@const b = predictions.bracket}
+						<div class="space-y-3">
+							<p class="text-[10px] font-mono uppercase tracking-[0.2em] text-primary mb-2">
+								{knockoutPicksTotal} / 31 picks
+							</p>
+
+							{#each KNOCKOUT_STAGES as s (s.key)}
+								{@const teams = b[s.key]}
+								{#if teams.length > 0}
+									<div class="rounded-lg border border-base-300/30 bg-base-100/40 p-3">
+										<div class="flex items-baseline justify-between mb-2">
+											<span class="text-[10px] font-mono uppercase tracking-[0.2em] text-primary">{s.label}</span>
+											<span class="text-[11px] text-base-content/40">{teams.length} {s.unit}</span>
+										</div>
+										<div class="flex flex-wrap gap-1.5">
+											{#each teams as team (team)}
+												<span class="status-pill s-ghost">{team}</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							{/each}
+
+							{#if b.winner}
+								<div class="rounded-lg border border-primary/30 bg-primary/[0.06] p-3">
+									<span class="text-[10px] font-mono uppercase tracking-[0.2em] text-primary">🏆 Champion</span>
+									<div class="font-display font-extrabold text-lg text-primary mt-1.5">{b.winner}</div>
+								</div>
+							{/if}
+						</div>
 					{/if}
 
 				{:else if activeTab === 'bonus'}
