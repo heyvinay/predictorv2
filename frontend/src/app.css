@@ -10,9 +10,18 @@
 	 * `text-warning` on the canvas would vanish; use `text-warning-text`. */
 	[data-theme="premium-night"] {
 		--warning-text: 245 158 11;     /* #F59E0B — 8.58:1 on base-100 */
+		/* v2.156.0 admin redesign — gold variants + intermediate base tones */
+		--primary-soft: 237 201 97;     /* #EDC961 — lighter champagne (gradient top) */
+		--primary-deep: 168 131 44;     /* #A8832C — darker champagne (gradient bottom) */
+		--base-150: 17 25 51;           /* #111933 — between base-100 and base-200 */
+		--base-250: 35 44 74;           /* #232C4A — between base-200 and base-300 */
 	}
 	[data-theme="hybrid"] {
 		--warning-text: 146 64 14;      /* #92400E — 7.09:1 on base-100 */
+		--primary-soft: 240 215 138;    /* #F0D78A — lighter champagne for light theme */
+		--primary-deep: 143 111 34;     /* #8F6F22 — keeps AA contrast on light surfaces */
+		--base-150: 232 237 244;        /* #E8EDF4 — between hybrid base-100 (#E2E7F0) and white cards */
+		--base-250: 205 212 224;        /* #CDD4E0 — between cards and divider */
 	}
 
 	html {
@@ -805,3 +814,174 @@ input[type='number'] {
 }
 
 @page { margin: 1cm; }
+
+/* ============================================================
+ *  v2.156.0 — Admin redesign component classes
+ *
+ *  Most of the admin redesign is composed inline with semantic
+ *  DaisyUI utilities (bg-base-200, text-base-content/55, etc.).
+ *  These helpers exist for the patterns where the utility chain
+ *  is long enough to hurt readability OR where there's hover /
+ *  animation logic that doesn't compose well as Tailwind alone.
+ * ============================================================ */
+@layer components {
+	/* ── KPI card — admin stat strips + user-detail KPI strip ── */
+	.kpi-card {
+		@apply rounded-xl border border-base-300/40 px-4 py-3.5;
+		@apply bg-gradient-to-b from-base-content/[0.02] to-transparent;
+		@apply transition-colors duration-150;
+	}
+	.kpi-card .label {
+		@apply text-[10px] uppercase tracking-[0.14em] text-base-content/40 font-medium;
+	}
+	.kpi-card .value {
+		@apply mt-1.5 font-display font-extrabold text-[22px] leading-none -tracking-[0.015em];
+	}
+	.kpi-card .value .unit {
+		@apply text-[13px] font-semibold text-base-content/40 ml-1;
+	}
+	.kpi-card .delta {
+		@apply mt-1 text-[11px] text-base-content/40;
+	}
+	.kpi-card .delta.up {
+		@apply text-success;
+	}
+
+	/* Clickable stat-card affordance (Users + Entries pages) — hover
+	 * lifts to gold border + cursor pointer. Inert cards lack the
+	 * .is-clickable class and don't reveal the affordance. */
+	.kpi-card.is-clickable {
+		@apply cursor-pointer;
+	}
+	.kpi-card.is-clickable:hover {
+		@apply border-primary/30;
+		box-shadow: inset 0 0 0 1px rgb(var(--primary-soft) / 0.18);
+	}
+	.kpi-card.is-clickable:hover .label {
+		@apply text-primary;
+	}
+
+	/* ── Status pills (dot + label) — used pervasively ── */
+	.status-pill {
+		@apply inline-flex items-center gap-1.5 rounded-full;
+		@apply px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap;
+		@apply border border-base-300/30 bg-base-content/[0.03] text-base-content/60;
+	}
+	.status-pill .dot {
+		@apply inline-block w-1.5 h-1.5 rounded-full;
+		background: currentColor;
+		box-shadow: 0 0 8px currentColor;
+	}
+	.status-pill.s-success { @apply text-success border-success/30 bg-success/10; }
+	.status-pill.s-warning { @apply text-warning-text border-warning-text/30; background-color: rgb(var(--warning-text) / 0.08); }
+	.status-pill.s-error   { @apply text-error border-error/30 bg-error/10; }
+	.status-pill.s-info    { @apply text-info border-info/30 bg-info/10; }
+	.status-pill.s-primary { @apply text-primary border-primary/30 bg-primary/10; }
+	.status-pill.s-ghost   { @apply text-base-content/40 border-base-300/30; }
+
+	/* ── Confirm modal (Pattern C — every destructive admin action) ── */
+	/* The scrim is fixed full-screen with backdrop-blur. Toggled via
+	 * adding/removing .open from the scrim element. */
+	.confirm-scrim {
+		position: fixed; inset: 0;
+		background: rgb(11 19 41 / 0.65);
+		backdrop-filter: blur(3px);
+		z-index: 60;
+		display: none;
+		align-items: center; justify-content: center;
+		padding: 20px;
+	}
+	[data-theme="hybrid"] .confirm-scrim {
+		background: rgb(11 19 41 / 0.45);
+	}
+	.confirm-scrim.open { display: flex; animation: cm-fade 0.18s ease; }
+	@keyframes cm-fade { from { opacity: 0; } to { opacity: 1; } }
+
+	.confirm-modal {
+		width: min(460px, 92vw);
+		@apply bg-base-200 border border-primary/10 rounded-2xl p-6 relative;
+		box-shadow: 0 24px 80px -16px rgb(0 0 0 / 0.7);
+		animation: cm-rise 0.20s cubic-bezier(0.32, 0.72, 0, 1);
+	}
+	@keyframes cm-rise {
+		from { transform: translateY(8px); opacity: 0; }
+		to   { transform: none; opacity: 1; }
+	}
+	.confirm-modal::before {
+		content: '';
+		position: absolute; top: 0; left: 16px; right: 16px;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, rgb(var(--primary-soft) / 0.35), transparent);
+	}
+
+	/* ── Audit feed row — grid layout that doesn't compose cleanly as utilities ── */
+	.audit-feed-row {
+		display: grid;
+		grid-template-columns: 96px minmax(170px, 1.1fr) minmax(150px, 0.9fr) minmax(180px, 1.4fr);
+		gap: 16px;
+		padding: 7px 20px;
+		align-items: center;
+		border-bottom: 1px solid rgb(var(--base-content) / 0.035);
+	}
+	.audit-feed-row:hover {
+		background: rgb(var(--primary-soft) / 0.025);
+	}
+	@media (max-width: 880px) {
+		.audit-feed-row {
+			grid-template-columns: 1fr;
+			gap: 4px;
+			padding: 10px 16px;
+		}
+	}
+
+	/* ── Entry mini-card (User detail entries grid) ── */
+	.entry-mini {
+		@apply block rounded-2xl border border-base-300/40 p-4;
+		@apply bg-gradient-to-b from-base-content/[0.02] to-transparent;
+		@apply transition-colors duration-150 cursor-pointer no-underline text-base-content;
+	}
+	.entry-mini:hover {
+		@apply border-primary/30;
+	}
+
+	/* ── Engagement card — PostHog mini-card on user-detail ── */
+	.engagement-card {
+		@apply rounded-2xl border border-base-300/30 p-5;
+		@apply bg-gradient-to-b from-info/[0.05] to-transparent;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 14px;
+	}
+	.engagement-card .ec-spark {
+		grid-column: 1 / -1;
+		display: flex; align-items: flex-end; gap: 3px;
+		height: 40px;
+	}
+	.engagement-card .ec-spark .bar {
+		flex: 1;
+		background: linear-gradient(180deg, rgb(var(--primary-soft)), rgb(var(--primary-soft) / 0.6));
+		border-radius: 2px 2px 0 0;
+		opacity: 0.7;
+		transition: opacity 0.15s;
+	}
+	.engagement-card .ec-spark .bar:hover { opacity: 1; }
+	.engagement-card .ec-spark .bar.empty {
+		background: rgb(var(--base-content) / 0.18);
+		min-height: 2px;
+	}
+
+	/* ── Bonus answer card — used on the Overview Bonus answers tab ── */
+	.bonus-card {
+		@apply rounded-xl border border-base-300/30 p-4;
+		@apply bg-gradient-to-b from-base-content/[0.02] to-transparent;
+	}
+	.bonus-card .bc-suggestion {
+		@apply mt-2.5 rounded-lg px-3 py-2 text-[11.5px] text-base-content/60;
+		background: rgb(var(--info) / 0.05);
+		border: 1px dashed rgb(var(--info) / 0.18);
+		display: flex; align-items: center; gap: 8px;
+	}
+	.bonus-card.is-resolved .q-answer {
+		@apply bg-success/10 border-success/30 text-success;
+	}
+}

@@ -266,3 +266,142 @@ export async function adminSetEntryPrizeEligible(
 		prize_eligible
 	});
 }
+
+// ===========================================================================
+// v2.156.0 — admin redesign API additions
+// ===========================================================================
+
+export type UserCohort =
+	| 'all'
+	| 'active'
+	| 'admins'
+	| 'unpaid'
+	| 'paid'
+	| 'signed_up_only'
+	| 'verified_only';
+
+export interface AuditEventRead {
+	id: string;
+	event_type: string;
+	actor_user_id: string | null;
+	actor_name: string | null;
+	actor_email: string | null;
+	actor_role: string;
+	subject_type: string | null;
+	subject_id: string | null;
+	ip_address: string | null;
+	event_metadata: Record<string, unknown> | null;
+	reason: string | null;
+	created_at: string;
+}
+
+export interface AuditEventPage {
+	rows: AuditEventRead[];
+	total: number;
+}
+
+export interface UserAdminRowV2 {
+	id: string;
+	email: string;
+	name: string | null;
+	auth_provider: string;
+	is_admin: boolean;
+	is_active: boolean;
+	paid: boolean;
+	paid_to: string | null;
+	employer: string | null;
+	company_contact: string | null;
+	cohort: UserCohort;
+	entries_count: number;
+	submitted_entries_count: number;
+	draft_entries_count: number;
+	prediction_count: number;
+	last_login_at: string | null;
+	last_activity_at: string | null;
+	created_at: string;
+}
+
+export interface UserAdminPage {
+	rows: UserAdminRowV2[];
+	total: number;
+}
+
+export interface UserDetailRead extends UserAdminRowV2 {
+	recent_activity: AuditEventRead[];
+}
+
+export interface EngagementSummary {
+	last_seen: string | null;
+	last_url: string | null;
+	session_count: number;
+	avg_session_seconds: number | null;
+	sparkline_14d: number[];
+}
+
+export interface AuditFeedFilters {
+	event_type?: string;
+	namespace?: string;
+	actor_user_id?: string;
+	subject_id?: string;
+	subject_type?: string;
+	search?: string;
+	since?: string;
+	until?: string;
+	limit?: number;
+	offset?: number;
+}
+
+function buildQS(params: Record<string, unknown>): string {
+	const qs = new URLSearchParams();
+	for (const [k, v] of Object.entries(params)) {
+		if (v !== undefined && v !== null && v !== '') {
+			qs.set(k, String(v));
+		}
+	}
+	const s = qs.toString();
+	return s ? '?' + s : '';
+}
+
+export async function getAuditFeed(
+	filters: AuditFeedFilters = {}
+): Promise<AuditEventPage> {
+	return api.get<AuditEventPage>(`/admin/audit${buildQS(filters)}`);
+}
+
+export async function listUsersV2(opts: {
+	cohort?: UserCohort;
+	search?: string;
+	limit?: number;
+	offset?: number;
+} = {}): Promise<UserAdminPage> {
+	return api.get<UserAdminPage>(`/admin/users/list${buildQS(opts)}`);
+}
+
+export async function getUserDetail(userId: string): Promise<UserDetailRead> {
+	return api.get<UserDetailRead>(`/admin/users/${userId}`);
+}
+
+export async function getUserEngagement(
+	userId: string,
+	days: number = 30
+): Promise<EngagementSummary | null> {
+	return api.get<EngagementSummary | null>(
+		`/admin/users/${userId}/engagement?days=${days}`
+	);
+}
+
+/**
+ * Triggers the inactive-cohort CSV download in the browser. Opens the
+ * URL directly because the response is a blob — fetch() + creating a
+ * link works too, but a plain anchor click is simpler.
+ */
+export function downloadInactiveEmailsUrl(
+	cohort: 'signed_up_only' | 'verified_only' | 'both' = 'both'
+): string {
+	return `/api/admin/users/inactive?cohort=${cohort}`;
+}
+
+export interface AdminEntryFiltersV2 extends AdminEntryFilters {
+	/** New in v2.156.0: '1h' | '24h' | '7d' | '30d' */
+	modified_within?: string;
+}

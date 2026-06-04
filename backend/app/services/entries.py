@@ -26,7 +26,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, or_, select
@@ -1733,6 +1733,14 @@ async def admin_open_phase2(
     return summary
 
 
+_ADMIN_LIST_MODIFIED_WINDOWS: dict[str, timedelta] = {
+    "1h": timedelta(hours=1),
+    "24h": timedelta(hours=24),
+    "7d": timedelta(days=7),
+    "30d": timedelta(days=30),
+}
+
+
 async def admin_list_entries(
     session: AsyncSession,
     *,
@@ -1743,6 +1751,7 @@ async def admin_list_entries(
     status: EntryStatus | None = None,
     paid: bool | None = None,
     disabled: bool | None = None,
+    modified_within: str | None = None,
     limit: int | None = None,
     offset: int = 0,
 ) -> tuple[list[PredictionEntry], int]:
@@ -1753,12 +1762,21 @@ async def admin_list_entries(
     default) to return every match — preserves the pre-pagination API
     for callers that don't paginate (CSV export, tests).
 
-    ``search`` is the user-facing free-text filter (Tweak 6 in
-    stay-in-plan-mode-dynamic-adleman.md): case-insensitive substring
-    matched against ``User.email`` OR ``PredictionEntry.reference``.
-    Joins ``User`` only when set, so the common-case query plan is
-    unchanged. ``reference`` is the legacy exact-match path preserved
-    for bookmarked URLs.
+    ``search`` is the user-facing free-text filter — case-insensitive
+    substring matched against ``User.email`` OR ``User.name`` OR
+    ``PredictionEntry.reference``. Joins ``User`` only when set, so
+    the common-case query plan is unchanged. ``User.name`` was added in
+    v2.156.0 — admins typically remember names, not emails, so this
+    lifts a common pain point.
+
+    ``modified_within`` (added v2.156.0) is one of ``"1h"``, ``"24h"``,
+    ``"7d"``, ``"30d"`` — filters to entries with
+    ``updated_at >= utc_now() - delta``. Powers the "modified within"
+    chip set on /admin/entries. Unknown values are ignored (treated as
+    no filter) so the API stays forgiving against typos / stale URLs.
+
+    ``reference`` is the legacy exact-match path preserved for
+    bookmarked URLs.
     """
     base = (
         select(PredictionEntry)
@@ -1769,13 +1787,15 @@ async def admin_list_entries(
     if reference is not None:
         base = base.where(PredictionEntry.reference == reference)
     if search is not None and search.strip():
-        # OR-match on user email or entry reference. ilike with %…%
-        # gives substring + case-insensitive semantics admins expect
-        # when typing "vin" or "000020" or "@gmail".
+        # OR-match on user email, user name, or entry reference. ilike
+        # with %…% gives substring + case-insensitive semantics admins
+        # expect when typing "vin", "bob", "000020", or "@gmail".
+        # User.name added in v2.156.0 (was email + reference only).
         like_pattern = f"%{search.strip()}%"
         base = base.join(User, User.id == PredictionEntry.user_id).where(
             or_(
                 User.email.ilike(like_pattern),
+                User.name.ilike(like_pattern),
                 PredictionEntry.reference.ilike(like_pattern),
             )
         )
@@ -1783,6 +1803,13 @@ async def admin_list_entries(
         base = base.where(PredictionEntry.paid == paid)
     if disabled is not None:
         base = base.where(PredictionEntry.is_disabled == disabled)
+    if modified_within is not None:
+        # Unknown tokens silently become no-filter — defensive against
+        # accidental ?modified_within=foo from typos / stale URLs.
+        delta = _ADMIN_LIST_MODIFIED_WINDOWS.get(modified_within)
+        if delta is not None:
+            cutoff = utc_now() - delta
+            base = base.where(PredictionEntry.updated_at >= cutoff)
     if status is not None:
         # Filter on whether the entry has at least one phase with this
         # status. Status is per-phase, not per-entry, so this is the

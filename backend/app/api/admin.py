@@ -1,9 +1,12 @@
 """Admin API routes for dashboard and management."""
 
+import csv
+import io
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
@@ -17,6 +20,16 @@ from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction
 from app.models.score import Score, ScoreSource
 from app.models.user import User
+from app.schemas.admin import (
+    AuditEventPage,
+    EngagementSummary,
+    FixtureMini,
+    UserAdminPage,
+    UserCohort,
+    UserDetailRead,
+)
+from app.services import posthog_read
+from app.services.audit import query_audit_events
 from app.services.bonus import (
     compute_bonus_answers_for_competition,
     get_questions as get_bonus_questions,
@@ -24,13 +37,23 @@ from app.services.bonus import (
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
 from app.services.score_sync import sync_scores_once
+from app.services.users import list_inactive_emails, list_users_with_cohort
 
 
 router = APIRouter()
 
 
 class AdminStats(BaseModel):
-    """Admin dashboard statistics."""
+    """Admin dashboard statistics.
+
+    ``recent_finished_fixtures`` + ``upcoming_fixtures`` (added v2.156.0)
+    power the Score-sync card on the redesigned Overview page — admins
+    see the two most recent finished matches and the next two upcoming
+    kickoffs at a glance, so they can sanity-check that a manual sync
+    grabbed the right data. Both lists are limited to 2 elements
+    server-side; default to empty list rather than null so the frontend
+    can render unconditionally.
+    """
 
     total_users: int
     active_users: int
@@ -39,6 +62,8 @@ class AdminStats(BaseModel):
     live_fixtures: int
     total_predictions: int
     total_scores: int
+    recent_finished_fixtures: list[FixtureMini] = []
+    upcoming_fixtures: list[FixtureMini] = []
 
 
 class UserAdminView(BaseModel):
@@ -122,6 +147,49 @@ async def get_admin_stats(
     total_predictions = await session.scalar(select(func.count(MatchPrediction.id)))
     total_scores = await session.scalar(select(func.count(Score.id)))
 
+    # Recent finished + upcoming fixtures — small lists (2 each) for the
+    # Score-sync card on the Overview page. LEFT JOIN Score so finished
+    # fixtures pick up their scores; upcoming fixtures have no scores
+    # yet so the join is just LEFT-NULL by definition.
+    recent_finished = list(
+        (
+            await session.execute(
+                select(Fixture, Score)
+                .outerjoin(Score, Score.fixture_id == Fixture.id)
+                .where(Fixture.status == MatchStatus.FINISHED)
+                .order_by(Fixture.kickoff.desc())
+                .limit(2)
+            )
+        ).all()
+    )
+    now = utc_now()
+    upcoming = list(
+        (
+            await session.execute(
+                select(Fixture)
+                .where(Fixture.status == MatchStatus.SCHEDULED)
+                .where(Fixture.kickoff >= now)
+                .order_by(Fixture.kickoff.asc())
+                .limit(2)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    def _mini(fx: Fixture, sc: Score | None = None) -> FixtureMini:
+        return FixtureMini(
+            id=fx.id,
+            kickoff=fx.kickoff,
+            home_team=fx.home_team,
+            away_team=fx.away_team,
+            home_code=None,
+            away_code=None,
+            home_score=sc.home_score if sc is not None else None,
+            away_score=sc.away_score if sc is not None else None,
+            status=fx.status.value,
+        )
+
     return AdminStats(
         total_users=total_users or 0,
         active_users=active_users or 0,
@@ -130,6 +198,8 @@ async def get_admin_stats(
         live_fixtures=live_fixtures or 0,
         total_predictions=total_predictions or 0,
         total_scores=total_scores or 0,
+        recent_finished_fixtures=[_mini(fx, sc) for fx, sc in recent_finished],
+        upcoming_fixtures=[_mini(fx) for fx in upcoming],
     )
 
 
@@ -633,3 +703,244 @@ async def set_bonus_answer(
         session, competition.id
     )
     return _build_view(q, new_rows, computed_by_qid.get(q.id, []))
+
+
+# ============================================================================
+# v2.156.0 — redesigned admin endpoints
+# ============================================================================
+# Route ORDER matters here: more-specific static-segment routes
+# (/users/list, /users/inactive) MUST be declared BEFORE the path-param
+# route (/users/{user_id}) so a request to /admin/users/list is matched
+# by the list endpoint and not interpreted as user_id="list".
+# ============================================================================
+
+
+# ── Audit feed ──────────────────────────────────────────────────────────────
+
+
+@router.get("/audit", response_model=AuditEventPage)
+async def get_audit_feed(
+    session: DbSession,
+    _admin: AdminUser,
+    event_type: str | None = None,
+    namespace: str | None = None,
+    actor_user_id: uuid.UUID | None = None,
+    subject_id: uuid.UUID | None = None,
+    subject_type: str | None = None,
+    search: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> AuditEventPage:
+    """Paginated global audit feed for /admin/audit.
+
+    All filters are optional and AND together. ``namespace`` is the
+    prefix used by the page's namespace chips (``"auth"`` matches every
+    ``auth.*`` event). ``search`` does a case-insensitive substring
+    match on the joined actor email + actor name + event type.
+    """
+    rows, total = await query_audit_events(
+        session,
+        event_type=event_type,
+        namespace=namespace,
+        actor_user_id=actor_user_id,
+        subject_id=subject_id,
+        subject_type=subject_type,
+        search=search,
+        since=since,
+        until=until,
+        limit=limit,
+        offset=offset,
+    )
+    return AuditEventPage(rows=rows, total=total)
+
+
+# ── Users list (cohort-aware) ───────────────────────────────────────────────
+
+
+@router.get("/users/list", response_model=UserAdminPage)
+async def list_users_v2(
+    session: DbSession,
+    _admin: AdminUser,
+    cohort: UserCohort = UserCohort.ACTIVE,
+    search: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> UserAdminPage:
+    """v2.156.0 paginated users list with derived ``cohort`` / ``last_login_at``
+    / ``last_activity_at``.
+
+    Defaults to the ``active`` cohort (joined + admin-not-deactivated) —
+    same default as the redesigned ``/admin/users`` page.
+
+    The legacy ``GET /admin/users`` endpoint (non-paginated, flat
+    ``list[UserAdminView]``) is left in place for backward compat with
+    the existing admin monolith during the rollout. Once the trim of
+    ``/admin/+page.svelte`` lands (Task #13), the legacy endpoint can
+    be deprecated.
+    """
+    return await list_users_with_cohort(
+        session,
+        cohort=cohort,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ── Inactive-users CSV export (re-engagement mailshot) ──────────────────────
+
+
+@router.get("/users/inactive")
+async def export_inactive_emails(
+    session: DbSession,
+    _admin: AdminUser,
+    cohort: Literal["signed_up_only", "verified_only", "both"] = "both",
+) -> Response:
+    """CSV download of the inactive cohort(s) for re-engagement mailshots.
+
+    Returns text/csv with columns:
+    ``email,cohort,created_at,last_magic_link_sent_at,last_magic_link_verified_at``.
+
+    The two cohorts are intentionally distinguishable in the CSV so the
+    admin can write different copy for each (cohort 1 = "you started but
+    didn't click your link"; cohort 2 = "you logged in but didn't finish
+    setup"). Pass ``?cohort=signed_up_only`` or ``?cohort=verified_only``
+    to restrict the export.
+    """
+    rows = await list_inactive_emails(session, cohort=cohort)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "email",
+            "cohort",
+            "created_at",
+            "last_magic_link_sent_at",
+            "last_magic_link_verified_at",
+        ]
+    )
+    for r in rows:
+        writer.writerow(
+            [
+                r.email,
+                r.cohort.value,
+                r.created_at.isoformat() if r.created_at else "",
+                r.last_magic_link_sent_at.isoformat()
+                if r.last_magic_link_sent_at
+                else "",
+                r.last_magic_link_verified_at.isoformat()
+                if r.last_magic_link_verified_at
+                else "",
+            ]
+        )
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="inactive-{cohort}.csv"'
+        },
+    )
+
+
+# ── User detail (drill-down) ────────────────────────────────────────────────
+
+
+@router.get("/users/{user_id}", response_model=UserDetailRead)
+async def get_user_detail(
+    user_id: uuid.UUID,
+    session: DbSession,
+    _admin: AdminUser,
+) -> UserDetailRead:
+    """Full profile + summary metrics + recent activity for
+    /admin/users/[id].
+
+    Entries are NOT included here — the frontend fetches them via the
+    existing ``admin_list_entries`` call filtered by user_id. Keeping
+    the responsibilities separate means this endpoint stays cheap on
+    user-detail page load even for users with many entries.
+    """
+    # Existence check first so 404s short-circuit before the heavier
+    # cohort-row computation.
+    user = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    # Reuse the cohort service to derive the row — guarantees the list
+    # view and detail view agree on cohort / counts / last-activity
+    # for the same user. Search by exact email yields exactly one row.
+    page = await list_users_with_cohort(
+        session,
+        cohort=UserCohort.ALL,
+        search=user.email,
+        limit=1,
+        offset=0,
+    )
+    if not page.rows:
+        # Defensive — should be impossible since the user exists, but
+        # cohort filter could in theory exclude (e.g. case-sensitivity).
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    row = page.rows[0]
+
+    # Recent activity = the 100 most recent audit events for this user.
+    activity, _total = await query_audit_events(
+        session, actor_user_id=user_id, limit=100, offset=0
+    )
+
+    return UserDetailRead(
+        id=row.id,
+        email=row.email,
+        name=row.name,
+        auth_provider=row.auth_provider,
+        is_admin=row.is_admin,
+        is_active=row.is_active,
+        paid=row.paid,
+        paid_to=row.paid_to,
+        employer=row.employer,
+        company_contact=row.company_contact,
+        cohort=row.cohort,
+        entries_count=row.entries_count,
+        submitted_entries_count=row.submitted_entries_count,
+        draft_entries_count=row.draft_entries_count,
+        prediction_count=row.prediction_count,
+        last_login_at=row.last_login_at,
+        last_activity_at=row.last_activity_at,
+        created_at=row.created_at,
+        recent_activity=activity,
+    )
+
+
+# ── User engagement (PostHog mini-card) ─────────────────────────────────────
+
+
+@router.get(
+    "/users/{user_id}/engagement", response_model=EngagementSummary | None
+)
+async def get_user_engagement(
+    user_id: uuid.UUID,
+    _admin: AdminUser,
+    days: int = 30,
+) -> EngagementSummary | None:
+    """PostHog read-side engagement summary — last seen, last page,
+    session count, avg session duration, 14-day sparkline.
+
+    Returns ``null`` (not an error) when PostHog is disabled in this
+    environment (e.g. the env vars ``POSTHOG_PERSONAL_API_KEY`` /
+    ``POSTHOG_PROJECT_ID`` are unset locally). The frontend renders
+    "—" placeholders on the Engagement card in that case so admins
+    aren't shown a stack trace for a missing optional integration.
+
+    Designed as the first consumer of ``services.posthog_read`` —
+    a future ``GET /api/me/engagement`` for personalized landing-page
+    copy will reuse the same service function unchanged.
+    """
+    return await posthog_read.get_engagement_summary(user_id, days=days)
