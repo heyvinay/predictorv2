@@ -112,8 +112,20 @@ tests for backward compatibility, but the user-facing label is
 - **Frontend:** `new Date(string)` parses correctly thanks to the offset,
   then `Intl` renders local time.
 - **Driver gotcha:** aiosqlite drops tzinfo on read; PostgreSQL preserves it.
-  Use `aware_utc()` from `_datetime.py` defensively at any compare site that
-  touches DB-loaded values.
+  - **At compare sites:** Use `aware_utc()` from `_datetime.py` defensively
+    at any compare site that touches DB-loaded values.
+  - **At service-function return sites (CRITICAL):** When a service
+    function returns datetimes pulled from the DB (e.g. `MAX(created_at)`
+    aggregations, `select(Table.col)` projections), wrap each returned
+    value through `aware_utc()` BEFORE returning. The service layer is the
+    right place to coerce — callers (tests, API serializers) shouldn't
+    have to know which driver answered. Tests against in-memory SQLite
+    that assert `dt == datetime(..., tzinfo=timezone.utc)` will silently
+    fail with `naive == aware → False` otherwise. Pattern:
+    ```python
+    return {uid: aware_utc(ts) for uid, ts in rows}
+    ```
+    This bug has recurred multiple times. Catch it at the return site, once.
 
 Established in commit `c6089cc`; the conversion migration was later squashed
 into `f06b6a2077d3`. Violating this silently shifts kickoffs/deadlines by the
@@ -209,6 +221,31 @@ docker-compose exec frontend-dev npx vitest run
 # Seed Phase 2 test data
 docker-compose exec backend python scripts/seed_phase2_test.py
 ```
+
+**Pre-commit gates (run before EVERY commit that touches service
+functions, models, or Svelte templates):**
+
+```bash
+# Fast — under 30s combined on a warm cache.
+docker-compose exec -T backend pytest tests/<your_new_files>.py
+docker-compose exec -T frontend-dev npm run check    # MUST be 0 errors
+```
+
+These two gates catch the recurring failure modes this codebase has hit:
+
+1. **SQLite tzinfo strip on aiosqlite reads** — tests asserting
+   `dt == datetime(..., tzinfo=timezone.utc)` against naive returns
+   fail because aiosqlite strips tzinfo on read. See the Datetime
+   rule above — coerce at the service return site, not the test.
+2. **Svelte compile errors and reactivity bugs** — `{@const}`
+   misplacement, `as Type` template casts, `class:foo={fn()}`
+   reactivity, `$page.params.X` typed as `string | undefined`. See
+   the Frontend gotchas section. svelte-check reveals these
+   immediately; the dev server's HMR overlay shows them too, but
+   `npm run check` is the deterministic gate.
+
+Skipping the gates is how this codebase has historically shipped
+patches to fix patches. Run them.
 
 ## Analytics
 
@@ -315,12 +352,45 @@ empty or unavailable.
   expressions.** Only the script block is parsed as TS; everything inside
   `{...}` in the markup is parsed as plain JavaScript. Inline handlers like
   `on:click={(e) => (e.currentTarget as HTMLElement).foo()}` will throw a
-  Vite compile error on the `as`. Extract them to a named function in the
-  script block (the pattern in `+layout.svelte` — `logoFallbackRail` etc.).
+  Vite compile error on the `as`. **The same rule catches typed-array
+  literals in `{#each}`** — `{#each (['a','b'] as MyEnum[]) as c}` also
+  fails. Extract to a named function (for handlers) or a typed const in
+  the script block (for arrays). Pattern:
+  ```svelte
+  <script lang="ts">
+    const COHORT_OPTIONS: UserCohort[] = ['active', 'all', /* ... */];
+  </script>
+  {#each COHORT_OPTIONS as c}
+    <!-- ... -->
+  {/each}
+  ```
   When this breaks, Vite keeps the last-good build live and the dev server
   *silently* serves stale output — the error is only visible in the dev
   container's stdout (`docker logs predictorv2-frontend-dev-1`), not in the
   browser or via asset probes. Always check dev-server logs first when a
   change "doesn't show up."
+- **`{@const}` placement rule.** `{@const x = ...}` MUST be the immediate
+  child of a block tag (`{#if}`, `{#each}`, `{:else}`, `{:then}`,
+  `{:catch}`, `<svelte:fragment>`, or `<Component>`). Placing it directly
+  inside a plain `<div>` or other element fails at compile time with
+  `must be the immediate child of {#if}…`. If you want a value computed
+  once outside an `{#each}` loop (the common case — hoisting an invariant
+  out of an iteration), **declare it as a `$:` reactive statement in the
+  script section instead**. That sidesteps the placement constraint AND
+  triggers correctly when dependencies change.
+- **`class:foo={someFn()}` reactivity gotcha.** Calling a function inside
+  a `class:` directive that reads a Svelte store does NOT reliably
+  re-trigger when the store updates. Svelte's compile-time dependency
+  analysis tracks store accesses at the top level of the script, not
+  inside function bodies. **Surface the result via a `$:` reactive
+  declaration in the script first**, then reference the plain variable in
+  the `class:` directive. Common symptom: active-tab highlight in a
+  sub-nav stays "stuck" on whatever was active at first render.
+- **`$page.params.X` is typed `string | undefined`.** SvelteKit can't
+  prove statically that a route param is present (even on routes like
+  `/users/[id]` where it always is). When passing to a function expecting
+  `string`, coerce: `$: userId = ($page.params.id ?? '') as string;`.
+  Avoid the non-null assertion `!` unless the route guarantees it AND
+  the assertion is in a unit-testable boundary.
 - **`app.html` changes do not hot-reload.** Vite treats it as a boot-time
   document shell. Edits require `docker-compose restart frontend-dev`.
