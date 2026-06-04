@@ -3,10 +3,14 @@
 	 * EntryDetailSlideOver — shared admin component (v2.156.0).
 	 *
 	 * Opens for `?entry=REF` query param on both /admin/entries and
-	 * /admin/users/[id]. Renders Summary / Group / Knockout / Bonus
-	 * tabs, plus footer actions wired through the existing
-	 * admin_* service functions. Destructive actions trigger the
-	 * Pattern C reason-required confirmation modal.
+	 * /admin/users/[id].
+	 *
+	 * v2.156.0 restructure (E1, E2, E3):
+	 * - Summary info promoted to the header (champion + completion KPIs)
+	 * - First tab is Group stage (was Summary)
+	 * - Audit log moved to its own last tab
+	 *
+	 * Footer actions go through the Pattern C reason-required modal.
 	 */
 	import { createEventDispatcher } from 'svelte';
 	import {
@@ -23,7 +27,8 @@
 
 	const dispatch = createEventDispatcher<{ close: void; updated: Entry }>();
 
-	let activeTab: 'summary' | 'groups' | 'knockout' | 'bonus' = 'summary';
+	type Tab = 'groups' | 'knockout' | 'bonus' | 'audit';
+	let activeTab: Tab = 'groups';
 	let events: EntryEvent[] = [];
 	let loadingEvents = false;
 
@@ -44,7 +49,11 @@
 		}
 	}
 
-	$: if (entry && open && activeTab === 'summary') loadEvents();
+	// Audit tab loads events on first view.
+	$: if (entry && open && activeTab === 'audit') loadEvents();
+
+	// Reset to first tab whenever the entry changes (different entry → fresh view).
+	$: if (entry) activeTab = 'groups';
 
 	function close(): void {
 		dispatch('close');
@@ -87,6 +96,12 @@
 			minute: '2-digit',
 		}).format(d);
 	}
+
+	// Phase status helper — derives the Phase 1 status from entry.phases.
+	function getPhaseStatus(e: Entry): string {
+		const p1 = e.phases?.find((p) => p.phase === 'phase_1');
+		return p1?.status ?? 'draft';
+	}
 </script>
 
 {#if open && entry}
@@ -97,7 +112,7 @@
 			on:click|stopPropagation
 			role="dialog"
 		>
-			<!-- Header -->
+			<!-- ════════ Header (E2 — summary info promoted from former Summary tab) ════════ -->
 			<div class="px-6 py-4 border-b border-base-300/30 bg-gradient-to-b from-primary/[0.05] to-transparent">
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0">
@@ -109,16 +124,39 @@
 						<div class="flex gap-2 mt-2 flex-wrap">
 							{#if entry.paid}<span class="status-pill s-success"><span class="dot"></span>Paid</span>{:else}<span class="status-pill s-ghost"><span class="dot"></span>Unpaid</span>{/if}
 							{#if entry.prize_eligible}<span class="status-pill s-ghost">Prize-eligible</span>{:else}<span class="status-pill s-warning">Not prize-eligible</span>{/if}
-							{#if entry.is_disabled}<span class="status-pill s-error"><span class="dot"></span>Disabled</span>{/if}
+							{#if entry.is_disabled}<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
+							{:else}
+								<span class="status-pill s-success"><span class="dot"></span>{getPhaseStatus(entry).toUpperCase()}</span>
+							{/if}
 						</div>
 					</div>
 					<button class="btn btn-ghost btn-sm btn-circle" on:click={close} aria-label="Close">✕</button>
 				</div>
+
+				<!-- Completion KPI strip (E2) -->
+				<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+					<div class="kpi-card !p-2.5">
+						<div class="label">Status</div>
+						<div class="value !text-sm !font-semibold">{entry.is_disabled ? 'Disabled' : entry.withdrawn_at ? 'Withdrawn' : 'Active'}</div>
+					</div>
+					<div class="kpi-card !p-2.5">
+						<div class="label">Paid</div>
+						<div class="value !text-sm !font-semibold">{entry.paid ? 'Yes' : 'No'}</div>
+					</div>
+					<div class="kpi-card !p-2.5">
+						<div class="label">Prize-eligible</div>
+						<div class="value !text-sm !font-semibold">{entry.prize_eligible ? 'Yes' : 'No'}</div>
+					</div>
+					<div class="kpi-card !p-2.5">
+						<div class="label">Updated</div>
+						<div class="value !text-xs !font-semibold" title={entry.updated_at}>{formatDate(entry.updated_at)}</div>
+					</div>
+				</div>
 			</div>
 
-			<!-- Tabs -->
+			<!-- ════════ Tabs (E1 + E3 — Groups first, Audit log last) ════════ -->
 			<div class="flex gap-2 px-4 border-b border-base-300/30 bg-base-300/20 overflow-x-auto">
-				{#each [['summary','Summary'],['groups','Group stage'],['knockout','Knockout'],['bonus','Bonus']] as [tab, label]}
+				{#each [['groups','⚽ Group stage'],['knockout','🏆 Knockout'],['bonus','★ Bonus'],['audit','📋 Audit log']] as [tab, label]}
 					<button
 						class="px-3.5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
 						class:border-primary={activeTab === tab}
@@ -131,14 +169,58 @@
 				{/each}
 			</div>
 
-			<!-- Body -->
+			<!-- ════════ Body ════════ -->
 			<div class="flex-1 overflow-y-auto p-6">
-				{#if activeTab === 'summary'}
-					<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-						<div class="kpi-card"><div class="label">Status</div><div class="value text-base">{entry.is_disabled ? 'Disabled' : 'Active'}</div></div>
-						<div class="kpi-card"><div class="label">Paid</div><div class="value text-base">{entry.paid ? 'Yes' : 'No'}</div></div>
-						<div class="kpi-card"><div class="label">Prize-eligible</div><div class="value text-base">{entry.prize_eligible ? 'Yes' : 'No'}</div></div>
+				{#if activeTab === 'groups'}
+					<!-- F1 — group stage predictions placeholder with informative copy -->
+					<div class="space-y-4">
+						<div class="kpi-card !p-4">
+							<div class="label">Group stage scorelines</div>
+							<div class="value mt-2">— / 72</div>
+							<div class="delta">Predicted scorelines from this entry's <span class="font-mono">MatchPrediction</span> rows</div>
+						</div>
+						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
+							<p class="font-medium mb-2">Group fixture rendering — coming in v2.157.0</p>
+							<p class="text-xs text-base-content/60 leading-relaxed">
+								This tab will render all 12 groups (A–L) with the user's predicted scorelines for every fixture (72 in total), grouped as cards. Needs a small admin endpoint that returns the entry's <span class="font-mono">MatchPrediction</span> rows filtered to group-stage fixtures. Today the data exists; the surface to fetch it on behalf of another user isn't wired yet.
+							</p>
+						</div>
 					</div>
+
+				{:else if activeTab === 'knockout'}
+					<!-- F2 — knockout bracket placeholder with informative copy -->
+					<div class="space-y-4">
+						<div class="kpi-card !p-4">
+							<div class="label">Bracket picks</div>
+							<div class="value mt-2">— / 31</div>
+							<div class="delta">R16 (8) + QF (4) + SF (2) + Final (1) → 15 advancement picks · plus champion</div>
+						</div>
+						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
+							<p class="font-medium mb-2">Knockout bracket rendering — coming in v2.157.0</p>
+							<p class="text-xs text-base-content/60 leading-relaxed">
+								This tab will render the user's picks for Round of 16 → QF → SF → Final with a champion hero. R32 advancement is derived from the predicted group standings via <span class="font-mono">bracketResolver.ts::buildGroupPositions</span>. Needs the admin endpoint that returns the entry's <span class="font-mono">TeamPrediction</span> rows.
+							</p>
+						</div>
+					</div>
+
+				{:else if activeTab === 'bonus'}
+					<!-- F3 — bonus answers placeholder with informative copy -->
+					<div class="space-y-4">
+						<div class="kpi-card !p-4">
+							<div class="label">Bonus answers</div>
+							<div class="value mt-2">— / 4</div>
+							<div class="delta">Goal Machine · The Sieve · Dark Horse · Bottlers</div>
+						</div>
+						<div class="rounded-xl border border-info/20 bg-info/[0.04] p-4 text-sm text-base-content/70">
+							<p class="font-medium mb-2">Bonus answers rendering — coming in v2.157.0</p>
+							<p class="text-xs text-base-content/60 leading-relaxed">
+								This tab will render the user's four bonus picks (Goal Machine, The Sieve, Dark Horse, Bottlers) in a 2-col grid with the points value and category. Needs the admin endpoint that returns the entry's <span class="font-mono">BonusPrediction</span> rows.
+							</p>
+						</div>
+					</div>
+
+				{:else if activeTab === 'audit'}
+					<!-- E1 — Audit log as its own dedicated tab -->
 					<h3 class="font-display font-bold text-base mb-3">Entry audit log</h3>
 					{#if loadingEvents}
 						<p class="text-sm text-base-content/55">Loading events…</p>
@@ -156,20 +238,6 @@
 							{/each}
 						</ol>
 					{/if}
-				{:else if activeTab === 'groups'}
-					<p class="text-sm text-base-content/55">
-						Group-stage predictions render here in production — pulling from <code class="font-mono text-xs">MatchPrediction</code> rows
-						scoped to this entry. Static-mockup-style fixture cards omitted in the lean v2.156.0 ship.
-					</p>
-				{:else if activeTab === 'knockout'}
-					<p class="text-sm text-base-content/55">
-						Knockout bracket renders here, seeded by <code class="font-mono text-xs">bracketResolver.ts::buildGroupPositions</code> from
-						the predicted group standings. 2-column layout per design spec.
-					</p>
-				{:else if activeTab === 'bonus'}
-					<p class="text-sm text-base-content/55">
-						4 bonus answers render here in a 2-col grid (Goal Machine, The Sieve, Dark Horse, Bottlers).
-					</p>
 				{/if}
 			</div>
 
@@ -188,7 +256,7 @@
 	</div>
 {/if}
 
-<!-- Reason-required confirmation modal (Pattern C, feedback #3) -->
+<!-- Reason-required confirmation modal (Pattern C) -->
 {#if confirmOpen}
 	<div class="confirm-scrim open" on:click={() => (confirmOpen = false)} role="presentation">
 		<div class="confirm-modal" on:click|stopPropagation role="dialog">
