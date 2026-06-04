@@ -44,6 +44,12 @@
 
 	$: userId = $page.params.id;
 
+	// Reactive max for the sparkline — derived in the script (not via
+	// {@const} in the template) because {@const} would have to live as
+	// the immediate child of a block tag, and the engagement card's
+	// sparkline lives inside a plain <div>.
+	$: sparkMaxN = engagement ? Math.max(1, ...engagement.sparkline_14d) : 1;
+
 	$: if (user) {
 		filteredActivity = filterActivity(user.recent_activity, activityFilter, timeRange);
 	}
@@ -244,13 +250,12 @@
 								<div class="text-[10px] uppercase tracking-widest text-base-content/40">Avg duration</div>
 								<div class="font-display font-bold text-xl mt-1.5">{engagement.avg_session_seconds ? `${Math.floor(engagement.avg_session_seconds / 60)}m ${Math.floor(engagement.avg_session_seconds % 60)}s` : '—'}</div>
 							</div>
-							{@const maxN = Math.max(1, ...engagement.sparkline_14d)}
 							<div class="ec-spark" title="14-day pageviews, oldest left → newest right">
 								{#each engagement.sparkline_14d as count}
 									{#if count === 0}
 										<div class="bar empty"></div>
 									{:else}
-										<div class="bar" style="height: {Math.max(8, (count / maxN) * 100)}%"></div>
+										<div class="bar" style="height: {Math.max(8, (count / sparkMaxN) * 100)}%"></div>
 									{/if}
 								{/each}
 							</div>
