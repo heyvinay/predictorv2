@@ -1948,6 +1948,13 @@
       "type": "feature",
       "summary": "Admin console redesigned — dedicated Users, Entries, and Audit pages with a slide-over entry-detail panel, plus three-cohort filtering (Active / Signed-up-only / Verified-only) so the admins can identify and re-engage users who started signup but never finished. New: Engagement card on user-detail (last seen, last page, sessions, avg duration, 14-day sparkline — read from PostHog); reason-required confirmation modal on every destructive admin action with the reason captured in the audit log; clickable stat cards that filter the table below; local-time everywhere in the admin UI (storage stays UTC). Magic-link verifies and profile edits now fire audit events too, so 'Last activity' on the Users list is meaningful end-to-end.",
       "commit": "pending"
+    },
+    {
+      "version": "2.156.1",
+      "date": "2026-06-09",
+      "type": "fix",
+      "summary": "Admin Entries page stat-strip + status pills now compute correctly: Submitted count uses the actual Phase 1 submission status (was counting every non-disabled entry as submitted); Paid count honours per-user payment mode via the existing localStorage fallback so legacy paid users show up; per-row status pill differentiates Draft / Submitted / Withdrawn / Disabled correctly. Also: Submitted KPI card now shows 'X drafts pending' so the admin sees both numbers at a glance.",
+      "commit": "pending"
     }
   ]
 }

@@ -3,9 +3,21 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page as pageStore } from '$app/stores';
-	import { adminListEntries, type AdminEntriesPage } from '$lib/api/admin';
+	import {
+		adminListEntries,
+		getPaidLocal,
+		type AdminEntriesPage,
+	} from '$lib/api/admin';
 	import EntryDetailSlideOver from '$lib/components/admin/EntryDetailSlideOver.svelte';
-	import type { Entry } from '$lib/types/entry';
+	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
+
+	/** True iff the entry is effectively paid — either the per-entry
+	 *  paid flag is set OR the per-user localStorage cache says so
+	 *  (legacy per-user payment mode). Matches the legacy /admin
+	 *  page's logic so the stats agree across both views. */
+	function isEffectivelyPaid(e: Entry): boolean {
+		return e.paid || getPaidLocal(e.user_id);
+	}
 
 	let listing: AdminEntriesPage = { items: [], total: 0 };
 	let search = '';
@@ -105,9 +117,28 @@
 		tableEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
-	$: submitted = listing.items.filter((e) => !e.is_disabled).length;
-	$: paid = listing.items.filter((e) => e.paid).length;
-	$: disabled = listing.items.filter((e) => e.is_disabled).length;
+	// Submitted = entries with phase_1 status === 'submitted' and not
+	// disabled / withdrawn. Was previously `!is_disabled` which
+	// conflated drafts + submitted + withdrawn into one bucket.
+	$: submitted = listing.items.filter(
+		(e) =>
+			!e.is_disabled &&
+			!e.withdrawn_at &&
+			computeDisplayStatus(e, 'phase_1') === 'submitted'
+	).length;
+	// Paid count uses the effectively-paid check so per-user payment
+	// mode is honoured (entries don't have their own paid flag set
+	// in that mode).
+	$: paid = listing.items.filter(isEffectivelyPaid).length;
+	// Disabled + withdrawn (excluded from prize calculation either way).
+	$: disabled = listing.items.filter((e) => e.is_disabled || !!e.withdrawn_at).length;
+	// Draft = not disabled, not withdrawn, phase_1 not submitted yet.
+	$: drafts = listing.items.filter(
+		(e) =>
+			!e.is_disabled &&
+			!e.withdrawn_at &&
+			computeDisplayStatus(e, 'phase_1') !== 'submitted'
+	).length;
 </script>
 
 <div class="max-w-[1380px] mx-auto px-4 sm:px-6 py-6">
@@ -131,6 +162,7 @@
 		<button on:click={() => setStatusFilter('submitted')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Submitted</div>
 			<div class="value">{submitted}</div>
+			<div class="delta">{drafts} draft{drafts === 1 ? '' : 's'} pending</div>
 		</button>
 		<button on:click={() => setPaidFilter('paid')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Paid</div>
@@ -195,10 +227,17 @@
 								<td><span class="font-mono text-[10.5px] bg-primary/10 border border-primary/20 text-primary rounded px-1.5 py-0.5">{e.reference}</span></td>
 								<td><div class="font-medium">{e.display_name ?? `Entry ${e.entry_number}`}</div></td>
 								<td>
-									{#if e.is_disabled}<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
-									{:else}<span class="status-pill s-success"><span class="dot"></span>Submitted</span>{/if}
+									{#if e.is_disabled}
+										<span class="status-pill s-error"><span class="dot"></span>Disabled</span>
+									{:else if e.withdrawn_at}
+										<span class="status-pill s-warning"><span class="dot"></span>Withdrawn</span>
+									{:else if computeDisplayStatus(e, 'phase_1') === 'submitted'}
+										<span class="status-pill s-success"><span class="dot"></span>Submitted</span>
+									{:else}
+										<span class="status-pill s-ghost"><span class="dot"></span>Draft</span>
+									{/if}
 								</td>
-								<td>{#if e.paid}<span class="status-pill s-success"><span class="dot"></span>Paid</span>{:else}<span class="status-pill s-ghost"><span class="dot"></span>Unpaid</span>{/if}</td>
+								<td>{#if isEffectivelyPaid(e)}<span class="status-pill s-success"><span class="dot"></span>Paid</span>{:else}<span class="status-pill s-ghost"><span class="dot"></span>Unpaid</span>{/if}</td>
 								<td class="text-xs text-base-content/60" title={e.updated_at}>{formatDate(e.updated_at)}</td>
 								<td class="text-right text-base-content/40">›</td>
 							</tr>
