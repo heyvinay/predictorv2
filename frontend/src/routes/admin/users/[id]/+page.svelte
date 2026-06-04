@@ -42,7 +42,9 @@
 	let confirmDeactivate = false;
 	let deactivateReason = '';
 
-	$: userId = $page.params.id;
+	// SvelteKit types $page.params.id as `string | undefined`, but this
+	// route only matches when the id segment is present — coerce.
+	$: userId = ($page.params.id ?? '') as string;
 
 	// Reactive max for the sparkline — derived in the script (not via
 	// {@const} in the template) because {@const} would have to live as

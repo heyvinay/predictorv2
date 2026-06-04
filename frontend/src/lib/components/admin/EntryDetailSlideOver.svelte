@@ -29,6 +29,13 @@
 
 	type Tab = 'groups' | 'knockout' | 'bonus' | 'audit';
 	let activeTab: Tab = 'groups';
+
+	const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
+		{ key: 'groups', label: '⚽ Group stage' },
+		{ key: 'knockout', label: '🏆 Knockout' },
+		{ key: 'bonus', label: '★ Bonus' },
+		{ key: 'audit', label: '📋 Audit log' },
+	];
 	let events: EntryEvent[] = [];
 	let loadingEvents = false;
 
@@ -156,16 +163,16 @@
 
 			<!-- ════════ Tabs (E1 + E3 — Groups first, Audit log last) ════════ -->
 			<div class="flex gap-2 px-4 border-b border-base-300/30 bg-base-300/20 overflow-x-auto">
-				{#each [['groups','⚽ Group stage'],['knockout','🏆 Knockout'],['bonus','★ Bonus'],['audit','📋 Audit log']] as [tab, label]}
+				{#each TABS as t (t.key)}
 					<button
 						class="px-3.5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
-						class:border-primary={activeTab === tab}
-						class:text-primary={activeTab === tab}
-						class:border-transparent={activeTab !== tab}
-						class:text-base-content={activeTab !== tab}
-						class:opacity-60={activeTab !== tab}
-						on:click={() => (activeTab = tab)}
-					>{label}</button>
+						class:border-primary={activeTab === t.key}
+						class:text-primary={activeTab === t.key}
+						class:border-transparent={activeTab !== t.key}
+						class:text-base-content={activeTab !== t.key}
+						class:opacity-60={activeTab !== t.key}
+						on:click={() => (activeTab = t.key)}
+					>{t.label}</button>
 				{/each}
 			</div>
 

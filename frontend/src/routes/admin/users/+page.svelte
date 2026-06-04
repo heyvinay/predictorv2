@@ -16,6 +16,10 @@
 		type UserCohort,
 	} from '$lib/api/admin';
 
+	const COHORT_OPTIONS: UserCohort[] = [
+		'active', 'all', 'admins', 'paid', 'unpaid', 'signed_up_only', 'verified_only',
+	];
+
 	let page: UserAdminPage = { rows: [], total: 0 };
 	let cohort: UserCohort = 'active';
 	let search = '';
@@ -152,7 +156,7 @@
 			/>
 		</div>
 		<div class="flex gap-1.5 flex-wrap">
-			{#each ['active','all','admins','paid','unpaid','signed_up_only','verified_only'] as c}
+			{#each COHORT_OPTIONS as c}
 				<button
 					class="badge badge-sm gap-1.5 px-3 py-3 cursor-pointer transition-colors"
 					class:badge-primary={cohort === c}

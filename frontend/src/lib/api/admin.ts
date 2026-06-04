@@ -352,9 +352,10 @@ export interface AuditFeedFilters {
 	offset?: number;
 }
 
-function buildQS(params: Record<string, unknown>): string {
+function buildQS(params: Record<string, unknown> | object): string {
+	const p = params as Record<string, unknown>;
 	const qs = new URLSearchParams();
-	for (const [k, v] of Object.entries(params)) {
+	for (const [k, v] of Object.entries(p)) {
 		if (v !== undefined && v !== null && v !== '') {
 			qs.set(k, String(v));
 		}

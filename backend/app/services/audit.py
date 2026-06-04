@@ -44,6 +44,7 @@ from fastapi import Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models._datetime import aware_utc
 from app.models.audit import AuditEvent
 from app.models.entry import ActorRole
 from app.models.user import User
@@ -277,7 +278,10 @@ async def last_login_for_users(
         .group_by(AuditEvent.actor_user_id)
     )
     rows = (await session.execute(stmt)).all()
-    return {uid: ts for uid, ts in rows if uid is not None}
+    # aware_utc() defensively coerces naive datetimes (which aiosqlite
+    # returns for TIMESTAMPTZ columns) back to timezone-aware UTC.
+    # Postgres preserves tzinfo so the call is a no-op there.
+    return {uid: aware_utc(ts) for uid, ts in rows if uid is not None}
 
 
 async def last_activity_for_users(
@@ -304,4 +308,6 @@ async def last_activity_for_users(
         .group_by(AuditEvent.actor_user_id)
     )
     rows = (await session.execute(stmt)).all()
-    return {uid: ts for uid, ts in rows if uid is not None}
+    # aware_utc() defensively coerces naive datetimes (which aiosqlite
+    # returns for TIMESTAMPTZ columns) back to timezone-aware UTC.
+    return {uid: aware_utc(ts) for uid, ts in rows if uid is not None}
