@@ -1962,6 +1962,13 @@
       "type": "feature",
       "summary": "Admin Entries page now shows the entry's owner (name + email), who they paid the fee to, and a Prize chip (Eligible / Pending payment / Excluded) on every row — no more clicking through each entry to see who it belongs to. Four entries-page filter bugs fixed: Draft filter no longer matches every entry (was leaking through the dormant Phase 2 rows), Withdrawn filter now follows withdrawn_at instead of phase rows, the Disabled stat card now actually filters (previously silently failed with a 422), and the Modified-within dropdown is now wired end-to-end. The slide-over Group / Knockout / Bonus tabs now render the user's real predictions on behalf of any admin viewer — same data as the entry owner sees on /entries, but inert (no editing). User-detail page entry cards now show the correct status pill (was hardcoded to 'Submitted'), the Paid pill is alongside the reference badge, and the KPI summary reads 'Submitted: X/Y' instead of 'X sub · Y draft'.",
       "commit": "pending"
+    },
+    {
+      "version": "2.157.1",
+      "date": "2026-06-04",
+      "type": "fix",
+      "summary": "Admin slide-over Knockout tab now shows the user's picks per round (Round of 32, Round of 16, Quarter-finals, Semi-finals, Final) as chip pills plus a Champion card at the bottom. Previously the tab rendered blank for every entry because the user-facing bracket component needed group standings the slide-over wasn't supplying.",
+      "commit": "pending"
     }
   ]
 }
