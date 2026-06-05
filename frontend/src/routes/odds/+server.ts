@@ -1,48 +1,46 @@
 /**
- * Odds proxy — hides ODDS_API_KEY from the client.
+ * Odds proxy — now a thin pass-through to the FastAPI server-side cache.
  *
- * Path is `/odds`, NOT `/api/odds` — the `/api/*` namespace is reserved
- * for the FastAPI proxy via nginx in prod and Vite's dev proxy locally.
- * Using `/odds` keeps this SvelteKit endpoint cleanly separate.
+ * Plan §9 (2026-06-05): the actual cache + The Odds API integration moved
+ * to backend/app/services/odds_cache.py. This SvelteKit endpoint stays at
+ * `/odds` (NOT `/api/odds` — the `/api/*` namespace is reserved for the
+ * FastAPI proxy) but now just forwards to the backend's `/api/odds`. The
+ * frontend response shape is unchanged so no caller code needs touching.
  *
- * Returns:
+ * Why proxy through here at all (vs the client hitting `/api/odds` directly):
+ *   - Keeps the frontend's network calls on the same origin (no CORS).
+ *   - Matches the existing convention used by every other backend call —
+ *     SvelteKit's `fetch` server-side handles cookies, retries, etc.
+ *   - One-line revert path if we ever need to fall back to client-side
+ *     fetching: re-point this handler at api.the-odds-api.com.
+ *
+ * Returns (200-always, body-encoded errors per §9 contract):
  *   - { fetchedAt, remainingRequests, usedRequests, matches } on success
- *   - { error: 'not_configured' } when ODDS_API_KEY is unset
- *   - { error: 'upstream_error', status } if the-odds-api.com is unhappy
- *   - { error: 'fetch_failed' } on network failure
+ *   - { error: 'not_configured', matches: [] }  when ODDS_API_KEY is unset
+ *   - { error: 'fetch_failed', matches: [] }    on backend failure
  *
- * Status is always 200 — the UI inspects the body to decide how to react.
- * This keeps the graceful-degradation path simple in the client (no need
- * to differentiate "key unset" from "network died" by status code).
+ * Fallback (defense in depth): if the backend itself is unreachable, return
+ * the existing graceful-degradation shape rather than 500'ing — Smart Fill
+ * stays usable on the FIFA path even if the backend cache is down.
  */
-import { env } from '$env/dynamic/private';
 import { json, type RequestHandler } from '@sveltejs/kit';
 
-const ODDS_URL =
-	'https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds' +
-	'?regions=eu&markets=h2h&oddsFormat=decimal';
+// In dev, Vite proxies /api → http://backend:8000 via the docker-compose
+// network. In prod, nginx terminates /api at the FastAPI container. Both
+// paths resolve relative to the SvelteKit server-side fetch.
+const BACKEND_ODDS_URL = 'http://backend:8000/api/odds/';
 
 export const GET: RequestHandler = async ({ fetch }) => {
-	const apiKey = env.ODDS_API_KEY;
-	if (!apiKey) {
-		return json({ error: 'not_configured' });
-	}
-
 	try {
-		const res = await fetch(`${ODDS_URL}&apiKey=${encodeURIComponent(apiKey)}`);
+		const res = await fetch(BACKEND_ODDS_URL);
 		if (!res.ok) {
-			return json({ error: 'upstream_error', status: res.status });
+			return json({ error: 'fetch_failed', matches: [] });
 		}
-		const matches = await res.json();
-		const remainingRequests = Number(res.headers.get('x-requests-remaining') ?? 0);
-		const usedRequests = Number(res.headers.get('x-requests-used') ?? 0);
-		return json({
-			fetchedAt: new Date().toISOString(),
-			remainingRequests,
-			usedRequests,
-			matches
-		});
+		const body = await res.json();
+		return json(body);
 	} catch {
-		return json({ error: 'fetch_failed' });
+		// Backend unreachable — graceful degradation. Body matches the
+		// existing failure shape so client code unchanged.
+		return json({ error: 'fetch_failed', matches: [] });
 	}
 };

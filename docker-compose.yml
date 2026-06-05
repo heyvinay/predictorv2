@@ -39,6 +39,12 @@ services:
       - TOURNAMENT_CONFIG_PATH=/app/config/worldcup2026.yml
       - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
+      # The Odds API key for Smart Fill — Betting Odds method (plan §9).
+      # Same env var name as the frontend services historically used; now
+      # consumed server-side because the cache is shared at /app/data/odds_cache.json.
+      # Empty → /api/odds returns {error: 'not_configured'} and the modal
+      # disables the Betting Odds radio (graceful degradation).
+      - ODDS_API_KEY=${ODDS_API_KEY:-}
     volumes:
       - ./backend/app:/app/app
       - ./backend/scripts:/app/scripts

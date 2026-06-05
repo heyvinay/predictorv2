@@ -19,7 +19,13 @@
  */
 
 const CACHE_KEY = 'worldcup_odds_cache_v1';
-const TTL_MS = 24 * 60 * 60 * 1000;
+// Per-browser in-session cache. The real source of truth is the server-side
+// cache at /app/data/odds_cache.json (plan §9, 4h TTL). This client-side
+// localStorage cache is now just a small in-session optimisation to avoid
+// re-fetching on rapid modal re-opens. Was 24h pre-§9 when this WAS the
+// source of truth. 15 min is short enough that users see fresh data within
+// minutes of a server refresh, long enough to absorb rapid modal-open/close.
+const TTL_MS = 15 * 60 * 1000;
 
 export type OddsApiMatch = {
 	id: string;

@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     football_data_token: str = ""
     football_data_base_url: str = "https://api.football-data.org/v4"
 
+    # The Odds API (Smart Fill — Betting Odds method). Plan §9: shared
+    # server-side cache with a 4h TTL at /data/odds_cache.json. Empty key
+    # → odds_cache.get_or_refresh_odds() returns {error: 'not_configured'}
+    # and the frontend modal disables the Betting Odds radio.
+    odds_api_key: str = ""
+
     # Tournament config
     tournament_config_path: str = "config/worldcup2026.yml"
 

@@ -10,6 +10,7 @@ from app.api import (
     entry_predictions,
     fixtures,
     leaderboard,
+    odds,
     predictions,
     scores,
     telemetry,
@@ -36,3 +37,7 @@ api_router.include_router(
 )
 # Authenticated client telemetry → server-side PostHog forwarder
 api_router.include_router(telemetry.router, prefix="/telemetry", tags=["telemetry"])
+# Smart Fill — server-side cached odds (plan §9). Unauthenticated; SvelteKit
+# /odds endpoint proxies through here. Note: trailing-slash-tolerant via the
+# router's "/" path so both /api/odds and /api/odds/ work.
+api_router.include_router(odds.router, prefix="/odds", tags=["odds"])
