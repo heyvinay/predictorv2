@@ -17,95 +17,46 @@
  * Per spec: "stronger team always wins" — variation only wobbles the
  * scoreline, never the outcome direction.
  *
- * IMPORTANT: ranking points are hardcoded here for v1. Replacing this
- * lookup with a backend-served table (scraped from FIFA monthly) is the
- * intended follow-up — see the plan for the proposed
- * /admin/rankings/sync endpoint.
+ * Source of ranking points (plan §7-A, 2026-06-05):
+ *   `frontend/src/lib/data/fifaRankings.json` — refreshed from FIFA's live
+ *   API endpoint via `scripts/refresh_fifa_rankings.mjs`. The JSON keys use
+ *   FIFA's canonical spelling (e.g. "Korea Republic", "Czechia", "IR Iran",
+ *   "Côte d'Ivoire"). All lookups go through `canonicalize()` from
+ *   `teamMatch.ts:ALIASES` so fixture-side spellings ("South Korea",
+ *   "Czech Republic", "Iran", "Ivory Coast") resolve correctly. Both Smart
+ *   Fill paths (FIFA and Betting Odds) share the same alias resolver.
+ *
+ *   Future improvement (§7-B, deferred): replace the bundled JSON with a
+ *   server-side cache + admin-button refresh, so the values stay current
+ *   without a code commit each FIFA publication cycle.
  */
 
-// Approximate FIFA ranking points (late 2025 snapshot) for the 48
-// WC 2026 qualifying teams + a handful of common alt-spellings the
-// fixture data uses ("South Korea" / "Korea Republic" etc).
-//
-// These are intentionally approximate — the algorithm uses *differences*
-// between teams, so as long as the relative ordering is roughly correct
-// the predictions will read as plausible.
-export const FIFA_POINTS: Record<string, number> = {
-	Argentina: 1886,
-	France: 1854,
-	Spain: 1850,
-	England: 1812,
-	Brazil: 1779,
-	Portugal: 1778,
-	Netherlands: 1754,
-	Belgium: 1735,
-	Croatia: 1714,
-	Italy: 1714,
-	Morocco: 1694,
-	Uruguay: 1679,
-	Colombia: 1679,
-	Germany: 1660,
-	Switzerland: 1654,
-	'United States': 1647,
-	USA: 1647,
-	Japan: 1646,
-	Mexico: 1640,
-	Senegal: 1636,
-	Iran: 1632,
-	Denmark: 1631,
-	Austria: 1583,
-	'South Korea': 1576,
-	'Korea Republic': 1576,
-	Ecuador: 1568,
-	'Ivory Coast': 1564,
-	"Cote d'Ivoire": 1564,
-	Ukraine: 1559,
-	Australia: 1554,
-	Sweden: 1538,
-	Turkey: 1521,
-	'Republic of Ireland': 1480,
-	Norway: 1497,
-	Wales: 1471,
-	Czechia: 1452,
-	'Czech Republic': 1452,
-	Algeria: 1495,
-	Egypt: 1505,
-	Nigeria: 1499,
-	Canada: 1485,
-	'Saudi Arabia': 1428,
-	Qatar: 1397,
-	Iraq: 1410,
-	Cameroon: 1457,
-	Tunisia: 1481,
-	'South Africa': 1430,
-	Mali: 1466,
-	'Cape Verde Islands': 1387,
-	'Cape Verde': 1387,
-	'Bosnia-Herzegovina': 1396,
-	'Bosnia and Herzegovina': 1396,
-	Slovakia: 1452,
-	Romania: 1471,
-	Greece: 1455,
-	Albania: 1450,
-	Honduras: 1297,
-	Jamaica: 1372,
-	Panama: 1395,
-	Bolivia: 1395,
-	Venezuela: 1497,
-	'Costa Rica': 1395,
-	Paraguay: 1463,
-	Peru: 1465,
-	Chile: 1497,
-	'New Zealand': 1183,
-	'El Salvador': 1192,
-	Guatemala: 1357,
-	'Trinidad and Tobago': 1224,
-	Curacao: 1281
-};
+import fifaRankings from '$lib/data/fifaRankings.json';
+import { canonicalize } from './teamMatch';
+
+/**
+ * Normalised lookup map — built once at module load. Keys are
+ * `canonicalize(originalKey)` so a lookup using any aliased spelling
+ * resolves correctly. Values are the FIFA ranking points (rounded to 2dp).
+ *
+ * Why normalise at load: the JSON keys are FIFA's canonical spellings
+ * ("Korea Republic", "Czechia", "IR Iran") but callers pass fixture-side
+ * spellings ("South Korea", "Czech Republic", "Iran"). The existing
+ * `teamMatch.ts:ALIASES` map handles both directions of variant resolution;
+ * calling `canonicalize` on each JSON key normalises them to the same form
+ * the lookup-side will produce. One-time O(n) at load, O(1) per lookup.
+ */
+const POINTS_LOOKUP: Record<string, number> = (() => {
+	const map: Record<string, number> = {};
+	for (const [team, pts] of Object.entries(fifaRankings.points)) {
+		map[canonicalize(team)] = pts as number;
+	}
+	return map;
+})();
 
 /** Lookup with safe default — unknown teams treated as mid-table. */
 export function fifaPoints(teamName: string): number {
-	return FIFA_POINTS[teamName] ?? 1300;
+	return POINTS_LOOKUP[canonicalize(teamName)] ?? 1300;
 }
 
 /** Tier table -> base scoreline (stronger, weaker). */
