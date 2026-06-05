@@ -5,14 +5,18 @@ Guidance for Claude Code when working in this repo.
 ## Project
 
 **The Predictor v2** — self-hosted web app for running international football
-prediction competitions (World Cup, Euros) among ~30 friends. Current focus:
+prediction competitions (World Cup, Euros) among ~100 friends. Current focus:
 **World Cup 2026**.
 
 ## Tech stack
 
 **Backend:** FastAPI (Python 3.11+), SQLModel, PostgreSQL 16, Alembic.
-Tournament config in YAML (`config/worldcup2026.yml`). External scores via
-Football-Data.org (`backend/app/services/external/football_data.py`).
+Tournament config in YAML (`config/worldcup2026.yml`). Two external HTTP
+integrations: **Football-Data.org** for live match scores
+(`backend/app/services/external/football_data.py`) and **The Odds API** for
+live betting odds (`backend/app/services/odds_cache.py`), the latter
+consumed by the Betting Odds Smart Fill method. Both are unauthenticated
+read-only endpoints from the backend's perspective.
 
 **Frontend:** SvelteKit + TypeScript, Tailwind + DaisyUI (themes
 `premium-night` default / `hybrid` alternative), `svelte-motion`,
@@ -97,6 +101,70 @@ question structure was simultaneously trimmed from 10 questions to 4
 internal `top_flop` category literal is preserved across code, DB, and
 tests for backward compatibility, but the user-facing label is
 "Knockout Stage — Top / Flop" everywhere.
+
+### Smart Fill (FIFA + Betting Odds)
+
+User-triggered "auto-populate my predictions" feature surfaced via the ⚡
+SmartFill button in the entry wizard. Two methods, picked via radio in
+`SmartFillModal.svelte`:
+
+- **FIFA method** — predicts from each team's FIFA ranking points. Argmax:
+  stronger team always wins; only the scoreline wobbles per (user, fixture)
+  seeded variation. Engine in `frontend/src/lib/utils/smartFill.ts`.
+- **Betting Odds method** — predicts from averaged head-to-head decimal
+  odds across all bookmakers The Odds API returns. Argmax outcome too:
+  market favourite always wins (as of v2.158.0 — previously this was
+  stochastic and produced occasional underdog upsets). Engine in
+  `frontend/src/lib/utils/simulateScore.ts`. **Don't regress to
+  stochastic outcome sampling** — that was the v2.158.0 §8 bug. The
+  scoreline picker is correctly RNG-driven; the *outcome* must stay
+  argmax. Modal copy promises "picking winners" — that's the contract.
+
+**Bracket fill** always uses FIFA, regardless of which method is picked.
+Odds cover scorelines only.
+
+**Alias preservation contract (★ mandatory).** Both Smart Fill paths share
+the same canonical-name resolver at [teamMatch.ts:27-64](frontend/src/lib/utils/teamMatch.ts:27)
+(`ALIASES` map + `canonicalize()` helper). Touch it carefully — losing any
+existing alias entry breaks the Odds path silently (fixtures with the
+"wrong" spelling stop matching API responses). Examples that must keep
+working: `USA ↔ United States`, `Korea Republic ↔ South Korea`,
+`Türkiye ↔ Turkey`, `IR Iran ↔ Iran`, `Côte d'Ivoire ↔ Ivory Coast`,
+`Cabo Verde ↔ Cape Verde`, `DR Congo ↔ Congo DR`, `Czechia ↔ Czech Republic`,
+`CuraÃ§ao ↔ Curacao` (latter is API mojibake — keep the entry).
+
+**FIFA rankings data.** Lives in `frontend/src/lib/data/fifaRankings.json`
+(211 teams, FIFA's canonical spellings as keys). The FIFA Smart Fill path
+loads this at module init and builds a normalized lookup map keyed on
+`canonicalize(team)` so fixture-side spellings resolve correctly. Refresh
+via:
+```bash
+node scripts/refresh_fifa_rankings.mjs
+```
+Run roughly monthly per FIFA's publication cycle. The script validates the
+upstream response (8 durability checks) and atomically writes the JSON; on
+any failure the existing file is left untouched. **Future improvement**
+(plan §7-B, deferred): admin-panel "Refresh now" button replaces the
+script + commit + deploy cycle.
+
+**Odds cache.** Lives server-side at `/app/data/odds_cache.json` on the
+existing `./backend/data:/app/data` bind mount. Lazy read-through with a
+4h TTL — first user to open Smart Fill after the cache goes stale triggers
+a refresh; everyone else within the 4h window reuses. Service:
+`backend/app/services/odds_cache.py`. Endpoint: `GET /api/odds/`
+(unauthenticated; SvelteKit's `/odds` is now a thin proxy). **Durability
+contract:** any upstream failure mode (HTTP error, timeout, parse error,
+empty `Results`, validation failure) keeps the existing cache untouched.
+Merge-on-refresh: fixtures absent from a new API response are preserved.
+
+**Environment variable: `ODDS_API_KEY`** — **backend** env var as of
+v2.158.0 (was on the frontend services pre-§9, when the SvelteKit `/odds`
+endpoint hit The Odds API directly). Unset → backend returns
+`{error: 'not_configured', matches: []}` and the modal disables the
+Betting Odds radio (graceful degradation). The same docker-compose `.env`
+variable now propagates to the `backend` service instead of `frontend` —
+existing prod `.env` files don't need updating, only the service that
+consumes the var changed.
 
 ### Datetime rule (system-wide)
 
@@ -206,6 +274,34 @@ docker-compose up -d                # backend :8000, frontend dev :5173 (--profi
 docker-compose logs -f backend
 ```
 
+### Worktree-overlay testing pattern
+
+When working in a Claude worktree under `.claude/worktrees/...`, the
+running `docker-compose` stack is bound to the **main worktree path**, not
+the Claude worktree. That means `docker-compose exec backend pytest` and
+`docker-compose exec frontend-dev npm run check` from inside the Claude
+worktree run against main-worktree code, not your edits. Verified across
+many sessions.
+
+**Pattern that works:**
+
+1. Edit files in the Claude worktree.
+2. `cp` the changed files into the main worktree's matching paths.
+3. Run `docker-compose exec -T <service> <cmd>` from the main worktree path.
+4. Restore the main worktree to clean state: `git checkout -- <path>` for
+   modified files, `rm` for new files.
+5. Commit in the Claude worktree (now the main worktree is back to clean).
+
+**Why:** spinning up a separate compose stack from the worktree's own
+`docker-compose.yml` is slow (fresh `npm install`, port conflicts on
+5173 / 8000 / 5432). Overlay-then-restore is seconds.
+
+**Important:** confirm the main worktree's `git status` before step 1 and
+flag any pre-existing dirty state — overlay-then-restore can clobber
+uncommitted user work otherwise. Always restore step 4 before committing
+in the Claude worktree, or the main worktree stays dirty across sessions
+and confuses the next person who opens it.
+
 ### Testing
 
 ```bash
@@ -218,7 +314,9 @@ docker-compose exec frontend-dev npm run check
 # Frontend unit tests
 docker-compose exec frontend-dev npx vitest run
 
-# Seed Phase 2 test data
+# Seed Phase 2 test data (rarely needed — Phase 2 is dormant per the
+# Phases invariant above; only run if you're actively working on Phase 2
+# code paths during development)
 docker-compose exec backend python scripts/seed_phase2_test.py
 ```
 
@@ -243,6 +341,22 @@ These two gates catch the recurring failure modes this codebase has hit:
    the Frontend gotchas section. svelte-check reveals these
    immediately; the dev server's HMR overlay shows them too, but
    `npm run check` is the deterministic gate.
+3. **`httpx.Response` mock needs explicit `request=`** for
+   `raise_for_status()` to work on success responses — without it, the
+   `raise_for_status` call on a 200 response *itself* raises
+   `RuntimeError: Cannot call raise_for_status as the request instance
+   has not been set`. Surfaced in `test_odds_cache.py` and any future
+   async-httpx-mocking test. Pattern:
+   ```python
+   httpx.Response(
+       200,
+       json=matches,
+       headers={...},
+       request=httpx.Request("GET", "https://example.test/..."),  # ← required
+   )
+   ```
+   Standard pytest+httpx tutorials don't always show this; document it
+   here so future authors don't lose time on the cryptic error.
 
 Skipping the gates is how this codebase has historically shipped
 patches to fix patches. Run them.
