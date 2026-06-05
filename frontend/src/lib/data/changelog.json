@@ -1969,6 +1969,13 @@
       "type": "fix",
       "summary": "Admin slide-over Knockout tab now shows the user's picks per round (Round of 32, Round of 16, Quarter-finals, Semi-finals, Final) as chip pills plus a Champion card at the bottom. Previously the tab rendered blank for every entry because the user-facing bracket component needed group standings the slide-over wasn't supplying.",
       "commit": "pending"
+    },
+    {
+      "version": "2.158.0",
+      "date": "2026-06-05",
+      "type": "improvement",
+      "summary": "Smart Fill is more accurate and more current. Betting Odds Smart Fill now picks the market favourite for every match instead of occasionally sampling an upset — no more weird predictions like New Zealand beating Belgium. FIFA Smart Fill rankings have been refreshed to current values (Germany, Morocco, Senegal and Mexico moved up notably since the previous snapshot). Behind the scenes, the odds data is now cached server-side for 4 hours and shared across all users — fresher fixture coverage with a small fraction of the previous API budget.",
+      "commit": "pending"
     }
   ]
 }
