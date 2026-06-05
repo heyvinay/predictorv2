@@ -116,9 +116,15 @@ describe('simulateScore', () => {
 		expect(distinct.size).toBeGreaterThan(3);
 	});
 
-	it('probability bias: heavy favorite wins most often over N=1000 seeds', () => {
+	it('argmax outcome: heavy favorite wins 100% of seeds (no upset sampling)', () => {
+		// After the §8 fix (2026-06-05), simulateScore picks the argmax outcome
+		// deterministically — never samples an underdog upset. With FAVORITE_HOME
+		// (home odds 1.3 / draw 5.0 / away 9.0 → ~75/15/9 implied probability),
+		// home is the argmax outcome on every single seed. The scoreline still
+		// varies per seed, but the winning direction does not.
 		let homeWins = 0;
 		let awayWins = 0;
+		let draws = 0;
 		const N = 1000;
 		for (let i = 0; i < N; i++) {
 			const { hs, as } = simulateScore(
@@ -129,9 +135,47 @@ describe('simulateScore', () => {
 			);
 			if (hs > as) homeWins++;
 			else if (as > hs) awayWins++;
+			else draws++;
 		}
-		expect(homeWins / N).toBeGreaterThan(0.65);
-		expect(awayWins / N).toBeLessThan(0.15);
+		expect(homeWins).toBe(N);
+		expect(awayWins).toBe(0);
+		expect(draws).toBe(0);
+	});
+
+	it('argmax outcome: heavy AWAY favorite wins 100% of seeds', () => {
+		// Mirror case — away is the favourite. Confirms the argmax logic
+		// orients correctly regardless of which side is heavier.
+		const FAVORITE_AWAY = { home: 9.0, draw: 5.0, away: 1.3 };
+		let awayWins = 0;
+		for (let i = 0; i < 200; i++) {
+			const { hs, as } = simulateScore(
+				FAVORITE_AWAY.home,
+				FAVORITE_AWAY.draw,
+				FAVORITE_AWAY.away,
+				i
+			);
+			if (as > hs) awayWins++;
+		}
+		expect(awayWins).toBe(200);
+	});
+
+	it('argmax outcome: draw favourite is picked when draw odds are shortest', () => {
+		// Balanced book with shortest draw odds → draw is argmax. Confirms
+		// draws aren't suppressed by the home/away tiebreak when draw genuinely
+		// leads on probability.
+		// Decimal odds chosen so 1/odds normalises to home<draw, away<draw.
+		const DRAW_FAVOURITE = { home: 3.5, draw: 2.5, away: 3.5 };
+		let draws = 0;
+		for (let i = 0; i < 200; i++) {
+			const { hs, as } = simulateScore(
+				DRAW_FAVOURITE.home,
+				DRAW_FAVOURITE.draw,
+				DRAW_FAVOURITE.away,
+				i
+			);
+			if (hs === as) draws++;
+		}
+		expect(draws).toBe(200);
 	});
 
 	it('clamps scores to MAX_GOALS = 15 (defensive — tables max at 5)', () => {

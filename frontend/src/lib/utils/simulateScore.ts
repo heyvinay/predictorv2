@@ -130,14 +130,24 @@ export function simulateScore(
 	const rand = mulberry32(seed);
 	const { home, draw, away } = impliedProbabilities(homeOdds, drawOdds, awayOdds);
 
-	// 1. Pick outcome by probability
-	const r = rand();
+	// 1. Pick outcome by argmax — the most-likely market outcome wins.
+	//    Earlier this was stochastic (`r = rand(); if r < home → home; else if r < home + draw → draw; …`)
+	//    which sampled from the full probability distribution, occasionally producing
+	//    underdog-wins predictions when the seeded RNG happened to land in the long-tail
+	//    region. That conflicted with Smart Fill's user-facing promise ("picking winners")
+	//    and with the FIFA path's "stronger team always wins" contract. Argmax aligns the
+	//    Odds path with both. Ties resolve in home > away > draw order — a 33/33/33 book
+	//    is itself a coin flip the user has to break somehow, and "home" is a defensible
+	//    default. See plan §8 (2026-06-05).
 	let outcome: 'home' | 'draw' | 'away';
-	if (r < home) outcome = 'home';
-	else if (r < home + draw) outcome = 'draw';
-	else outcome = 'away';
+	if (home >= draw && home >= away) outcome = 'home';
+	else if (away >= draw) outcome = 'away';
+	else outcome = 'draw';
 
-	// 2. Pick scoreline from the corresponding table
+	// 2. Pick scoreline from the corresponding table. The RNG stream is still used
+	//    here so the scoreline VARIES per (fixture, day) — only the outcome direction
+	//    is now deterministic. Users still get a mix of 1-0, 2-1, 2-0, etc. for the
+	//    favourite, not always the same scoreline.
 	if (outcome === 'draw') {
 		const [a, b] = pickWeighted(rand, DRAW_SCORES);
 		return { hs: clamp(a), as: clamp(b) };
