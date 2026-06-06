@@ -20,14 +20,19 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { track } from '$lib/analytics';
 	import ArrowRight from 'lucide-svelte/icons/arrow-right';
+	import { derivePhase, type CountdownPhase } from '$lib/utils/countdownPhase';
 
 	export let phase1Deadline: string | null = null;
 	/** Where this countdown is rendered — passed to the auth CTA for
 	 *  consistent analytics tagging. */
 	export let ctaHref: string = '/login';
 	export let ctaPlacement: string = 'countdown';
+	/** 'band' (default) renders the full-width chrome with top/bottom
+	 *  border lines. 'card' drops the chrome so the component fits in a
+	 *  narrower grid column alongside other content. */
+	export let variant: 'band' | 'card' = 'band';
 
-	type Phase = 'calm' | 'heads_up' | 'urgent' | 'critical' | 'locked' | 'unknown';
+	type Phase = CountdownPhase;
 
 	let now = Date.now();
 	let timer: ReturnType<typeof setInterval> | null = null;
@@ -58,15 +63,6 @@
 			});
 		}
 		lastPhase = phase;
-	}
-
-	function derivePhase(secs: number | null): Phase {
-		if (secs === null) return 'unknown';
-		if (secs <= 0) return 'locked';
-		if (secs < 3600) return 'critical';
-		if (secs < 172_400) return 'urgent';
-		if (secs < 604_800) return 'heads_up';
-		return 'calm';
 	}
 
 	function breakdown(secs: number): { dd: string; hh: string; mm: string; ss: string } {
@@ -144,19 +140,59 @@
 	}
 </script>
 
-<div class="bg-base-300/40 border-y border-primary noise">
-	<div class="max-w-[1200px] mx-auto mobile-padding py-10 sm:py-12 text-center">
+{#if variant === 'band'}
+	<div class="bg-base-300/40 border-y border-primary noise">
+		<div class="max-w-[1200px] mx-auto mobile-padding py-10 sm:py-12 text-center">
+			<p class="text-xs sm:text-sm font-mono uppercase tracking-[0.18em] {config.colorClass} mb-3">
+				{config.label}
+			</p>
+			<div
+				class="font-hero tabular-nums whitespace-nowrap {config.colorClass} {config.pulseClass}
+					text-[clamp(36px,10vw,124px)] leading-none tracking-tight"
+			>
+				{#if parts}
+					<span>{parts.dd}</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>{parts.hh}</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>{parts.mm}</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>{parts.ss}</span>
+				{:else}
+					<span>—</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>—</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>—</span>
+					<span class="opacity-60 px-1 sm:px-2">:</span>
+					<span>—</span>
+				{/if}
+			</div>
+			<p class="text-sm text-base-content/70 mt-4 max-w-2xl mx-auto leading-relaxed">
+				{config.subline}
+			</p>
+			{#if config.ctaLabel}
+				<a
+					href={ctaHref}
+					class="inline-flex items-center gap-1.5 mt-5 px-4 py-2 rounded-btn
+						bg-primary text-primary-content font-semibold text-sm hover:opacity-90 transition-opacity"
+					on:click={onCtaClick}
+				>
+					{config.ctaLabel}
+					<ArrowRight size={16} strokeWidth={2.5} />
+				</a>
+			{/if}
+		</div>
+	</div>
+{:else}
+	<!-- 'card' variant — fits in a grid column next to other content -->
+	<div class="text-center">
 		<p class="text-xs sm:text-sm font-mono uppercase tracking-[0.18em] {config.colorClass} mb-3">
 			{config.label}
 		</p>
-
-		<!-- whitespace-nowrap + a lower clamp() floor prevents the digit
-		     row from wrapping on narrow viewports. tabular-nums keeps
-		     each digit width-stable as the timer ticks, so explicit
-		     min-w on the digit spans is unnecessary. -->
 		<div
 			class="font-hero tabular-nums whitespace-nowrap {config.colorClass} {config.pulseClass}
-				text-[clamp(36px,10vw,124px)] leading-none tracking-tight"
+				text-[clamp(32px,7vw,72px)] leading-none tracking-tight"
 		>
 			{#if parts}
 				<span>{parts.dd}</span>
@@ -176,11 +212,9 @@
 				<span>—</span>
 			{/if}
 		</div>
-
-		<p class="text-sm text-base-content/70 mt-4 max-w-2xl mx-auto leading-relaxed">
+		<p class="text-sm text-base-content/70 mt-4 leading-relaxed">
 			{config.subline}
 		</p>
-
 		{#if config.ctaLabel}
 			<a
 				href={ctaHref}
@@ -193,4 +227,4 @@
 			</a>
 		{/if}
 	</div>
-</div>
+{/if}

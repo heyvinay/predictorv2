@@ -8,13 +8,14 @@
 	phase2Countdown, etc.) — using it here means every visible countdown
 	in the UI ticks on the same heartbeat.
 
-	Visual states:
-	  - normal       → green-tinted pill (mirrors the landing-page calm-phase
-	                   countdown so the two timers read as the same object;
-	                   bg-success/10, border-success/40, text-success)
-	  - critical     → error-red bg/border/text when < criticalThresholdSec
-	                   remaining (defaults to 6 hours)
-	  - past deadline → renders nothing (component disappears entirely)
+	Visual states (phase tiers shared with CountdownBand via
+	$lib/utils/countdownPhase so the navbar pill and the body countdown
+	always agree at every tick):
+	  - calm     ( > 7d  )  → green
+	  - heads_up ( 1-7d  )  → amber
+	  - urgent   ( <24h  )  → red
+	  - critical ( <1h   )  → red + pulse
+	  - locked   ( ≤0    )  → hidden (component disappears)
 
 	Accessibility:
 	  - role="timer" (proper ARIA role for a live counter)
@@ -25,15 +26,10 @@
 -->
 <script lang="ts">
 	import { currentTime } from '$lib/stores/phase';
+	import { derivePhase, phasePillClasses } from '$lib/utils/countdownPhase';
 
 	/** ISO 8601 datetime string. `null` → render nothing. */
 	export let deadline: string | null = null;
-
-	/**
-	 * Below this many seconds remaining, the badge switches to error/red
-	 * styling. Default = 6 hours = 21600s.
-	 */
-	export let criticalThresholdSec: number = 6 * 3600;
 
 	/** Left-side label. Defaults to "Deadline". */
 	export let label: string = 'Deadline';
@@ -49,7 +45,9 @@
 	$: deadlineMs = deadline ? new Date(deadline).getTime() : 0;
 	$: remainingMs = deadlineMs ? deadlineMs - $currentTime.getTime() : -1;
 	$: visible = remainingMs > 0;
-	$: critical = visible && remainingMs < criticalThresholdSec * 1000;
+	$: phase = derivePhase(visible ? Math.floor(remainingMs / 1000) : null);
+	$: pillClasses = phasePillClasses(phase);
+	$: critical = phase === 'critical';
 
 	function formatDdHhMmSs(ms: number): string {
 		if (ms <= 0) return '0d 00:00:00';
@@ -93,9 +91,7 @@
 		role="timer"
 		aria-live={critical ? 'polite' : 'off'}
 		aria-label="{label}: {ariaDisplay} remaining"
-		class="inline-flex items-center whitespace-nowrap {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {critical
-			? 'bg-error/10 border-error/40 text-error'
-			: 'bg-success/10 border-success/40 text-success'}"
+		class="inline-flex items-center whitespace-nowrap {compact ? 'gap-1.5 px-2 py-1' : 'gap-2 px-3 py-1.5'} rounded-lg border font-semibold shadow-sm transition-colors {pillClasses}"
 	>
 		{#if !compact}
 			<span class="text-[10px] uppercase tracking-wider opacity-80 font-bold">{label}</span>
