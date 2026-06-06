@@ -11,6 +11,7 @@
 	import {
 		listUsersV2,
 		downloadInactiveEmailsUrl,
+		toggleUserPaid,
 		type UserAdminPage,
 		type UserAdminRowV2,
 		type UserCohort,
@@ -66,6 +67,48 @@
 		await refresh();
 		await tick();
 		tableEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	// v2.160.0 parity fix: legacy /admin User Management had per-row
+	// paid toggle. Without it the new list view was read-only for the
+	// payment-day workflow. Optimistic update + revert on failure.
+	let togglingPaidId: string | null = null;
+	let paidToggleError: string | null = null;
+
+	async function handleTogglePaid(u: UserAdminRowV2): Promise<void> {
+		togglingPaidId = u.id;
+		paidToggleError = null;
+		const previousPaid = u.paid;
+		page = {
+			...page,
+			rows: page.rows.map((r) =>
+				r.id === u.id ? { ...r, paid: !previousPaid } : r
+			)
+		};
+		try {
+			const newPaid = await toggleUserPaid(u.id);
+			// Sync the local state to what the server confirmed (handles
+			// localStorage-fallback case where the optimistic guess might
+			// have differed).
+			page = {
+				...page,
+				rows: page.rows.map((r) =>
+					r.id === u.id ? { ...r, paid: newPaid } : r
+				)
+			};
+			await refreshStats();
+		} catch (e) {
+			page = {
+				...page,
+				rows: page.rows.map((r) =>
+					r.id === u.id ? { ...r, paid: previousPaid } : r
+				)
+			};
+			paidToggleError =
+				e instanceof Error ? e.message : 'Failed to toggle paid status';
+		} finally {
+			togglingPaidId = null;
+		}
 	}
 
 	function formatDate(iso: string | null): string {
@@ -169,6 +212,10 @@
 		</div>
 	</div>
 
+	{#if paidToggleError}
+		<div class="alert alert-error text-sm mb-3">{paidToggleError}</div>
+	{/if}
+
 	<!-- Users table -->
 	<div bind:this={tableEl} class="rounded-2xl border border-base-300/30 bg-base-200/40 overflow-hidden scroll-mt-24">
 		{#if loading && page.rows.length === 0}
@@ -206,7 +253,27 @@
 								<td>
 									<div class="flex flex-wrap gap-1">
 										{#if u.is_admin}<span class="status-pill s-warning"><span class="dot"></span>Admin</span>{/if}
-										{#if u.paid}<span class="status-pill s-success"><span class="dot"></span>Paid</span>{:else if u.cohort === 'active'}<span class="status-pill s-ghost"><span class="dot"></span>Unpaid</span>{/if}
+										{#if u.paid}
+											<button
+												type="button"
+												class="status-pill s-success cursor-pointer"
+												on:click|stopPropagation={() => handleTogglePaid(u)}
+												disabled={togglingPaidId === u.id}
+												title="Click to mark as unpaid"
+											>
+												<span class="dot"></span>Paid
+											</button>
+										{:else if u.cohort === 'active'}
+											<button
+												type="button"
+												class="status-pill s-ghost cursor-pointer"
+												on:click|stopPropagation={() => handleTogglePaid(u)}
+												disabled={togglingPaidId === u.id}
+												title="Click to mark as paid"
+											>
+												<span class="dot"></span>Unpaid
+											</button>
+										{/if}
 										{#if u.cohort === 'signed_up_only'}<span class="status-pill s-warning"><span class="dot"></span>Signed up only</span>{/if}
 										{#if u.cohort === 'verified_only'}<span class="status-pill s-info"><span class="dot"></span>Verified only</span>{/if}
 									</div>

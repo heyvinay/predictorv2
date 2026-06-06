@@ -1,13 +1,27 @@
 <!--
 	WelcomeBackCard — auth-aware hero card on the landing page.
 
-	Shows: welcome eyebrow + summary of the user's entries + a
-	contextual deadline message + two CTAs (View entries / Add new
-	entry). Message and CTA labels vary on (entry_state, deadline_band)
-	per the 3x4 matrix in the plan; visual chrome stays constant — same
-	gold primary, same outlined secondary, same card footprint at every
-	urgency level. No red, no border alarm, no glow change. Urgency
-	lives in the words.
+	v2.160.x (this revision) — cohort-aware copy + accent colors.
+
+	Five cohorts, same card chassis:
+
+	  1. zero            — no entries yet. Create-first messaging.
+	  2. draft_only_solo — exactly one entry, in draft. Finish-it framing.
+	  3. submitted_only_solo — exactly one entry, submitted. CONVERSION
+	     target — primary CTA pushes toward a second entry.
+	  4. multi_with_drafts — 2+ entries with at least one draft. "Continue
+	     and finish" framing — the user already knows the wizard, just
+	     needs to close out drafts.
+	  5. multi_all_submitted — 2+ entries, all submitted. Quiet success;
+	     soft nudge to add one more.
+
+	If the deadline has passed, all cohorts collapse to the locked view.
+
+	Visual chrome stays constant — same gold primary, same outlined
+	secondary, same card footprint. Urgency lives in:
+	  • the words (per cohort)
+	  • a single accent on the stats line: amber chip for drafts,
+	    green check for submitted-only.
 
 	Phase 2 doesn't exist for this tournament. Draft/submitted counts
 	come from $editableEntries / $submittedEntries, which are narrowed
@@ -26,8 +40,13 @@
 	export let phase1Deadline: string | null = null;
 	export let placement: string = 'hero';
 
-	type EntryState = 'zero' | 'has_drafts' | 'all_submitted';
-	type Band = 'chill' | 'soon' | 'urgent' | 'locked';
+	type Cohort =
+		| 'zero'
+		| 'draft_only_solo'
+		| 'submitted_only_solo'
+		| 'multi_with_drafts'
+		| 'multi_all_submitted'
+		| 'locked';
 
 	interface CtaLink {
 		label: string;
@@ -57,131 +76,150 @@
 		return t <= Date.now();
 	}
 
-	function classifyBand(days: number | null, passed: boolean): Band {
+	function deadlinePhrase(days: number | null): string {
+		if (days === null) return '';
+		if (days === 0) return 'Deadline today.';
+		if (days === 1) return 'Deadline tomorrow.';
+		return `Deadline in ${days} days.`;
+	}
+
+	function classifyCohort(
+		draft: number,
+		submitted: number,
+		passed: boolean
+	): Cohort {
 		if (passed) return 'locked';
-		if (days === null) return 'chill';
-		if (days <= 1) return 'urgent';
-		if (days <= 7) return 'soon';
-		return 'chill';
+		const total = draft + submitted;
+		if (total === 0) return 'zero';
+		if (total === 1 && draft === 1) return 'draft_only_solo';
+		if (total === 1 && submitted === 1) return 'submitted_only_solo';
+		if (draft > 0) return 'multi_with_drafts';
+		return 'multi_all_submitted';
 	}
 
-	function classifyState(draft: number, submitted: number): EntryState {
-		if (draft + submitted === 0) return 'zero';
-		if (draft === 0) return 'all_submitted';
-		return 'has_drafts';
-	}
-
-	function deadlinePhrase(days: number | null, passed: boolean): string {
-		if (passed) return 'Submissions are closed';
-		if (days === null) return 'Deadline coming up';
-		if (days === 0) return 'Deadline today';
-		if (days === 1) return 'Deadline tomorrow';
-		return `Deadline in ${days} days`;
-	}
-
-	function pluralDrafts(n: number): string {
-		return n === 1 ? 'draft' : 'drafts';
-	}
-
-	const VIEW: CtaLink = {
+	// ─── CTA link constants ──────────────────────────────────────────────
+	const VIEW_ENTRIES: CtaLink = {
 		label: 'View your entries →',
 		href: '/entries',
 		analyticsLabel: 'view_entries'
 	};
-	const ADD_NEW: CtaLink = {
-		label: 'Add new entry',
-		href: '/entries?new=1',
-		analyticsLabel: 'add_new_entry'
-	};
-	const ADD_FIRST: CtaLink = {
-		label: 'Add your first entry',
-		href: '/entries?new=1',
-		analyticsLabel: 'add_first_entry'
-	};
-	const SUBMIT_DRAFTS: CtaLink = {
-		label: 'Submit your drafts →',
+	const VIEW_ENTRY: CtaLink = {
+		label: 'View your entry →',
 		href: '/entries',
-		analyticsLabel: 'submit_drafts'
+		analyticsLabel: 'view_entry'
+	};
+	const ADD_ANOTHER: CtaLink = {
+		label: 'Add another entry',
+		href: '/entries?new=1',
+		analyticsLabel: 'add_another_entry'
+	};
+	const CREATE_FIRST: CtaLink = {
+		label: 'Create your entry →',
+		href: '/entries?new=1',
+		analyticsLabel: 'create_first_entry'
+	};
+	const FINISH_ENTRY: CtaLink = {
+		label: 'Finish your entry →',
+		href: '/entries',
+		analyticsLabel: 'finish_entry'
+	};
+	const CONTINUE_FINISH: CtaLink = {
+		label: 'Continue and finish →',
+		href: '/entries',
+		analyticsLabel: 'continue_and_finish'
 	};
 
 	function buildContent(
-		state: EntryState,
-		band: Band,
-		draftCount: number,
-		days: number | null
+		cohort: Cohort,
+		days: number | null,
+		draftCount: number
 	): CardContent {
-		if (state === 'zero') {
-			const message =
-				band === 'locked'
-					? 'Submissions are closed.'
-					: band === 'urgent'
-						? 'Last day — create your entry and submit it before kickoff.'
-						: band === 'soon'
-							? `${days} ${days === 1 ? 'day' : 'days'} left to make your picks.`
-							: 'Create your first entry, fill it in, and submit before the deadline.';
-			return {
-				message,
-				primary: band === 'locked' ? VIEW : ADD_FIRST,
-				secondary: null
-			};
-		}
+		const dp = deadlinePhrase(days);
+		const draftWord = draftCount === 1 ? 'draft' : 'drafts';
 
-		if (state === 'all_submitted') {
-			const dp = deadlinePhrase(days, band === 'locked');
-			const message =
-				band === 'locked'
-					? 'Submissions are closed.'
-					: band === 'urgent'
-						? `All entries locked in. ${dp}.`
-						: band === 'soon'
-							? `All entries submitted. ${dp}.`
-							: `You're all set. ${dp}.`;
-			return {
-				message,
-				primary: VIEW,
-				secondary: band === 'locked' ? null : ADD_NEW
-			};
-		}
+		switch (cohort) {
+			case 'locked':
+				return {
+					message: 'Submissions are closed.',
+					primary: VIEW_ENTRIES,
+					secondary: null
+				};
 
-		// has_drafts
-		const n = draftCount;
-		const d = pluralDrafts(n);
+			case 'zero':
+				return {
+					message:
+						`You haven't entered yet. Pick a team, score the games, and join the pool. ${dp}`.trim(),
+					primary: CREATE_FIRST,
+					secondary: null
+				};
 
-		if (band === 'locked') {
-			return {
-				message: `Submissions are closed. ${n} ${d} did not count.`,
-				primary: VIEW,
-				secondary: null
-			};
+			case 'draft_only_solo':
+				return {
+					message: `Finish your picks, then back yourself with a second entry. ${dp}`.trim(),
+					primary: FINISH_ENTRY,
+					secondary: ADD_ANOTHER
+				};
+
+			case 'submitted_only_solo':
+				// CONVERSION-FOCUS cohort. Primary leads with the upsell;
+				// secondary lets them peek at their existing entry.
+				return {
+					message: `You're in. Boost your odds — add a second entry before the deadline. ${dp}`.trim(),
+					primary: ADD_ANOTHER,
+					secondary: VIEW_ENTRY
+				};
+
+			case 'multi_with_drafts':
+				return {
+					message: `${draftCount} ${draftWord} still need submitting. ${dp}`.trim(),
+					primary: CONTINUE_FINISH,
+					secondary: ADD_ANOTHER
+				};
+
+			case 'multi_all_submitted':
+				return {
+					message: `You're all in. Add one more? ${dp}`.trim(),
+					primary: ADD_ANOTHER,
+					secondary: VIEW_ENTRIES
+				};
 		}
-		if (band === 'urgent') {
-			const lead = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : 'Last day';
-			return {
-				message: `${lead} — ${n} ${d} must be submitted to count.`,
-				primary: SUBMIT_DRAFTS,
-				secondary: null
-			};
-		}
-		if (band === 'soon') {
-			return {
-				message: `Deadline in ${days} days — ${n} ${d} still need submitting.`,
-				primary: VIEW,
-				secondary: ADD_NEW
-			};
-		}
-		return {
-			message: `You have ${n} ${d}. Submit before the deadline to count.`,
-			primary: VIEW,
-			secondary: ADD_NEW
-		};
 	}
 
-	function summaryLine(draft: number, submitted: number): string {
+	/** Stats line — "1 entry · in draft" / "3 entries · 2 submitted · 1 draft".
+	 *
+	 * Cohort 1 returns null (no stats line; subtitle already says
+	 * "You haven't entered yet"). Cohorts 3 + 5 (all-submitted variants)
+	 * pick up a green ✓ token; cohorts 2 + 4 stay neutral text with the
+	 * draft count carrying the visual weight via accent color on the
+	 * surrounding chip. */
+	function buildStatsLine(cohort: Cohort, draft: number, submitted: number): {
+		text: string;
+		accent: 'success' | 'warning' | 'neutral';
+	} | null {
+		if (cohort === 'zero') return null;
+
 		const total = draft + submitted;
+		if (cohort === 'draft_only_solo') {
+			return { text: '1 entry · in draft', accent: 'warning' };
+		}
+		if (cohort === 'submitted_only_solo') {
+			return { text: '1 entry · submitted ✓', accent: 'success' };
+		}
+		if (cohort === 'multi_with_drafts') {
+			const draftWord = draft === 1 ? 'draft' : 'drafts';
+			return {
+				text: `${total} entries · ${submitted} submitted · ${draft} ${draftWord}`,
+				accent: 'warning'
+			};
+		}
+		if (cohort === 'multi_all_submitted') {
+			return { text: `${total} entries · all submitted ✓`, accent: 'success' };
+		}
+		// locked
 		const parts: string[] = [`${total} ${total === 1 ? 'entry' : 'entries'}`];
 		if (submitted > 0) parts.push(`${submitted} submitted`);
-		if (draft > 0) parts.push(`${draft} ${pluralDrafts(draft)}`);
-		return parts.join(' · ');
+		if (draft > 0) parts.push(`${draft} ${draft === 1 ? 'draft' : 'drafts'}`);
+		return { text: parts.join(' · '), accent: 'neutral' };
 	}
 
 	$: firstName = ($user?.name ?? '').trim().split(/\s+/)[0] || 'Player';
@@ -190,10 +228,18 @@
 	$: totalCount = draftCount + submittedCount;
 	$: daysToLock = computeDaysToLock(phase1Deadline);
 	$: passed = isDeadlinePassed(phase1Deadline);
-	$: band = classifyBand(daysToLock, passed);
-	$: state = classifyState(draftCount, submittedCount);
-	$: content = buildContent(state, band, draftCount, daysToLock);
-	$: summary = totalCount > 0 ? summaryLine(draftCount, submittedCount) : null;
+	$: cohort = classifyCohort(draftCount, submittedCount, passed);
+	$: content = buildContent(cohort, daysToLock, draftCount);
+	$: statsLine = buildStatsLine(cohort, draftCount, submittedCount);
+
+	function statsLineClass(accent: 'success' | 'warning' | 'neutral'): string {
+		// text-warning-text — the theme-aware amber foreground per
+		// feedback_text_warning_token_trap.md (NOT text-warning, which is
+		// a surface token).
+		if (accent === 'success') return 'text-success';
+		if (accent === 'warning') return 'text-warning-text';
+		return 'text-base-content';
+	}
 
 	function onCtaClick(cta: CtaLink) {
 		track('cta_clicked', {
@@ -201,7 +247,7 @@
 			cta_label: cta.analyticsLabel,
 			auth_state: 'authenticated',
 			total_entries: totalCount,
-			band
+			cohort
 		});
 	}
 </script>
@@ -211,9 +257,9 @@
 		Welcome back, {firstName}
 	</p>
 
-	{#if summary}
-		<p class="font-display font-semibold text-base text-base-content mb-1.5">
-			{summary}
+	{#if statsLine}
+		<p class="font-display font-semibold text-base mb-1.5 {statsLineClass(statsLine.accent)}">
+			{statsLine.text}
 		</p>
 	{/if}
 

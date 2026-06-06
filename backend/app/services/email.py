@@ -8,10 +8,12 @@ local testing doesn't require an email account.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import httpx
 
 from app.config import get_settings
+from app.services.broadcast import BroadcastSegment
 from app.services.team_name import display_team_name
 
 logger = logging.getLogger(__name__)
@@ -862,3 +864,325 @@ def _build_recap_text(recap: dict) -> str:
             )
 
     return "".join(parts) if parts else ""
+
+
+# ── Broadcast nudge emails (v2.160.0) ────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _BroadcastContent:
+    """Per-segment copy bundle. Subject/headline/CTA differ per segment;
+    the chrome (navy/gold header, footer) is shared via the builders below."""
+
+    subject: str
+    headline: str
+    # Pre-rendered HTML paragraphs for the body. Inline only — no
+    # external CSS, no relative URLs, no untrusted-user content (the
+    # caller does not pass through any user-controlled text into the
+    # HTML beyond the salutation name, which we HTML-escape on insert).
+    body_html: str
+    body_text: str
+    cta_label: str
+
+
+def _broadcast_content_for_segment(
+    segment: BroadcastSegment,
+    *,
+    player_name: str,
+    deadline_display: str | None,
+) -> _BroadcastContent:
+    """Branch on segment → return per-segment copy.
+
+    All three segments share: salutation name, deadline phrasing,
+    "go to entries" CTA. Only the headline, body paragraphs, and
+    subject differ.
+    """
+    safe_name = (player_name or "there").replace("<", "&lt;").replace(">", "&gt;")
+    deadline_phrase_html = (
+        f"before <strong>{deadline_display}</strong>"
+        if deadline_display
+        else "before the deadline"
+    )
+    deadline_phrase_text = (
+        f"before {deadline_display}" if deadline_display else "before the deadline"
+    )
+
+    if segment == BroadcastSegment.SUBMITTERS:
+        return _BroadcastContent(
+            subject="Thanks for entering — want to add another?",
+            headline="Thanks for entering.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, your World Cup 2026 entry is locked in — "
+                "we appreciate you taking part.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "If you fancy adding another set of predictions, you can create "
+                f"additional entries {deadline_phrase_html}. Different teams, "
+                "different picks, more chances to win.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "If any of your entries are still in draft, remember those "
+                "don't count toward scoring until you submit them — give "
+                "them a once-over and lock them in.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "One small heads-up: we've tightened the wording on the "
+                "<strong>Bottlers</strong> bonus question — it now reads "
+                '<em>&ldquo;team inside FIFA top 10 eliminated earliest, '
+                'including not making it to the knockout stage.&rdquo;</em> '
+                "You can edit any submitted entry right up to the deadline "
+                "if you'd like to revisit that pick (or any other).</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, your World Cup 2026 entry is locked in — "
+                "we appreciate you taking part.\n"
+                "\n"
+                "If you fancy adding another set of predictions, you can create\n"
+                f"additional entries {deadline_phrase_text}. Different teams,\n"
+                "different picks, more chances to win.\n"
+                "\n"
+                "If any of your entries are still in draft, remember those\n"
+                "don't count toward scoring until you submit them — give\n"
+                "them a once-over and lock them in.\n"
+                "\n"
+                "One small heads-up: we've tightened the wording on the\n"
+                "Bottlers bonus question — it now reads:\n"
+                '"team inside FIFA top 10 eliminated earliest, including\n'
+                'not making it to the knockout stage."\n'
+                "\n"
+                "You can edit any submitted entry right up to the deadline\n"
+                "if you'd like to revisit that pick (or any other).\n"
+            ),
+            cta_label="Add another entry",
+        )
+
+    if segment == BroadcastSegment.NO_ENTRY:
+        return _BroadcastContent(
+            subject="Make your World Cup 2026 picks",
+            headline="Don't miss out on World Cup 2026.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, you signed up for the World Cup 2026 prediction "
+                "pool but haven't made your picks yet.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"The deadline to enter is {deadline_phrase_html}. It takes about "
+                "ten minutes to fill in your group-stage predictions, bracket, and "
+                "bonus answers — and you only need to do it once.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, you signed up for the World Cup 2026 prediction\n"
+                "pool but haven't made your picks yet.\n"
+                "\n"
+                f"The deadline to enter is {deadline_phrase_text}. It takes about\n"
+                "ten minutes to fill in your group-stage predictions, bracket, and\n"
+                "bonus answers — and you only need to do it once.\n"
+            ),
+            cta_label="Make my picks",
+        )
+
+    if segment == BroadcastSegment.DRAFT_HOLDERS:
+        return _BroadcastContent(
+            subject="Your World Cup 2026 picks aren't submitted yet",
+            headline="Don't forget to submit.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, you've started a World Cup 2026 entry but "
+                "haven't submitted it yet.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Draft entries don't count toward scoring</strong> — "
+                f"you need to submit {deadline_phrase_html} for your picks to "
+                "qualify. Hop in, review your predictions, and hit Submit.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, you've started a World Cup 2026 entry but\n"
+                "haven't submitted it yet.\n"
+                "\n"
+                "Draft entries don't count toward scoring — you need to submit\n"
+                f"{deadline_phrase_text} for your picks to qualify. Hop in,\n"
+                "review your predictions, and hit Submit.\n"
+            ),
+            cta_label="Submit my picks",
+        )
+
+    raise ValueError(f"Unknown segment: {segment!r}")
+
+
+async def send_broadcast_email(
+    *,
+    to_email: str,
+    player_name: str,
+    segment: BroadcastSegment,
+    deep_link_url: str,
+    deadline_display: str | None,
+) -> None:
+    """Send ONE broadcast email to ONE recipient.
+
+    Used both by the single-recipient test-send endpoint and by the
+    real broadcast loop (one call per audience row, paced from the
+    endpoint with ``asyncio.sleep(0.05)`` between sends to stay under
+    Resend's free-tier rate limit).
+
+    Mirrors the magic-link dev fallback — with ``RESEND_API_KEY`` unset
+    the message is logged to stdout instead, so local testing of the
+    flow needs no email account.
+
+    Raises ``RuntimeError`` on a non-2xx Resend response so the caller
+    can count failures + surface a sample to the admin.
+    """
+    settings = get_settings()
+    content = _broadcast_content_for_segment(
+        segment, player_name=player_name, deadline_display=deadline_display
+    )
+
+    if not settings.resend_api_key:
+        # Dev fallback — print the full message body too so we can
+        # eyeball-check the per-segment copy without a real send.
+        print(
+            f"[broadcast] RESEND_API_KEY not set — dev mode, printing instead. "
+            f"to={to_email} segment={segment.value} subject={content.subject!r}",
+            flush=True,
+        )
+        print(f"[broadcast] link={deep_link_url}", flush=True)
+        print(f"[broadcast] body={content.body_text}", flush=True)
+        return
+
+    html_body = _build_broadcast_html(content, deep_link_url)
+    text_body = _build_broadcast_text(content, deep_link_url)
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            RESEND_API_URL,
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.resend_from_email,
+                "to": to_email,
+                "subject": content.subject,
+                "html": html_body,
+                "text": text_body,
+            },
+            timeout=10.0,
+        )
+
+    if response.status_code not in (200, 201):
+        logger.error(
+            "[broadcast] Resend API error %s: %s",
+            response.status_code,
+            response.text,
+        )
+        raise RuntimeError("Failed to send broadcast email")
+
+
+def _build_broadcast_html(
+    content: _BroadcastContent, deep_link_url: str
+) -> str:
+    """Wrap segment-specific content in the shared navy/gold chrome.
+
+    Closely mirrors ``_build_entry_unlocked_html`` — same header band,
+    same body padding, same CTA button styling, same footer. Keeps
+    the transactional + nudge emails reading as one consistent brand.
+    """
+    safe_headline = content.headline.replace("<", "&lt;").replace(">", "&gt;")
+    return (
+        '<!DOCTYPE html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
+        '  <meta charset="UTF-8" />\n'
+        '  <meta name="viewport" content="width=device-width,initial-scale=1.0" />\n'
+        f'  <title>{safe_headline}</title>\n'
+        '</head>\n'
+        f'<body style="margin:0;padding:0;background:{_PAGE_BG};'
+        f'font-family:{_BODY_FONT};color:{_BODY_INK};">\n'
+        '  <table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{_PAGE_BG};padding:32px 12px;">\n'
+        '    <tr>\n'
+        '      <td align="center">\n'
+        '        <table width="520" cellpadding="0" cellspacing="0" border="0" '
+        f'style="max-width:520px;width:100%;background:{_CARD_BG};'
+        'border-radius:12px;overflow:hidden;'
+        'box-shadow:0 6px 24px -12px rgba(11,19,41,0.18);">\n'
+        # ---- Header band ----
+        '          <tr>\n'
+        '            <td align="center" '
+        f'style="background:{_NAVY};padding:28px 24px;">\n'
+        f'              <div style="font-family:{_DISPLAY_FONT};font-size:16px;'
+        'font-weight:700;letter-spacing:0.10em;white-space:nowrap;'
+        f'color:{_GOLD};text-transform:uppercase;line-height:1.2;">'
+        'Atlas World Cup 2026 Pools</div>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Body ----
+        '          <tr>\n'
+        '            <td style="padding:36px 32px 8px 32px;">\n'
+        f'              <h1 style="margin:0 0 14px 0;font-family:{_DISPLAY_FONT};'
+        f'font-size:22px;font-weight:700;color:{_NAVY};letter-spacing:-0.01em;">'
+        f'{safe_headline}</h1>\n'
+        f'{content.body_html}'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- CTA button ----
+        '          <tr>\n'
+        '            <td align="center" style="padding:8px 32px 24px 32px;">\n'
+        f'              <a href="{deep_link_url}" '
+        f'style="display:inline-block;background:{_GOLD};color:{_NAVY};'
+        f'font-family:{_BODY_FONT};font-size:14px;font-weight:700;'
+        'letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;'
+        f'padding:14px 28px;border-radius:8px;">{content.cta_label}</a>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Raw URL fallback ----
+        '          <tr>\n'
+        '            <td style="padding:0 32px 24px 32px;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};word-break:break-all;">'
+        'If the button doesn\'t work, paste this link into your browser:<br/>\n'
+        f'                <a href="{deep_link_url}" '
+        f'style="color:{_MUTED_INK};text-decoration:underline;">'
+        f'{deep_link_url}</a>'
+        '              </p>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Footer ----
+        '          <tr>\n'
+        '            <td '
+        f'style="padding:18px 32px 28px 32px;border-top:1px solid #E2E8F0;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};">'
+        'This mailbox is not monitored — please don\'t reply to this email.</p>\n'
+        f'              <p style="margin:14px 0 0 0;font-size:12px;'
+        f'color:{_MUTED_INK};">— Atlas World Cup 2026 Pools</p>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        '        </table>\n'
+        '      </td>\n'
+        '    </tr>\n'
+        '  </table>\n'
+        '</body>\n'
+        '</html>'
+    )
+
+
+def _build_broadcast_text(
+    content: _BroadcastContent, deep_link_url: str
+) -> str:
+    """Plain-text alternative."""
+    return (
+        f"{content.headline}\n"
+        "\n"
+        f"{content.body_text}"
+        "\n"
+        f"{content.cta_label}:\n"
+        f"{deep_link_url}\n"
+        "\n"
+        "This mailbox is not monitored — please don't reply to this email.\n"
+        "\n"
+        "— Atlas World Cup 2026 Pools\n"
+    )

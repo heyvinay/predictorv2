@@ -1990,6 +1990,13 @@
       "type": "fix",
       "summary": "Right-hand Group Standings panel now opens to the all-groups stacked view by default when you enter the prediction wizard — matching the all-accordions-expanded default. Previously you had to click Collapse all then Expand all to flip the standings panel into 'all' mode.",
       "commit": "pending"
+    },
+    {
+      "version": "2.160.0",
+      "date": "2026-06-07",
+      "type": "feature",
+      "summary": "Admin can now broadcast nudge emails to three audience segments — players who've already submitted (thank-you + add another), players who signed up but haven't started (come back and play), and players sitting on draft entries (finish and submit before the deadline). Each row has a 'send test to me' button that fires one email to the admin's own inbox so you can eyeball the rendering before sending for real. Admin Console slimmed down from a kitchen-sink page into focused sub-tabs — Sync (full fixtures list + sync button), Bonus, and Notes are now dedicated tabs alongside Overview, Users, Entries, and Audit. Sub-nav becomes horizontally-scrollable pills on mobile so all seven tabs are reachable from a 375px screen. Overview stats cards swapped from Users/Fixtures/Predictions/Live to Users/Entries/Prize money. Admin nav bug fixed: clicking the Admin link from the side rail or 'Overview' from a user-detail page used to occasionally bounce to the home page during a brief auth-store hydration window — that race is gone. Bottlers bonus question wording clarified to spell out that group-stage exits count, not just knockout-stage eliminations. Landing page now greets returning members with cohort-aware copy — one entry submitted? Primary CTA pushes you toward a second. Got drafts in flight? It says 'continue and finish' instead. New social-proof card above the welcome card shows how many predictors are in the pool with a cohort-aware tagline. On mobile the welcome card jumps to the top of the page so the CTA is the first thing you see.",
+      "commit": "pending"
     }
   ]
 }

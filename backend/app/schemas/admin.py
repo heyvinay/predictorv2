@@ -19,6 +19,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.prediction import BracketPrediction, MatchPredictionRead
+from app.services.broadcast import BroadcastSegment
 
 
 # ---------------------------------------------------------------------------
@@ -263,3 +264,78 @@ class AdminEntryPredictions(BaseModel):
     match_predictions: list[MatchPredictionRead]
     bracket: BracketPrediction | None
     bonus_answers: list[AdminBonusAnswer]
+
+
+# ---------------------------------------------------------------------------
+# Broadcast emails (v2.160.0)
+# ---------------------------------------------------------------------------
+class BroadcastAudienceCounts(BaseModel):
+    """Live count for each of the three segments — feeds the badges on
+    the broadcast card."""
+
+    submitters: int
+    no_entry: int
+    draft_holders: int
+
+
+class BroadcastTestRequest(BaseModel):
+    """Request body for ``POST /admin/broadcasts/test``.
+
+    ``to_email`` is optional — when ``None`` the endpoint defaults to
+    the calling admin's own email. The override exists so admins can
+    test-send to alternate addresses (e.g. their personal Gmail for
+    cross-client rendering checks).
+    """
+
+    segment: BroadcastSegment
+    to_email: str | None = None
+
+
+class BroadcastTestResult(BaseModel):
+    """Result of one single-recipient test send.
+
+    ``sent`` is False when Resend returned an error; ``error`` carries
+    a short reason for the admin toast. ``to_email`` echoes back the
+    address that was used (so the admin knows whether the default or
+    override was applied).
+    """
+
+    sent: bool
+    to_email: str
+    error: str | None = None
+
+
+class BroadcastSendRequest(BaseModel):
+    """Request body for ``POST /admin/broadcasts``.
+
+    ``dry_run=True`` (default) → no emails sent, just the preview count.
+    ``dry_run=False`` → real broadcast, one Resend call per audience row.
+    The confirmation modal calls dry_run=True on open, then dry_run=False
+    on confirm.
+    """
+
+    segment: BroadcastSegment
+    dry_run: bool = True
+
+
+class BroadcastSendResult(BaseModel):
+    """Result of ``POST /admin/broadcasts``.
+
+    Shape is uniform across dry-run and real sends so the frontend
+    doesn't need to discriminate union responses. Field semantics:
+
+    * ``dry_run`` — echoes the request flag.
+    * ``audience_count`` — total matching audience size (same in both modes).
+    * ``sent`` — number of successful Resend calls. 0 when dry_run=True.
+    * ``failed`` — number of failed Resend calls. 0 when dry_run=True.
+    * ``sample_emails`` — dry-run: first 5 recipient emails (preview).
+      Real send: first 3 *failed* recipient emails (so the admin can
+      eyeball-check what went wrong).
+    """
+
+    dry_run: bool
+    segment: BroadcastSegment
+    audience_count: int
+    sent: int
+    failed: int
+    sample_emails: list[str]

@@ -14,6 +14,12 @@ export interface AdminStats {
 	live_fixtures: number;
 	total_predictions: number;
 	total_scores: number;
+	/** v2.160.0 — powers the Entries card on the Overview. */
+	total_entries: number;
+	/** v2.160.0 — DISTINCT entries with at least one SUBMITTED phase. */
+	submitted_entries: number;
+	/** v2.160.0 — active competition's entry_fee × submitted_entries. 0 if no active competition. */
+	prize_pool: number;
 }
 
 export interface CompetitionAdminView {
@@ -454,4 +460,64 @@ export function downloadInactiveEmailsUrl(
 export interface AdminEntryFiltersV2 extends AdminEntryFilters {
 	/** New in v2.156.0: '1h' | '24h' | '7d' | '30d' */
 	modified_within?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Broadcast emails (v2.160.0)
+// ---------------------------------------------------------------------------
+
+/** Mirrors the backend `BroadcastSegment` enum. */
+export type BroadcastSegment = 'submitters' | 'no_entry' | 'draft_holders';
+
+/** Live counts feed the badges on the broadcast card. */
+export interface BroadcastAudienceCounts {
+	submitters: number;
+	no_entry: number;
+	draft_holders: number;
+}
+
+/** Result of a single-recipient test send. */
+export interface BroadcastTestResult {
+	sent: boolean;
+	to_email: string;
+	error: string | null;
+}
+
+/** Result of a real (or dry-run) broadcast send.
+ *
+ * `sample_emails` carries different things depending on `dry_run`:
+ *  - dry_run=true: first 5 recipient emails (preview for the modal)
+ *  - dry_run=false: first 3 FAILED recipient emails (error spot-check)
+ */
+export interface BroadcastSendResult {
+	dry_run: boolean;
+	segment: BroadcastSegment;
+	audience_count: number;
+	sent: number;
+	failed: number;
+	sample_emails: string[];
+}
+
+export async function getBroadcastAudienceCounts(): Promise<BroadcastAudienceCounts> {
+	return api.get<BroadcastAudienceCounts>('/admin/broadcasts/audience');
+}
+
+export async function sendBroadcastTest(
+	segment: BroadcastSegment,
+	toEmail?: string
+): Promise<BroadcastTestResult> {
+	return api.post<BroadcastTestResult>('/admin/broadcasts/test', {
+		segment,
+		to_email: toEmail ?? null
+	});
+}
+
+export async function sendBroadcast(
+	segment: BroadcastSegment,
+	dryRun: boolean
+): Promise<BroadcastSendResult> {
+	return api.post<BroadcastSendResult>('/admin/broadcasts', {
+		segment,
+		dry_run: dryRun
+	});
 }

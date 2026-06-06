@@ -145,7 +145,7 @@ bonus:
       input_type: team_outside_top_n
     - id: flop
       category: top_flop
-      label: "Bottlers — team inside FIFA top {top_n} eliminated earliest"
+      label: "Bottlers — team inside FIFA top {top_n} eliminated earliest, including not making it to the knockout stage."
       input_type: team_in_top_n
 
 # Group stage configuration. Source: official FIFA 2026 World Cup Final

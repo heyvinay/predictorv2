@@ -9,6 +9,7 @@ from app.api import (
     entries,
     entry_predictions,
     fixtures,
+    landing,
     leaderboard,
     odds,
     predictions,
@@ -41,3 +42,5 @@ api_router.include_router(telemetry.router, prefix="/telemetry", tags=["telemetr
 # /odds endpoint proxies through here. Note: trailing-slash-tolerant via the
 # router's "/" path so both /api/odds and /api/odds/ work.
 api_router.include_router(odds.router, prefix="/odds", tags=["odds"])
+# Landing-page social-proof stats. Public, two simple counts.
+api_router.include_router(landing.router, prefix="/landing", tags=["landing"])

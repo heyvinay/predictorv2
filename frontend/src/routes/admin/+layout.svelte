@@ -11,6 +11,10 @@
 	// v2.156.0 — admin layout hoists the guard from +page.svelte so
 	// every /admin/* route (Users, Entries, Audit, etc.) inherits the
 	// admin-only access check + persistent sub-nav.
+	//
+	// v2.160.0 — sub-nav grew from 4 to 7 tabs (added Sync, Bonus, Notes).
+	// Mobile breakpoints get a scrollable-pills variant; desktop keeps the
+	// original tab strip. See memory feedback_scrollable_pills_mobile_subnav.md.
 	let stats: AdminStats | null = null;
 
 	// Topbar: version + latest release date pulled from the bundled
@@ -64,67 +68,105 @@
 	$: isOverview = currentPath === '/admin';
 	$: isUsers = currentPath === '/admin/users' || currentPath.startsWith('/admin/users/');
 	$: isEntries = currentPath === '/admin/entries' || currentPath.startsWith('/admin/entries/');
+	$: isSync = currentPath === '/admin/sync' || currentPath.startsWith('/admin/sync/');
+	$: isBonus = currentPath === '/admin/bonus' || currentPath.startsWith('/admin/bonus/');
 	$: isAudit = currentPath === '/admin/audit' || currentPath.startsWith('/admin/audit/');
+	$: isReleases = currentPath === '/admin/releases' || currentPath.startsWith('/admin/releases/');
+
+	// Single source of truth for the 7 tabs — desktop strip + mobile
+	// pills both render from this list.
+	$: navItems = [
+		{ href: '/admin', label: 'Overview', active: isOverview, badge: null as number | null },
+		{
+			href: '/admin/users',
+			label: 'Users',
+			active: isUsers,
+			badge: stats?.total_users ?? null
+		},
+		{ href: '/admin/entries', label: 'Entries', active: isEntries, badge: null },
+		{ href: '/admin/sync', label: 'Sync', active: isSync, badge: null },
+		{ href: '/admin/bonus', label: 'Bonus', active: isBonus, badge: null },
+		{ href: '/admin/audit', label: 'Audit', active: isAudit, badge: null },
+		{ href: '/admin/releases', label: 'Notes', active: isReleases, badge: null }
+	];
 </script>
 
 <div class="min-h-screen bg-base-100">
 	<!--
-		The Admin Console topbar (B4 from prior round) has been removed.
-		The page title + version is now set in the global top nav via
-		the pageTitle store (see onMount above) — single source of
-		truth, no duplicate user chip / brand mark.
+		Topbar removed earlier (B4). Page title + version flows via the
+		pageTitle store to the global top nav.
 	-->
 	<nav
 		class="sticky top-0 z-30 bg-base-100/95 backdrop-blur border-b border-base-300/40"
 		aria-label="Admin sections"
 	>
-		<div class="max-w-[1280px] mx-auto px-4 sm:px-6 py-2">
+		<!-- Desktop tab strip (md+): preserves the v2.156.0 styling. -->
+		<div class="hidden md:block max-w-[1280px] mx-auto px-4 sm:px-6 py-2">
 			<div class="flex gap-1 p-1 rounded-2xl bg-primary/[0.04] border border-primary/[0.08] overflow-x-auto">
-				<a
-					href="/admin"
-					class="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isOverview}
-					class:from-primary-soft={isOverview}
-					class:to-primary={isOverview}
-					class:text-primary-content={isOverview}
-					class:text-base-content={!isOverview}
-					class:opacity-60={!isOverview}
-				>Overview</a>
-				<a
-					href="/admin/users"
-					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isUsers}
-					class:from-primary-soft={isUsers}
-					class:to-primary={isUsers}
-					class:text-primary-content={isUsers}
-					class:text-base-content={!isUsers}
-					class:opacity-60={!isUsers}
-				>
-					Users
-					{#if stats}<span class="font-mono text-[10px] bg-base-content/10 rounded-full px-1.5 py-0.5">{stats.total_users}</span>{/if}
-				</a>
-				<a
-					href="/admin/entries"
-					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isEntries}
-					class:from-primary-soft={isEntries}
-					class:to-primary={isEntries}
-					class:text-primary-content={isEntries}
-					class:text-base-content={!isEntries}
-					class:opacity-60={!isEntries}
-				>Entries</a>
-				<a
-					href="/admin/audit"
-					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-					class:bg-gradient-to-b={isAudit}
-					class:from-primary-soft={isAudit}
-					class:to-primary={isAudit}
-					class:text-primary-content={isAudit}
-					class:text-base-content={!isAudit}
-					class:opacity-60={!isAudit}
-				>Audit</a>
+				{#each navItems as item}
+					<a
+						href={item.href}
+						class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
+						class:bg-gradient-to-b={item.active}
+						class:from-primary-soft={item.active}
+						class:to-primary={item.active}
+						class:text-primary-content={item.active}
+						class:text-base-content={!item.active}
+						class:opacity-60={!item.active}
+					>
+						{item.label}
+						{#if item.badge !== null}
+							<span class="font-mono text-[10px] bg-base-content/10 rounded-full px-1.5 py-0.5">
+								{item.badge}
+							</span>
+						{/if}
+					</a>
+				{/each}
+			</div>
+		</div>
+
+		<!--
+			Mobile pills (sub-md): scrollable pills with snap. Active pill
+			gets a subtle gold accent (bg-primary/15) — NOT btn-primary,
+			which we reserve for actual primary actions. See memory
+			feedback_scrollable_pills_mobile_subnav.md.
+
+			Hide the scrollbar so the pill row looks intentional rather
+			than overflowed. Snap-mandatory pairs with snap-start on each
+			pill so a swipe lands cleanly on the next tab.
+		-->
+		<div class="md:hidden px-3 py-2">
+			<div class="admin-pills flex gap-2 overflow-x-auto snap-x snap-mandatory">
+				{#each navItems as item}
+					<a
+						href={item.href}
+						class="snap-start inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium whitespace-nowrap border transition-colors {item.active
+							? 'bg-primary/15 text-primary border-primary/40'
+							: 'bg-base-200 text-base-content/70 border-base-300/40'}"
+					>
+						{item.label}
+						{#if item.badge !== null}
+							<span class="font-mono text-[10px] bg-base-content/10 rounded-full px-1.5 py-0.5">
+								{item.badge}
+							</span>
+						{/if}
+					</a>
+				{/each}
 			</div>
 		</div>
 	</nav>
 	<slot />
 </div>
+
+<style>
+	/* Hide the scrollbar on the mobile pill row but keep it scrollable.
+	   Designed-for-the-pattern: the pills are meant to be swiped, not
+	   "this is overflowing." */
+	.admin-pills {
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+	.admin-pills::-webkit-scrollbar {
+		display: none;
+	}
+</style>

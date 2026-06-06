@@ -1,5 +1,6 @@
 """Admin API routes for dashboard and management."""
 
+import asyncio
 import csv
 import io
 import uuid
@@ -11,11 +12,17 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
 
+from app.config import get_settings
 from app.dependencies import AdminUser, DbSession
 from app.models._datetime import utc_now
 from app.models.bonus import BonusAnswer
 from app.models.competition import Competition
-from app.models.entry import PredictionEntry
+from app.models.entry import (
+    ActorRole,
+    EntryStatus,
+    PredictionEntry,
+    PredictionEntryPhase,
+)
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction
 from app.models.score import Score, ScoreSource
@@ -24,6 +31,11 @@ from app.schemas.admin import (
     AdminBonusAnswer,
     AdminEntryPredictions,
     AuditEventPage,
+    BroadcastAudienceCounts,
+    BroadcastSendRequest,
+    BroadcastSendResult,
+    BroadcastTestRequest,
+    BroadcastTestResult,
     EngagementSummary,
     FixtureMini,
     UserAdminPage,
@@ -31,11 +43,17 @@ from app.schemas.admin import (
     UserDetailRead,
 )
 from app.services import posthog_read
-from app.services.audit import query_audit_events
+from app.services.audit import query_audit_events, record_audit_event
 from app.services.bonus import (
     compute_bonus_answers_for_competition,
     get_questions as get_bonus_questions,
 )
+from app.services.broadcast import (
+    BroadcastSegment,
+    count_all_audiences,
+    query_audience,
+)
+from app.services.email import send_broadcast_email
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
 from app.services.score_sync import sync_scores_once
@@ -49,12 +67,15 @@ class AdminStats(BaseModel):
     """Admin dashboard statistics.
 
     ``recent_finished_fixtures`` + ``upcoming_fixtures`` (added v2.156.0)
-    power the Score-sync card on the redesigned Overview page — admins
-    see the two most recent finished matches and the next two upcoming
-    kickoffs at a glance, so they can sanity-check that a manual sync
-    grabbed the right data. Both lists are limited to 2 elements
-    server-side; default to empty list rather than null so the frontend
-    can render unconditionally.
+    power the Score-sync card on the redesigned Overview page. Both lists
+    are limited to 2 elements server-side; default to empty list rather
+    than null so the frontend can render unconditionally.
+
+    ``total_entries`` / ``submitted_entries`` / ``prize_pool`` (added
+    v2.160.0) replace the Fixtures + Live cards on the Overview. Prize
+    pool = active competition's ``entry_fee × submitted_entries`` — the
+    user-facing "what's in the kitty?" number. Computed server-side so
+    the math lives in one place; currency-agnostic (just a float).
     """
 
     total_users: int
@@ -64,6 +85,9 @@ class AdminStats(BaseModel):
     live_fixtures: int
     total_predictions: int
     total_scores: int
+    total_entries: int = 0
+    submitted_entries: int = 0
+    prize_pool: float = 0.0
     recent_finished_fixtures: list[FixtureMini] = []
     upcoming_fixtures: list[FixtureMini] = []
 
@@ -149,6 +173,33 @@ async def get_admin_stats(
     total_predictions = await session.scalar(select(func.count(MatchPrediction.id)))
     total_scores = await session.scalar(select(func.count(Score.id)))
 
+    # Entry counts (v2.160.0 Overview cards). Total = every PredictionEntry
+    # row. Submitted = DISTINCT entry id where ANY phase row is SUBMITTED
+    # (an entry can have one row per phase; we don't want to double-count
+    # in phase-scoped mode).
+    total_entries = await session.scalar(select(func.count(PredictionEntry.id)))
+    submitted_entries = (
+        await session.scalar(
+            select(func.count(func.distinct(PredictionEntry.id)))
+            .join(
+                PredictionEntryPhase,
+                PredictionEntryPhase.entry_id == PredictionEntry.id,
+            )
+            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+        )
+    ) or 0
+
+    # Prize pool = active competition's entry_fee × submitted entries.
+    # No active competition → 0.0 (frontend renders as "—" via the
+    # zero check).
+    active_comp = (
+        await session.execute(
+            select(Competition).where(Competition.is_active.is_(True)).limit(1)
+        )
+    ).scalar_one_or_none()
+    entry_fee = float(active_comp.entry_fee) if active_comp else 0.0
+    prize_pool = entry_fee * submitted_entries
+
     # Recent finished + upcoming fixtures — small lists (2 each) for the
     # Score-sync card on the Overview page. LEFT JOIN Score so finished
     # fixtures pick up their scores; upcoming fixtures have no scores
@@ -200,6 +251,9 @@ async def get_admin_stats(
         live_fixtures=live_fixtures or 0,
         total_predictions=total_predictions or 0,
         total_scores=total_scores or 0,
+        total_entries=total_entries or 0,
+        submitted_entries=submitted_entries,
+        prize_pool=prize_pool,
         recent_finished_fixtures=[_mini(fx, sc) for fx, sc in recent_finished],
         upcoming_fixtures=[_mini(fx) for fx in upcoming],
     )
@@ -1027,4 +1081,182 @@ async def get_admin_entry_predictions(
         match_predictions=match_predictions,
         bracket=bracket,
         bonus_answers=bonus_answers,
+    )
+
+
+# ============================================================================
+# v2.160.0 — Broadcast email endpoints
+# ============================================================================
+# Three endpoints: count audience, send a test to a single recipient, send
+# the real broadcast. Test sends do NOT emit audit events (they're scratch
+# work — would pollute the feed). Real sends emit one ADMIN_BROADCAST_SENT
+# event per broadcast (NOT per recipient) summarising segment + counts.
+# ============================================================================
+
+
+def _format_deadline(dt: datetime | None) -> str | None:
+    """Format a deadline as ``11 Jun 2026, 17:00 UTC`` (no leading zero on day).
+
+    Returns None if dt is None so the email template can fall back to
+    the generic ``before the deadline`` phrase.
+    """
+    if dt is None:
+        return None
+    return f"{dt.day} {dt.strftime('%b %Y, %H:%M UTC')}"
+
+
+async def _active_competition(session) -> Competition | None:
+    """Most-recently-created competition. None if there are zero competitions."""
+    return (
+        await session.execute(
+            select(Competition).order_by(Competition.created_at.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+@router.get("/broadcasts/audience", response_model=BroadcastAudienceCounts)
+async def get_broadcast_audience(
+    session: DbSession,
+    _admin: AdminUser,
+) -> BroadcastAudienceCounts:
+    """Live audience counts for the three broadcast segments.
+
+    Powers the count badges on the broadcast card so the admin can see
+    at a glance how many users each nudge would reach before clicking
+    anything.
+    """
+    counts = await count_all_audiences(session)
+    return BroadcastAudienceCounts(
+        submitters=counts[BroadcastSegment.SUBMITTERS],
+        no_entry=counts[BroadcastSegment.NO_ENTRY],
+        draft_holders=counts[BroadcastSegment.DRAFT_HOLDERS],
+    )
+
+
+@router.post("/broadcasts/test", response_model=BroadcastTestResult)
+async def send_broadcast_test(
+    payload: BroadcastTestRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> BroadcastTestResult:
+    """Send a single-recipient test of the broadcast template.
+
+    Defaults to the calling admin's own email; admins can override
+    ``to_email`` to test cross-client rendering at an alternate
+    address (e.g. personal Gmail / Outlook). No audit event — test
+    sends are scratch work and would pollute the feed.
+
+    Always returns 200 with ``sent`` indicating success/failure so the
+    frontend can render an appropriate toast without try/catch around
+    the fetch call.
+    """
+    to_email = payload.to_email or admin.email
+    settings = get_settings()
+    deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
+
+    comp = await _active_competition(session)
+    deadline_display = _format_deadline(comp.phase1_deadline if comp else None)
+
+    try:
+        await send_broadcast_email(
+            to_email=to_email,
+            player_name=admin.name or admin.email.split("@")[0],
+            segment=payload.segment,
+            deep_link_url=deep_link_url,
+            deadline_display=deadline_display,
+        )
+        return BroadcastTestResult(sent=True, to_email=to_email, error=None)
+    except Exception as exc:  # noqa: BLE001 — caller wants the error string
+        return BroadcastTestResult(
+            sent=False, to_email=to_email, error=str(exc)[:200]
+        )
+
+
+@router.post("/broadcasts", response_model=BroadcastSendResult)
+async def send_broadcast(
+    payload: BroadcastSendRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> BroadcastSendResult:
+    """Real broadcast send (or dry-run preview).
+
+    Flow:
+    * ``dry_run=True`` → query the audience, return count + first 5 emails.
+      No Resend calls.
+    * ``dry_run=False`` → iterate the audience, call Resend per row paced
+      at 50ms (well under the free-tier 10/s limit). Records ONE audit
+      event summarising the broadcast (segment + counts), NOT per-recipient.
+
+    Errors during individual sends are caught + counted as ``failed`` —
+    the broadcast continues so a single transient Resend hiccup doesn't
+    leave 50 users un-nudged. The first 3 failure emails are surfaced
+    to the admin in ``sample_emails`` for spot-checking.
+    """
+    audience = await query_audience(session, payload.segment)
+    audience_count = len(audience)
+
+    if payload.dry_run:
+        return BroadcastSendResult(
+            dry_run=True,
+            segment=payload.segment,
+            audience_count=audience_count,
+            sent=0,
+            failed=0,
+            sample_emails=[row.email for row in audience[:5]],
+        )
+
+    # Real send — iterate with pacing.
+    settings = get_settings()
+    deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
+
+    comp = await _active_competition(session)
+    deadline_display = _format_deadline(comp.phase1_deadline if comp else None)
+
+    sent = 0
+    failed = 0
+    failure_samples: list[str] = []
+
+    for idx, row in enumerate(audience):
+        try:
+            await send_broadcast_email(
+                to_email=row.email,
+                player_name=row.name or row.email.split("@")[0],
+                segment=payload.segment,
+                deep_link_url=deep_link_url,
+                deadline_display=deadline_display,
+            )
+            sent += 1
+        except Exception:  # noqa: BLE001
+            failed += 1
+            if len(failure_samples) < 3:
+                failure_samples.append(row.email)
+        # Pace between sends — last iteration doesn't need to sleep.
+        if idx < len(audience) - 1:
+            await asyncio.sleep(0.05)
+
+    # Single audit event per broadcast (NOT per recipient). The
+    # event_metadata carries enough state to reconstruct what was sent.
+    record_audit_event(
+        session,
+        event_type="admin.broadcast_sent",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="broadcast",
+        subject_id=None,
+        metadata={
+            "segment": payload.segment.value,
+            "audience_count": audience_count,
+            "sent": sent,
+            "failed": failed,
+        },
+    )
+    await session.commit()
+
+    return BroadcastSendResult(
+        dry_run=False,
+        segment=payload.segment,
+        audience_count=audience_count,
+        sent=sent,
+        failed=failed,
+        sample_emails=failure_samples,
     )
