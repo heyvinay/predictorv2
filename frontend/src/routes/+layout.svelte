@@ -210,6 +210,38 @@
 						</a>
 					</div>
 				{/each}
+				{#if $user?.is_admin}
+					{@const adminActive = currentPath === '/admin' || currentPath.startsWith('/admin/')}
+					<div class="relative w-full">
+						{#if adminActive}
+							<span
+								class="absolute left-0 top-1 bottom-1 w-[3px] bg-primary rounded-r"
+								aria-hidden="true"
+							></span>
+						{/if}
+						<a
+							href="/admin"
+							on:click={() => trackNav('left-rail', '/admin', 'Admin')}
+							class="relative w-full flex items-center gap-3 h-10 px-3 rounded-lg transition-colors
+								{adminActive
+									? 'text-primary bg-base-300/40'
+									: 'text-base-content/70 hover:text-base-content hover:bg-base-300/40'}"
+							aria-current={adminActive ? 'page' : undefined}
+						>
+							<svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+								<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+							</svg>
+							<span class="text-sm font-medium">Admin</span>
+							{#if $adminAttentionCount > 0}
+								<span
+									class="ml-auto badge badge-warning badge-xs font-mono"
+									aria-label="{$adminAttentionCount} unpaid entries need attention"
+								>{$adminAttentionCount}</span>
+							{/if}
+						</a>
+					</div>
+				{/if}
 			</nav>
 
 			<!-- Avatar dropdown pinned at the bottom. -->
@@ -235,7 +267,7 @@
 					</div>
 					<ul
 						tabindex="0"
-						class="menu menu-sm dropdown-content mb-2 z-[1] p-2 shadow-lg bg-base-200 border border-base-300/50 rounded-xl w-52"
+						class="menu menu-sm dropdown-content mb-2 z-[1] p-2 shadow-lg bg-base-200 border border-base-300/50 rounded-xl w-44"
 					>
 						<li>
 							<a href="/profile" class="rounded-lg">
@@ -245,20 +277,6 @@
 								Profile
 							</a>
 						</li>
-						{#if $user?.is_admin}
-							<li>
-								<a href="/admin" class="rounded-lg">
-									<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-										<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-									</svg>
-									<span class="flex-1">Admin</span>
-									{#if $adminAttentionCount > 0}
-										<span class="badge badge-warning badge-xs">{$adminAttentionCount}</span>
-									{/if}
-								</a>
-							</li>
-						{/if}
 						<li>
 							<button on:click={logout} class="rounded-lg text-error hover:bg-error/10">
 								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -439,20 +457,6 @@
 								Profile
 							</a>
 						</li>
-						{#if $user?.is_admin}
-							<li>
-								<a href="/admin" class="rounded-lg">
-									<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-										<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-									</svg>
-									<span class="flex-1">Admin</span>
-									{#if $adminAttentionCount > 0}
-										<span class="badge badge-warning badge-xs">{$adminAttentionCount}</span>
-									{/if}
-								</a>
-							</li>
-						{/if}
 						<li>
 							<button on:click={logout} class="rounded-lg text-error hover:bg-error/10">
 								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -491,6 +495,29 @@
 					<span class="text-[9px] font-medium">{item.label}</span>
 				</a>
 			{/each}
+			{#if $user?.is_admin}
+				{@const adminActive = currentPath === '/admin' || currentPath.startsWith('/admin/')}
+				<a
+					href="/admin"
+					on:click={() => trackNav('mobile-bottom-nav', '/admin', 'Admin')}
+					class="flex flex-col items-center justify-center gap-0.5 px-2 py-1 transition-colors duration-200
+						{adminActive ? 'text-primary' : 'text-base-content/50'}"
+				>
+					<div class="relative">
+						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+						{#if $adminAttentionCount > 0}
+							<span
+								class="absolute -top-1.5 -right-2 badge badge-warning badge-xs font-mono"
+								aria-label="{$adminAttentionCount} unpaid entries need attention"
+							>{$adminAttentionCount}</span>
+						{/if}
+					</div>
+					<span class="text-[9px] font-medium">Admin</span>
+				</a>
+			{/if}
 		</nav>
 	{/if}
 
