@@ -535,16 +535,22 @@
 	// Multiple GroupAccordions can be open simultaneously. Opening a
 	// group also pushes `activeGroupPill` to the right-hand StandingsPanel
 	// so the panel mirrors the user's most-recent editing focus.
-	let openGroups: Set<string> = new Set();
-	let hasInitialisedOpenGroups = false;
+	//
+	// State model: track *user collapses* (the rare action) rather than
+	// *user expansions* (the default state). `userCollapses` starts empty
+	// → everything is expanded by default, no async init needed. Derived
+	// `openGroups` keeps the existing `.has(letter)` consumer API stable.
+	let userCollapses: Set<string> = new Set();
 	function toggleGroupAccordion(letter: string): void {
-		if (openGroups.has(letter)) {
-			openGroups.delete(letter);
-		} else {
-			openGroups.add(letter);
+		if (userCollapses.has(letter)) {
+			// Was collapsed; expand now.
+			userCollapses.delete(letter);
 			activeGroupPill = letter;
+		} else {
+			// Was expanded; collapse now.
+			userCollapses.add(letter);
 		}
-		openGroups = openGroups; // trigger reactivity
+		userCollapses = userCollapses; // trigger reactivity
 	}
 
 	// Expand-all toggle. When every group + thirdplace is open we treat
@@ -556,25 +562,21 @@
 		...$groupFixtures.filter((g) => g.group !== 'thirdplace').map((g) => g.group),
 		'thirdplace'
 	];
-	// Default to fully expanded on first paint — users coming in to predict want
-	// every match visible without clicking. One-shot so user collapses persist.
-	$: if (!hasInitialisedOpenGroups && allGroupKeys.length > 0) {
-		openGroups = new Set(allGroupKeys);
-		hasInitialisedOpenGroups = true;
-	}
-	$: allExpanded = allGroupKeys.length > 0 && allGroupKeys.every((k) => openGroups.has(k));
+	// Derived openGroups: a key is open iff the user hasn't collapsed it.
+	// Reading-side API stays a Set (consumers do `.has(letter)`); writing
+	// happens via toggleGroupAccordion / toggleExpandAll mutating userCollapses.
+	$: openGroups = new Set(allGroupKeys.filter((k) => !userCollapses.has(k)));
+	$: allExpanded = allGroupKeys.length > 0 && userCollapses.size === 0;
 
 	function toggleExpandAll(): void {
 		if (allExpanded) {
-			// Collapse — revert focus to the first group and close the drawer.
-			openGroups = new Set();
+			// Collapse all — mark every key as user-collapsed.
+			userCollapses = new Set(allGroupKeys);
 			activeGroupPill = $groupFixtures[0]?.group ?? 'A';
 			standingsPanelOpen.set(false);
 		} else {
-			// Expand — open every accordion, switch the panel into 'all'
-			// mode, and surface the drawer on mobile/tablet so the stack
-			// is actually visible.
-			openGroups = new Set(allGroupKeys);
+			// Expand all — clear every user collapse.
+			userCollapses = new Set();
 			activeGroupPill = 'all';
 			standingsPanelOpen.set(true);
 		}
@@ -1884,39 +1886,42 @@
 
 		<!-- ============================== PHASE 1 ============================== -->
 		{#if activePhase === 'phase1'}
-			<!-- 12 group accordions (A-L). Expanded by default on first paint
-			     so the user lands on every match without clicking; user
-			     collapses persist via the hasInitialisedOpenGroups flag. -->
+			<!-- 12 group accordions (A-L). Expanded by default — `openGroups`
+			     is derived as `allGroupKeys - userCollapses`, so the natural
+			     empty initial state of userCollapses means everything is open
+			     without any async init. User collapses persist via userCollapses. -->
 			{#if activeSection === 'groups'}
 				<!-- Status banner for locked / scored / missed sheets. Hidden on
 				     editable drafts (returns nothing). Unlock button only when
 				     deadline hasn't passed — wires into the existing Edit flow. -->
 				<StatusBanner status={uiStatus} canUnlock={uiStatus === 'locked'} on:unlock={handleEdit} />
 
-				<p class="mb-3 text-sm text-base-content/60">
-					Tap <strong>−/+</strong> to score each match. Or <strong>⚡ SmartFill</strong> to auto-fill, then tweak what you disagree with.
-				</p>
-
-				<!-- Expand all / Collapse all toggle. When expanded, the
-				     standings overview below shows every group's predicted
-				     standings stacked vertically (with the third-place
-				     qualifiers table last). -->
-				<div class="flex justify-end mb-3">
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs gap-1"
-						on:click={toggleExpandAll}
-						aria-pressed={allExpanded}
-					>
-						<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							{#if allExpanded}
-								<path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
-							{:else}
-								<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-							{/if}
-						</svg>
-						{allExpanded ? 'Collapse all' : 'Expand all'}
-					</button>
+				<!-- Helper microcopy paired with the Expand/Collapse-all
+				     toggle on the same row. On mobile they stack (helper
+				     first, toggle below right-aligned); from sm+ they sit
+				     side by side. items-start keeps the button anchored
+				     to the top of the row when the helper wraps. -->
+				<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
+					<p class="text-sm text-base-content/60 flex-1">
+						Tap <strong>−/+</strong> to score each match. Or <strong>⚡ SmartFill</strong> to auto-fill, then tweak what you disagree with.
+					</p>
+					<div class="flex justify-end shrink-0">
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs gap-1"
+							on:click={toggleExpandAll}
+							aria-pressed={allExpanded}
+						>
+							<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								{#if allExpanded}
+									<path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+								{:else}
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+								{/if}
+							</svg>
+							{allExpanded ? 'Collapse all' : 'Expand all'}
+						</button>
+					</div>
 				</div>
 
 				<!-- Standings overview lives in the right-hand StandingsPanel
