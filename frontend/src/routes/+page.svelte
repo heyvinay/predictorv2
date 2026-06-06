@@ -35,6 +35,7 @@
 	import { track } from '$lib/analytics';
 
 	import StickyTopBar from '$lib/components/landing/StickyTopBar.svelte';
+	import PrizeHero from '$lib/components/landing/PrizeHero.svelte';
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
 	import CountdownBand from '$lib/components/landing/CountdownBand.svelte';
 	import HowItWorks from '$lib/components/landing/HowItWorks.svelte';
@@ -52,7 +53,8 @@
 	export let data: PageData;
 
 	onMount(() => {
-		pageTitle.set('The Predictor');
+		// Empty so the logo alone carries the brand and doesn't collide with the countdown pill on narrow viewports.
+		pageTitle.set('');
 		track('landing_view', {
 			auth_state: $isAuthenticated ? 'authenticated' : 'guest',
 			referrer: typeof document !== 'undefined' ? document.referrer || 'direct' : 'direct'
@@ -89,6 +91,10 @@
 {#if !$isAuthenticated}
 	<StickyTopBar />
 {/if}
+
+<TrackedSection name="prize">
+	<PrizeHero />
+</TrackedSection>
 
 <TrackedSection name="hero">
 	<LandingHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
