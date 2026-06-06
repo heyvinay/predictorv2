@@ -906,9 +906,12 @@
 		}
 	});
 
-	// Default the active group pill to the first group once fixtures load
+	// Default the active group pill to 'all' so the right-hand StandingsPanel
+	// opens in the stacked-all-groups view, matching the default-expanded
+	// accordion state (userCollapses starts empty). Per-group focus then
+	// happens only when the user clicks into a specific group.
 	$: if (!activeGroupPill && $groupFixtures.length > 0) {
-		activeGroupPill = $groupFixtures[0].group;
+		activeGroupPill = 'all';
 	}
 
 	// ---- Group selector navigation (prev / next / keyboard) --------------
