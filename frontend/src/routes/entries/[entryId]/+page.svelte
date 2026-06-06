@@ -536,6 +536,7 @@
 	// group also pushes `activeGroupPill` to the right-hand StandingsPanel
 	// so the panel mirrors the user's most-recent editing focus.
 	let openGroups: Set<string> = new Set();
+	let hasInitialisedOpenGroups = false;
 	function toggleGroupAccordion(letter: string): void {
 		if (openGroups.has(letter)) {
 			openGroups.delete(letter);
@@ -555,6 +556,12 @@
 		...$groupFixtures.filter((g) => g.group !== 'thirdplace').map((g) => g.group),
 		'thirdplace'
 	];
+	// Default to fully expanded on first paint — users coming in to predict want
+	// every match visible without clicking. One-shot so user collapses persist.
+	$: if (!hasInitialisedOpenGroups && allGroupKeys.length > 0) {
+		openGroups = new Set(allGroupKeys);
+		hasInitialisedOpenGroups = true;
+	}
 	$: allExpanded = allGroupKeys.length > 0 && allGroupKeys.every((k) => openGroups.has(k));
 
 	function toggleExpandAll(): void {
@@ -1877,19 +1884,18 @@
 
 		<!-- ============================== PHASE 1 ============================== -->
 		{#if activePhase === 'phase1'}
-			<!-- 12 group accordions (A-L). All closed by default; tap header
-			     to expand. Multiple accordions can be open simultaneously
-			     per the resolved no-single-expanded rule. The legacy pill
-			     strip, focused-hero stepper, predicted standings tables, and
-			     third-place qualifying table are intentionally dropped here
-			     per the Prompt 9 spec (header + flag cluster + completion
-			     badge + date-grouped fixtures only). Standings can return
-			     as a separate widget in a later prompt. -->
+			<!-- 12 group accordions (A-L). Expanded by default on first paint
+			     so the user lands on every match without clicking; user
+			     collapses persist via the hasInitialisedOpenGroups flag. -->
 			{#if activeSection === 'groups'}
 				<!-- Status banner for locked / scored / missed sheets. Hidden on
 				     editable drafts (returns nothing). Unlock button only when
 				     deadline hasn't passed — wires into the existing Edit flow. -->
 				<StatusBanner status={uiStatus} canUnlock={uiStatus === 'locked'} on:unlock={handleEdit} />
+
+				<p class="mb-3 text-sm text-base-content/60">
+					Tap <strong>−/+</strong> to score each match. Or <strong>⚡ SmartFill</strong> to auto-fill, then tweak what you disagree with.
+				</p>
 
 				<!-- Expand all / Collapse all toggle. When expanded, the
 				     standings overview below shows every group's predicted
