@@ -1976,6 +1976,13 @@
       "type": "improvement",
       "summary": "Smart Fill is more accurate and more current. Betting Odds Smart Fill now picks the market favourite for every match instead of occasionally sampling an upset — no more weird predictions like New Zealand beating Belgium. FIFA Smart Fill rankings have been refreshed to current values (Germany, Morocco, Senegal and Mexico moved up notably since the previous snapshot). Behind the scenes, the odds data is now cached server-side for 4 hours and shared across all users — fresher fixture coverage with a small fraction of the previous API budget.",
       "commit": "pending"
+    },
+    {
+      "version": "2.159.0",
+      "date": "2026-06-06",
+      "type": "feature",
+      "summary": "Landing page gets a sponsor prize hero — Atlas Insurance is donating an official Adidas TRIONDA FIFA World Cup 2026 match ball to a drawn entry. Submission-confirmation emails now include a monospace recap of your group scores, knockout picks and bonus answers — a one-look receipt you can scroll, search, or forward to a friend. New 'your entry is back in draft' email fires whenever a submitted entry is unlocked, so you can't accidentally close the tab and miss scoring. Admin shortcut is now a dedicated item in the side rail (and the mobile bottom nav for admins) instead of buried in the avatar menu. Dark theme is the default again. Mobile polish: page-title text on landing no longer clips into the countdown pill, group accordions now expand by default in the prediction wizard, scoring cards on the rules page no longer crowd their titles, and the avatar dropdown panel fits inside the rail instead of bleeding out.",
+      "commit": "pending"
     }
   ]
 }
