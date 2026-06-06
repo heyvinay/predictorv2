@@ -166,6 +166,43 @@ variable now propagates to the `backend` service instead of `frontend` —
 existing prod `.env` files don't need updating, only the service that
 consumes the var changed.
 
+### Transactional emails (v2.159+)
+
+Three flows, all via Resend (`backend/app/services/email.py`) with a dev
+fallback that prints to docker logs when `RESEND_API_KEY` is unset:
+
+1. **Magic-link sign-in** (`send_magic_link_email`) — unchanged from v2.x.
+2. **Submission confirmation with recap**
+   (`send_submission_confirmation_email`) — fires after
+   `POST /entries/{id}/submit` commits. Accepts an optional
+   `recap: dict | None`. The recap is built by
+   `backend/app/services/entry_recap.py:build_entry_recap()` (eager-loads
+   predictions, buckets by group / round / bonus question) and rendered as
+   monospace receipt-style HTML appended to the email body — no PDF
+   attachment, no Jinja2 template, just f-string composition. Best-effort:
+   recap-build failure logs and drops to `None` so the email still sends
+   without the recap; email-send failure logs and the API still returns
+   200 (the entry is already committed and audit-logged).
+3. **Entry unlock notice** (`send_entry_unlocked_email`) — fires after
+   `POST /entries/{id}/edit` flips SUBMITTED → DRAFT. Safety-net for users
+   who unlock to tweak a pick, close the tab, and forget to resubmit (the
+   entry would silently miss scoring otherwise). Body includes the
+   `phase1_deadline` formatted via `aware_utc()`. One email per unlock
+   event, no de-duplication, no rate-limit.
+
+**Country-name shortening:** the email recap renderer uses
+`backend/app/services/team_name.py`, a Python port of the frontend
+`SHORT_NAMES` map at `frontend/src/lib/utils/teamName.ts:24-31`. Six
+entries today (`Bosnia-Herzegovina → Bosnia`, `United States → USA`,
+etc.). Keep the two in sync — any new entry in the frontend map needs
+to be ported.
+
+**Deploy gotcha** (`docker compose up -d --build`): a rename-conflict on
+one service silently keeps that service on its old image while the others
+swap. After every prod deploy, grep the output for
+`Conflict. The container name` and run the targeted backend recreate if
+present. Memory: `feedback_docker_compose_rename_conflict.md`.
+
 ### Datetime rule (system-wide)
 
 **Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
@@ -433,6 +470,8 @@ Components use **semantic DaisyUI classes** (`bg-primary`, `bg-base-100`, `text-
 | `base-300` | `#2A3552` slate | `#D3DBE7` slate divider | Dividers, borders |
 | `base-content` | `#E2E8F0` off-white | `#0B1329` navy | Body ink |
 
+**`warning` is a surface token, paired with foreground `text-warning-text`.** Bare `text-warning` renders nearly invisible on dark chrome — in this design system `warning` is used for surface fills (`bg-warning/20` chips, `border-warning/40` outlines). The amber-text companion `text-warning-text` is defined via RGB channels in `app.css:7-10` for theme-aware switching. Asymmetric with `success` and `error`, which work as both foreground and surface because they aren't used as surface fills elsewhere. Memory: `feedback_text_warning_token_trap.md`.
+
 Radii: `rounded-box` (14px / `0.875rem`), `rounded-btn` (10px / `0.625rem`), `rounded-badge` (8px / `0.5rem`).
 
 **Typography** — one family pair, both themes:
@@ -459,6 +498,62 @@ Radii: `rounded-box` (14px / `0.875rem`), `rounded-btn` (10px / `0.625rem`), `ro
 bracket exposure, underdog hits, steepest climb) fall back to deterministic
 stubs via `frontend/src/lib/utils/widgetFallbacks.ts` when their endpoint is
 empty or unavailable.
+
+### Landing page composition (v2.159+)
+
+`frontend/src/routes/+page.svelte` mounts the landing in two paired rows:
+
+- **Row 1 — `LandingHero`**: Atlas TRIONDA prize hero on the LEFT (via the
+  `PrizeHero` content fragment), Sign-in / WelcomeBack auth card on the RIGHT.
+  Grid is `1.2fr / 1fr` at `lg+`, stacked on mobile. Image asset:
+  `frontend/static/atlas-trionda-prize.{webp,jpg}`.
+- **Row 2 — `TypographicHero`**: "MAKE EVERY WORLD CUP / MATCH MATTER." h1 +
+  subhead + trust signals on the LEFT, `<CountdownBand variant="card" />` on
+  the RIGHT.
+
+`PrizeHero` is intentionally a content fragment (no outer section wrapper) —
+geometry is `LandingHero`'s job, content is `PrizeHero`'s. Same separation
+when adding future hero variants.
+
+### Countdown urgency tiers (shared logic, v2.159+)
+
+The navbar deadline pill (`CountdownTimer.svelte`) and the body countdown
+(`CountdownBand.svelte`) both derive their state from
+`frontend/src/lib/utils/countdownPhase.ts`. Single source of truth so both
+timers escalate together. Five tiers:
+
+- `calm` (> 7d) — green (`text-success`)
+- `heads_up` (1–7d) — amber (`text-warning-text`, NOT `text-warning`)
+- `urgent` (< 24h) — red (`text-error`)
+- `critical` (< 1h) — red + `animate-pulse-soft`
+- `locked` (≤ 0) — navbar hides; body shows "Locked" copy
+
+`CountdownBand` has a `variant: 'band' | 'card'` prop. `'band'` = full-width
+chrome (default, for standalone use). `'card'` = drops the wrapper +
+shrinks the timer clamp for use in a grid column (consumed by
+`TypographicHero`).
+
+### Wizard groups accordion — inverted-state model
+
+`frontend/src/routes/entries/[entryId]/+page.svelte` tracks
+**`userCollapses: Set<string>`** (the rare action) rather than `openGroups`
+(the default state). `openGroups` is derived as
+`allGroupKeys − userCollapses`. Empty initial set ⇒ every group is open by
+default; no async init, no `hasInit` flag, no race against `$groupFixtures`
+hydration.
+
+**Don't reintroduce a "fire-once init" pattern here.** The prior approach
+gated on `allGroupKeys.length > 0`, but `allGroupKeys = [...filtered,
+'thirdplace']` always has length ≥1 due to the literal append — so the init
+fired pre-hydration with `Set(['thirdplace'])` and locked the flag. Real
+groups stayed collapsed on cold loads. If you ever need a similar
+"default broad, exception narrow" UX pattern (filter all on, multi-select
+all selected, etc.), use the inverted-state model. Memory:
+`feedback_inverted_state_for_async_default.md`.
+
+The `activeGroupPill` default is `'all'` to mirror the all-expanded
+accordion state; the right-rail `StandingsPanel` reads this to render the
+stacked-all-groups view on first paint.
 
 ### Frontend gotchas
 
