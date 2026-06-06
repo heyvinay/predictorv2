@@ -12,6 +12,7 @@ import logging
 import httpx
 
 from app.config import get_settings
+from app.services.team_name import display_team_name
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ _BODY_FONT = (
 # Serif fallback for the wordmark. Bebas Neue isn't loadable in mail
 # clients; Georgia gives a confident editorial feel everywhere.
 _DISPLAY_FONT = "Georgia,'Times New Roman',serif"
+# Monospace stack for the receipt-style recap section.
+_MONO_FONT = "'JetBrains Mono','Courier New',monospace"
 
 
 def _build_email_html(magic_link_url: str) -> str:
@@ -203,6 +206,7 @@ async def send_submission_confirmation_email(
     entry_ref: str,
     submitted_at_display: str,
     deep_link_url: str,
+    recap: dict | None = None,
 ) -> None:
     """Send a "your submission is locked in" receipt to the player.
 
@@ -210,6 +214,11 @@ async def send_submission_confirmation_email(
     SUBMITTED. Best-effort: the caller should wrap this in try/except so a
     Resend failure does NOT roll back the submission (the entry is already
     locked in the DB and audit-logged; the email is a receipt).
+
+    The optional ``recap`` arg (shape from
+    :func:`app.services.entry_recap.build_entry_recap`) appends a monospace
+    recap of the user's predictions to the email body. If omitted (or the
+    recap builder fails upstream), the email sends without it.
 
     Mirrors :func:`send_magic_link_email`'s dev fallback — when
     ``RESEND_API_KEY`` is unset the body is logged to stdout instead of
@@ -236,6 +245,7 @@ async def send_submission_confirmation_email(
         entry_ref=entry_ref,
         submitted_at_display=submitted_at_display,
         deep_link_url=deep_link_url,
+        recap=recap,
     )
     text_body = _build_submission_confirmation_text(
         player_name=player_name,
@@ -243,6 +253,7 @@ async def send_submission_confirmation_email(
         entry_ref=entry_ref,
         submitted_at_display=submitted_at_display,
         deep_link_url=deep_link_url,
+        recap=recap,
     )
 
     async with httpx.AsyncClient() as client:
@@ -278,6 +289,7 @@ def _build_submission_confirmation_html(
     entry_ref: str,
     submitted_at_display: str,
     deep_link_url: str,
+    recap: dict | None = None,
 ) -> str:
     """Render the submission receipt email body.
 
@@ -286,6 +298,7 @@ def _build_submission_confirmation_html(
     fonts, no remote images, no relative URLs.
     """
     safe_entry = entry_name.replace('"', '&quot;')
+    recap_html = _build_recap_html(recap) if recap else ""
     return (
         '<!DOCTYPE html>\n'
         '<html lang="en">\n'
@@ -337,6 +350,8 @@ def _build_submission_confirmation_html(
         'Points will be assigned based on your picks as submitted.</p>\n'
         '            </td>\n'
         '          </tr>\n'
+        # ---- Recap (group / knockout / bonus) — omitted if recap is None ----
+        f'{recap_html}'
         # ---- CTA button ----
         '          <tr>\n'
         '            <td align="center" style="padding:8px 32px 24px 32px;">\n'
@@ -390,8 +405,10 @@ def _build_submission_confirmation_text(
     entry_ref: str,
     submitted_at_display: str,
     deep_link_url: str,
+    recap: dict | None = None,
 ) -> str:
     """Plain-text alternative for mail clients that strip HTML."""
+    recap_text = _build_recap_text(recap) if recap else ""
     return (
         "Your submission is locked in.\n"
         "\n"
@@ -405,6 +422,7 @@ def _build_submission_confirmation_text(
         "\n"
         "Organisers are not responsible for any incorrect submissions.\n"
         "Points will be assigned based on your picks as submitted.\n"
+        f"{recap_text}"
         "\n"
         "View and edit your submission:\n"
         f"{deep_link_url}\n"
@@ -414,3 +432,433 @@ def _build_submission_confirmation_text(
         "\n"
         "— Atlas World Cup 2026 Pools\n"
     )
+
+
+# ── Entry-unlocked email (sent when a SUBMITTED entry reverts to DRAFT) ──────
+
+
+async def send_entry_unlocked_email(
+    *,
+    to_email: str,
+    player_name: str,
+    entry_name: str,
+    entry_ref: str,
+    deadline_display: str | None,
+    deep_link_url: str,
+) -> None:
+    """Send a "your entry is back in draft — submit again" email.
+
+    Fired after the /entries/{id}/edit endpoint flips SUBMITTED → DRAFT.
+    Safety-net transactional notice: users may unlock to tweak a pick,
+    close the tab, and forget to re-submit. Without the email the entry
+    silently doesn't count toward scoring.
+
+    Best-effort like the other transactional emails — the caller wraps
+    this in try/except so a Resend outage doesn't block the API response.
+
+    ``deadline_display`` is a pre-formatted string ("11 Jun 2026, 17:00")
+    or ``None`` if the competition hasn't set a deadline (degrades to
+    omitting the deadline sentence).
+    """
+    settings = get_settings()
+    subject = (
+        f'World Cup 2026 Pool — Entry back in draft: "{entry_name}" ({entry_ref})'
+    )
+
+    if not settings.resend_api_key:
+        # Dev fallback — surface the receipt in docker logs.
+        print(
+            "[unlock] RESEND_API_KEY not set — dev mode, printing receipt:",
+            flush=True,
+        )
+        print(f"[unlock] to={to_email} subject={subject!r}", flush=True)
+        print(f"[unlock] link={deep_link_url}", flush=True)
+        return
+
+    html_body = _build_entry_unlocked_html(
+        player_name=player_name,
+        entry_name=entry_name,
+        entry_ref=entry_ref,
+        deadline_display=deadline_display,
+        deep_link_url=deep_link_url,
+    )
+    text_body = _build_entry_unlocked_text(
+        player_name=player_name,
+        entry_name=entry_name,
+        entry_ref=entry_ref,
+        deadline_display=deadline_display,
+        deep_link_url=deep_link_url,
+    )
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            RESEND_API_URL,
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.resend_from_email,
+                "to": to_email,
+                "subject": subject,
+                "html": html_body,
+                "text": text_body,
+            },
+            timeout=10.0,
+        )
+
+    if response.status_code not in (200, 201):
+        logger.error(
+            "[unlock] Resend API error %s: %s",
+            response.status_code,
+            response.text,
+        )
+        raise RuntimeError("Failed to send entry-unlocked email")
+
+
+def _build_entry_unlocked_html(
+    *,
+    player_name: str,
+    entry_name: str,
+    entry_ref: str,
+    deadline_display: str | None,
+    deep_link_url: str,
+) -> str:
+    """Render the entry-unlocked email body.
+
+    Uses the same navy/gold chrome as the confirmation email so the two
+    transactional emails read as a pair. Inline CSS only.
+    """
+    safe_entry = entry_name.replace('"', '&quot;')
+    deadline_line = (
+        f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+        f'color:{_BODY_INK};">'
+        'Don\'t forget — all predictions must be submitted before '
+        f'<strong>{deadline_display}</strong>.</p>\n'
+        if deadline_display
+        else ""
+    )
+    return (
+        '<!DOCTYPE html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
+        '  <meta charset="UTF-8" />\n'
+        '  <meta name="viewport" content="width=device-width,initial-scale=1.0" />\n'
+        f'  <title>Entry back in draft — {safe_entry} ({entry_ref})</title>\n'
+        '</head>\n'
+        f'<body style="margin:0;padding:0;background:{_PAGE_BG};'
+        f'font-family:{_BODY_FONT};color:{_BODY_INK};">\n'
+        '  <table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{_PAGE_BG};padding:32px 12px;">\n'
+        '    <tr>\n'
+        '      <td align="center">\n'
+        '        <table width="520" cellpadding="0" cellspacing="0" border="0" '
+        f'style="max-width:520px;width:100%;background:{_CARD_BG};'
+        'border-radius:12px;overflow:hidden;'
+        'box-shadow:0 6px 24px -12px rgba(11,19,41,0.18);">\n'
+        # ---- Header band ----
+        '          <tr>\n'
+        '            <td align="center" '
+        f'style="background:{_NAVY};padding:28px 24px;">\n'
+        f'              <div style="font-family:{_DISPLAY_FONT};font-size:16px;'
+        'font-weight:700;letter-spacing:0.10em;white-space:nowrap;'
+        f'color:{_GOLD};text-transform:uppercase;line-height:1.2;">'
+        'Atlas World Cup 2026 Pools</div>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Body ----
+        '          <tr>\n'
+        '            <td style="padding:36px 32px 8px 32px;">\n'
+        f'              <h1 style="margin:0 0 12px 0;font-family:{_DISPLAY_FONT};'
+        f'font-size:22px;font-weight:700;color:{_NAVY};letter-spacing:-0.01em;">'
+        'Your entry is back in draft.</h1>\n'
+        f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+        f'color:{_BODY_INK};">'
+        f"Hi {player_name}, you've unlocked your entry "
+        f'<strong>"{safe_entry}"</strong> (Ref: {entry_ref}). It\'s now in draft form '
+        '<strong>and won\'t count toward scoring until you submit it again</strong>.</p>\n'
+        f'{deadline_line}'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- CTA button ----
+        '          <tr>\n'
+        '            <td align="center" style="padding:8px 32px 24px 32px;">\n'
+        f'              <a href="{deep_link_url}" '
+        f'style="display:inline-block;background:{_GOLD};color:{_NAVY};'
+        f'font-family:{_BODY_FONT};font-size:14px;font-weight:700;'
+        'letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;'
+        'padding:14px 28px;border-radius:8px;">'
+        'Go to my entry</a>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Raw URL fallback ----
+        '          <tr>\n'
+        '            <td style="padding:0 32px 24px 32px;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};word-break:break-all;">'
+        'If the button doesn\'t work, paste this link into your browser:<br/>\n'
+        f'                <a href="{deep_link_url}" '
+        f'style="color:{_MUTED_INK};text-decoration:underline;">'
+        f'{deep_link_url}</a>'
+        '              </p>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        # ---- Footer ----
+        '          <tr>\n'
+        '            <td '
+        f'style="padding:18px 32px 28px 32px;border-top:1px solid #E2E8F0;">\n'
+        f'              <p style="margin:0;font-size:12px;line-height:1.5;'
+        f'color:{_MUTED_INK};">'
+        'This mailbox is not monitored — please don\'t reply to this email.</p>\n'
+        f'              <p style="margin:14px 0 0 0;font-size:12px;'
+        f'color:{_MUTED_INK};">— Atlas World Cup 2026 Pools</p>\n'
+        '            </td>\n'
+        '          </tr>\n'
+        '        </table>\n'
+        '      </td>\n'
+        '    </tr>\n'
+        '  </table>\n'
+        '</body>\n'
+        '</html>'
+    )
+
+
+def _build_entry_unlocked_text(
+    *,
+    player_name: str,
+    entry_name: str,
+    entry_ref: str,
+    deadline_display: str | None,
+    deep_link_url: str,
+) -> str:
+    """Plain-text alternative."""
+    deadline_line = (
+        f"Don't forget — all predictions must be submitted before\n"
+        f"{deadline_display}.\n"
+        "\n"
+        if deadline_display
+        else ""
+    )
+    return (
+        "Your entry is back in draft.\n"
+        "\n"
+        f"Hi {player_name}, you've unlocked your entry\n"
+        f'"{entry_name}" (Ref: {entry_ref}). It is now in draft form\n'
+        "and won't count toward scoring until you submit it again.\n"
+        "\n"
+        f"{deadline_line}"
+        "Go to your entry:\n"
+        f"{deep_link_url}\n"
+        "\n"
+        "This mailbox is not monitored — please don't reply to this email.\n"
+        "\n"
+        "— Atlas World Cup 2026 Pools\n"
+    )
+
+
+# ── Recap rendering (monospace receipt-style group/knockout/bonus block) ─────
+
+
+def _build_recap_html(recap: dict) -> str:
+    """Render the recap block as a single <tr><td> of receipt-style HTML.
+
+    Monospace, no shading, no colours beyond muted secondary text. Slots
+    in between the disclaimer paragraph and the CTA button of the
+    submission confirmation email.
+    """
+    inner = (
+        _render_group_stage_html(recap.get("groups") or [])
+        + _render_knockout_html(recap.get("knockout") or [], recap.get("champion"))
+        + _render_bonus_html(recap.get("bonus") or [])
+    )
+    if not inner:
+        return ""
+    return (
+        '          <tr>\n'
+        f'            <td style="padding:8px 32px 24px 32px;border-top:1px solid #E2E8F0;">\n'
+        f'{inner}'
+        '            </td>\n'
+        '          </tr>\n'
+    )
+
+
+def _section_header_html(title: str, tag: str | None = None) -> str:
+    """Section header — uppercase label-left, optional right-tag."""
+    right = (
+        f'<td align="right" style="font-family:{_BODY_FONT};font-size:11px;'
+        f'color:{_MUTED_INK};">{tag}</td>'
+        if tag
+        else "<td></td>"
+    )
+    return (
+        '              <table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        'style="margin-top:18px;margin-bottom:6px;">\n'
+        '                <tr>\n'
+        f'                  <td style="font-family:{_BODY_FONT};font-size:11px;'
+        f'font-weight:700;letter-spacing:0.10em;text-transform:uppercase;color:{_NAVY};">'
+        f'{title}</td>\n'
+        f'                  {right}\n'
+        '                </tr>\n'
+        '              </table>\n'
+    )
+
+
+def _render_group_stage_html(groups: list[dict]) -> str:
+    if not groups:
+        return ""
+    n_matches = sum(len(g.get("fixtures") or []) for g in groups)
+    parts = [_section_header_html("Group stage", f"{n_matches} matches")]
+    for group in groups:
+        parts.append(_render_group_block_html(group))
+    return "".join(parts)
+
+
+def _render_group_block_html(group: dict) -> str:
+    letter = group.get("letter", "")
+    fixtures = list(group.get("fixtures") or [])
+    half = (len(fixtures) + 1) // 2
+    col1 = fixtures[:half]
+    col2 = fixtures[half:]
+    return (
+        f'              <div style="font-family:{_MONO_FONT};font-size:10px;'
+        f'font-weight:700;color:{_MUTED_INK};letter-spacing:0.08em;'
+        f'padding-top:10px;padding-bottom:2px;">GROUP {letter}</div>\n'
+        '              <table width="100%" cellpadding="0" cellspacing="0" border="0">\n'
+        '                <tr>\n'
+        '                  <td width="50%" valign="top" style="padding-right:6px;">\n'
+        + "".join(_render_fixture_row_html(f) for f in col1)
+        + '                  </td>\n'
+        '                  <td width="50%" valign="top" style="padding-left:6px;">\n'
+        + "".join(_render_fixture_row_html(f) for f in col2)
+        + '                  </td>\n'
+        '                </tr>\n'
+        '              </table>\n'
+    )
+
+
+def _render_fixture_row_html(fixture: dict) -> str:
+    home = display_team_name(fixture.get("home"))
+    away = display_team_name(fixture.get("away"))
+    h_score = int(fixture.get("home_score", 0))
+    a_score = int(fixture.get("away_score", 0))
+    if h_score > a_score:
+        home_text, away_text = f"<b><u>{home}</u></b>", away
+    elif a_score > h_score:
+        home_text, away_text = home, f"<b><u>{away}</u></b>"
+    else:
+        home_text, away_text = home, away
+    return (
+        '                    <table width="100%" cellpadding="0" cellspacing="0" '
+        f'border="0" style="font-family:{_MONO_FONT};font-size:11px;color:{_BODY_INK};">\n'
+        '                      <tr>\n'
+        '                        <td width="42%" align="right" '
+        f'style="padding:1px 4px 1px 0;">{home_text}</td>\n'
+        '                        <td width="16%" align="center" '
+        f'style="padding:1px 0;white-space:nowrap;">{h_score} - {a_score}</td>\n'
+        '                        <td width="42%" align="left" '
+        f'style="padding:1px 0 1px 4px;">{away_text}</td>\n'
+        '                      </tr>\n'
+        '                    </table>\n'
+    )
+
+
+def _render_knockout_html(rounds: list[dict], champion: str | None) -> str:
+    if not rounds and not champion:
+        return ""
+    parts = [_section_header_html("Knockout stage")]
+    for r in rounds:
+        teams = [display_team_name(t) for t in (r.get("teams") or [])]
+        parts.append(
+            '              <table width="100%" cellpadding="0" cellspacing="0" '
+            f'border="0" style="margin-top:8px;">\n'
+            '                <tr>\n'
+            f'                  <td style="font-family:{_MONO_FONT};font-size:11px;'
+            f'font-weight:700;color:{_NAVY};letter-spacing:0.05em;">'
+            f'{r.get("label", "")}</td>\n'
+            f'                  <td align="right" style="font-family:{_MONO_FONT};'
+            f'font-size:10px;color:{_MUTED_INK};">{len(teams)} teams</td>\n'
+            '                </tr>\n'
+            '                <tr>\n'
+            f'                  <td colspan="2" style="font-family:{_MONO_FONT};'
+            f'font-size:11px;color:{_BODY_INK};line-height:1.7;padding-top:2px;">'
+            f'{"&nbsp; ".join(teams)}</td>\n'
+            '                </tr>\n'
+            '              </table>\n'
+        )
+    if champion:
+        parts.append(
+            '              <div style="margin-top:14px;">\n'
+            f'                <div style="font-family:{_BODY_FONT};font-size:10px;'
+            f'letter-spacing:0.10em;color:{_MUTED_INK};text-transform:uppercase;">'
+            'Champion</div>\n'
+            f'                <div style="font-family:{_MONO_FONT};font-size:16px;'
+            f'font-weight:700;color:{_NAVY};padding-top:2px;">'
+            f'{display_team_name(champion)}</div>\n'
+            '              </div>\n'
+        )
+    return "".join(parts)
+
+
+def _render_bonus_html(bonus: list[dict]) -> str:
+    if not bonus:
+        return ""
+    parts = [_section_header_html("Bonus questions")]
+    parts.append(
+        '              <table width="100%" cellpadding="0" cellspacing="0" border="0">\n'
+    )
+    for idx, b in enumerate(bonus, start=1):
+        parts.append(
+            '                <tr>\n'
+            f'                  <td style="font-family:{_MONO_FONT};font-size:11px;'
+            f'color:{_BODY_INK};padding:3px 8px 3px 0;vertical-align:top;">'
+            f'{idx}. {b.get("question_label", "")}</td>\n'
+            f'                  <td align="right" style="font-family:{_MONO_FONT};'
+            f'font-size:11px;font-weight:700;color:{_NAVY};padding:3px 0;'
+            'white-space:nowrap;vertical-align:top;">'
+            f'{display_team_name(b.get("answer"))}</td>\n'
+            '                </tr>\n'
+        )
+    parts.append('              </table>\n')
+    return "".join(parts)
+
+
+def _build_recap_text(recap: dict) -> str:
+    """Plain-text equivalent of the recap section (no fancy alignment)."""
+    parts: list[str] = []
+    groups = recap.get("groups") or []
+    if groups:
+        n_matches = sum(len(g.get("fixtures") or []) for g in groups)
+        parts.append(f"\n\nGROUP STAGE   {n_matches} matches\n")
+        for group in groups:
+            parts.append(f"\nGROUP {group.get('letter', '')}\n")
+            for f in group.get("fixtures") or []:
+                home = display_team_name(f.get("home"))
+                away = display_team_name(f.get("away"))
+                parts.append(
+                    f"  {home:>12s}  {int(f.get('home_score', 0))} - "
+                    f"{int(f.get('away_score', 0))}  {away}\n"
+                )
+
+    rounds = recap.get("knockout") or []
+    champion = recap.get("champion")
+    if rounds or champion:
+        parts.append("\n\nKNOCKOUT STAGE\n")
+        for r in rounds:
+            teams = [display_team_name(t) for t in (r.get("teams") or [])]
+            parts.append(
+                f"\n{r.get('label', '')}   ({len(teams)} teams)\n"
+                f"  {'  '.join(teams)}\n"
+            )
+        if champion:
+            parts.append(f"\nCHAMPION\n  {display_team_name(champion)}\n")
+
+    bonus = recap.get("bonus") or []
+    if bonus:
+        parts.append("\n\nBONUS QUESTIONS\n")
+        for idx, b in enumerate(bonus, start=1):
+            parts.append(
+                f"  {idx}. {b.get('question_label', '')}\n"
+                f"     → {display_team_name(b.get('answer'))}\n"
+            )
+
+    return "".join(parts) if parts else ""

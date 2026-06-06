@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.dependencies import AdminUser, CurrentUser, DbSession
-from app.models._datetime import utc_now
+from app.models._datetime import aware_utc, utc_now
 from app.models.entry import EntryStatus
 from app.models.prediction import PredictionPhase
 
@@ -47,7 +47,11 @@ from app.schemas.entry import (
 )
 from app.services import entries as entries_service
 from app.services.audit import AuditContext, audit_context
-from app.services.email import send_submission_confirmation_email
+from app.services.email import (
+    send_entry_unlocked_email,
+    send_submission_confirmation_email,
+)
+from app.services.entry_recap import build_entry_recap
 from app.services.entries import (
     EntryAccessDeniedError,
     EntryConfigError,
@@ -306,6 +310,17 @@ async def submit_entry(
     # platforms (Linux's %-d is not on Windows containers).
     submitted_at_display = utc_now().strftime("%d %b %Y, %H:%M")
     deep_link_url = f"{settings.frontend_url}/entries/{entry_id}"
+    # Build the prediction recap for the email body. Best-effort: a failure
+    # here drops to None so the email still sends without the recap section.
+    recap: dict | None = None
+    try:
+        recap = await build_entry_recap(session, entry_id=entry_id)
+    except Exception as e:  # noqa: BLE001 — recap is best-effort, don't fail the email
+        logger.warning(
+            "[submission] recap build failed for entry %s: %s",
+            entry_id,
+            e,
+        )
     try:
         await send_submission_confirmation_email(
             to_email=current_user.email,
@@ -314,6 +329,7 @@ async def submit_entry(
             entry_ref=entry.reference,
             submitted_at_display=submitted_at_display,
             deep_link_url=deep_link_url,
+            recap=recap,
         )
     except Exception as e:  # noqa: BLE001 — email is best-effort
         logger.warning(
@@ -352,6 +368,30 @@ async def edit_entry(
     except Exception as exc:
         await session.rollback()
         _raise_for(exc)
+
+    # Unlock notification email — best-effort. Safety-net for users who
+    # unlock to tweak a pick, close the tab, and forget to re-submit:
+    # without this notice the entry silently doesn't count.
+    settings = get_settings()
+    deadline = aware_utc(competition.phase1_deadline) if competition.phase1_deadline else None
+    deadline_display = deadline.strftime("%d %b %Y, %H:%M UTC") if deadline else None
+    deep_link_url = f"{settings.frontend_url}/entries/{entry_id}"
+    try:
+        await send_entry_unlocked_email(
+            to_email=current_user.email,
+            player_name=current_user.name or current_user.email,
+            entry_name=entry.display_name,
+            entry_ref=entry.reference,
+            deadline_display=deadline_display,
+            deep_link_url=deep_link_url,
+        )
+    except Exception as e:  # noqa: BLE001 — email is best-effort
+        logger.warning(
+            "[unlock] entry-unlocked email failed for entry %s: %s",
+            entry_id,
+            e,
+        )
+
     return EntryRead.model_validate(entry)
 
 
