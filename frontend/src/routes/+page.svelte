@@ -35,9 +35,8 @@
 	import { track } from '$lib/analytics';
 
 	import StickyTopBar from '$lib/components/landing/StickyTopBar.svelte';
-	import PrizeHero from '$lib/components/landing/PrizeHero.svelte';
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
-	import CountdownBand from '$lib/components/landing/CountdownBand.svelte';
+	import TypographicHero from '$lib/components/landing/TypographicHero.svelte';
 	import HowItWorks from '$lib/components/landing/HowItWorks.svelte';
 	import FaqSection from '$lib/components/landing/FaqSection.svelte';
 	import EntryDepth from '$lib/components/landing/EntryDepth.svelte';
@@ -92,16 +91,12 @@
 	<StickyTopBar />
 {/if}
 
-<TrackedSection name="prize">
-	<PrizeHero />
-</TrackedSection>
-
 <TrackedSection name="hero">
-	<LandingHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
+	<LandingHero phase1Deadline={data.phase1Deadline} />
 </TrackedSection>
 
-<TrackedSection name="countdown">
-	<CountdownBand phase1Deadline={data.phase1Deadline} />
+<TrackedSection name="typography">
+	<TypographicHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
 </TrackedSection>
 
 <TrackedSection name="how_it_works">
