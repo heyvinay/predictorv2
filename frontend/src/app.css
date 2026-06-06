@@ -248,6 +248,7 @@
 		@apply bg-gradient-to-br from-base-200 to-base-300 rounded-xl p-4;
 		@apply border border-base-100/50 shadow-card;
 		@apply relative overflow-hidden;
+		@apply flex flex-col justify-between gap-2 min-h-[6.5rem];
 	}
 
 	.stat-card .stat-value {
@@ -256,7 +257,7 @@
 	}
 
 	.stat-card .stat-title {
-		@apply text-xs uppercase tracking-wider text-base-content/60;
+		@apply text-xs uppercase tracking-wider text-base-content/60 leading-tight;
 	}
 
 	/* Group header */

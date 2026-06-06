@@ -1,13 +1,13 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-// Two themes: a light "hybrid" body wrapped in premium-night dark chrome
-// (default) and full premium-night for dark mode.
+// Two themes: full premium-night (dark, default) and a light "hybrid"
+// body wrapped in premium-night dark chrome.
 export const THEMES = ['hybrid', 'premium-night'] as const;
 
 export type Theme = (typeof THEMES)[number];
 
-export const DEFAULT_THEME: Theme = 'hybrid';
+export const DEFAULT_THEME: Theme = 'premium-night';
 const STORAGE_KEY = 'predictor:theme';
 
 // Map legacy / removed theme keys to the survivor with the matching tone.

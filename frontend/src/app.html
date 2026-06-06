@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="hybrid">
+<html lang="en" data-theme="premium-night">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/x-icon" href="%sveltekit.assets%/favicon.ico" sizes="any" />
@@ -26,14 +26,14 @@
 		<title>Predictor v2</title>
 		<script>
 			// Apply persisted theme synchronously to prevent FOUC.
-			// Themes: hybrid (default, light body + dark chrome) | premium-night (dark).
+			// Themes: premium-night (dark, default) | hybrid (light body + dark chrome).
 			// Removed keys (premium-day, vin-*, legacy 'light') map to their
 			// tonal survivor. Keep in sync with LEGACY_MAP in $lib/stores/theme.ts.
 			try {
 				var t = localStorage.getItem('predictor:theme');
 				var legacy = { 'light': 'hybrid', 'premium-day': 'hybrid', 'vin-light': 'hybrid', 'vin-hybrid': 'hybrid', 'vin-dark': 'premium-night' };
 				if (t && legacy[t]) t = legacy[t];
-				if (t !== 'hybrid' && t !== 'premium-night') t = 'hybrid';
+				if (t !== 'hybrid' && t !== 'premium-night') t = 'premium-night';
 				document.documentElement.setAttribute('data-theme', t);
 			} catch (e) {}
 		</script>
