@@ -299,6 +299,19 @@ export interface LeaderboardResponse {
 }
 
 // Competition/Phase types
+
+/**
+ * UI-facing tournament phase. Composed from PhaseStatus + final-fixture
+ * finished detection. 3-phase taxonomy because our Phase 2 is dormant per
+ * CLAUDE.md (single-phase tournament).
+ *   pre_tournament    — sign-up / entry-building landing
+ *   during_tournament — live competition mission control
+ *   post_competition  — wrap-up + final leaderboard
+ * If Phase 2 is ever re-enabled, expand this union without changing the
+ * dispatcher call sites; only `deriveUxPhase` needs new branches.
+ */
+export type UxPhase = 'pre_tournament' | 'during_tournament' | 'post_competition';
+
 export interface PhaseStatus {
 	current_phase: PredictionPhase;
 	// Phase 1

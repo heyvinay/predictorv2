@@ -5,7 +5,8 @@
 import { writable, derived, readable } from 'svelte/store';
 import { browser } from '$app/environment';
 import * as competitionApi from '$api/competition';
-import type { PhaseStatus } from '$types';
+import type { PhaseStatus, UxPhase } from '$types';
+import { fixtures } from '$stores/fixtures';
 
 // Stores
 export const phaseStatus = writable<PhaseStatus | null>(null);
@@ -113,3 +114,72 @@ export function getTimeUntilDeadline(deadline: string | null, now: Date = new Da
 	if (minutes > 0) return `${minutes}m ${seconds}s`;
 	return `${seconds}s`;
 }
+
+// ---------------------------------------------------------------------------
+// uxPhase — UI-facing tournament phase derivation
+// ---------------------------------------------------------------------------
+//
+// Composes PhaseStatus + final-fixture-finished into a single UI enum that
+// drives the landing dispatcher. Pattern lifted from upstream
+// (laarohi/predictorv2). We collapse their 5-phase taxonomy
+// (pre/group_stage/between/knockout/post) to 3 (pre/during/post) because
+// Phase 2 is dormant in our fork per CLAUDE.md.
+//
+// Post-competition (final fixture finished) is detected via a SEPARATE
+// derived store (`isFinalFinished`) — we don't put fixtures into the
+// uxPhase derived's dependency list because dashboards may mutate
+// `fixtures` heavily on mount, and that cascade triggered an infinite
+// reactive loop upstream when the dispatcher's many transitive subscribers
+// all re-fired together. The dispatcher reads finalFinished once via the
+// composed uxPhase derived; uxPhase stays stable across fixture writes.
+
+/**
+ * Pure derivation — exported separately for unit testing. The Svelte
+ * derived store below is a thin wrapper.
+ *
+ * Priority of checks matters:
+ *   1. finalFinished short-circuits everything — a finished final
+ *      overrides any lingering lock states.
+ *   2. Null phaseStatus → pre_tournament (defensive default for first
+ *      paint before /phase-status returns).
+ *   3. phase1_locked partitions the remaining space deterministically.
+ */
+export function deriveUxPhase(
+	phaseStatus: PhaseStatus | null,
+	finalFinished: boolean
+): UxPhase {
+	if (finalFinished) return 'post_competition';
+	if (!phaseStatus) return 'pre_tournament';
+	if (!phaseStatus.phase1_locked) return 'pre_tournament';
+	return 'during_tournament';
+}
+
+/**
+ * True when the FINAL fixture has status="finished". Derived from the
+ * `fixtures` store so it tracks score-sync writes, but kept separate from
+ * `uxPhase` to avoid cascading reactive updates into every uxPhase
+ * subscriber on every fixture write.
+ */
+export const isFinalFinished = derived(fixtures, ($fixtures) => {
+	const finalFixture = $fixtures.find((f) => f.stage === 'final');
+	return finalFixture?.status === 'finished';
+});
+
+/**
+ * Dev-only override for the derived uxPhase. Set by +layout.svelte when
+ * the URL carries ?uxPhase=... and `dev` from $app/environment is true.
+ * Always null in production builds.
+ */
+export const uxPhaseOverride = writable<UxPhase | null>(null);
+
+/**
+ * Composed UX phase store. Reads the override first, then derives from
+ * phaseStatus + finalFinished. Consumers (the landing dispatcher) should
+ * subscribe to this, never to the raw signals directly — that ensures
+ * the dev override works.
+ */
+export const uxPhase = derived(
+	[phaseStatus, isFinalFinished, uxPhaseOverride],
+	([$phaseStatus, $finalFinished, $override]) =>
+		$override ?? deriveUxPhase($phaseStatus, $finalFinished)
+);
