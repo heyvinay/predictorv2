@@ -155,7 +155,7 @@
 			{/if}
 		</div>
 	{:else if community || state === 'live' || state === 'locked' || state === 'open'}
-		<MissionCrowdBar {community} yourPickBucket={yourBucket} yourPickLabel={yourPickLabel} />
+		<MissionCrowdBar community={community ?? null} yourPickBucket={yourBucket} yourPickLabel={yourPickLabel} />
 	{/if}
 
 	<!-- Footer: locked pick + points chip -->

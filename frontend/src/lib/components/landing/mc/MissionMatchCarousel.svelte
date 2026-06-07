@@ -37,12 +37,9 @@
 		await tick();
 		if (!trackRef) return;
 		const idx = fixtures.findIndex((f) => f.status === 'live' || f.status === 'halftime');
-		const anchor =
-			idx >= 0
-				? idx
-				: fixtures.findIndex(
-						(f) => f.status === 'scheduled' || (f.is_locked && f.status === 'scheduled')
-					);
+		// Find first scheduled fixture (locked or open — same status under
+		// our model since locking is computed dynamically via is_locked).
+		const anchor = idx >= 0 ? idx : fixtures.findIndex((f) => f.status === 'scheduled');
 		if (anchor < 0) return;
 		const col = Math.floor(anchor / 2);
 		const card = trackRef.querySelector<HTMLElement>(`[data-col="${col}"]`);
