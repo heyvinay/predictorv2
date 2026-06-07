@@ -45,7 +45,22 @@ export async function fetchAllNews(): Promise<NewsItem[]> {
 
 	if (allItems.length === 0) return [];
 
-	const deduped = dedupeByTitle(allItems);
+	// URL-dedup first (cheap, deterministic) — BBC sometimes publishes the
+	// SAME article URL across multiple feeds with slightly different
+	// titles, which `dedupeByTitle` (Jaccard on word tokens) doesn't catch
+	// because the headlines diverge. Without this step the downstream
+	// `{#each ... (url)}` keyed block in FromTheTouchline crashes with
+	// "Cannot have duplicate keys in a keyed each".
+	const seenLinks = new Set<string>();
+	const urlDeduped: typeof allItems = [];
+	for (const item of allItems) {
+		const key = item.link || `${item.title}|${item.publishedAt}`;
+		if (seenLinks.has(key)) continue;
+		seenLinks.add(key);
+		urlDeduped.push(item);
+	}
+
+	const deduped = dedupeByTitle(urlDeduped);
 
 	deduped.sort((a, b) => toEpoch(b.publishedAt) - toEpoch(a.publishedAt));
 

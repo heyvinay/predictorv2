@@ -18,9 +18,8 @@
     - scoring config (for matchBreakdown computeBreakdown)
 -->
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
-	import { goto } from '$app/navigation';
 	import { loadEntries, entries, activeEntry, activeEntryId } from '$stores/entries';
 	import { pageTitle } from '$stores/pageTitle';
 	import { fetchLeaderboard, totalParticipants } from '$stores/leaderboard';
@@ -116,13 +115,53 @@
 		community = next;
 	}
 
-	onMount(async () => {
+	let hasInitialized = false;
+
+	onMount(() => {
 		pageTitle.set('Mission Control');
-		if (!$isAuthenticated) {
-			goto('/login');
-			return;
+	});
+
+	// Reactive boot — waits for the auth store to hydrate before kicking
+	// off the loads. onMount fires once at mount time and would race auth
+	// (running before $user.id is populated); a reactive declaration
+	// re-evaluates when the auth store ticks and fires exactly once.
+	// Unauthenticated visitors land on the empty-state card (no goto —
+	// avoids the dev pill's ?uxPhase override causing a redirect loop
+	// against the auth-store hydration tick).
+	$: if ($isAuthenticated && $user?.id && !hasInitialized) {
+		hasInitialized = true;
+		void boot($user.id);
+	}
+
+	/**
+	 * Load entries with one retry. The first call after fresh navigate can
+	 * race the token subscription in $api/client — by the time api.get
+	 * fires for /entries, token.subscribe(api.setToken) may not have run
+	 * yet for the freshly-mounted module instance. A single retry after a
+	 * microtask gives subscriptions time to settle.
+	 */
+	async function loadEntriesWithRetry(userId: string): Promise<void> {
+		await loadEntries(userId);
+		// If entries populated, we're done. Otherwise wait a tick + retry.
+		const { get } = await import('svelte/store');
+		if (get(entries).length === 0) {
+			await tick();
+			await new Promise((r) => setTimeout(r, 50));
+			await loadEntries(userId);
 		}
-		if ($user?.id) await loadEntries($user.id);
+	}
+
+	async function boot(userId: string) {
+		// loadEntries failure (e.g. transient 401 while api.client.token
+		// is being set in a separate microtask) shouldn't kill the rest
+		// of the boot — the entries-store stays empty and the user lands
+		// on the "No entry to show" fallback. The retry inside
+		// loadEntriesWithRetry handles the auth-race in most cases.
+		try {
+			await loadEntriesWithRetry(userId);
+		} catch {
+			// soft-fail; UI degrades gracefully
+		}
 		await Promise.all([
 			fetchAllFixtures(),
 			fetchLeaderboard(),
@@ -133,7 +172,7 @@
 		await refreshActive();
 		await Promise.all([refreshGhostSparks(), refreshCommunity()]);
 		loaded = true;
-	});
+	}
 
 	// Re-fetch entry-scoped data when the active entry changes (after mount)
 	$: if (loaded && $activeEntryId) {
