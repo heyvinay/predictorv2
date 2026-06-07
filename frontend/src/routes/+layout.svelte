@@ -1,11 +1,14 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { dev } from '$app/environment';
 	import { goto, afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { initAnalytics, identify, track } from '$lib/analytics';
-	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
+	import { fetchPhaseStatus, phase1Deadline, currentTime, uxPhaseOverride } from '$stores/phase';
+	import type { UxPhase } from '$types';
+	import DevPhaseSwitcher from '$lib/components/dev/DevPhaseSwitcher.svelte';
 	import { theme, chromeThemeFor } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
 	import { pageTitle } from '$stores/pageTitle';
@@ -24,6 +27,25 @@
 	import { needsOnboarding } from '$lib/utils/onboarding';
 
 	let hasLoadedPhase = false;
+
+	// Honor ?uxPhase=... URL param + sessionStorage in DEV builds only.
+	// `dev` from $app/environment lets Vite tree-shake this entire block
+	// out of production bundles.
+	const VALID_PHASES: UxPhase[] = ['pre_tournament', 'during_tournament', 'post_competition'];
+	if (dev && typeof window !== 'undefined') {
+		const url = new URL(window.location.href);
+		const fromQuery = url.searchParams.get('uxPhase') as UxPhase | null;
+		let fromStorage: UxPhase | null = null;
+		try {
+			fromStorage = (sessionStorage.getItem('predictor:uxPhase') as UxPhase | null) ?? null;
+		} catch {
+			// sessionStorage unavailable in privacy modes; ignore
+		}
+		const initial = fromQuery && VALID_PHASES.includes(fromQuery) ? fromQuery : fromStorage;
+		if (initial && VALID_PHASES.includes(initial)) {
+			uxPhaseOverride.set(initial);
+		}
+	}
 
 	onMount(() => {
 		initAuth();
@@ -539,3 +561,7 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Dev-only phase switcher. Vite tree-shakes out of prod builds via the
+     internal {#if dev} guard. -->
+<DevPhaseSwitcher />
