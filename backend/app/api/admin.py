@@ -1301,3 +1301,53 @@ async def admin_entries_completeness_check(
     band using the CSV variant below.
     """
     return await check_all_eligible_entries(session, detail=detail)
+
+
+@router.get("/entries/completeness-check.csv")
+async def admin_entries_completeness_check_csv(
+    session: DbSession,
+    _admin: AdminUser,
+) -> Response:
+    """Same check as the JSON endpoint, formatted as CSV. Only includes
+    INCOMPLETE entries — one row each, ready for a chase-up mailshot.
+    Admin-only."""
+    rows = await check_all_eligible_entries(session, detail=False)
+    incompletes = [r for r in rows if not r.is_complete]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "entry_id",
+            "entry_name",
+            "user_name",
+            "user_email",
+            "missing_match_picks",
+            "missing_bracket_picks",
+            "missing_bonus_picks",
+            "total_missing",
+        ]
+    )
+    for r in incompletes:
+        writer.writerow(
+            [
+                str(r.entry_id),
+                r.entry_name,
+                r.user_name,
+                r.user_email,
+                r.missing_match_picks,
+                r.missing_bracket_picks,
+                r.missing_bonus_picks,
+                r.missing_match_picks
+                + r.missing_bracket_picks
+                + r.missing_bonus_picks,
+            ]
+        )
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="entry-completeness.csv"'
+        },
+    )
