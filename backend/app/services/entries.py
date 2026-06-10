@@ -24,7 +24,7 @@ Key invariants enforced here (never in the API layer):
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -484,6 +484,75 @@ async def list_user_entries(
         .order_by(PredictionEntry.entry_number)
     )
     return list(result.scalars().all())
+
+
+async def effective_updated_at_for_entries(
+    session: AsyncSession,
+    *,
+    entries: Sequence[PredictionEntry],
+) -> dict[uuid.UUID, datetime]:
+    """For each entry, the latest of its own ``updated_at``, the most
+    recent child prediction's ``updated_at`` (match / team / bonus), and
+    the most recent ``prediction_entry_phases`` row's ``updated_at``.
+
+    Background: ``PredictionEntry.updated_at`` only ticks on entry-level
+    actions (rename, withdraw / reinstate, admin disable / re-enable,
+    paid / prize-eligible toggle). Prediction edits bump the child row
+    only; submit / edit transitions bump the phase row only. Without
+    this rollup the entries-list "Updated" column shows the entry's
+    creation time, not real activity.
+
+    Returns a map ``{entry_id: effective_updated_at}``. Empty input
+    returns ``{}``.
+
+    Performance: three GROUP-BY-MAX queries (one per child table),
+    scoped by ``entry_id IN (...)`` against indexed FK columns. Phase
+    rows are read from the loaded ``entry.phases`` relationship — no
+    extra query — so callers that already eager-loaded phases (e.g.
+    ``list_user_entries``) pay nothing for that source.
+
+    Datetime contract: every returned value is coerced through
+    ``aware_utc`` so aiosqlite-backed tests see ``tzinfo=UTC`` like
+    Postgres does. See CLAUDE.md "Datetime rule (system-wide)".
+    """
+    if not entries:
+        return {}
+
+    entry_ids = [e.id for e in entries]
+    result: dict[uuid.UUID, datetime] = {
+        e.id: aware_utc(e.updated_at) for e in entries
+    }
+
+    # MAX(updated_at) from each child prediction table, scoped by entry_id.
+    # One round-trip per table; negligible at pool scale (~100 entries).
+    for child_model in (MatchPrediction, TeamPrediction, BonusPrediction):
+        rows = (
+            await session.execute(
+                select(
+                    child_model.entry_id,
+                    func.max(child_model.updated_at),
+                )
+                .where(child_model.entry_id.in_(entry_ids))
+                .group_by(child_model.entry_id)
+            )
+        ).all()
+        for entry_id, ts in rows:
+            if ts is None:
+                continue
+            ts_aware = aware_utc(ts)
+            if ts_aware > result[entry_id]:
+                result[entry_id] = ts_aware
+
+    # Phase rows are expected to be eager-loaded by callers
+    # (selectinload(PredictionEntry.phases) in list_user_entries). Read
+    # from the loaded relationship to skip an extra DB round-trip.
+    for entry in entries:
+        for phase_row in entry.phases:
+            ts_aware = aware_utc(phase_row.updated_at)
+            if ts_aware > result[entry.id]:
+                result[entry.id] = ts_aware
+
+    return result
 
 
 async def get_entry(

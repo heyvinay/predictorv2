@@ -31,6 +31,7 @@ from app.models.entry import (
     PredictionEntryEvent,
     PredictionEntryPhase,
 )
+from app.models.bonus import BonusPrediction
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.user import AuthProvider, User
@@ -888,3 +889,241 @@ class TestDuplicateEntry:
         # And the source is unaffected.
         assert source.id != new_entry.id
         assert new_entry.display_name.endswith("(copy)")
+
+
+# ---------------------------------------------------------------------------
+# Effective updated_at — rollup across an entry and its child predictions
+# ---------------------------------------------------------------------------
+class TestEffectiveUpdatedAt:
+    """`effective_updated_at_for_entries` rolls up the latest mutation
+    across an entry and its child predictions.
+
+    Background: `PredictionEntry.updated_at` on the row itself only
+    ticks for rename / withdraw / admin actions — not for prediction
+    edits or submit transitions (those bump only the child row or the
+    `prediction_entry_phases` row). Without this rollup the entries
+    list shows the entry's creation time, not its real last activity.
+    """
+
+    OLD = datetime(2026, 6, 1, 10, 0, 0, tzinfo=timezone.utc)
+    NEWER = datetime(2026, 6, 1, 14, 0, 0, tzinfo=timezone.utc)
+    NEWEST = datetime(2026, 6, 1, 16, 0, 0, tzinfo=timezone.utc)
+
+    @staticmethod
+    async def _make_stale_entry(
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+        baseline: datetime,
+    ) -> PredictionEntry:
+        """Create an entry and force every "stale baseline" timestamp
+        (entry + phase rows) to ``baseline``.
+
+        Why both: ``create_entry`` defaults each ``PredictionEntryPhase.updated_at``
+        to ``utc_now()`` (today). Without resetting phase rows the rollup
+        always finds today and the test assertion under tests a no-op.
+        """
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        entry.updated_at = baseline
+        for phase_row in entry.phases:
+            phase_row.updated_at = baseline
+        return entry
+
+    async def test_returns_entry_updated_at_when_no_children(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.OLD
+
+    async def test_match_prediction_overrides_entry_updated_at(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+        fixture_a: Fixture,
+    ):
+        """The hot-path bug: user edits group-stage scores; entry.updated_at
+        stays at creation time; MatchPrediction.updated_at advances."""
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        session.add(
+            MatchPrediction(
+                entry_id=entry.id,
+                fixture_id=fixture_a.id,
+                home_score=2,
+                away_score=1,
+                phase=PredictionPhase.PHASE_1,
+                updated_at=self.NEWER,
+            )
+        )
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.NEWER
+
+    async def test_bonus_prediction_overrides_entry_updated_at(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        session.add(
+            BonusPrediction(
+                entry_id=entry.id,
+                question_id="top_scorer",
+                answer="Kylian Mbappé",
+                updated_at=self.NEWER,
+            )
+        )
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.NEWER
+
+    async def test_team_prediction_overrides_entry_updated_at(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        session.add(
+            TeamPrediction(
+                entry_id=entry.id,
+                team="Brazil",
+                stage="round_of_16",
+                phase=PredictionPhase.PHASE_1,
+                updated_at=self.NEWER,
+            )
+        )
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.NEWER
+
+    async def test_phase_row_overrides_entry_updated_at(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """Phase row ticks on submit / edit — the user submits but never
+        renames, so entry.updated_at stays old while phase_row.updated_at
+        advances."""
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        # _make_stale_entry pinned both phase rows to OLD; advance PHASE_1.
+        phase_row = next(
+            p for p in entry.phases if p.phase == PredictionPhase.PHASE_1
+        )
+        phase_row.updated_at = self.NEWER
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.NEWER
+
+    async def test_picks_latest_across_all_sources(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+        fixture_a: Fixture,
+    ):
+        """Mix all four sources at different times; rollup picks the max."""
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        # Match prediction at NEWER
+        session.add(
+            MatchPrediction(
+                entry_id=entry.id,
+                fixture_id=fixture_a.id,
+                home_score=1,
+                away_score=0,
+                phase=PredictionPhase.PHASE_1,
+                updated_at=self.NEWER,
+            )
+        )
+        # Bonus prediction at OLD (older than match)
+        session.add(
+            BonusPrediction(
+                entry_id=entry.id,
+                question_id="top_scorer",
+                answer="Harry Kane",
+                updated_at=self.OLD,
+            )
+        )
+        # Phase row at NEWEST — should win
+        phase_row = next(
+            p for p in entry.phases if p.phase == PredictionPhase.PHASE_1
+        )
+        phase_row.updated_at = self.NEWEST
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        assert result[entry.id] == self.NEWEST
+
+    async def test_independent_per_entry(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+        fixture_a: Fixture,
+    ):
+        """Two entries get independent rollups — no cross-contamination."""
+        e1 = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        e2 = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        # Only e1 has a recent prediction.
+        session.add(
+            MatchPrediction(
+                entry_id=e1.id,
+                fixture_id=fixture_a.id,
+                home_score=3,
+                away_score=2,
+                phase=PredictionPhase.PHASE_1,
+                updated_at=self.NEWER,
+            )
+        )
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[e1, e2]
+        )
+
+        assert result[e1.id] == self.NEWER
+        assert result[e2.id] == self.OLD
+
+    async def test_empty_input_returns_empty_dict(
+        self, session: AsyncSession
+    ):
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[]
+        )
+        assert result == {}

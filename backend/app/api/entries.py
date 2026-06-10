@@ -123,12 +123,26 @@ async def _get_competition(session: AsyncSession):
 async def list_entries(
     session: DbSession, current_user: CurrentUser
 ) -> list[EntryRead]:
-    """List the current user's entries in the active competition."""
+    """List the current user's entries in the active competition.
+
+    The ``updated_at`` field on each entry is the rolled-up "last
+    activity" timestamp — see ``effective_updated_at_for_entries`` for
+    why we don't just return ``PredictionEntry.updated_at`` raw.
+    Computed read-side; no DB writes.
+    """
     competition = await _get_competition(session)
     entries = await entries_service.list_user_entries(
         session, user=current_user, competition=competition
     )
-    return [EntryRead.model_validate(e) for e in entries]
+    effective = await entries_service.effective_updated_at_for_entries(
+        session, entries=entries
+    )
+    return [
+        EntryRead.model_validate(e).model_copy(
+            update={"updated_at": effective[e.id]}
+        )
+        for e in entries
+    ]
 
 
 @user_router.post(
