@@ -93,6 +93,39 @@ describe('buildRounds', () => {
 		expect(rounds.find((r) => r.id === 'r32')?.isKnockout).toBe(true);
 		expect(rounds.find((r) => r.id === 'f')?.isKnockout).toBe(true);
 	});
+
+	it('derives matchdays from per-team kickoff order when match_number is NULL (the real DB shape)', () => {
+		// Two teams playing each other three times across three dates —
+		// per-team ordinal buckets them into r1 / r2 / r3 despite null
+		// match_number on every row.
+		const fixtures = [
+			fx({
+				id: 'md3',
+				match_number: null as unknown as number,
+				home_team: 'Mexico',
+				away_team: 'Canada',
+				kickoff: '2026-06-25T18:00:00+00:00'
+			}),
+			fx({
+				id: 'md1',
+				match_number: null as unknown as number,
+				home_team: 'Mexico',
+				away_team: 'Canada',
+				kickoff: '2026-06-11T18:00:00+00:00'
+			}),
+			fx({
+				id: 'md2',
+				match_number: null as unknown as number,
+				home_team: 'Canada',
+				away_team: 'Mexico',
+				kickoff: '2026-06-18T18:00:00+00:00'
+			})
+		];
+		const rounds = buildRounds(fixtures);
+		expect(rounds.find((r) => r.id === 'r1')?.fixtureIds).toEqual(['md1']);
+		expect(rounds.find((r) => r.id === 'r2')?.fixtureIds).toEqual(['md2']);
+		expect(rounds.find((r) => r.id === 'r3')?.fixtureIds).toEqual(['md3']);
+	});
 });
 
 describe('formatDateRange', () => {

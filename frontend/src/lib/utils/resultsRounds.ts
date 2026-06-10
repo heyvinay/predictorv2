@@ -63,13 +63,42 @@ export function isKnockoutRound(id: RoundId): boolean {
 	return KO_ROUNDS.has(id);
 }
 
-/** Which round a fixture belongs to; null for unknown stages. */
-export function roundIdForFixture(f: Fixture): RoundId | null {
+/** Derive each group fixture's matchday (1..3) from per-team kickoff
+ *  order: a team's Nth group game is its matchday N. Used as the
+ *  fallback when `match_number` is null — TRUE in the dev/prod DB as of
+ *  2026-06-10 (verified: all 105 fixtures carry match_number = NULL),
+ *  so this is effectively the primary path. */
+export function deriveGroupMatchdays(fixtures: Fixture[]): Map<string, 1 | 2 | 3> {
+	const groupFixtures = fixtures
+		.filter((f) => f.stage === 'group')
+		.sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
+	const gamesSeen = new Map<string, number>();
+	const out = new Map<string, 1 | 2 | 3>();
+	for (const f of groupFixtures) {
+		const n = Math.max(gamesSeen.get(f.home_team) ?? 0, gamesSeen.get(f.away_team) ?? 0) + 1;
+		out.set(f.id, Math.min(n, 3) as 1 | 2 | 3);
+		gamesSeen.set(f.home_team, (gamesSeen.get(f.home_team) ?? 0) + 1);
+		gamesSeen.set(f.away_team, (gamesSeen.get(f.away_team) ?? 0) + 1);
+	}
+	return out;
+}
+
+/** Which round a fixture belongs to; null for unknown stages. Group
+ *  fixtures use match_number when present, else the caller-supplied
+ *  derived matchday map (see deriveGroupMatchdays). */
+export function roundIdForFixture(
+	f: Fixture,
+	derivedMatchdays?: Map<string, 1 | 2 | 3>
+): RoundId | null {
 	if (f.stage === 'group') {
 		const n = f.match_number ?? 0;
 		if (n >= 1 && n <= 24) return 'r1';
 		if (n >= 25 && n <= 48) return 'r2';
 		if (n >= 49 && n <= 72) return 'r3';
+		const md = derivedMatchdays?.get(f.id);
+		if (md === 1) return 'r1';
+		if (md === 2) return 'r2';
+		if (md === 3) return 'r3';
 		return null;
 	}
 	switch (f.stage) {
@@ -107,9 +136,10 @@ export function formatDateRange(startIso: string, endIso: string): string {
 
 /** Resolve the full ten-round structure from the fixtures list. */
 export function buildRounds(fixtures: Fixture[]): RoundDef[] {
+	const derivedMatchdays = deriveGroupMatchdays(fixtures);
 	const byRound = new Map<RoundId, Fixture[]>();
 	for (const f of fixtures) {
-		const rid = roundIdForFixture(f);
+		const rid = roundIdForFixture(f, derivedMatchdays);
 		if (!rid) continue;
 		const list = byRound.get(rid) ?? [];
 		list.push(f);

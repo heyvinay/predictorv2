@@ -79,18 +79,8 @@
 			loading = false;
 			return;
 		}
-		await Promise.all([
+		const [, leaderboard, scoringRules] = await Promise.all([
 			fetchAllFixtures(),
-			$user?.id ? loadEntries($user.id) : Promise.resolve()
-		]);
-
-		// Keep the store's selection if it belongs to this user; else first entry.
-		if (!$activeEntryId || !$entries.some((e) => e.id === $activeEntryId)) {
-			const candidate = $entries[0];
-			if (candidate) setActiveEntry(candidate.id);
-		}
-
-		const [leaderboard, scoringRules] = await Promise.all([
 			getLeaderboard().catch(() => null),
 			getScoringRules()
 		]);
@@ -103,10 +93,28 @@
 				])
 			);
 		}
-
-		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
 		loading = false;
 	});
+
+	// Entries + predictions load reactively once the user store hydrates —
+	// at onMount time $user is usually still null (auth/me resolves in the
+	// layout after this page mounts), so a one-shot read silently skips
+	// loadEntries and the page renders without pills or picks.
+	let entriesRequested = false;
+	$: if (resultsOpen && $user?.id && !entriesRequested) {
+		entriesRequested = true;
+		void loadEntriesAndPredictions($user.id);
+	}
+
+	async function loadEntriesAndPredictions(userId: string) {
+		await loadEntries(userId);
+		// Keep the store's selection if it belongs to this user; else first entry.
+		if (!$activeEntryId || !$entries.some((e) => e.id === $activeEntryId)) {
+			const candidate = $entries[0];
+			if (candidate) setActiveEntry(candidate.id);
+		}
+		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
+	}
 
 	// ── Round selection: URL param → default logic (D.1) ──
 	$: rounds = buildRounds($fixtures);

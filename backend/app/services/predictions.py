@@ -132,9 +132,15 @@ async def get_match_predictions(
 
     Returns (prediction, fixture) tuples ordered by kickoff.
     """
+    # Eager-load Fixture.score — compute_points_for_finished_fixtures (and
+    # any other consumer) reads it after the session context moves on; a
+    # lazy load there raises MissingGreenlet under the async driver.
+    from sqlalchemy.orm import selectinload
+
     result = await session.execute(
         select(MatchPrediction, Fixture)
         .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
+        .options(selectinload(Fixture.score))
         .where(MatchPrediction.entry_id == entry.id)
         .order_by(Fixture.kickoff)
     )

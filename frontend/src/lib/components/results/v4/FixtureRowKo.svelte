@@ -44,8 +44,8 @@
 				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
 			{:else if !seeded}
 				<span
-					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[8px] font-extrabold text-base-content/55"
-					>{fixture.home_team}</span
+					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
+					>?</span
 				>
 			{/if}
 		</div>
@@ -72,8 +72,8 @@
 				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
 			{:else if !seeded}
 				<span
-					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[8px] font-extrabold text-base-content/55"
-					>{fixture.away_team}</span
+					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
+					>?</span
 				>
 			{/if}
 			<span class="truncate text-[13px] font-semibold">
@@ -101,7 +101,7 @@
 					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
 				<span class="text-[13px] font-semibold"
-					>{seeded ? displayTeamName(fixture.home_team) : fixture.home_team}</span
+					>{seeded ? displayTeamName(fixture.home_team) : 'TBD'}</span
 				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
@@ -114,7 +114,7 @@
 					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
 				<span class="text-[13px] font-semibold"
-					>{seeded ? displayTeamName(fixture.away_team) : fixture.away_team}</span
+					>{seeded ? displayTeamName(fixture.away_team) : 'TBD'}</span
 				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
