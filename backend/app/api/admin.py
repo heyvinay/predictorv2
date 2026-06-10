@@ -54,6 +54,10 @@ from app.services.broadcast import (
     count_all_audiences,
     query_audience,
 )
+from app.services.completeness import (
+    EntryCompletenessResult,
+    check_all_eligible_entries,
+)
 from app.services.email import send_broadcast_email
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
@@ -1275,3 +1279,25 @@ async def send_broadcast(
         failed=failed,
         sample_emails=failure_samples,
     )
+
+
+# ── Entry completeness check (E.1, report-only) ─────────────────────────────
+
+
+@router.get(
+    "/entries/completeness-check",
+    response_model=list[EntryCompletenessResult],
+)
+async def admin_entries_completeness_check(
+    session: DbSession,
+    _admin: AdminUser,
+    detail: bool = False,
+) -> list[EntryCompletenessResult]:
+    """Report-only check of pick fullness for every eligible entry.
+
+    Returns ALL eligible entries; the frontend filters to incompletes for
+    display. Pass ``?detail=true`` for the per-fixture / per-stage
+    drill-down. Admin-only. No enforcement — the admin chases gaps out of
+    band using the CSV variant below.
+    """
+    return await check_all_eligible_entries(session, detail=detail)
