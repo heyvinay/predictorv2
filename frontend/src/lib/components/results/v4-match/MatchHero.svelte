@@ -32,68 +32,68 @@
 </script>
 
 <div
-	class="relative overflow-hidden rounded-box border border-base-300/60 bg-gradient-to-b from-primary/5 to-base-200 p-5"
+	class="relative overflow-hidden rounded-box border border-base-300/60 bg-gradient-to-b from-primary/5 to-base-200 p-3"
 >
 	{#if mode === 'played' && upset}
 		<div
-			class="mb-4 inline-block rounded-full bg-warning/20 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.1em] text-warning-text"
+			class="mb-2 inline-block rounded-full bg-warning/20 px-2 py-0.5 text-[9px] font-extrabold tracking-[0.1em] text-warning-text"
 		>
 			★ UPSET OF THE ROUND
 		</div>
 	{:else if mode === 'upcoming'}
 		<div
-			class="mb-4 inline-flex items-center gap-1.5 rounded-full bg-base-300/40 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.1em] text-base-content/70"
+			class="mb-2 inline-flex items-center gap-1 rounded-full bg-base-300/40 px-2 py-0.5 text-[9px] font-extrabold tracking-[0.1em] text-base-content/70"
 		>
-			<span class="text-[11px]">🔒</span> LOCKED · KO {koClock}
+			<span class="text-[10px]">🔒</span> LOCKED · KO {koClock}
 		</div>
 	{/if}
 
-	<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-		<div class="flex flex-col items-center gap-2">
+	<div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+		<div class="flex flex-col items-center gap-1">
 			{#if hasFlag(fixture.home_team)}
 				<img
-					src={getFlagUrl(fixture.home_team, 'lg')}
+					src={getFlagUrl(fixture.home_team, 'sm')}
 					alt=""
-					class="h-[38px] w-[56px] rounded-md object-cover shadow-card max-sm:h-[30px] max-sm:w-[44px]"
+					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
 				/>
 			{/if}
-			<div class="text-center font-display text-[15px] font-extrabold leading-tight max-sm:text-[13px]">
+			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[11px]">
 				{displayTeamName(fixture.home_team)}
 			</div>
 		</div>
 
-		<div class="flex flex-col items-center gap-1 px-2">
+		<div class="flex flex-col items-center gap-0.5 px-2">
 			{#if mode === 'played'}
 				<div
-					class="text-[9.5px] font-extrabold uppercase tracking-[0.14em] {isLive
+					class="text-[8.5px] font-extrabold uppercase tracking-[0.12em] {isLive
 						? 'text-error'
 						: 'text-base-content/55'}"
 				>
 					{isLive ? `LIVE ${fixture.minute ? `${fixture.minute}'` : ''}` : 'FULL TIME'}
 				</div>
-				<div class="font-display text-[36px] leading-none max-sm:text-[28px]">
+				<div class="font-display text-[22px] leading-none max-sm:text-[18px]">
 					<b class={homeWin ? '' : 'opacity-50'}>{score?.home_score ?? '–'}</b>
-					<span class="px-1.5 text-base-content/40">–</span>
+					<span class="px-1 text-base-content/40">–</span>
 					<b class={awayWin ? '' : 'opacity-50'}>{score?.away_score ?? '–'}</b>
 				</div>
 			{:else}
-				<div class="font-hero text-[34px] leading-none text-base-content/70 max-sm:text-[26px]">VS</div>
-				<div class="text-[11.5px] font-bold text-primary">Kicks off {kicksIn}</div>
+				<div class="font-display text-[18px] leading-none text-base-content/70 max-sm:text-[16px]">VS</div>
+				<div class="text-[10px] font-bold text-primary">Kicks off {kicksIn}</div>
 			{/if}
-			<div class="text-[10.5px] text-base-content/55">
+			<div class="text-[9.5px] text-base-content/55">
 				{fixture.group ? `Group ${fixture.group} · ` : ''}{dateLabel}
 			</div>
 		</div>
 
-		<div class="flex flex-col items-center gap-2">
+		<div class="flex flex-col items-center gap-1">
 			{#if hasFlag(fixture.away_team)}
 				<img
-					src={getFlagUrl(fixture.away_team, 'lg')}
+					src={getFlagUrl(fixture.away_team, 'sm')}
 					alt=""
-					class="h-[38px] w-[56px] rounded-md object-cover shadow-card max-sm:h-[30px] max-sm:w-[44px]"
+					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
 				/>
 			{/if}
-			<div class="text-center font-display text-[15px] font-extrabold leading-tight max-sm:text-[13px]">
+			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[11px]">
 				{displayTeamName(fixture.away_team)}
 			</div>
 		</div>

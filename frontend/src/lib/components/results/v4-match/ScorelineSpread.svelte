@@ -31,79 +31,90 @@
 	}
 </script>
 
-<div class="rounded-box border border-base-300/60 bg-base-200 p-4">
-	<div class="mb-2 flex items-center justify-between">
-		<span class="font-display text-[15px]">
+<div class="rounded-box border border-base-300/60 bg-base-200 p-3">
+	<div class="mb-1.5 flex items-center justify-between">
+		<span class="font-display text-[12px]">
 			{mode === 'played' ? 'Scoreline spread' : 'Predicted scorelines'}
 		</span>
-		<span class="text-[11px] text-base-content/55">{totalPicks} entries · size ∝ picks</span>
+		<span class="text-[10px] text-base-content/55">{totalPicks} entries · size ∝ picks</span>
 	</div>
 
-	<!-- away axis -->
-	<div class="grid grid-cols-[22px_repeat(4,1fr)] gap-1 px-0.5 pb-1">
-		<span></span>
-		{#each axis as a (a)}
-			<span class="text-center text-[10px] font-bold text-base-content/55">{a === 3 ? '3+' : a}</span>
-		{/each}
-	</div>
-
-	<div class="grid grid-cols-[22px_repeat(4,1fr)] gap-1">
-		{#each grid as row, h (h)}
-			<span class="flex items-center justify-center text-[10px] font-bold text-base-content/55"
-				>{h === 3 ? '3+' : h}</span
-			>
-			{#each row as n, a (a)}
-				<span
-					class="grid aspect-square place-items-center rounded-btn border border-base-300/30 {cellClasses(
-						h,
-						a,
-						n
-					)}"
+	<!-- Constrained-width grid: a 4×4 of fixed-size cells, not a stretched
+	     percentage grid. Each cell is 40px so the whole grid is ~190px wide
+	     regardless of container width — keeps it from dominating a wide
+	     right column. -->
+	<div class="inline-block">
+		<!-- away axis -->
+		<div class="grid grid-cols-[16px_repeat(4,40px)] gap-0.5 px-0.5 pb-0.5">
+			<span></span>
+			{#each axis as a (a)}
+				<span class="text-center text-[9px] font-bold text-base-content/55"
+					>{a === 3 ? '3+' : a}</span
 				>
-					{#if n > 0}
-						<span
-							class="grid place-items-center rounded-full bg-base-content/15 font-display text-[11px]"
-							style="width: {30 + (n / max) * 55}%; aspect-ratio: 1;"
-						>
-							{n}
-						</span>
-					{/if}
-				</span>
 			{/each}
-		{/each}
+		</div>
+
+		<div class="grid grid-cols-[16px_repeat(4,40px)] gap-0.5">
+			{#each grid as row, h (h)}
+				<span
+					class="flex items-center justify-center text-[9px] font-bold text-base-content/55"
+					>{h === 3 ? '3+' : h}</span
+				>
+				{#each row as n, a (a)}
+					<span
+						class="grid h-10 w-10 place-items-center rounded-btn border border-base-300/30 {cellClasses(
+							h,
+							a,
+							n
+						)}"
+					>
+						{#if n > 0}
+							<span
+								class="grid place-items-center rounded-full bg-base-content/15 font-display text-[10px]"
+								style="width: {30 + (n / max) * 60}%; aspect-ratio: 1;"
+							>
+								{n}
+							</span>
+						{/if}
+					</span>
+				{/each}
+			{/each}
+		</div>
 	</div>
 
-	<div class="mt-3 flex flex-wrap gap-3 text-[10.5px] font-semibold text-base-content/70">
+	<div class="mt-2 flex flex-wrap gap-2.5 text-[9.5px] font-semibold text-base-content/70">
 		{#if mode === 'played'}
 			{#if actualCell}
 				<span class="inline-flex items-center gap-1">
-					<span class="h-2 w-2 rounded-full ring-2 ring-success"></span>
-					actual ({actualCell[0] === 3 ? '3+' : actualCell[0]}-{actualCell[1] === 3 ? '3+' : actualCell[1]})
+					<span class="h-1.5 w-1.5 rounded-full ring-1 ring-success"></span>
+					actual ({actualCell[0] === 3 ? '3+' : actualCell[0]}-{actualCell[1] === 3
+						? '3+'
+						: actualCell[1]})
 				</span>
 			{/if}
 			<span class="inline-flex items-center gap-1">
-				<span class="h-2 w-2 rounded-full ring-2 ring-primary"></span> your pick
+				<span class="h-1.5 w-1.5 rounded-full ring-1 ring-primary"></span> your pick
 			</span>
 		{:else}
 			<span class="inline-flex items-center gap-1">
-				<span class="h-2 w-2 rounded-sm bg-warning/40"></span>
+				<span class="h-1.5 w-1.5 rounded-sm bg-warning/40"></span>
 				{displayTeamName(fixture.home_team)} win
 			</span>
 			<span class="inline-flex items-center gap-1">
-				<span class="h-2 w-2 rounded-sm bg-base-300/60"></span> Draw
+				<span class="h-1.5 w-1.5 rounded-sm bg-base-300/60"></span> Draw
 			</span>
 			<span class="inline-flex items-center gap-1">
-				<span class="h-2 w-2 rounded-sm bg-error/40"></span>
+				<span class="h-1.5 w-1.5 rounded-sm bg-error/40"></span>
 				{displayTeamName(fixture.away_team)} win
 			</span>
 			<span class="inline-flex items-center gap-1">
-				<span class="h-2 w-2 rounded-full ring-2 ring-primary"></span> your pick
+				<span class="h-1.5 w-1.5 rounded-full ring-1 ring-primary"></span> your pick
 			</span>
 		{/if}
-	</div>
-	<div class="mt-1.5 text-[10px] text-base-content/40">
-		{displayTeamName(fixture.home_team).toUpperCase()} ↓ · {displayTeamName(
-			fixture.away_team
-		).toUpperCase()} →
+		<span class="ml-auto text-base-content/40">
+			{displayTeamName(fixture.home_team).toUpperCase()} ↓ · {displayTeamName(
+				fixture.away_team
+			).toUpperCase()} →
+		</span>
 	</div>
 </div>

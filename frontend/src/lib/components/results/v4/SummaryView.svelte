@@ -126,90 +126,59 @@
 </script>
 
 <div class="mt-4 flex flex-col gap-4">
-	<!-- Subtotal cards -->
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-		<div class="flex flex-col gap-2.5 rounded-box border border-base-300/60 bg-base-200 p-4">
-			<div>
-				<div class="font-display text-[11.5px] font-extrabold uppercase tracking-[0.06em]">
-					Group stage
-				</div>
-				<div class="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-base-content/55">
-					Rounds 1–3
-				</div>
+	<!-- Subtotal cards — compact: title + value on one row, stats inline beneath -->
+	<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+		<div class="flex flex-col gap-1 rounded-box border border-base-300/60 bg-base-200 px-3 py-2">
+			<div class="flex items-baseline justify-between gap-2">
+				<span class="font-display text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-base-content/70"
+					>Group stage</span
+				>
+				<span class="font-display text-[22px] leading-none">{groupTotal}</span>
 			</div>
-			<div class="font-hero text-[40px] leading-none">{groupTotal}</div>
-			<div
-				class="flex flex-wrap gap-2 border-t border-base-300/40 pt-2 text-[11px] font-bold text-base-content/70"
-			>
-				<span class="inline-flex items-center gap-1.5">
-					<span
-						class="grid h-[18px] w-[18px] place-items-center rounded-[5px] bg-success/20 font-display text-[10px] text-success"
-						>E</span
-					>
-					<span class="font-display text-[13px] text-base-content">{totalExact}</span>
-					<span class="text-base-content/55">Exact</span>
+			<div class="flex flex-wrap gap-1.5 text-[10.5px] font-bold text-base-content/70">
+				<span class="inline-flex items-center gap-1">
+					<span class="grid h-[14px] w-[14px] place-items-center rounded-[4px] bg-success/20 text-[9px] text-success">E</span>
+					<span>{totalExact}</span>
 				</span>
-				<span class="inline-flex items-center gap-1.5">
-					<span
-						class="grid h-[18px] w-[18px] place-items-center rounded-[5px] bg-warning/20 font-display text-[10px] text-warning-text"
-						>R</span
-					>
-					<span class="font-display text-[13px] text-base-content">{totalResult}</span>
-					<span class="text-base-content/55">Result</span>
+				<span class="inline-flex items-center gap-1">
+					<span class="grid h-[14px] w-[14px] place-items-center rounded-[4px] bg-warning/20 text-[9px] text-warning-text">R</span>
+					<span>{totalResult}</span>
 				</span>
-				<span class="inline-flex items-center gap-1.5">
-					<span
-						class="grid h-[18px] w-[18px] place-items-center rounded-[5px] bg-primary/20 font-display text-[10px] text-primary"
-						>★</span
-					>
-					<span class="font-display text-[13px] text-base-content">{totalRarity}</span>
-					<span class="text-base-content/55">Rarity</span>
+				<span class="inline-flex items-center gap-1">
+					<span class="grid h-[14px] w-[14px] place-items-center rounded-[4px] bg-primary/20 text-[9px] text-primary">★</span>
+					<span>{totalRarity}</span>
 				</span>
 			</div>
 		</div>
-		<div class="flex flex-col gap-2.5 rounded-box border border-base-300/60 bg-base-200 p-4">
-			<div>
-				<div class="font-display text-[11.5px] font-extrabold uppercase tracking-[0.06em]">
-					Knockouts
-				</div>
-				<div class="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-base-content/55">
-					R32 → Finals
-				</div>
+		<div class="flex flex-col gap-1 rounded-box border border-base-300/60 bg-base-200 px-3 py-2">
+			<div class="flex items-baseline justify-between gap-2">
+				<span class="font-display text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-base-content/70"
+					>Knockouts</span
+				>
+				<span class="font-display text-[22px] leading-none">{koTotal}</span>
 			</div>
-			<div class="font-hero text-[40px] leading-none">{koTotal}</div>
-			<div
-				class="flex flex-wrap gap-2 border-t border-base-300/40 pt-2 text-[11px] font-bold text-base-content/70"
-			>
-				<span class="inline-flex items-center gap-1.5">
-					<span
-						class="grid h-[18px] w-[18px] place-items-center rounded-[5px] bg-success/20 font-display text-[10px] text-success"
-						>✓</span
-					>
-					<span class="font-display text-[13px] text-base-content">{totalHits}</span>
-					<span class="text-base-content/55">Bracket hits</span>
+			<div class="flex flex-wrap gap-1.5 text-[10.5px] font-bold text-base-content/70">
+				<span class="inline-flex items-center gap-1">
+					<span class="grid h-[14px] w-[14px] place-items-center rounded-[4px] bg-success/20 text-[9px] text-success">✓</span>
+					<span>{totalHits} bracket hits</span>
 				</span>
 			</div>
 		</div>
 		<!-- Tournament total — THE one glow element on the page -->
 		<div
-			class="flex flex-col gap-2.5 rounded-box border border-primary bg-gradient-to-b from-primary/15 to-base-200 p-4 shadow-glow-gold"
+			class="flex items-center justify-between gap-2 rounded-box border border-primary bg-gradient-to-r from-primary/15 to-base-200 px-3 py-2 shadow-glow-gold"
 		>
-			<div>
-				<div class="font-display text-[11.5px] font-extrabold uppercase tracking-[0.06em]">
-					Tournament total
-				</div>
-				<div class="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-base-content/55">
-					All rounds
-				</div>
-			</div>
-			<div class="font-hero text-[48px] leading-none text-primary">{grand}</div>
+			<span class="font-display text-[10.5px] font-extrabold uppercase tracking-[0.08em]"
+				>Tournament total</span
+			>
+			<span class="font-display text-[26px] leading-none text-primary">{grand}</span>
 		</div>
 	</div>
 
 	<!-- Per-round table -->
 	<div class="overflow-hidden rounded-box border border-base-300/60 bg-base-200">
 		<div
-			class="grid grid-cols-[minmax(120px,1.4fr)_minmax(90px,1fr)_minmax(110px,1.1fr)_64px_24px] items-center gap-3 border-b border-base-300/50 bg-base-300/20 px-4 py-2.5"
+			class="grid grid-cols-[minmax(120px,1.4fr)_minmax(90px,1fr)_minmax(110px,1.1fr)_64px_24px] items-center gap-2 border-b border-base-300/50 bg-base-300/20 px-3 py-1.5"
 		>
 			<span class="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
 				>Round</span
@@ -231,7 +200,7 @@
 		{#each rows as b (b.id)}
 			<button
 				type="button"
-				class="group grid w-full grid-cols-[minmax(120px,1.4fr)_minmax(90px,1fr)_minmax(110px,1.1fr)_64px_24px] items-center gap-3 border-t border-base-300/45 px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-primary/5"
+				class="group grid w-full grid-cols-[minmax(120px,1.4fr)_minmax(90px,1fr)_minmax(110px,1.1fr)_64px_24px] items-center gap-2 border-t border-base-300/45 px-3 py-1.5 text-left transition-colors first:border-t-0 hover:bg-primary/5"
 				on:click={() => onJump(b.id)}
 				aria-label={`Jump to ${b.label}`}
 			>
@@ -301,9 +270,9 @@
 				>
 			</button>
 		{/each}
-		<div class="flex items-center justify-between border-t border-base-300/50 px-4 py-3">
-			<span class="text-[12.5px] font-bold tracking-[0.06em] text-primary">Tournament Total</span>
-			<span class="font-display text-[20px] text-primary">{grand}</span>
+		<div class="flex items-center justify-between border-t border-base-300/50 px-3 py-2">
+			<span class="text-[12px] font-bold tracking-[0.06em] text-primary">Tournament Total</span>
+			<span class="font-display text-[18px] text-primary">{grand}</span>
 		</div>
 	</div>
 </div>

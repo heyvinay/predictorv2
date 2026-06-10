@@ -19,7 +19,13 @@
 		matchPredictions,
 		resetPredictions
 	} from '$stores/predictions';
-	import { activeEntryId, entries, loadEntries, setActiveEntry } from '$stores/entries';
+	import {
+		activeEntryId,
+		entries,
+		loadEntries,
+		setActiveEntry,
+		submittedEntries
+	} from '$stores/entries';
 	import { phase1Deadline } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboard, getScoringRules } from '$api/leaderboard';
@@ -51,7 +57,17 @@
 	$: if (!$isAuthenticated) goto('/login');
 
 	// ── Gate (spec D.2): deadline passed → V4; else pre-tournament stub ──
-	$: resultsOpen = $phase1Deadline ? new Date($phase1Deadline).getTime() < Date.now() : false;
+	//
+	// Manual override (v2.163.0 ship): keep V4 hidden in prod for a final
+	// taste-check pass, even after the deadline auto-trigger fires. Flip to
+	// `true` and redeploy when you're ready for the pool to see it. Until
+	// then the page renders the same "Results open at kickoff" stub it has
+	// since v2.x — zero user-visible change from the prior deploy.
+	const V4_RESULTS_ENABLED = false;
+	$: resultsOpen =
+		V4_RESULTS_ENABLED &&
+		!!$phase1Deadline &&
+		new Date($phase1Deadline).getTime() < Date.now();
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -108,9 +124,12 @@
 
 	async function loadEntriesAndPredictions(userId: string) {
 		await loadEntries(userId);
-		// Keep the store's selection if it belongs to this user; else first entry.
-		if (!$activeEntryId || !$entries.some((e) => e.id === $activeEntryId)) {
-			const candidate = $entries[0];
+		// Post-deadline the page only shows submitted entries — make sure
+		// the active selection is one of those. If a draft was active in
+		// the store, fall through to the first submitted entry.
+		const visible = $submittedEntries.length > 0 ? $submittedEntries : $entries;
+		if (!$activeEntryId || !visible.some((e) => e.id === $activeEntryId)) {
+			const candidate = visible[0];
 			if (candidate) setActiveEntry(candidate.id);
 		}
 		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
@@ -168,7 +187,56 @@
 				month: 'short'
 		  })
 		: '';
-	$: multiEntry = $entries.length > 1;
+	$: visibleEntries = $submittedEntries.length > 0 ? $submittedEntries : $entries;
+	$: multiEntry = visibleEntries.length > 1;
+
+	// Top-card totals: group = sum of match-points across R1/R2/R3;
+	// knockout = sum of bracket hits × stage points across r32..final + winner.
+	// Bonus question split (group / knockout) needs a backend addition —
+	// today bonus_question_points is a single aggregate, so the sub-line
+	// stays at 0. Plumbed as optional props so the cell appears the moment
+	// the split lands.
+	$: groupTotalPts = typedPredictions.reduce((s, p) => s + (p.points?.total ?? 0), 0);
+	$: knockoutTotalPts = computeKoTotal(rules, rounds, $fixtureById, $bracketPrediction, winnerHit);
+
+	function computeKoTotal(
+		rulesRef: ScoringRules | null,
+		roundList: typeof rounds,
+		fxById: typeof $fixtureById,
+		bracket: typeof $bracketPrediction,
+		winnerCorrect: boolean
+	): number {
+		if (!rulesRef) return 0;
+		const advancement = rulesRef.advancement;
+		let total = 0;
+		for (const r of roundList) {
+			if (!r.isKnockout) continue;
+			const picks = bracketPicksForRound(bracket, r.id);
+			const stagePts = stagePointsForRound(advancement, r.id);
+			let hits = 0;
+			for (const fid of r.fixtureIds) {
+				const f = fxById.get(fid);
+				if (!f) continue;
+				const seeded = !/\d/.test(f.home_team) && !/\d/.test(f.away_team);
+				if (!seeded || f.stage === 'third_place') continue;
+				if (picks.has(f.home_team)) hits++;
+				if (picks.has(f.away_team)) hits++;
+			}
+			total += hits * stagePts;
+		}
+		if (winnerCorrect) total += advancement.winner;
+		return total;
+	}
+	$: winnerHit = (() => {
+		if (!finalFixture || finalFixture.status !== 'finished' || !finalFixture.score) return false;
+		const champion =
+			finalFixture.score.outcome === '1'
+				? finalFixture.home_team
+				: finalFixture.score.outcome === '2'
+				? finalFixture.away_team
+				: null;
+		return !!champion && !!$bracketPrediction?.winner && champion === $bracketPrediction.winner;
+	})();
 </script>
 
 <svelte:head>
@@ -191,25 +259,27 @@
 		</div>
 	</div>
 {:else if $isAuthenticated}
-	<div class="container mx-auto mobile-padding max-w-[1180px] py-6">
-		<h1 class="font-display text-3xl tracking-wide sm:text-4xl">Results</h1>
-
+	<div class="container mx-auto mobile-padding max-w-[1180px] py-2">
 		{#if loading || !rules}
 			<div class="flex justify-center py-16">
 				<span class="loading loading-spinner loading-lg text-primary"></span>
 			</div>
 		{:else}
 			<!-- Top strip: pills (multi-entry) + points summary -->
-			<div class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-stretch lg:justify-between">
+			<div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
 				{#if multiEntry && $activeEntryId}
 					<EntryPillBar
-						entries={$entries}
+						entries={visibleEntries}
 						selectedId={$activeEntryId}
 						{rankByEntry}
 						onSelect={selectEntry}
 					/>
 				{/if}
-				<PointsSummary predictions={typedPredictions} fullWidth={!multiEntry} />
+				<PointsSummary
+					groupTotal={groupTotalPts}
+					knockoutTotal={knockoutTotalPts}
+					fullWidth={!multiEntry}
+				/>
 			</div>
 
 			<RoundTabs {rounds} selected={selectedRound} {liveRounds} onSelect={selectRound} />

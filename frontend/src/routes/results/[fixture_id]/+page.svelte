@@ -37,8 +37,10 @@
 	} from '$lib/utils/matchDetailV4';
 	import MatchNav from '$lib/components/results/v4-match/MatchNav.svelte';
 	import MatchHero from '$lib/components/results/v4-match/MatchHero.svelte';
-	import YourPickCard from '$lib/components/results/v4-match/YourPickCard.svelte';
-	import PointsBreakdown from '$lib/components/results/v4-match/PointsBreakdown.svelte';
+	// YourPickCard + PointsBreakdown removed 2026-06-10 — the same info
+	// (pick + points + verdict) is already conveyed by the YOU row in the
+	// pool list and the per-fixture cell on the Results page. Files left
+	// on disk for now in case the cards come back; remove later.
 	import RarityExplainer from '$lib/components/results/v4-match/RarityExplainer.svelte';
 	import ScorelineSpread from '$lib/components/results/v4-match/ScorelineSpread.svelte';
 	import PoolList from '$lib/components/results/v4-match/PoolList.svelte';
@@ -207,32 +209,20 @@
 			/>
 
 			<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-				<!-- LEFT column -->
+				<!-- LEFT column: hero → rarity → spread -->
 				<div class="flex flex-col gap-4">
 					<MatchHero {fixture} {mode} {upset} />
-					{#if mode === 'played' && rows}
-						<PoolList banked={rows.banked} missed={rows.missed} totalPlayers={pool.length} />
-					{:else if mode === 'upcoming' && poolReady && payouts}
-						<PoolPickedWhat {fixture} preds={pool} {payouts} {youReference} />
-					{/if}
-				</div>
-
-				<!-- RIGHT column -->
-				<div class="flex flex-col gap-4">
-					<YourPickCard {fixture} {mode} {prediction} payout={yourPayout} />
-					{#if mode === 'played' && prediction?.points && prediction.points.total > 0}
-						<PointsBreakdown points={prediction.points} />
-					{/if}
-					{#if mode === 'played' && prediction?.points && prediction.points.rarity > 0 && poolReady}
+					{#if mode === 'played' && prediction?.points && prediction.points.base_kind !== 'miss' && poolReady}
+						<!-- Spec D.4 — render the consensus-variant explainer even when
+						     rarity = 0, so the user understands WHY no rarity was awarded
+						     (everyone agreed). Hides only on a missed outcome, where
+						     there's nothing rarity-related to explain. -->
 						<RarityExplainer
 							n={rarityCallers}
 							total={pool.length}
 							pts={prediction.points.rarity}
 							finished={fixture.status === 'finished'}
 						/>
-					{/if}
-					{#if mode === 'upcoming' && poolReady && payouts}
-						<PoolSplit {fixture} {payouts} {yourSide} />
 					{/if}
 					{#if grid}
 						<ScorelineSpread
@@ -242,6 +232,18 @@
 							{yourCell}
 							actualCell={mode === 'played' ? actualCell : null}
 						/>
+					{/if}
+				</div>
+
+				<!-- RIGHT column: pool list + upcoming pool split -->
+				<div class="flex flex-col gap-4">
+					{#if mode === 'upcoming' && poolReady && payouts}
+						<PoolSplit {fixture} {payouts} {yourSide} />
+					{/if}
+					{#if mode === 'played' && rows}
+						<PoolList banked={rows.banked} missed={rows.missed} totalPlayers={pool.length} />
+					{:else if mode === 'upcoming' && poolReady && payouts}
+						<PoolPickedWhat {fixture} preds={pool} {payouts} {youReference} />
 					{/if}
 					{#if poolUnavailable}
 						<div

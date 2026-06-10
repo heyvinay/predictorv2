@@ -29,7 +29,7 @@
 >
 	<!-- Desktop grid -->
 	<div
-		class="hidden items-center gap-2.5 px-3.5 py-2.5 sm:grid sm:grid-cols-[minmax(130px,1fr)_86px_minmax(130px,1fr)_64px_118px]"
+		class="hidden items-center gap-2 px-3 py-1.5 sm:grid sm:grid-cols-[minmax(130px,1fr)_86px_minmax(130px,1fr)_64px_118px]"
 	>
 		<div class="flex items-center justify-end gap-2 {homeLoses ? 'opacity-60' : ''}">
 			<span class="truncate text-[13px] font-semibold">{displayTeamName(fixture.home_team)}</span>
@@ -74,7 +74,7 @@
 	</div>
 
 	<!-- Mobile stacked card (HANDOVER §7.5) -->
-	<div class="flex flex-col gap-1.5 px-3 py-2.5 sm:hidden">
+	<div class="flex flex-col gap-1 px-3 py-1.5 sm:hidden">
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {homeLoses ? 'opacity-60' : ''}">
 				{#if hasFlag(fixture.home_team)}

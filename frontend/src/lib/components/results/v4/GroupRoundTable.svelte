@@ -16,7 +16,7 @@
 
 <div class="mt-4 overflow-hidden rounded-box border border-base-300/60 bg-base-200">
 	<div
-		class="hidden items-center gap-2.5 border-b border-base-300/50 bg-base-300/20 px-3.5 py-2 sm:grid sm:grid-cols-[minmax(130px,1fr)_86px_minmax(130px,1fr)_64px_118px]"
+		class="hidden items-center gap-2 border-b border-base-300/50 bg-base-300/20 px-3 py-1.5 sm:grid sm:grid-cols-[minmax(130px,1fr)_86px_minmax(130px,1fr)_64px_118px]"
 	>
 		<div class="text-[11px] font-extrabold uppercase tracking-[0.1em] text-base-content/70">
 			{round.label}
@@ -50,9 +50,9 @@
 		{/each}
 	{/if}
 
-	<div class="flex items-center justify-end gap-3 border-t border-base-300/50 px-3.5 py-2.5">
-		<span class="text-[12.5px] font-bold tracking-[0.06em] text-primary">Round Total</span>
-		<span class="font-display text-[18px] {subtotal > 0 ? 'text-primary' : 'text-base-content/70'}"
+	<div class="flex items-center justify-end gap-2 border-t border-base-300/50 px-3 py-1.5">
+		<span class="text-[11.5px] font-bold tracking-[0.06em] text-primary">Round Total</span>
+		<span class="font-display text-[16px] {subtotal > 0 ? 'text-primary' : 'text-base-content/70'}"
 			>{subtotal}</span
 		>
 	</div>
