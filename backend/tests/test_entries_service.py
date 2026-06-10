@@ -542,7 +542,7 @@ class TestSubmitCompleteness:
 
         # 16 round_of_16 teams.
         r16_teams = [f"T{i:02d}" for i in range(1, 17)]
-        # 8 quarter_finals — 7 are a valid subset of R16; ONE is stale
+        # 8 quarter_final teams — 7 are a valid subset of R16; ONE is stale
         # (not in R16). This is the bug pattern the validator must catch.
         qf_teams = r16_teams[:7] + ["STALE_TEAM"]
 
@@ -561,7 +561,7 @@ class TestSubmitCompleteness:
                     entry_id=entry.id,
                     phase=PredictionPhase.PHASE_1,
                     team=team,
-                    stage="quarter_finals",
+                    stage="quarter_final",
                 )
             )
         await session.commit()

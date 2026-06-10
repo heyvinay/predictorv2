@@ -65,12 +65,29 @@ class MatchPrediction(SQLModel, table=True):
         return "X"
 
 
+# Canonical TeamPrediction.stage values are SINGULAR ("quarter_final",
+# "semi_final"), matching Fixture.stage (fixture_sync._STAGE_MAP) and the
+# scoring.advancement YAML keys. Plural spellings are accepted defensively
+# on write (stale cached frontend bundles) and normalized before storage.
+STAGE_ALIASES: dict[str, str] = {
+    "quarter_finals": "quarter_final",
+    "semi_finals": "semi_final",
+}
+
+
+def normalize_stage(stage: str) -> str:
+    """Map legacy plural stage spellings to the canonical singular form."""
+    return STAGE_ALIASES.get(stage, stage)
+
+
 class TeamPrediction(SQLModel, table=True):
     """An entry's prediction for team advancement in knockout stages.
 
     Unique per (entry, phase, team, stage) — the phase column is part of
     the uniqueness key so the same team/stage can have different picks
     across Phase 1 and Phase 2 within the same entry.
+
+    Stage values are stored SINGULAR — see `normalize_stage` above.
     """
 
     __tablename__ = "team_predictions"

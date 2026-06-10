@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import CurrentUser, DbSession
-from app.models.prediction import PredictionPhase, TeamPrediction
+from app.models.prediction import PredictionPhase, TeamPrediction, normalize_stage
 from app.schemas.prediction import (
     BracketPrediction,
     BracketPredictionUpdate,
@@ -271,33 +271,40 @@ async def batch_upsert_match_predictions(
 # Bracket predictions
 # ---------------------------------------------------------------------------
 def _organize_bracket(rows: list[TeamPrediction]) -> BracketPrediction:
-    """Group flat TeamPrediction rows into the bracket response shape."""
+    """Group flat TeamPrediction rows into the bracket response shape.
+
+    Stored stage values are SINGULAR (matching Fixture.stage + scoring);
+    the BracketPrediction response fields keep plural QF/SF names as a
+    frontend display convention. normalize_stage() guards against any
+    legacy plural rows that survive the v2.161.0 data migration.
+    """
     group_winners: dict[str, list[str]] = {}
     stages: dict[str, list[str]] = {
         "round_of_32": [],
         "round_of_16": [],
-        "quarter_finals": [],
-        "semi_finals": [],
+        "quarter_final": [],
+        "semi_final": [],
         "final": [],
     }
     winner = ""
 
     for pred in rows:
-        if pred.stage == "group":
+        stage = normalize_stage(pred.stage)
+        if stage == "group":
             # Group-position picks aren't exposed via the bracket response
             # for now (the response schema doesn't carry positions).
             pass
-        elif pred.stage == "winner":
+        elif stage == "winner":
             winner = pred.team
-        elif pred.stage in stages:
-            stages[pred.stage].append(pred.team)
+        elif stage in stages:
+            stages[stage].append(pred.team)
 
     return BracketPrediction(
         group_winners=group_winners,
         round_of_32=stages["round_of_32"],
         round_of_16=stages["round_of_16"],
-        quarter_finals=stages["quarter_finals"],
-        semi_finals=stages["semi_finals"],
+        quarter_finals=stages["quarter_final"],
+        semi_finals=stages["semi_final"],
         final=stages["final"],
         winner=winner,
     )

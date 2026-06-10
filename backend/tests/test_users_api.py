@@ -139,11 +139,11 @@ class TestBracketSummary:
         summary = BracketSummary(stages={
             "round_of_32": ["Brazil", "France", "Germany", "Spain"],
             "round_of_16": ["Brazil", "France"],
-            "quarter_finals": ["Brazil"],
+            "quarter_final": ["Brazil"],
         })
         assert len(summary.stages["round_of_32"]) == 4
         assert len(summary.stages["round_of_16"]) == 2
-        assert len(summary.stages["quarter_finals"]) == 1
+        assert len(summary.stages["quarter_final"]) == 1
 
     def test_winner_stage(self):
         """Should handle the 'winner' stage with a single team."""

@@ -50,8 +50,18 @@
 		});
 	}
 
-	// Bracket stage display order
-	const stageOrder = ['round_of_32', 'round_of_16', 'quarter_finals', 'semi_finals', 'final', 'winner'];
+	// Bracket stage display order. Stored stage values are singular as of
+	// v2.161.0; the plural spellings are kept for any stale cached payloads.
+	const stageOrder = [
+		'round_of_32',
+		'round_of_16',
+		'quarter_final',
+		'quarter_finals',
+		'semi_final',
+		'semi_finals',
+		'final',
+		'winner'
+	];
 	const stageLabels: Record<string, string> = {
 		'group': 'Group Stage',
 		'round_of_32': 'Round of 32',
