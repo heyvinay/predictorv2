@@ -74,7 +74,8 @@ async def get_community_predictions(
     Only visible after the fixture's prediction lock (5 min before kickoff)
     or once the match is finished. Returns one row per submitted-or-locked
     entry — a user with two submitted entries appears twice with distinct
-    references.
+    references. Each row includes the entry's current overall leaderboard
+    rank (null when the entry is not in the ranking).
     """
     # Load fixture with score.
     fixture_row = await session.execute(
@@ -122,6 +123,13 @@ async def get_community_predictions(
         )
     ).all()
 
+    # One cached leaderboard fetch → rank lookup table (30s TTL in the
+    # service keeps this cheap; entries absent from the ranking get null).
+    from app.services.leaderboard import calculate_leaderboard
+
+    leaderboard = await calculate_leaderboard(session, phase=None)
+    rank_by_entry = {e.entry_id: e.position for e in leaderboard.entries}
+
     predictions = [
         CommunityPrediction(
             # Fall back to the email-prefix for magic-link sign-ups that
@@ -131,6 +139,7 @@ async def get_community_predictions(
             entry_name=entry.display_name,
             home_score=pred.home_score,
             away_score=pred.away_score,
+            rank=rank_by_entry.get(entry.id),
         )
         for pred, entry, user_name, user_email in rows
     ]
