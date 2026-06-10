@@ -2004,6 +2004,13 @@
       "type": "fix",
       "summary": "The 'Updated' column on the Entries list now shows your real last activity — last prediction edit, submit, withdraw, or admin change — instead of the entry's creation time. Previously, entries created in quick succession all showed the same near-identical timestamp because the column only ticked for a narrow set of admin actions and never for prediction edits or submits.",
       "commit": "pending"
+    },
+    {
+      "version": "2.160.2",
+      "date": "2026-06-10",
+      "type": "improvement",
+      "summary": "Landing page polish. The 'Who's in' card on the right of the prize hero now sits alongside a new 'Pot so far' stat showing the indicative prize pool — submitted entries × entry fee — with fine print explaining the figure firms up once fees are collected. The Welcome Back card now wears a gold outline and gold halo shadow so it pops as the primary action panel. The body countdown timer's headline label and subline now escalate dynamically with time remaining — 'Last week' through 'Final days' through 'Last day' through 'Final hours' through 'Minutes left' — instead of a static 'Last week' that stayed put for the entire heads-up window. Color escalation moved to red 48 hours out (was 24) so the navbar pill turns urgent earlier too.",
+      "commit": "pending"
     }
   ]
 }
