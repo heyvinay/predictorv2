@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.dependencies import CurrentUser, DbSession, OptionalUser
+from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser
 from app.models.entry import PredictionEntry
 from app.models.user import User
 from app.schemas.leaderboard import LeaderboardResponse, PointBreakdown
@@ -118,7 +118,10 @@ async def get_leaderboard(
 ) -> LeaderboardResponse:
     """Get full leaderboard with standings — one row per eligible entry.
 
-    Uses 30-second caching for performance. Pass refresh=true to force recalculation.
+    Uses 30-second caching for performance. `refresh=true` forces a
+    recalculation but is honoured only for admins — for everyone else it
+    is ignored (the 30s TTL already keeps standings fresh, and an open
+    refresh would let any client stampede the rebuild).
     Includes correct outcomes, exact scores, and position movement tracking.
 
     The `phase` parameter allows filtering:
@@ -137,7 +140,8 @@ async def get_leaderboard(
     if phase is not None and phase not in ("phase_1", "phase_2"):
         phase = None
 
-    response = await calculate_leaderboard(session, force_refresh=refresh, phase=phase)
+    force = bool(refresh and user is not None and user.is_admin)
+    response = await calculate_leaderboard(session, force_refresh=force, phase=phase)
 
     # Pre-lock blind-pool filter. Post-lock returns full standings.
     if user is None or not user.is_admin:
@@ -154,10 +158,12 @@ async def get_leaderboard(
 
 
 @router.post("/invalidate")
-async def invalidate_leaderboard_cache() -> dict[str, str]:
-    """Invalidate the leaderboard cache.
+async def invalidate_leaderboard_cache(_admin: AdminUser) -> dict[str, str]:
+    """Invalidate the leaderboard cache. Admin-only.
 
-    Call this after scores are updated to force recalculation on next request.
+    Call this after scores are updated to force recalculation on next
+    request. Internal score-update paths call the service function
+    `invalidate_cache()` directly and don't go through this endpoint.
     """
     invalidate_cache()
     return {"status": "cache invalidated"}
