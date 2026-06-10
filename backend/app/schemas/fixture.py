@@ -18,6 +18,10 @@ class FixtureScore(BaseModel):
     home_penalties: int | None = None
     away_penalties: int | None = None
     outcome: str  # '1', 'X', '2'
+    # Admin-verified scores are locked against the API sync (manual
+    # corrections survive the scheduler). Drives the lock badge on
+    # /admin/sync.
+    verified: bool = False
 
 
 class FixtureRead(BaseModel):

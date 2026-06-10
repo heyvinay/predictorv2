@@ -15,6 +15,7 @@ the entry's phase records:
   SUBMITTED or LOCKED for the entry to appear
 """
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -26,11 +27,13 @@ from sqlmodel import select
 
 from app.models._datetime import utc_now
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
-from app.models.fixture import Fixture, MatchStatus
-from app.models.prediction import MatchPrediction, PredictionPhase
-from app.models.score import Score
+from app.models.prediction import PredictionPhase
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
-from app.services.scoring import calculate_entry_points
+from app.services.scoring import (
+    calculate_entry_points,
+    get_actual_advancement,
+    get_all_outcome_counts,
+)
 
 
 PhaseFilter = Literal["overall", "phase_1", "phase_2"] | None
@@ -48,9 +51,33 @@ class CachedLeaderboard:
     previous_positions: dict[uuid.UUID, int] = field(default_factory=dict)
 
 
-# In-memory cache - keyed by phase
+# In-memory cache - keyed by phase.
+# NOTE: this cache is per-process. Correct for the current single-worker
+# deployment; if uvicorn is ever run with --workers>1 each worker keeps its
+# own cache and invalidation signal, so move this to a shared store (Redis /
+# a DB last-invalidated timestamp) before scaling out.
 _cache: dict[str, CachedLeaderboard] = {}
 _cache_ttl = timedelta(seconds=30)
+
+# Per-key locks for single-flight rebuilds (see calculate_leaderboard).
+_cache_locks: dict[str, asyncio.Lock] = {}
+
+
+def _lock_for(cache_key: str) -> asyncio.Lock:
+    lock = _cache_locks.get(cache_key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _cache_locks[cache_key] = lock
+    return lock
+
+
+def _response_from_cache(cached: CachedLeaderboard) -> LeaderboardResponse:
+    return LeaderboardResponse(
+        entries=cached.entries,
+        last_calculated=cached.last_calculated,
+        total_participants=cached.total_participants,
+        phase=cached.phase,
+    )
 
 
 def _get_phase_points(breakdown: PointBreakdown, phase: PhaseFilter) -> int:
@@ -61,39 +88,6 @@ def _get_phase_points(breakdown: PointBreakdown, phase: PhaseFilter) -> int:
         return breakdown.phase2.total
     else:
         return breakdown.total
-
-
-async def get_entry_match_stats(
-    session: AsyncSession, entry_id: uuid.UUID
-) -> tuple[int, int]:
-    """Return (correct_outcomes, exact_scores) counts for one entry's
-    match predictions against finished fixtures."""
-    result = await session.execute(
-        select(MatchPrediction, Score)
-        .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
-        .outerjoin(Score, Fixture.id == Score.fixture_id)
-        .where(
-            MatchPrediction.entry_id == entry_id,
-            Fixture.status == MatchStatus.FINISHED,
-        )
-    )
-    rows = result.all()
-
-    correct_outcomes = 0
-    exact_scores = 0
-
-    for prediction, score in rows:
-        if not score:
-            continue
-        if prediction.predicted_outcome == score.outcome:
-            correct_outcomes += 1
-            if (
-                prediction.home_score == score.final_home_score
-                and prediction.away_score == score.final_away_score
-            ):
-                exact_scores += 1
-
-    return correct_outcomes, exact_scores
 
 
 async def _list_eligible_entries(
@@ -147,17 +141,32 @@ async def calculate_leaderboard(
     now = utc_now()
     cache_key = phase or "overall"
 
-    # Return cached data if valid
+    # Fast path: return cached data if valid (no lock needed).
     if not force_refresh and cache_key in _cache:
         cached = _cache[cache_key]
         if (now - cached.last_calculated) < _cache_ttl:
-            return LeaderboardResponse(
-                entries=cached.entries,
-                last_calculated=cached.last_calculated,
-                total_participants=cached.total_participants,
-                phase=cached.phase,
-            )
+            return _response_from_cache(cached)
 
+    # Single-flight: only one coroutine rebuilds per cache key; the rest
+    # wait here and then serve the fresh cache from the re-check below.
+    async with _lock_for(cache_key):
+        now = utc_now()
+        if not force_refresh and cache_key in _cache:
+            cached = _cache[cache_key]
+            if (now - cached.last_calculated) < _cache_ttl:
+                return _response_from_cache(cached)
+
+        return await _rebuild_leaderboard(session, phase, cache_key, now)
+
+
+async def _rebuild_leaderboard(
+    session: AsyncSession,
+    phase: PhaseFilter,
+    cache_key: str,
+    now: datetime,
+) -> LeaderboardResponse:
+    """Recompute the leaderboard and refresh the cache. Caller holds the
+    single-flight lock for `cache_key`."""
     # Previous positions keyed by entry_id (used for movement deltas)
     previous_positions: dict[uuid.UUID, int] = {}
     if cache_key in _cache:
@@ -167,10 +176,20 @@ async def calculate_leaderboard(
 
     eligible = await _list_eligible_entries(session, phase)
 
+    # Shared inputs computed ONCE per rebuild, not once per entry — this
+    # is what takes the cold rebuild from O(entries × fixtures) queries
+    # down to a handful.
+    outcome_counts_by_fixture = await get_all_outcome_counts(session)
+    actual_advancement = await get_actual_advancement(session)
+
     entries: list[LeaderboardEntry] = []
     for entry in eligible:
-        breakdown = await calculate_entry_points(session, entry.id)
-        correct_outcomes, exact_scores = await get_entry_match_stats(session, entry.id)
+        breakdown = await calculate_entry_points(
+            session,
+            entry.id,
+            outcome_counts_by_fixture=outcome_counts_by_fixture,
+            actual_advancement=actual_advancement,
+        )
         phase_points = _get_phase_points(breakdown, phase)
 
         entries.append(
@@ -190,8 +209,10 @@ async def calculate_leaderboard(
                 position=0,  # Set after sorting
                 total_points=phase_points,
                 breakdown=breakdown,
-                correct_outcomes=correct_outcomes,
-                exact_scores=exact_scores,
+                # The breakdown already counts these while scoring each
+                # finished match — no separate per-entry stats query.
+                correct_outcomes=breakdown.correct_outcomes,
+                exact_scores=breakdown.exact_scores,
                 movement=0,  # Calculated after positioning
             )
         )

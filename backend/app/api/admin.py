@@ -576,6 +576,9 @@ class SyncScoresResponse(BaseModel):
 
     synced: int
     updated: int
+    # Rows left untouched because an admin verified the score via the
+    # /admin/sync editor (manual scores are locked against the API).
+    skipped_verified: int = 0
     errors: list[str]
 
 
@@ -594,6 +597,7 @@ async def sync_scores_from_api(
     return SyncScoresResponse(
         synced=result.synced,
         updated=result.updated,
+        skipped_verified=result.skipped_verified,
         errors=result.errors,
     )
 

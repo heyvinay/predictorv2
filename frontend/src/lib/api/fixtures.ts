@@ -32,3 +32,20 @@ export async function getFixture(fixtureId: string): Promise<Fixture> {
 export async function getLockStatus(fixtureId: string): Promise<LockStatus> {
 	return api.get<LockStatus>(`/fixtures/${fixtureId}/lock-status`);
 }
+
+/** Payload for admin fixture edits (/admin/sync team seeding). Mirrors
+ *  the backend FixtureUpdate schema — all fields optional. */
+export interface FixtureUpdatePayload {
+	home_team?: string;
+	away_team?: string;
+}
+
+/** Admin only — used to seed team names into knockout fixtures when
+ *  Football-Data lags publishing a round's lineup. Under lineup-based
+ *  advancement timing this is what pays "reached stage" points. */
+export async function updateFixture(
+	fixtureId: string,
+	payload: FixtureUpdatePayload
+): Promise<Fixture> {
+	return api.put<Fixture>(`/fixtures/${fixtureId}`, payload);
+}

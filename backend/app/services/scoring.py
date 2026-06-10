@@ -38,11 +38,11 @@ DEFAULT_SCORING_CONFIG: dict[str, Any] = {
     "advancement": {
         "group_advance": 10,
         "group_position": 5,
-        "round_of_32": 10,
-        "round_of_16": 15,
-        "quarter_final": 20,
-        "semi_final": 40,
-        "final": 60,
+        "round_of_32": 20,
+        "round_of_16": 30,
+        "quarter_final": 40,
+        "semi_final": 50,
+        "final": 75,
         "winner": 100,
     },
     "phase_multipliers": {
@@ -119,25 +119,18 @@ class FixedScoring:
         total_predictors: int,
         correct_predictors: int,
     ) -> tuple[int, bool, bool]:
-        outcome_points = config.get("correct_outcome", 5)
-        exact_points = config.get("exact_score", 10)
-
-        pred_outcome = prediction.predicted_outcome
-        actual_outcome = score.outcome
-
-        correct_outcome = pred_outcome == actual_outcome
-        exact_score = (
-            prediction.home_score == score.final_home_score
-            and prediction.away_score == score.final_away_score
+        return compute_match_points(
+            mode="fixed",
+            predicted_home=prediction.home_score,
+            predicted_away=prediction.away_score,
+            actual_home=score.final_home_score,
+            actual_away=score.final_away_score,
+            total_predictors=total_predictors,
+            correct_predictors=correct_predictors,
+            outcome_points=config.get("correct_outcome", 5),
+            exact_points=config.get("exact_score", 10),
+            cap=0,  # unused for mode "fixed"
         )
-
-        points = 0
-        if correct_outcome:
-            points += outcome_points
-        if exact_score:
-            points += exact_points
-
-        return points, correct_outcome, exact_score
 
 
 class HybridScoring:
@@ -155,31 +148,18 @@ class HybridScoring:
         total_predictors: int,
         correct_predictors: int,
     ) -> tuple[int, bool, bool]:
-        outcome_points = config.get("correct_outcome", 5)
-        exact_points = config.get("exact_score", 10)
-        cap = config.get("hybrid_cap", 10)
-
-        pred_outcome = prediction.predicted_outcome
-        actual_outcome = score.outcome
-
-        correct_outcome = pred_outcome == actual_outcome
-        exact_score = (
-            prediction.home_score == score.final_home_score
-            and prediction.away_score == score.final_away_score
+        return compute_match_points(
+            mode="hybrid",
+            predicted_home=prediction.home_score,
+            predicted_away=prediction.away_score,
+            actual_home=score.final_home_score,
+            actual_away=score.final_away_score,
+            total_predictors=total_predictors,
+            correct_predictors=correct_predictors,
+            outcome_points=config.get("correct_outcome", 5),
+            exact_points=config.get("exact_score", 10),
+            cap=config.get("hybrid_cap", 10),
         )
-
-        points = 0
-        if correct_outcome:
-            points += outcome_points
-            # Hybrid bonus (capped)
-            if correct_predictors > 0:
-                bonus = min(cap, total_predictors // correct_predictors)
-                points += bonus
-
-        if exact_score:
-            points += exact_points
-
-        return points, correct_outcome, exact_score
 
 
 # Anchor: alpha chosen so that f = 1/30 (one of thirty predictors correct)
@@ -205,6 +185,68 @@ def _logarithmic_rarity_bonus(
     return min(cap, max(0, round(raw)))
 
 
+def _outcome(home: int, away: int) -> str:
+    """1/X/2 outcome from a scoreline. Convention is irrelevant as long as
+    both the predicted and actual lines are classified by the same function."""
+    if home > away:
+        return "1"
+    if home < away:
+        return "2"
+    return "X"
+
+
+def compute_match_points(
+    *,
+    mode: str,
+    predicted_home: int,
+    predicted_away: int,
+    actual_home: int,
+    actual_away: int,
+    total_predictors: int,
+    correct_predictors: int,
+    outcome_points: int,
+    exact_points: int,
+    cap: int,
+) -> tuple[int, bool, bool]:
+    """Pure match-points calculation shared with the frontend
+    (`computeMatchPoints` in `frontend/src/lib/utils/matchBreakdown.ts`).
+
+    Takes only primitives — no model objects, no config-dict key names — so
+    the two language implementations validate against the SAME shared golden
+    cases (`shared/scoring-parity-cases.json`). The three strategy classes
+    below and the frontend Results card both route through this, so the
+    tested path is the production path.
+
+    Returns (points, correct_outcome, exact_score). `cap` bounds the rarity
+    bonus; it's unused for mode 'fixed'.
+
+    Penalty shootouts are out of scope: actual_home/actual_away are the
+    final (incl. extra-time) scores, and in this competition match-score
+    predictions only exist for group-stage fixtures, which cannot go to
+    penalties.
+    """
+    correct_outcome = _outcome(predicted_home, predicted_away) == _outcome(
+        actual_home, actual_away
+    )
+    exact_score = predicted_home == actual_home and predicted_away == actual_away
+
+    points = 0
+    if correct_outcome:
+        points += outcome_points
+        if mode == "hybrid":
+            if correct_predictors > 0:
+                points += min(cap, total_predictors // correct_predictors)
+        elif mode == "logarithmic":
+            points += _logarithmic_rarity_bonus(
+                total_predictors, correct_predictors, cap
+            )
+        # mode "fixed": no rarity bonus.
+    if exact_score:
+        points += exact_points
+
+    return points, correct_outcome, exact_score
+
+
 class LogarithmicScoring:
     """Logarithmic rarity scoring: base points + Shannon-surprisal bonus.
 
@@ -223,26 +265,18 @@ class LogarithmicScoring:
         total_predictors: int,
         correct_predictors: int,
     ) -> tuple[int, bool, bool]:
-        outcome_points = config.get("correct_outcome", 5)
-        exact_points = config.get("exact_score", 10)
-        cap = config.get("rarity_cap", config.get("hybrid_cap", 10))
-
-        correct_outcome = prediction.predicted_outcome == score.outcome
-        exact_score = (
-            prediction.home_score == score.final_home_score
-            and prediction.away_score == score.final_away_score
+        return compute_match_points(
+            mode="logarithmic",
+            predicted_home=prediction.home_score,
+            predicted_away=prediction.away_score,
+            actual_home=score.final_home_score,
+            actual_away=score.final_away_score,
+            total_predictors=total_predictors,
+            correct_predictors=correct_predictors,
+            outcome_points=config.get("correct_outcome", 5),
+            exact_points=config.get("exact_score", 10),
+            cap=config.get("rarity_cap", config.get("hybrid_cap", 10)),
         )
-
-        points = 0
-        if correct_outcome:
-            points += outcome_points
-            points += _logarithmic_rarity_bonus(
-                total_predictors, correct_predictors, cap
-            )
-        if exact_score:
-            points += exact_points
-
-        return points, correct_outcome, exact_score
 
 
 # Registry of available scoring strategies
@@ -268,7 +302,7 @@ def get_scoring_strategy(mode: str | None = None) -> MatchScoringStrategy:
     """
     if mode is None:
         config = get_scoring_config()
-        mode = config.get("mode", "hybrid")
+        mode = config.get("mode", "logarithmic")
 
     strategy = SCORING_STRATEGIES.get(mode)
     if strategy is None:
@@ -361,10 +395,19 @@ def calculate_advancement_points(
 
 
 async def get_actual_advancement(session: AsyncSession) -> dict[str, str]:
-    """Determine which teams advanced to each stage based on completed fixtures.
+    """Determine which teams advanced to each stage — lineup-based timing.
 
-    Queries finished knockout fixtures and determines the highest stage
-    reached by each team.
+    A team is credited with "reached stage X" the moment it is seeded into
+    a stage-X fixture (regardless of whether that match has been played).
+    The winner of a FINISHED match is additionally credited with reaching
+    the next stage — which means the `winner` credit (champion) only fires
+    once the final is FINISHED and scored.
+
+    Lineup-based timing (v2.161.0, user decision 2026-06-10): once FIFA
+    publishes a round's lineup and the fixtures sync from Football-Data,
+    everyone already knows who reached that round — predictions are
+    settled, so the points pay immediately instead of waiting for the
+    round's matches to be played.
 
     Args:
         session: Database session
@@ -383,29 +426,36 @@ async def get_actual_advancement(session: AsyncSession) -> dict[str, str]:
         "final": 5,
     }
 
+    # Map a finished match's stage to the stage its winner advances to
+    advancement_map = {
+        "round_of_32": "round_of_16",
+        "round_of_16": "quarter_final",
+        "quarter_final": "semi_final",
+        "semi_final": "final",
+        "final": "winner",
+    }
+
     # Track highest stage reached by each team
     team_advancement: dict[str, str] = {}
 
-    # Get all finished knockout fixtures with scores
+    # ALL knockout fixtures, played or not — seeding alone earns the
+    # "reached this stage" credit.
     result = await session.execute(
         select(Fixture, Score)
         .outerjoin(Score, Fixture.id == Score.fixture_id)
-        .where(
-            Fixture.stage != "group",
-            Fixture.status == MatchStatus.FINISHED,
-        )
+        .where(Fixture.stage != "group")
     )
     rows = result.all()
 
     for fixture, score in rows:
-        if not score:
-            continue
-
         stage = fixture.stage
         home_team = fixture.home_team
         away_team = fixture.away_team
 
-        # Both teams at least reached this stage
+        # "Reached this stage": credit any team seeded into the fixture.
+        # Football-Data may briefly seed placeholder names (e.g. "Winner
+        # of Match 32") before the real team is known — harmless here, as
+        # no user prediction matches a placeholder, so no points pay out.
         for team in [home_team, away_team]:
             if team:
                 current_stage = team_advancement.get(team)
@@ -414,7 +464,10 @@ async def get_actual_advancement(session: AsyncSession) -> dict[str, str]:
                 ):
                     team_advancement[team] = stage
 
-        # Determine winner and advance them to next stage
+        # "Winner advances to next stage": still requires a played match.
+        if fixture.status != MatchStatus.FINISHED or not score:
+            continue
+
         winner = None
         if score.outcome == "1":
             winner = home_team
@@ -422,14 +475,6 @@ async def get_actual_advancement(session: AsyncSession) -> dict[str, str]:
             winner = away_team
 
         if winner:
-            # Map current stage to advancement stage
-            advancement_map = {
-                "round_of_32": "round_of_16",
-                "round_of_16": "quarter_final",
-                "quarter_final": "semi_final",
-                "semi_final": "final",
-                "final": "winner",
-            }
             next_stage = advancement_map.get(stage)
             if next_stage:
                 current_stage = team_advancement.get(winner)
@@ -487,12 +532,14 @@ def _add_advancement_points_to_phase(
         phase_breakdown.winner_points += points
 
 
-async def _count_eligible_entries(session: AsyncSession) -> int:
-    """Total competitors for hybrid-scoring rarity — number of entries that
-    have ever been submitted or locked (excluding withdrawn / disabled).
-    Replaces the old "active users" count now that scoring is entry-scoped.
+def eligible_entry_ids_select():
+    """SQL Select of entry IDs eligible to compete — SUBMITTED, not
+    disabled, not withdrawn. Same predicate as
+    leaderboard._list_eligible_entries; used as a subquery filter so
+    rarity denominators only count entries that scoring actually pays
+    (product decision, 2026-06-10).
     """
-    result = await session.execute(
+    return (
         select(PredictionEntry.id)
         .join(PredictionEntryPhase, PredictionEntryPhase.entry_id == PredictionEntry.id)
         .where(
@@ -502,17 +549,60 @@ async def _count_eligible_entries(session: AsyncSession) -> int:
         )
         .distinct()
     )
-    return len(result.all())
+
+
+async def get_all_outcome_counts(
+    session: AsyncSession,
+) -> dict[uuid.UUID, dict[str, int]]:
+    """Outcome counts for EVERY fixture, in a single query.
+
+    Returns {fixture_id: {"1": n, "X": n, "2": n}} — per-fixture counts
+    ("the room that showed up"), NOT a global entry count. Only eligible
+    entries' predictions are counted, so the rarity denominator matches
+    what scoring actually pays.
+
+    The leaderboard rebuild calls this once and passes the result into
+    calculate_entry_points instead of issuing one query per fixture per
+    entry.
+    """
+    result = await session.execute(
+        select(
+            MatchPrediction.fixture_id,
+            MatchPrediction.home_score,
+            MatchPrediction.away_score,
+        ).where(MatchPrediction.entry_id.in_(eligible_entry_ids_select()))
+    )
+    by_fixture: dict[uuid.UUID, dict[str, int]] = {}
+    for fixture_id, home_score, away_score in result.all():
+        counts = by_fixture.setdefault(fixture_id, {"1": 0, "X": 0, "2": 0})
+        if home_score > away_score:
+            outcome = "1"
+        elif home_score < away_score:
+            outcome = "2"
+        else:
+            outcome = "X"
+        counts[outcome] += 1
+    return by_fixture
 
 
 async def calculate_entry_points(
-    session: AsyncSession, entry_id: uuid.UUID
+    session: AsyncSession,
+    entry_id: uuid.UUID,
+    *,
+    outcome_counts_by_fixture: dict[uuid.UUID, dict[str, int]] | None = None,
+    actual_advancement: dict[str, str] | None = None,
 ) -> PointBreakdown:
     """Calculate total points for a single prediction entry.
 
     Args:
         session: Database session
         entry_id: PredictionEntry to calculate points for
+        outcome_counts_by_fixture: Optional precomputed
+            get_all_outcome_counts() result. The leaderboard rebuild
+            computes it once and passes it to every entry; single-entry
+            callers omit it and it is computed here.
+        actual_advancement: Optional precomputed get_actual_advancement()
+            result, same batching rationale.
 
     Returns:
         PointBreakdown with detailed point categories by phase
@@ -541,16 +631,21 @@ async def calculate_entry_points(
     )
     rows = result.all()
 
+    # Rarity bonus uses per-fixture predictor counts: "the room that
+    # showed up" (eligible entries only), not all active entries.
+    # Computed once here when not supplied by a batched caller.
+    if rows and outcome_counts_by_fixture is None:
+        outcome_counts_by_fixture = await get_all_outcome_counts(session)
+
     for prediction, score, fixture in rows:
         if not score:
             continue
 
         total_predictions += 1
 
-        # Rarity bonus uses per-fixture predictor counts: "the room that
-        # showed up", not all active entries. Sum of outcome buckets gives
-        # the total predictors for this fixture.
-        outcome_counts = await get_outcome_counts(session, fixture.id)
+        outcome_counts = (outcome_counts_by_fixture or {}).get(
+            fixture.id, {"1": 0, "X": 0, "2": 0}
+        )
         total_predictors = sum(outcome_counts.values())
         correct_predictors = outcome_counts.get(score.outcome, 0)
 
@@ -582,7 +677,8 @@ async def calculate_entry_points(
     )
     team_predictions = result.scalars().all()
 
-    actual_advancement = await get_actual_advancement(session)
+    if actual_advancement is None:
+        actual_advancement = await get_actual_advancement(session)
     for pred in team_predictions:
         points = calculate_advancement_points(pred, actual_advancement, pred.phase)
         if points == 0:
@@ -638,22 +734,3 @@ async def resolve_default_entry_id(
     return row.id if row else None
 
 
-async def get_outcome_counts(session: AsyncSession, fixture_id: uuid.UUID) -> dict[str, int]:
-    """Get count of each predicted outcome for a fixture.
-
-    Used for hybrid scoring calculation.
-
-    Returns:
-        Dict with keys '1', 'X', '2' and counts
-    """
-    result = await session.execute(
-        select(MatchPrediction).where(MatchPrediction.fixture_id == fixture_id)
-    )
-    predictions = result.scalars().all()
-
-    counts = {"1": 0, "X": 0, "2": 0}
-    for pred in predictions:
-        outcome = pred.predicted_outcome
-        counts[outcome] = counts.get(outcome, 0) + 1
-
-    return counts

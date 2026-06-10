@@ -10,6 +10,7 @@ from sqlmodel import select
 
 from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser
 from app.models._datetime import utc_now
+from app.models.audit import ActorRole
 from app.models.fixture import Fixture, MatchStatus
 from app.schemas.fixture import (
     FixtureCreate,
@@ -20,6 +21,7 @@ from app.schemas.fixture import (
     FixtureUpdate,
     LockStatus,
 )
+from app.services.audit import record_audit_event
 from app.services.locking import get_active_competition
 from app.services.standings import (
     get_actual_group_standings,
@@ -49,6 +51,7 @@ def fixture_to_read(fixture: Fixture) -> FixtureRead:
             home_penalties=fixture.score.home_penalties,
             away_penalties=fixture.score.away_penalties,
             outcome=fixture.score.outcome,
+            verified=fixture.score.verified,
         )
 
     return FixtureRead(
@@ -255,7 +258,7 @@ async def update_fixture(
     fixture_id: uuid.UUID,
     fixture_data: FixtureUpdate,
     session: DbSession,
-    _admin: AdminUser,
+    admin: AdminUser,
 ) -> FixtureRead:
     """Update a fixture (admin only)."""
     result = await session.execute(select(Fixture).where(Fixture.id == fixture_id))
@@ -265,12 +268,31 @@ async def update_fixture(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
 
     update_data = fixture_data.model_dump(exclude_unset=True)
+    old_values = {field: getattr(fixture, field) for field in update_data}
     for field, value in update_data.items():
         setattr(fixture, field, value)
 
     fixture.updated_at = utc_now()
+
+    record_audit_event(
+        session,
+        event_type="fixture.admin_update",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="fixture",
+        subject_id=fixture.id,
+        metadata={
+            "stage": fixture.stage,
+            "old": {k: str(v) for k, v in old_values.items()},
+            "new": {k: str(v) for k, v in update_data.items()},
+        },
+    )
+
     await session.commit()
     await session.refresh(fixture)
+    # fixture_to_read touches fixture.score — load it explicitly; a lazy
+    # load after refresh raises MissingGreenlet under the async driver.
+    await session.refresh(fixture, attribute_names=["score"])
     return fixture_to_read(fixture)
 
 
@@ -295,6 +317,8 @@ async def update_fixture_status(
 
     await session.commit()
     await session.refresh(fixture)
+    # Same MissingGreenlet guard as update_fixture above.
+    await session.refresh(fixture, attribute_names=["score"])
     return fixture_to_read(fixture)
 
 

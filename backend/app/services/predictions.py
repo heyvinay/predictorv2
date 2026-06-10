@@ -31,9 +31,15 @@ from app.models.bonus import BonusPrediction
 from app.models.competition import Competition
 from app.models.entry import EntryStatus, PredictionEntry
 from app.models.fixture import Fixture
-from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
+from app.models.prediction import (
+    MatchPrediction,
+    PredictionPhase,
+    TeamPrediction,
+    normalize_stage,
+)
 from app.models.user import User
 from app.services.audit import AuditContext, record_audit_event
+from app.services.scoring import eligible_entry_ids_select
 from app.services.locking import check_fixture_locked, get_current_phase
 from app.models.entry import ActorRole
 
@@ -397,13 +403,22 @@ async def replace_bracket_predictions(
     )
 
     new_rows: list[TeamPrediction] = []
+    # De-dupe AFTER normalization: a stale cached frontend bundle may send
+    # plural stage spellings ("quarter_finals") alongside the canonical
+    # singular — both normalize to the same row and would violate the
+    # uq_team_pred_entry_phase_team_stage unique constraint on insert.
+    seen: set[tuple[str, str, int | None]] = set()
     for pick in picks:
         team = pick.get("team")
-        stage = pick.get("stage")
+        stage = normalize_stage(pick.get("stage") or "")
         group_position = pick.get("group_position")
         if not team or not stage:
             # Skip ill-formed picks rather than fail the whole replace.
             continue
+        key = (team, stage, group_position)
+        if key in seen:
+            continue
+        seen.add(key)
         row = TeamPrediction(
             entry_id=entry.id,
             team=team,
@@ -572,11 +587,15 @@ async def compute_agreements(
     if not my_preds:
         return []
 
+    # Eligible entries only — keeps the Results-card rarity projection in
+    # step with what scoring actually pays (same filter as
+    # scoring.get_all_outcome_counts).
     relevant_ids = list(my_preds.keys())
     all_preds = (
         await session.execute(
             select(MatchPrediction).where(
-                MatchPrediction.fixture_id.in_(relevant_ids)
+                MatchPrediction.fixture_id.in_(relevant_ids),
+                MatchPrediction.entry_id.in_(eligible_entry_ids_select()),
             )
         )
     ).scalars().all()

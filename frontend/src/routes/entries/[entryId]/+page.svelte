@@ -1404,10 +1404,13 @@
 			if (!teams) return;
 			for (const t of teams) if (t) out.push({ team: t, stage, group_position: null });
 		};
+		// Stored stage values are SINGULAR ("quarter_final", "semi_final"),
+		// matching the backend's Fixture.stage and scoring keys. The plural
+		// names live only on the BracketPrediction display fields.
 		push('round_of_32', b.round_of_32);
 		push('round_of_16', b.round_of_16);
-		push('quarter_finals', b.quarter_finals);
-		push('semi_finals', b.semi_finals);
+		push('quarter_final', b.quarter_finals);
+		push('semi_final', b.semi_finals);
 		push('final', b.final);
 		if (b.winner) out.push({ team: b.winner, stage: 'winner', group_position: null });
 		return out;

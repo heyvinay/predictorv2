@@ -596,7 +596,7 @@ Important questions:
 - Datetimes are a hard invariant. Every stored or compared datetime must be timezone-aware UTC.
 - The API returns `FixtureRead.time_until_lock` in seconds. Frontend logic should treat it as seconds, not milliseconds.
 - The prediction wizard caps scores at 15 in the browser, while the backend prediction schemas currently accept values up to 20. If the 15-goal cap must be a security/data rule, enforce it on the backend too.
-- Stage naming needs careful handling. Some frontend bracket structures use plural keys such as `quarter_finals` and `semi_finals`, while backend advancement scoring uses singular keys such as `quarter_final` and `semi_final`. Before changing bracket scoring, verify the saved `TeamPrediction.stage` values match the scoring keys.
+- Stage naming: RESOLVED in v2.161.0. `TeamPrediction.stage` values are stored SINGULAR (`quarter_final`, `semi_final`), matching scoring keys and `Fixture.stage`; plural spellings survive only as `BracketPrediction` API field names. The write path normalizes legacy plural payloads via `models.prediction.normalize_stage()`, and migration `b3c4d5e6f7a8` converted existing rows.
 - `PUT /api/predictions/bracket` saves to the current backend phase, not the phase query parameter used by reads.
 - Bracket lock enforcement is mainly frontend-driven in the current `PUT /api/predictions/bracket` path. If locked bracket integrity matters for a feature, add/verify backend lock checks before relying on UI state.
 - Leaderboard values are derived and cached. Any score or bonus-answer write should invalidate the leaderboard cache.

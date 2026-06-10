@@ -9,10 +9,12 @@ from sqlmodel import select
 
 from app.dependencies import AdminUser, DbSession, OptionalUser
 from app.models._datetime import utc_now
+from app.models.audit import ActorRole
 from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score, ScoreSource
 from app.schemas.leaderboard import LeaderboardEntry
 from app.schemas.score import LiveMatchScore, LiveScoreResponse, ScoreRead, ScoreUpdate
+from app.services.audit import record_audit_event
 from app.services.leaderboard import calculate_leaderboard, invalidate_cache
 
 router = APIRouter()
@@ -99,7 +101,7 @@ async def update_score(
     fixture_id: uuid.UUID,
     score_data: ScoreUpdate,
     session: DbSession,
-    _admin: AdminUser,
+    admin: AdminUser,
 ) -> ScoreRead:
     """Update or create score for a fixture (admin only)."""
     # Verify fixture exists
@@ -112,6 +114,21 @@ async def update_score(
     # Get existing score or create new
     result = await session.execute(select(Score).where(Score.fixture_id == fixture_id))
     score = result.scalar_one_or_none()
+
+    old_values = (
+        {
+            "home_score": score.home_score,
+            "away_score": score.away_score,
+            "home_score_et": score.home_score_et,
+            "away_score_et": score.away_score_et,
+            "home_penalties": score.home_penalties,
+            "away_penalties": score.away_penalties,
+            "verified": score.verified,
+            "source": score.source.value,
+        }
+        if score
+        else None
+    )
 
     if score:
         score.home_score = score_data.home_score
@@ -140,6 +157,22 @@ async def update_score(
     # Update fixture status
     fixture.status = MatchStatus.FINISHED
     fixture.updated_at = utc_now()
+
+    record_audit_event(
+        session,
+        event_type="score.manual_update",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="fixture",
+        subject_id=fixture.id,
+        metadata={
+            "home_team": fixture.home_team,
+            "away_team": fixture.away_team,
+            "stage": fixture.stage,
+            "old": old_values,
+            "new": score_data.model_dump(),
+        },
+    )
 
     await session.commit()
     await session.refresh(score)

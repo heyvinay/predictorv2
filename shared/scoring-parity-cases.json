@@ -1,0 +1,93 @@
+{
+  "_README": "Golden cross-language parity cases for match-points scoring. Consumed by BOTH backend/tests/test_scoring_parity.py (pytest, via compute_match_points) and frontend/src/lib/utils/matchBreakdown.parity.test.ts (vitest, via computeMatchPoints). Both must return identical points/correct_outcome/exact_score for every case. Keys are neutral primitives so neither side's config-dict naming leaks in. `cap` bounds the rarity bonus and is ignored for mode 'fixed'. alpha = 10/log2(15) so the logarithmic bonus hits the cap at f = correct/total = 1/30. Note Python round() is banker's-rounding and JS Math.round() is half-up; alpha is irrational so raw values never land exactly on .5 in practice — these cases stay clear of that boundary.",
+  "cases": [
+    {
+      "name": "log_exact_rare_hits_cap",
+      "mode": "logarithmic",
+      "predicted_home": 2, "predicted_away": 1, "actual_home": 2, "actual_away": 1,
+      "total_predictors": 30, "correct_predictors": 1,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 25, "expected_correct_outcome": true, "expected_exact_score": true
+    },
+    {
+      "name": "log_outcome_gated_at_half",
+      "mode": "logarithmic",
+      "predicted_home": 2, "predicted_away": 0, "actual_home": 3, "actual_away": 1,
+      "total_predictors": 10, "correct_predictors": 5,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 5, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "log_outcome_moderate_rarity",
+      "mode": "logarithmic",
+      "predicted_home": 1, "predicted_away": 0, "actual_home": 2, "actual_away": 1,
+      "total_predictors": 12, "correct_predictors": 3,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 8, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "log_miss_scores_zero",
+      "mode": "logarithmic",
+      "predicted_home": 0, "predicted_away": 1, "actual_home": 2, "actual_away": 0,
+      "total_predictors": 10, "correct_predictors": 2,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 0, "expected_correct_outcome": false, "expected_exact_score": false
+    },
+    {
+      "name": "log_exact_consensus_no_bonus",
+      "mode": "logarithmic",
+      "predicted_home": 1, "predicted_away": 0, "actual_home": 1, "actual_away": 0,
+      "total_predictors": 4, "correct_predictors": 3,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 15, "expected_correct_outcome": true, "expected_exact_score": true
+    },
+    {
+      "name": "log_outcome_rare_clamped_by_cap",
+      "mode": "logarithmic",
+      "predicted_home": 1, "predicted_away": 0, "actual_home": 5, "actual_away": 0,
+      "total_predictors": 100, "correct_predictors": 1,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 15, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "log_zero_predictors_guard",
+      "mode": "logarithmic",
+      "predicted_home": 1, "predicted_away": 0, "actual_home": 2, "actual_away": 0,
+      "total_predictors": 0, "correct_predictors": 0,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 5, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "fixed_exact_no_bonus",
+      "mode": "fixed",
+      "predicted_home": 1, "predicted_away": 1, "actual_home": 1, "actual_away": 1,
+      "total_predictors": 2, "correct_predictors": 1,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 15, "expected_correct_outcome": true, "expected_exact_score": true
+    },
+    {
+      "name": "fixed_outcome_only",
+      "mode": "fixed",
+      "predicted_home": 2, "predicted_away": 0, "actual_home": 1, "actual_away": 0,
+      "total_predictors": 5, "correct_predictors": 4,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 5, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "hybrid_outcome_integer_division_bonus",
+      "mode": "hybrid",
+      "predicted_home": 1, "predicted_away": 0, "actual_home": 3, "actual_away": 1,
+      "total_predictors": 10, "correct_predictors": 3,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 8, "expected_correct_outcome": true, "expected_exact_score": false
+    },
+    {
+      "name": "hybrid_exact_bonus_clamped_by_cap",
+      "mode": "hybrid",
+      "predicted_home": 2, "predicted_away": 1, "actual_home": 2, "actual_away": 1,
+      "total_predictors": 100, "correct_predictors": 2,
+      "outcome_points": 5, "exact_points": 10, "cap": 10,
+      "expected_points": 25, "expected_correct_outcome": true, "expected_exact_score": true
+    }
+  ]
+}

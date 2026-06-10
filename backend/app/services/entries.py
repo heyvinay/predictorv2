@@ -44,7 +44,12 @@ from app.models.entry import (
     PredictionEntryEvent,
     PredictionEntryPhase,
 )
-from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
+from app.models.prediction import (
+    MatchPrediction,
+    PredictionPhase,
+    TeamPrediction,
+    normalize_stage,
+)
 from app.models.user import User
 from app.services.audit import AuditContext, record_audit_event
 
@@ -937,7 +942,7 @@ async def _validate_phase1_complete(
        the case where the user changed an upstream pick and stale
        downstream rows survived (e.g. the user changed an R32 winner,
        so `round_of_16` was updated but the old winner's row still
-       lives at `quarter_finals` / `semi_finals` / `final`).
+       lives at `quarter_final` / `semi_final` / `final`).
     3. Every bonus question is answered (non-empty).
 
     Aggregates all missing items into a single error message so the
@@ -992,14 +997,16 @@ async def _validate_phase1_complete(
     )
     by_stage: dict[str, set[str]] = {}
     for tp in rows:
-        by_stage.setdefault(tp.stage, set()).add(tp.team)
+        # normalize_stage: read-side defense in case any legacy plural
+        # rows ("quarter_finals") survive the v2.161.0 data migration.
+        by_stage.setdefault(normalize_stage(tp.stage), set()).add(tp.team)
 
     # R32 picks are auto-derived from group winners; user picks WINNERS
     # from R16 onward, plus the tournament winner. 16 + 8 + 4 + 2 + 1 = 31.
     expected_counts = {
         "round_of_16": 16,
-        "quarter_finals": 8,
-        "semi_finals": 4,
+        "quarter_final": 8,
+        "semi_final": 4,
         "final": 2,
         "winner": 1,
     }
@@ -1020,8 +1027,8 @@ async def _validate_phase1_complete(
     # is the server-side equivalent operating on the flat row shape.
     stage_order = [
         "round_of_16",
-        "quarter_finals",
-        "semi_finals",
+        "quarter_final",
+        "semi_final",
         "final",
         "winner",
     ]

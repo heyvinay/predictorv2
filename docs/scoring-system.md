@@ -34,11 +34,11 @@ scoring:
   advancement:
     group_advance: 10       # Team advances from group
     group_position: 5       # Correct group position (1st/2nd)
-    round_of_32: 10
-    round_of_16: 15
-    quarter_final: 20
-    semi_final: 40
-    final: 60
+    round_of_32: 20
+    round_of_16: 30
+    quarter_final: 40
+    semi_final: 50
+    final: 75
     winner: 100
 
   phase_multipliers:
@@ -154,12 +154,18 @@ Points are awarded when a team reaches at least the predicted stage.
 |-------|---------------|---------------------|
 | Group advance | 10 | 7 |
 | Correct group position | 5 | 3.5 |
-| Round of 32 | 10 | 7 |
-| Round of 16 | 15 | 10.5 |
-| Quarter-final | 20 | 14 |
-| Semi-final | 40 | 28 |
-| Final | 60 | 42 |
+| Round of 32 | 20 | 14 |
+| Round of 16 | 30 | 21 |
+| Quarter-final | 40 | 28 |
+| Semi-final | 50 | 35 |
+| Final | 75 | 52.5 |
 | Winner | 100 | 70 |
+
+**Timing (lineup-based, v2.161.0):** "reached stage X" credit fires the
+moment a team is seeded into a stage-X fixture — when FIFA publishes the
+round's lineup and the fixtures sync — not when that stage's match is
+played. Only the `winner` credit waits for the final to be FINISHED and
+scored. Group-stage match points still pay on match completion.
 
 **Note:** Phase 2 predictions (made after group stage) receive reduced points because players have more information when making predictions.
 
@@ -185,11 +191,11 @@ GET /api/leaderboard/scoring-rules
   "advancement": {
     "group_advance": 10,
     "group_position": 5,
-    "round_of_32": 10,
-    "round_of_16": 15,
-    "quarter_final": 20,
-    "semi_final": 40,
-    "final": 60,
+    "round_of_32": 20,
+    "round_of_16": 30,
+    "quarter_final": 40,
+    "semi_final": 50,
+    "final": 75,
     "winner": 100
   },
   "phase_multipliers": {
@@ -327,11 +333,11 @@ DEFAULT_SCORING_CONFIG = {
     "advancement": {
         "group_advance": 10,
         "group_position": 5,
-        "round_of_32": 10,
-        "round_of_16": 15,
-        "quarter_final": 20,
-        "semi_final": 40,
-        "final": 60,
+        "round_of_32": 20,
+        "round_of_16": 30,
+        "quarter_final": 40,
+        "semi_final": 50,
+        "final": 75,
         "winner": 100,
     },
     "phase_multipliers": {

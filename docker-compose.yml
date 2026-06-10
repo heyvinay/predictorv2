@@ -52,6 +52,8 @@ services:
       - ./backend/data:/app/data
       - ./backend/alembic:/app/alembic
       - ./config:/app/config
+      # Shared cross-language golden fixtures (scoring parity tests).
+      - ./shared:/app/shared:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -124,6 +126,9 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      # Shared cross-language golden fixtures (scoring parity tests). The
+      # parity test parent-walks from /app/src/... and finds /app/shared.
+      - ./shared:/app/shared:ro
     ports:
       # Bind to 127.0.0.1 only — matches the other services. Without this,
       # Docker Desktop on Windows also exposes [::]:5173 (IPv6) which
