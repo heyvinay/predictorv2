@@ -2,7 +2,7 @@
  * Admin API functions.
  */
 
-import { api } from './client';
+import { api, ApiResponseError } from './client';
 import type { Entry, EntrySettings, PaymentMode } from '$lib/types/entry';
 import type { PredictionPhase } from '$types';
 
@@ -77,6 +77,51 @@ export async function getAdminStats(): Promise<AdminStats> {
  *  Used by /admin/entries stat cards. */
 export async function getAdminEntriesStats(): Promise<AdminEntriesStatsResponse> {
 	return api.get<AdminEntriesStatsResponse>('/admin/entries/stats');
+}
+
+/** Trigger a browser download of the full admin entries CSV export
+ *  (v2.160.6). The JSON ApiClient is wrong for this — we need the raw
+ *  response body, not a parsed JSON — so we fetch manually with the
+ *  same Bearer token, blob it, and trigger a download via a synthetic
+ *  <a> click. Filename comes from the server's Content-Disposition;
+ *  falls back to a date-stamped default. */
+export async function downloadAdminEntriesCsv(): Promise<void> {
+	// Pull the live token off the ApiClient instance — same way every
+	// other call authenticates. Reading via a tiny `_token` shim is
+	// brittle, so use the public `get` for type+url consistency but
+	// branch into a raw fetch since the body isn't JSON.
+	const url = '/api/admin/entries/export.csv';
+	const tokenRaw = (api as unknown as { token: string | null }).token;
+	const headers: Record<string, string> = {};
+	if (tokenRaw) headers['Authorization'] = `Bearer ${tokenRaw}`;
+
+	const response = await fetch(url, { method: 'GET', headers });
+	if (!response.ok) {
+		// Match ApiResponseError's contract so callers can catch uniformly.
+		const body = await response
+			.json()
+			.catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+		throw new ApiResponseError(response.status, body.detail, body);
+	}
+
+	const blob = await response.blob();
+
+	// Derive filename from Content-Disposition header if present, else fall
+	// back to a date-stamped default so the user always gets something useful.
+	const cd = response.headers.get('Content-Disposition') ?? '';
+	const match = cd.match(/filename="?([^"]+)"?/i);
+	const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+	const filename = match?.[1] ?? `entries-${today}.csv`;
+
+	const objectUrl = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = objectUrl;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	// Revoke after a tick — some browsers race the navigation otherwise.
+	setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
 }
 
 export async function getCompetitions(): Promise<CompetitionAdminView[]> {

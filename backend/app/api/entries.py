@@ -13,18 +13,22 @@ in `services/entries.py`.
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.dependencies import AdminUser, CurrentUser, DbSession
 from app.models._datetime import aware_utc, utc_now
-from app.models.entry import EntryStatus
+from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.prediction import PredictionPhase
 
 logger = logging.getLogger(__name__)
@@ -620,6 +624,164 @@ async def admin_entries_stats(
         drafts=stats.drafts,
         paid=stats.paid,
         disabled_or_withdrawn=stats.disabled_or_withdrawn,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSV export of all entries — admin tooling (v2.160.6)
+# ---------------------------------------------------------------------------
+# Columns (per request, mirroring the admin Entries page plus user-profile
+# fields admin needs for reconciliation):
+#   Reference · Entry Name · User Name · User Email · Works At ·
+#   Atlas/JMFA Contact · Paid To · Status · Paid · Prize Eligibility ·
+#   Created At · Last Modified
+#
+# Status logic mirrors the admin Entries page's `computeDisplayStatus`:
+# "withdrawn" wins over disabled wins over phase_1.status.
+#
+# "Last Modified" uses the rolled-up effective timestamp from
+# ``effective_updated_at_for_entries`` (v2.160.1) so the column matches
+# what users see in the live UI rather than the raw DB column.
+# ---------------------------------------------------------------------------
+def _entry_csv_status(entry: PredictionEntry) -> str:
+    """Effective display status. Mirrors frontend computeDisplayStatus +
+    withdrawn / disabled overlays.
+
+    Order of precedence:
+      1. withdrawn (entry.withdrawn_at set)  → "withdrawn"
+      2. disabled  (entry.is_disabled true)  → "disabled"
+      3. phase_1 status                      → "submitted" / "draft" / etc
+      4. fallback                            → "draft"
+    """
+    if entry.withdrawn_at is not None:
+        return "withdrawn"
+    if entry.is_disabled:
+        return "disabled"
+    phase_1 = next(
+        (p for p in entry.phases if p.phase == PredictionPhase.PHASE_1), None
+    )
+    return phase_1.status.value if phase_1 is not None else "draft"
+
+
+def _entry_csv_paid(entry: PredictionEntry) -> bool:
+    """Effective paid — entry.paid OR owner-user.paid. Mirrors frontend
+    isEffectivelyPaid; matches the helper used by the Submitted/Paid
+    stat cards via admin_entries_stats."""
+    if entry.paid:
+        return True
+    if entry.user is not None and entry.user.paid:
+        return True
+    return False
+
+
+def _entry_csv_prize_eligibility(
+    entry: PredictionEntry, paid: bool, status: str
+) -> str:
+    """Mirror frontend ``computePrizeEligibility``:
+
+    - excluded — disabled / withdrawn / not prize_eligible / not submitted
+    - pending  — eligible & submitted but unpaid
+    - eligible — eligible & submitted & paid
+    """
+    if entry.is_disabled or entry.withdrawn_at is not None:
+        return "excluded"
+    if not entry.prize_eligible:
+        return "excluded"
+    if status != "submitted":
+        return "excluded"
+    return "eligible" if paid else "pending"
+
+
+def _iso_or_blank(dt) -> str:
+    """ISO 8601 with UTC offset, or blank if missing. ``aware_utc``
+    defends against aiosqlite-stripped tzinfo (test runs); on prod
+    Postgres the value is already aware so the call is a no-op."""
+    if dt is None:
+        return ""
+    return aware_utc(dt).isoformat()
+
+
+@admin_router.get("/entries/export.csv", response_class=Response)
+async def admin_export_entries_csv(
+    session: DbSession,
+    _admin: AdminUser,
+) -> Response:
+    """CSV export of every entry in the active competition.
+
+    Includes withdrawn / disabled entries (admin tooling needs the full
+    audit picture, not just actively eligible). Sorted by entry_number
+    so the export is stable run-to-run.
+
+    Returns ``text/csv`` with a ``Content-Disposition: attachment``
+    header so the browser downloads rather than displays. Filename
+    embeds today's date for at-a-glance archive sorting.
+    """
+    competition = await _get_competition(session)
+
+    # Load entries with user + phases eager-loaded. Single round-trip
+    # via selectinload — N+1 free.
+    result = await session.execute(
+        select(PredictionEntry)
+        .options(
+            selectinload(PredictionEntry.user),
+            selectinload(PredictionEntry.phases),
+        )
+        .where(PredictionEntry.competition_id == competition.id)
+        .order_by(PredictionEntry.entry_number)
+    )
+    entries = list(result.scalars().all())
+
+    # Rolled-up Last Modified — same source-of-truth that the entries
+    # list UI uses (max of entry.updated_at, child predictions,
+    # phase rows). See effective_updated_at_for_entries docstring.
+    effective_updated = await entries_service.effective_updated_at_for_entries(
+        session, entries=entries
+    )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(
+        [
+            "Reference",
+            "Entry Name",
+            "User Name",
+            "User Email",
+            "Works At",
+            "Atlas/JMFA Contact",
+            "Paid To",
+            "Status",
+            "Paid",
+            "Prize Eligibility",
+            "Created At",
+            "Last Modified",
+        ]
+    )
+    for entry in entries:
+        u = entry.user
+        status_value = _entry_csv_status(entry)
+        paid_bool = _entry_csv_paid(entry)
+        writer.writerow(
+            [
+                entry.reference,
+                entry.display_name or "",
+                u.name if u else "",
+                u.email if u else "",
+                u.employer.value if (u and u.employer) else "",
+                u.company_contact if u else "",
+                u.paid_to if u else "",
+                status_value,
+                "Yes" if paid_bool else "No",
+                _entry_csv_prize_eligibility(entry, paid_bool, status_value),
+                _iso_or_blank(entry.created_at),
+                _iso_or_blank(effective_updated.get(entry.id, entry.updated_at)),
+            ]
+        )
+
+    filename = f"entries-{utc_now().strftime('%Y-%m-%d')}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

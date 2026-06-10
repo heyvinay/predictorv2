@@ -5,6 +5,7 @@
 	import { page as pageStore } from '$app/stores';
 	import {
 		adminListEntries,
+		downloadAdminEntriesCsv,
 		getAdminEntriesStats,
 		getPaidLocal,
 		type AdminEntriesPage,
@@ -61,6 +62,20 @@
 	let paidFilter = '';
 	let modifiedWithin = '';
 	let refreshError: string | null = null;
+	let exportError: string | null = null;
+	let exporting = false;
+
+	async function handleExportCsv(): Promise<void> {
+		exportError = null;
+		exporting = true;
+		try {
+			await downloadAdminEntriesCsv();
+		} catch (err) {
+			exportError = err instanceof Error ? err.message : 'CSV export failed.';
+		} finally {
+			exporting = false;
+		}
+	}
 	let tableEl: HTMLDivElement | null = null;
 
 	// Slide-over state — entry to show + deep-link sync via ?entry=REF
@@ -199,6 +214,26 @@
 				Search by email, name, or reference. Click any stat card to drill in.
 				Row click opens the slide-over with picks + audit log + admin actions.
 			</p>
+		</div>
+
+		<!--
+			Export CSV — v2.160.6. Fetches the full entries list (every
+			entry in the active competition, including withdrawn /
+			disabled) as a CSV and triggers a browser download.
+			Filename comes from the server. Disabled while in-flight.
+		-->
+		<div class="flex flex-col items-end gap-1">
+			<button
+				type="button"
+				class="btn btn-outline btn-sm gap-2"
+				on:click={handleExportCsv}
+				disabled={exporting}
+			>
+				{exporting ? 'Exporting…' : 'Export CSV'}
+			</button>
+			{#if exportError}
+				<p class="text-xs text-error" role="alert">{exportError}</p>
+			{/if}
 		</div>
 	</header>
 
