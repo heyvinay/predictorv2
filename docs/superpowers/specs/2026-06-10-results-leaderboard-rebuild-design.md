@@ -129,11 +129,11 @@ class EntryCompletenessDetail(BaseModel):
     missing_bonus_ids: list[str]
 ```
 
-**Per submitted-eligible entry** (`status == SUBMITTED`, `withdrawn_at IS NULL`, `is_disabled = false`), the check counts:
+**Per submitted-eligible entry** (`status == SUBMITTED`, `withdrawn_at IS NULL`, `is_disabled = false` — reuses `eligible_entry_ids_select()` from the scoring service), the check counts:
 
 - **Match predictions:** expected = count of group-stage `Fixture` rows (72 for WC2026). Missing = expected − count of `MatchPrediction` rows for entry on group fixtures.
-- **Bracket predictions:** expected per stage from the tournament config — group_winners (12 × 2 = 24), R32 (32), R16 (16), QF (8), SF (4), Final (2), Winner (1). Missing = sum over stages of `(expected_stage_count − actual_TeamPrediction_count_for_stage)`.
-- **Bonus predictions:** expected = `len(get_bonus_questions())` (4 today). Missing = expected − count of `BonusPrediction` rows for entry.
+- **Bracket predictions:** expected = **63** — R32 (32), R16 (16), QF (8), SF (4), Final (2), Winner (1). **CORRECTED during implementation (2026-06-10):** there are no "group"-stage `TeamPrediction` rows — verified against the dev DB, complete wizard-written entries carry exactly these 63. Group standings are implied by the R32 selection, not stored separately. The original spec's `group_winners (24)` line was wrong.
+- **Bonus predictions:** expected = `len(get_bonus_questions())` (4 today). Missing = expected − count of `BonusPrediction` rows whose `question_id` is in the **current** question set — legacy entries carry rows for retired ids (the 10 → 4 trim) which must not inflate the count. `BonusPrediction` has no `phase` column.
 
 Implementation strategy: three SQL aggregates (one per pick category) joined against the entry table. One query per category, not per entry. Returns a list of all eligible entries with their gaps; the frontend filters to incompletes for display.
 

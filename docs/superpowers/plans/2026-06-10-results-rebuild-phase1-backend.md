@@ -14,6 +14,32 @@
 
 ---
 
+## ⚠ EXECUTED 2026-06-10 — deviations discovered during implementation
+
+Phase 1 is **implemented** (commits `eb98a23`..`6a37fcc`). Four plan
+assumptions were corrected against the real codebase/DB; the committed
+code is the source of truth where this plan disagrees:
+
+1. **Bracket expected = 63, not 87.** There are NO "group"-stage
+   `TeamPrediction` rows — complete wizard-written entries carry exactly
+   32 R32 + 16 R16 + 8 QF + 4 SF + 2 Final + 1 Winner (verified via
+   dev-DB query). The plan's `group_winners: 24` line was wrong.
+2. **`BonusPrediction` has no `phase` column**, and bonus completeness
+   counts only CURRENT question ids — legacy entries carry rows for
+   retired ids (the 10 → 4 trim) which must not count.
+3. **`str(MatchStatus.FINISHED)` is `"MatchStatus.FINISHED"`** on
+   Python 3.11 — `compute_points_for_finished_fixtures` unwraps `.value`
+   before comparing, with a regression test pinning the real enum.
+4. **CSV download must carry the Bearer token** — the app does not use
+   cookie auth, so the plan's `window.location.href` approach would 401.
+   `downloadCompletenessCsv` mirrors the existing blob-download pattern
+   from `downloadAdminEntriesCsv`.
+
+Eligibility reuses `eligible_entry_ids_select()` (scoring service) so
+"who must be complete" stays identical to "who scoring pays".
+
+---
+
 ## How to run tests in this worktree
 
 CLAUDE.md documents the worktree-overlay pattern. The running `docker-compose` stack is bound to the **main worktree path** (`C:\Users\vinay\OneDrive - Atlas Insurance PCC\Projects\predictorv2\`), not this Claude worktree. To run tests against your edits:
