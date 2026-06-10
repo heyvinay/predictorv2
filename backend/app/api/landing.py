@@ -24,6 +24,7 @@ from app.dependencies import DbSession
 from app.models._datetime import utc_now
 from app.models.competition import Competition
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
+from app.models.prediction import PredictionPhase
 from app.models.user import User
 
 
@@ -79,10 +80,24 @@ async def get_landing_stats(session: DbSession) -> LandingStats:
         .where(User.name.is_not(None))
         .where(User.created_at >= one_hour_ago)
     )
-    # Submitted-entries count. Same shape as admin.py's overview-stats
-    # query — DISTINCT on entry id because the join to phase rows is
-    # one-to-many (phase_1 + phase_2 rows per entry); SUBMITTED on
-    # either row counts the entry once.
+    # Submitted-entries count — must match the admin /admin/entries
+    # page's "Submitted" stat-card definition so the landing pot and
+    # the admin headline don't disagree.
+    #
+    # The admin page filters to "actively eligible" entries (see
+    # frontend/src/routes/admin/entries/+page.svelte:161):
+    #   • PHASE_1 status === SUBMITTED  (phase_2 is dormant for this
+    #     competition; counting any-phase SUBMITTED also inflated the
+    #     number by entries with phase_2 DRAFT rows that linger)
+    #   • NOT withdrawn  (withdrawn_at IS NULL)
+    #   • NOT disabled   (is_disabled = false)
+    #
+    # Withdrawn / disabled entries' phase_1 status is preserved when
+    # the lifecycle flag flips, so without these guards they leak in
+    # — that was the 89-vs-60 discrepancy this fix addresses.
+    #
+    # The admin /stats endpoint at admin.py:181-189 still uses the old
+    # broader query — known follow-up; same fix applies there.
     submitted_entries = (
         await session.scalar(
             select(func.count(func.distinct(PredictionEntry.id)))
@@ -90,7 +105,10 @@ async def get_landing_stats(session: DbSession) -> LandingStats:
                 PredictionEntryPhase,
                 PredictionEntryPhase.entry_id == PredictionEntry.id,
             )
+            .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
             .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+            .where(PredictionEntry.withdrawn_at.is_(None))
+            .where(PredictionEntry.is_disabled.is_(False))
         )
     ) or 0
     # Active competition's entry fee. None / inactive → 0.0; the
