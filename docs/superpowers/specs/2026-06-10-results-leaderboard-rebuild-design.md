@@ -24,7 +24,7 @@ All decisions from the brainstorming session, locked verbatim:
 - **C.1 No hardcoded points in copy.** Every user-facing string mentioning a point value reads its number from `GET /api/leaderboard/scoring-rules`. The `RoundExplainer` banner, Missed Picks subtitle, Winner card status chip, and any tooltip referencing scoring all template against the live config. The endpoint already returns the full `match` + `advancement` blocks ([leaderboard.py:91-109](backend/app/api/leaderboard.py:91)) — no backend change.
 - **C.2 Strengthened KO banking-timing explainer.** Locked wording per round (`{round_of_32}` etc. templated from C.1):
   > *"How Round of 32 scoring works: you earn +{round_of_32} for each team in your bracket that reaches R32. **These points are banked from your bracket pick — you earned them when each team finished the group stage. The match score below decides who walks to R16, not these points.** No rarity bonus in the knockouts."*
-- **C.3 "Upset of the round" badge is a client-side heuristic.** A finished fixture qualifies when the winning team was picked by less than 30% of the eligible pool to win (1/X/2) **and** the pool size is ≥ 10 entries. Tie-break: lowest pick share for the winner. Uses `Score.outcome` (`'1' | 'X' | '2'`) — the same axis rarity uses. No backend endpoint, no admin curation in V4.
+- **C.3 "Upset of the round" badge is a client-side per-fixture heuristic.** A finished fixture qualifies when the winning team was picked by less than 30% of the eligible pool to win (1/X/2) **and** the pool size is ≥ 10 entries. Uses `Score.outcome` (`'1' | 'X' | '2'`) — the same axis rarity uses. No backend endpoint, no admin curation in V4. **No cross-fixture tie-break** (amended 2026-06-10): the original "only the lowest-share winner in a round wears the badge" rule would require fetching `/community` for every other fixture in the round (up to 24 requests per page view) just to render one badge. Each match's badge is now decided in isolation from its own pool data; multiple fixtures in a round may show it. Re-introducing the tie-break is a clean follow-up via an aggregate endpoint (e.g. `GET /api/results/rounds/{r}/upset`) or by precomputing the flag on the backend during score sync — neither in scope for v2.163.0.
 - **B.1 `MatchPredictionRead.points` addition.** Schema extends with `points: PickPointsOut | None`. Populated for FINISHED fixtures via `app.services.scoring.compute_match_points`. **Implementation must use a single bulk-agreement fetch** (reuse `compute_agreements` with no fixture filter — already a one-query helper) then map per-fixture in memory. P95 < 200ms for the full list.
 - **B.3 `CommunityPrediction.rank: int | None`.** Server-populated from cached `calculate_leaderboard()`. Null means "this entry is not in the current leaderboard ranking" (renders `—` in the pool list). Same blind-pool gate as before — visibility unchanged.
 - **D.1 Auto-scroll to LIVE-containing pill on mount.** Overrides the "default to today's round" logic from §8.1 of the V4 handover when any pill contains a LIVE fixture. Falls back to today's round → last-completed round → R1. On WC2026 transition days (e.g. 18 Jun has both R1 and R2 fixtures live), tie-break is **earliest round in tab order** wins.
@@ -487,13 +487,13 @@ These are guarantees the spec relies on. Documenting them so a future reader kno
 
 ### Frontend tests (vitest)
 
-`frontend/src/lib/utils/upsetOfRound.test.ts`:
+`frontend/src/lib/utils/matchDetailV4.test.ts` (the `isUpset` block — file renamed during implementation):
 - Pool < 10 → false even at 0% share.
 - Pool ≥ 10, winner share = 31% → false.
 - Pool ≥ 10, winner share = 29% → true.
-- Pool ≥ 10, winner share = 29%, but another fixture has 15% → false (tie-break).
-- Fixture not FINISHED → false.
+- Fixture not FINISHED → false (caller's guard, not `isUpset`'s).
 - Draw (`Score.outcome = 'X'`) with 28% draw share → true.
+- (Cross-fixture tie-break removed 2026-06-10 — see §Decisions C.3.)
 
 `frontend/src/lib/utils/roundsWithLive.test.ts`:
 - Empty fixture list → empty set.
