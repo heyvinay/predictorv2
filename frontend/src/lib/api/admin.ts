@@ -3,6 +3,7 @@
  */
 
 import { api, ApiResponseError } from './client';
+import type { EntryCompletenessResult } from '$lib/types/admin';
 import type { Entry, EntrySettings, PaymentMode } from '$lib/types/entry';
 import type { PredictionPhase } from '$types';
 
@@ -586,4 +587,52 @@ export async function sendBroadcast(
 		segment,
 		dry_run: dryRun
 	});
+}
+
+// --- Entry completeness check (E.1, v2.163.0) ---
+
+
+/** GET /api/admin/entries/completeness-check — pick fullness for every
+ *  eligible entry. Returns ALL eligible entries; callers filter to
+ *  incompletes for display. */
+export async function fetchCompletenessCheck(
+	detail = false
+): Promise<EntryCompletenessResult[]> {
+	const url = detail
+		? '/admin/entries/completeness-check?detail=true'
+		: '/admin/entries/completeness-check';
+	return api.get<EntryCompletenessResult[]>(url);
+}
+
+/** Download the incompletes-only CSV. Same raw-fetch + blob pattern as
+ *  downloadAdminEntriesCsv above — the body isn't JSON and the request
+ *  must carry the Bearer token (plain navigation would 401). */
+export async function downloadCompletenessCsv(): Promise<void> {
+	const url = '/api/admin/entries/completeness-check.csv';
+	const tokenRaw = (api as unknown as { token: string | null }).token;
+	const headers: Record<string, string> = {};
+	if (tokenRaw) headers['Authorization'] = `Bearer ${tokenRaw}`;
+
+	const response = await fetch(url, { method: 'GET', headers });
+	if (!response.ok) {
+		const body = await response
+			.json()
+			.catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+		throw new ApiResponseError(response.status, body.detail, body);
+	}
+
+	const blob = await response.blob();
+	const cd = response.headers.get('Content-Disposition') ?? '';
+	const match = cd.match(/filename="?([^"]+)"?/i);
+	const today = new Date().toISOString().slice(0, 10);
+	const filename = match?.[1] ?? `entry-completeness-${today}.csv`;
+
+	const objectUrl = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = objectUrl;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
 }

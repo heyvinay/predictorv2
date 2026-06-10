@@ -11,8 +11,12 @@
 		type AdminEntriesPage,
 		type AdminEntriesStatsResponse,
 	} from '$lib/api/admin';
+	import CompletenessModal from '$lib/components/admin/CompletenessModal.svelte';
 	import EntryDetailSlideOver from '$lib/components/admin/EntryDetailSlideOver.svelte';
 	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
+
+	// E.1 (v2.163.0) — report-only pick-fullness check, opened from the header.
+	let completenessOpen = false;
 
 	/** True iff the entry is effectively paid.
 	 *
@@ -223,19 +227,33 @@
 			Filename comes from the server. Disabled while in-flight.
 		-->
 		<div class="flex flex-col items-end gap-1">
-			<button
-				type="button"
-				class="btn btn-outline btn-sm gap-2"
-				on:click={handleExportCsv}
-				disabled={exporting}
-			>
-				{exporting ? 'Exporting…' : 'Export CSV'}
-			</button>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					class="btn btn-outline btn-sm gap-2"
+					on:click={() => (completenessOpen = true)}
+				>
+					Run completeness check
+				</button>
+				<button
+					type="button"
+					class="btn btn-outline btn-sm gap-2"
+					on:click={handleExportCsv}
+					disabled={exporting}
+				>
+					{exporting ? 'Exporting…' : 'Export CSV'}
+				</button>
+			</div>
 			{#if exportError}
 				<p class="text-xs text-error" role="alert">{exportError}</p>
 			{/if}
 		</div>
 	</header>
+
+	<CompletenessModal
+		open={completenessOpen}
+		onClose={() => (completenessOpen = false)}
+	/>
 
 	<!-- Stat strip -->
 	<div class="grid grid-cols-2 sm:grid-cols-4 border border-base-300/30 rounded-2xl overflow-hidden mb-4">
