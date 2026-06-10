@@ -16,8 +16,12 @@ Definition:
   service can subtract picks whose team was knocked out.)
 
 - "Picks locked" / "picks total" — straightforward fraction of the
-  bracket the user has filled in. Total is canonical to the FIFA 2026
-  format (32 knockout picks across R32 → winner).
+  bracket the user has filled in, counted as TEAM-STAGE SLOTS: one
+  TeamPrediction row per (team, stage). A full FIFA 2026 bracket stores
+  32 R32 teams + 16 R16 + 8 QF + 4 SF + 2 finalists + 1 winner = 63
+  rows, which is exactly what the frontend's bracketToPredictions
+  submits. (Not to be confused with the 31 *choices* a user actively
+  makes — picking a winner at each match implies the team-stage slots.)
 
 - "Final pick" — the (winner, opponent) pair extracted from the user's
   `winner` stage prediction and the other `final` stage prediction.
@@ -47,14 +51,16 @@ STAGE_POINT_KEY: dict[str, str] = {
     "winner": "winner",
 }
 
-# Canonical Phase 1 bracket pick counts for FIFA 2026 format:
-#   16 R32 winners → 8 R16 winners → 4 QF → 2 SF → 1 final → 1 winner = 32 picks.
+# Canonical Phase 1 team-stage slot counts for FIFA 2026 format — the
+# number of TeamPrediction rows a full bracket stores per stage:
+#   32 teams in R32, 16 in R16, 8 in QF, 4 in SF, 2 finalists, 1 winner
+#   = 63 rows. Matches frontend bracketToPredictions' output shape.
 PICKS_PER_STAGE_PHASE_1: dict[str, int] = {
-    "round_of_32": 16,
-    "round_of_16": 8,
-    "quarter_final": 4,
-    "semi_final": 2,
-    "final": 1,
+    "round_of_32": 32,
+    "round_of_16": 16,
+    "quarter_final": 8,
+    "semi_final": 4,
+    "final": 2,
     "winner": 1,
 }
 TOTAL_PHASE_1_BRACKET_PICKS = sum(PICKS_PER_STAGE_PHASE_1.values())

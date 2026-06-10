@@ -92,6 +92,45 @@ export function logarithmicRarityBonus(
 	return Math.min(cap, Math.max(0, Math.round(raw)));
 }
 
+/** Pure match-points calculation — mirror of backend `compute_match_points`
+ * (`backend/app/services/scoring.py`). Takes only primitives so both languages
+ * validate against the SAME shared golden cases (`shared/scoring-parity-cases.json`).
+ * `computeBreakdown` routes its banked/live total through this, so the displayed
+ * projection can't drift from the backend's awarded points. `cap` is unused for
+ * mode 'fixed'. */
+export function computeMatchPoints(p: {
+	mode: string;
+	predictedHome: number;
+	predictedAway: number;
+	actualHome: number;
+	actualAway: number;
+	totalPredictors: number;
+	correctPredictors: number;
+	outcomePoints: number;
+	exactPoints: number;
+	cap: number;
+}): { points: number; correctOutcome: boolean; exactScore: boolean } {
+	const correctOutcome =
+		outcomeSign(p.predictedHome, p.predictedAway) === outcomeSign(p.actualHome, p.actualAway);
+	const exactScore = p.predictedHome === p.actualHome && p.predictedAway === p.actualAway;
+
+	let points = 0;
+	if (correctOutcome) {
+		points += p.outcomePoints;
+		if (p.mode === 'hybrid') {
+			if (p.correctPredictors > 0) {
+				points += Math.min(p.cap, Math.floor(p.totalPredictors / p.correctPredictors));
+			}
+		} else if (p.mode === 'logarithmic') {
+			points += logarithmicRarityBonus(p.totalPredictors, p.correctPredictors, p.cap);
+		}
+		// mode 'fixed': no rarity bonus.
+	}
+	if (exactScore) points += p.exactPoints;
+
+	return { points, correctOutcome, exactScore };
+}
+
 /**
  * What status bucket does this fixture fall into for the Results page?
  * Live fixtures keep showing a (possibly partial) score; locked ones are
@@ -191,7 +230,25 @@ export function computeBreakdown(
 	const resultNow = finishedResult ?? liveResult;
 
 	if (isFinished || (isLive && resultNow)) {
-		// Earned (or live-projected) points
+		// Earned (or live-projected) points. The TOTAL is computed by the shared
+		// `computeMatchPoints` so it can't drift from the backend's awarded points;
+		// the pills below are display-only decompositions of that same total.
+		totalPts =
+			prediction && fixture.score
+				? computeMatchPoints({
+						mode: config.mode,
+						predictedHome: prediction.home_score,
+						predictedAway: prediction.away_score,
+						actualHome: fixture.score.home_score,
+						actualAway: fixture.score.away_score,
+						totalPredictors: agreement?.total ?? 0,
+						correctPredictors: agreement?.agrees_outcome ?? 0,
+						outcomePoints: config.outcome_points,
+						exactPoints: config.exact_points,
+						cap: config.rarity_cap
+					}).points
+				: 0;
+
 		if (resultNow === 'exact') {
 			outcomePill = { state: 'hit-outcome', pts: config.outcome_points, lab: 'Outcome' };
 			scorePill = { state: 'hit-exact', pts: config.exact_points, lab: 'Exact' };
@@ -204,7 +261,6 @@ export function computeBreakdown(
 			} else {
 				rarityPill = { state: 'none', pts: 0, lab: wantRarity ? 'No bonus' : 'Fixed' };
 			}
-			totalPts = config.outcome_points + config.exact_points + (rarityPill.state === 'none' ? 0 : projectedBonus);
 		} else if (resultNow === 'outcome') {
 			outcomePill = { state: 'hit-outcome', pts: config.outcome_points, lab: 'Outcome' };
 			scorePill = { state: 'miss', pts: 0, lab: 'Exact' };
@@ -217,13 +273,11 @@ export function computeBreakdown(
 			} else {
 				rarityPill = { state: 'none', pts: 0, lab: wantRarity ? 'No bonus' : 'Fixed' };
 			}
-			totalPts = config.outcome_points + (rarityPill.state === 'none' ? 0 : projectedBonus);
 		} else {
 			// miss
 			outcomePill = { state: 'miss', pts: 0, lab: 'Outcome' };
 			scorePill = { state: 'miss', pts: 0, lab: 'Exact' };
 			rarityPill = { state: 'none', pts: 0, lab: 'Void' };
-			totalPts = 0;
 		}
 		totalLabel = isFinished ? 'Banked' : 'If FT now';
 	} else {
