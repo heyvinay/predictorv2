@@ -113,6 +113,39 @@ See `docs/scoring-system.md` for the formula, bonus table, and rationale.
 
 **Rule:** no scoring logic changes without a corresponding `pytest` case.
 
+**Stage values are SINGULAR (★ invariant, v2.161.0).**
+`TeamPrediction.stage` stores `quarter_final` / `semi_final` — matching
+`Fixture.stage`, the YAML `scoring.advancement` keys, and the email
+recap. The plural spellings (`quarter_finals` / `semi_finals`) exist
+ONLY as `BracketPrediction` API field names (a display convention).
+`normalize_stage()` in `backend/app/models/prediction.py` is the
+write-side guard that converts plural payloads from stale cached
+frontend bundles; migration `b3c4d5e6f7a8` converted historical rows.
+Never write plural stage values; never compare stored stages against
+plural literals.
+
+**Advancement timing is lineup-based (v2.161.0).** Knockout "reached
+stage X" credit fires when a team is seeded into a stage-X fixture
+(`get_actual_advancement` scans ALL knockout fixtures, not just
+FINISHED). Only the `winner` credit requires the final to be FINISHED +
+scored. Group-stage match points still pay on match completion.
+
+**Scoring parity harness (v2.161.0).** The pure
+`compute_match_points()` (backend `scoring.py`) and `computeMatchPoints`
+(frontend `matchBreakdown.ts`) are pinned to agree via the golden cases
+in `shared/scoring-parity-cases.json` — run by both
+`backend/tests/test_scoring_parity.py` and
+`frontend/src/lib/utils/matchBreakdown.parity.test.ts`. Any change to
+either implementation must keep both suites green; add new cases to the
+shared JSON, not to one side only. The `shared/` dir is mounted into
+both containers (`./shared:/app/shared:ro`).
+
+**Rarity eligibility (v2.161.0).** Rarity-bonus denominators count only
+eligible entries (SUBMITTED, not disabled, not withdrawn) via
+`eligible_entry_ids_select()` — shared by `get_all_outcome_counts` and
+`compute_agreements`. Draft/withdrawn/disabled predictions are invisible
+to rarity math by design.
+
 **Scoring sync (resolved 2026-06-01).** `config/worldcup2026.yml` is the
 single source of truth for both the scoring engine and rules-page copy.
 The rules page hand-mirrors YAML values via the `BONUS_POINTS` map and the
