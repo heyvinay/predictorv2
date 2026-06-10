@@ -54,23 +54,45 @@ safe to make permanent in the deploy line if you prefer.
 
 ## Domain invariants
 
-### Phases (backend: two-phase model · production: single-phase)
+### Phases — SINGLE PHASE ONLY (mandatory rule, ★ read first)
 
-The backend still has two-phase code, but as of 2026-05-30 the live
-competition runs **single-phase only**:
+**This competition has one phase. Phase 2 does not exist.** The database
+still creates a `phase_2 = DRAFT` row alongside every entry's `phase_1`
+row at creation time, and the codebase still has phase_2 code paths,
+but those are **legacy noise** — the equivalent of a dormant feature
+flag that will never flip
+(`competition.is_phase2_active = false` permanently).
 
-- **Phase 1** (pre-tournament): group-stage scores + knockout-bracket
+Rules for plans, analyses, debugging, queries, and any new code:
+
+- **Always filter to `phase = PHASE_1`** when joining
+  `prediction_entry_phases` (or `phase == PredictionPhase.PHASE_1` in
+  Python). A join without this filter silently double-counts every
+  entry — each carries two phase rows. This bug has bitten landing /
+  admin / scoring stats multiple times; most recently the prize-pot
+  count in v2.160.3.
+- **Never propose Phase 2-dependent features.** No "support both
+  phases," no "smoke-test when Phase 2 is re-enabled," no abstractions
+  to handle both phases generically. Dormant means dormant. Plans that
+  budget time for Phase 2 are wrong.
+- **Never use "Phase 1" / "Phase 2" in user-facing copy.** Pages,
+  emails, status pills, error messages, navbar chips — all use
+  unphased language ("the deadline", "your entry", "submissions are
+  closed"). The `/rules` page, FAQ, `DeadlineBanner`, landing
+  components, and submission emails were rewritten in v2.149.x to drop
+  phase language and must stay that way.
+- **In call-site audits and refactors, silently skip Phase 2 paths.**
+  Don't flag dormant phase_2 code as a follow-up. Don't propose
+  cleaning it up. The cost of churning legacy paths outweighs any
+  notional simplification — they pay for themselves by keeping
+  migrations / tests passing.
+
+If a plan, analysis, or fix seems to need Phase 2 to make sense, you
+have misread the problem. Re-check.
+
+- **Phase 1** (the only phase) — group-stage scores + knockout-bracket
   advancement + bonus questions. Every entry must be in before
   `competition.phase1_deadline`.
-- **Phase 2** (admin-activated after groups): knockout-stage scores +
-  re-predicted bracket. Points scaled by `phase_multipliers.phase_2`
-  (currently 0.7 — `config/worldcup2026.yml`). **Code is dormant** for the
-  current competition (`is_phase2_active = false`). Keep the code paths
-  working but don't surface Phase 2 in user-facing copy unless the admin
-  flips it on.
-- The user-facing `/rules` page, landing page, and `FaqSection` all describe
-  the single-phase model — no Phase I/II language anywhere. The
-  `DeadlineBanner` component was also simplified to drop its `phase` prop.
 
 ### Locking & visibility
 - **One global deadline** is the practical lock for the current competition:
