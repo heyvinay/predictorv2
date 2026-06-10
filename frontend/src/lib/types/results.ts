@@ -6,7 +6,7 @@
  * during this phase. Import directly: `from '$lib/types/results'`.
  */
 
-import type { MatchPrediction } from '$types';
+import type { CommunityPrediction, MatchPrediction } from '$types';
 
 /** Per-fixture points decomposition served by the backend for FINISHED
  *  fixtures (Phase 1, B.1). Mirrors backend PickPointsOut. */
@@ -53,6 +53,37 @@ export interface EntryRankInfo {
 	position: number;
 	total_points: number;
 }
+
+/** CommunityPrediction as served since v2.163.0 — the `rank` field (B.3)
+ *  exists on the wire but not on the barrel interface (WIP lockout). */
+export type CommunityPredictionWithRank = CommunityPrediction & {
+	rank?: number | null;
+};
+
+/** One row of the Match Detail pool list (played layout). */
+export interface PoolRow {
+	name: string;
+	entryName: string;
+	reference: string;
+	rank: number | null;
+	pick: string; // "2-1"
+	status: 'exact' | 'result' | 'miss';
+	pts: number;
+	you: boolean;
+}
+
+/** Prospective payout for one 1/X/2 outcome (upcoming layout). */
+export interface OutcomePayout {
+	base: number;
+	rarity: number;
+	total: number;
+	band: 'common' | 'uncommon' | 'rare' | 'solo';
+	count: number;
+	pct: number; // integer 0..100
+}
+
+/** [home 0..3+][away 0..3+] pick counts. */
+export type SpreadGrid = number[][];
 
 /** Scoring rules served by GET /api/leaderboard/scoring-rules. The page
  *  loads this once and threads it everywhere a point value appears in
