@@ -1128,6 +1128,67 @@ class TestEffectiveUpdatedAt:
         )
         assert result == {}
 
+    async def test_ignores_phase_2_contributions(
+        self,
+        session: AsyncSession,
+        user: User,
+        competition: Competition,
+        fixture_a: Fixture,
+    ):
+        """CLAUDE.md PHASES rule pinned for the rollup helper.
+        A phase_2 team prediction at a far-future timestamp must NOT
+        win the MAX. Same for the phase_2 phase row. Only phase_1
+        contributions count.
+
+        Note: ``MatchPrediction`` has UNIQUE(entry_id, fixture_id) so a
+        phase_2 match prediction can't coexist with a phase_1 one for
+        the same fixture — that path is impossible in this codebase.
+        ``TeamPrediction`` and ``PredictionEntryPhase`` (which both
+        allow one row per (entry, phase)) carry the rule's surface
+        area for this test.
+
+        Without the PHASE_1 filter in the helper, this would return
+        NEWEST (the phase_2 contribution), violating the rule.
+        """
+        entry = await self._make_stale_entry(
+            session, user, competition, self.OLD
+        )
+        # Plant a PHASE_1 match prediction at NEWER — the legitimate
+        # "most recent activity" the test expects the helper to find.
+        session.add(
+            MatchPrediction(
+                entry_id=entry.id,
+                fixture_id=fixture_a.id,
+                home_score=1,
+                away_score=0,
+                phase=PredictionPhase.PHASE_1,
+                updated_at=self.NEWER,
+            )
+        )
+        # Plant a PHASE_2 team prediction at NEWEST — must be ignored.
+        session.add(
+            TeamPrediction(
+                entry_id=entry.id,
+                team="Brazil",
+                stage="round_of_16",
+                phase=PredictionPhase.PHASE_2,
+                updated_at=self.NEWEST,
+            )
+        )
+        # Force the phase_2 phase row at NEWEST — must be ignored.
+        phase_2_row = next(
+            p for p in entry.phases if p.phase == PredictionPhase.PHASE_2
+        )
+        phase_2_row.updated_at = self.NEWEST
+        await session.commit()
+
+        result = await entries_service.effective_updated_at_for_entries(
+            session, entries=[entry]
+        )
+
+        # NEWER (phase_1 match prediction) wins; NEWEST (phase_2) ignored.
+        assert result[entry.id] == self.NEWER
+
 
 # ---------------------------------------------------------------------------
 # Submitted-entries count helper — single source of truth for the

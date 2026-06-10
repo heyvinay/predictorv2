@@ -492,8 +492,9 @@ async def effective_updated_at_for_entries(
     entries: Sequence[PredictionEntry],
 ) -> dict[uuid.UUID, datetime]:
     """For each entry, the latest of its own ``updated_at``, the most
-    recent child prediction's ``updated_at`` (match / team / bonus), and
-    the most recent ``prediction_entry_phases`` row's ``updated_at``.
+    recent **phase-1** child prediction's ``updated_at`` (match / team /
+    bonus), and the most recent **phase-1** ``prediction_entry_phases``
+    row's ``updated_at``.
 
     Background: ``PredictionEntry.updated_at`` only ticks on entry-level
     actions (rename, withdraw / reinstate, admin disable / re-enable,
@@ -501,6 +502,13 @@ async def effective_updated_at_for_entries(
     only; submit / edit transitions bump the phase row only. Without
     this rollup the entries-list "Updated" column shows the entry's
     creation time, not real activity.
+
+    PHASES rule (CLAUDE.md ★): every query and iteration in this helper
+    filters to PHASE_1. Phase 2 is permanently dormant — counting its
+    rows here was a latent rule violation that this 2.160.7 revision
+    closes. In practice phase_2 timestamps for the current competition
+    are pinned to entry-creation time and never win the MAX, so the
+    observable output is unchanged.
 
     Returns a map ``{entry_id: effective_updated_at}``. Empty input
     returns ``{}``.
@@ -523,19 +531,21 @@ async def effective_updated_at_for_entries(
         e.id: aware_utc(e.updated_at) for e in entries
     }
 
-    # MAX(updated_at) from each child prediction table, scoped by entry_id.
-    # One round-trip per table; negligible at pool scale (~100 entries).
+    # MAX(updated_at) from each child prediction table, scoped by
+    # entry_id AND phase (where the model has a phase column —
+    # BonusPrediction doesn't, so it's unfiltered). PHASE_1 filter
+    # enforces the CLAUDE.md PHASES rule even though no phase_2 child
+    # predictions are ever created today (get_current_phase always
+    # returns PHASE_1 while is_phase2_active is False).
     for child_model in (MatchPrediction, TeamPrediction, BonusPrediction):
-        rows = (
-            await session.execute(
-                select(
-                    child_model.entry_id,
-                    func.max(child_model.updated_at),
-                )
-                .where(child_model.entry_id.in_(entry_ids))
-                .group_by(child_model.entry_id)
-            )
-        ).all()
+        query = select(
+            child_model.entry_id,
+            func.max(child_model.updated_at),
+        ).where(child_model.entry_id.in_(entry_ids))
+        if hasattr(child_model, "phase"):
+            query = query.where(child_model.phase == PredictionPhase.PHASE_1)
+        query = query.group_by(child_model.entry_id)
+        rows = (await session.execute(query)).all()
         for entry_id, ts in rows:
             if ts is None:
                 continue
@@ -546,8 +556,12 @@ async def effective_updated_at_for_entries(
     # Phase rows are expected to be eager-loaded by callers
     # (selectinload(PredictionEntry.phases) in list_user_entries). Read
     # from the loaded relationship to skip an extra DB round-trip.
+    # PHASE_1 filter enforces CLAUDE.md PHASES rule — phase_2 rows are
+    # ignored even though they're loaded.
     for entry in entries:
         for phase_row in entry.phases:
+            if phase_row.phase != PredictionPhase.PHASE_1:
+                continue
             ts_aware = aware_utc(phase_row.updated_at)
             if ts_aware > result[entry.id]:
                 result[entry.id] = ts_aware
