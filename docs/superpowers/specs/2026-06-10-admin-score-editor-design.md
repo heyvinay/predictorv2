@@ -1,6 +1,6 @@
 # Admin Score Editor (`/admin/sync`) — Design
 
-**Date:** 2026-06-10 · **Target version:** 2.162.0 · **Status:** approved
+**Date:** 2026-06-10 · **Shipped as:** v2.162.0 · **Status:** **deployed** (prod 2026-06-10 12:43 UTC)
 
 ## Purpose
 
