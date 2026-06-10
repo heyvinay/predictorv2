@@ -146,6 +146,31 @@ eligible entries (SUBMITTED, not disabled, not withdrawn) via
 `compute_agreements`. Draft/withdrawn/disabled predictions are invisible
 to rarity math by design.
 
+**Admin score editor (v2.162.0).** `/admin/sync` is the escape hatch
+when Football-Data.org fails, lags, or serves a wrong score
+mid-tournament. Every fixture row has an Edit button that expands inline
+into a form: score inputs for any fixture, plus ET/penalty fields and
+team-seeding text inputs on knockout rows. A confirm dialog spells out
+the consequence ("marks the match FINISHED and updates the leaderboard
+for everyone") before write. Manual saves go through
+`PUT /api/scores/{fixture_id}` and set `verified=true` by default; the
+60-second API sync **skips verified scores** (see
+`score_sync._apply_external_score`), so a manual correction survives
+the scheduler. The level-knockout guard forces ET/pens for any drawn
+knockout result so `Score.outcome` can resolve a winner. Audit events
+`score.manual_update` and `fixture.admin_update` (old → new values)
+fire on every edit. Spec lives at
+`docs/superpowers/specs/2026-06-10-admin-score-editor-design.md`.
+
+**Latent layout bug (filed, low priority).** The root `+layout.svelte`
+throws a recurring `TypeError: Cannot read properties of null (reading
+'pathname')` on every page load (since v2.156.0, commit `9301bbd`).
+Doesn't break anything user-visible but is noisy in the console. Likely
+cause: `nav.to?.url.pathname` at lines 68-69 — optional-chains the
+container but not the nested `.url`. A deep optional-chain
+(`nav.to?.url?.pathname ?? ''`) probably fixes it. If you're refactoring
+the layout for any reason, fix this in the same change.
+
 **Scoring sync (resolved 2026-06-01).** `config/worldcup2026.yml` is the
 single source of truth for both the scoring engine and rules-page copy.
 The rules page hand-mirrors YAML values via the `BONUS_POINTS` map and the
