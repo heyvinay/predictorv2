@@ -10,6 +10,7 @@
 
 import { api } from './client';
 import type { LeaderboardResponse, PointBreakdown } from '$types';
+import type { ScoringRules } from '$lib/types/results';
 
 export type PhaseFilter = 'phase_1' | 'phase_2' | null;
 
@@ -81,4 +82,11 @@ export async function getSteepestClimbers(
 	return api.get<SteepestClimbersResponse>(
 		`/leaderboard/climbers?days=${days}&limit=${limit}`
 	);
+}
+
+/** GET /api/leaderboard/scoring-rules — full scoring config including the
+ *  per-stage advancement values. The V4 Results page templates every
+ *  point value in user-facing copy from this (no hardcoded numbers). */
+export async function getScoringRules(): Promise<ScoringRules> {
+	return api.get<ScoringRules>('/leaderboard/scoring-rules');
 }

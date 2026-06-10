@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +25,22 @@ class MatchPredictionUpdate(BaseModel):
     away_score: int = Field(ge=0, le=15)
 
 
+class PickPointsOut(BaseModel):
+    """Per-fixture points decomposition for a finished match.
+
+    `base` is the points earned excluding rarity:
+      - "exact"  → correct_outcome + exact_score (e.g. 5+10 = 15)
+      - "result" → correct_outcome (e.g. 5)
+      - "miss"   → 0
+    `rarity` is the rarity bonus on top (0..rarity_cap). `total = base + rarity`.
+    """
+
+    base: int
+    base_kind: Literal["miss", "result", "exact"]
+    rarity: int
+    total: int
+
+
 class MatchPredictionRead(BaseModel):
     """Schema for reading a match prediction."""
 
@@ -41,6 +58,10 @@ class MatchPredictionRead(BaseModel):
     away_team: str | None = None
     kickoff: datetime | None = None
     is_locked: bool = False
+
+    # Populated by list_match_predictions for FINISHED fixtures; null otherwise.
+    # See compute_points_for_finished_fixtures() in services/predictions.py.
+    points: PickPointsOut | None = None
 
     class Config:
         """Pydantic config."""
@@ -97,6 +118,10 @@ class CommunityPrediction(BaseModel):
     entry_name: str
     home_score: int
     away_score: int
+    # Overall leaderboard rank of this entry at request time. Null when the
+    # entry is not in the current ranking (drafts, disabled, pre-tournament
+    # before any points are awarded). Populated from the cached leaderboard.
+    rank: int | None = None
 
 
 class CommunityPredictionsResponse(BaseModel):

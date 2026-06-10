@@ -132,9 +132,15 @@ async def get_match_predictions(
 
     Returns (prediction, fixture) tuples ordered by kickoff.
     """
+    # Eager-load Fixture.score — compute_points_for_finished_fixtures (and
+    # any other consumer) reads it after the session context moves on; a
+    # lazy load there raises MissingGreenlet under the async driver.
+    from sqlalchemy.orm import selectinload
+
     result = await session.execute(
         select(MatchPrediction, Fixture)
         .join(Fixture, MatchPrediction.fixture_id == Fixture.id)
+        .options(selectinload(Fixture.score))
         .where(MatchPrediction.entry_id == entry.id)
         .order_by(Fixture.kickoff)
     )
@@ -631,4 +637,70 @@ async def compute_agreements(
                 "total": len(preds),
             }
         )
+    return out
+
+
+def compute_points_for_finished_fixtures(
+    pred_fixture_pairs,
+    agreements_by_fixture: dict,
+    scoring_config: dict,
+):
+    """Compute PickPointsOut for each (pred, fixture) where the fixture is
+    FINISHED and has a score row. Returns a map from fixture_id → PickPointsOut.
+
+    Caller is responsible for the bulk-agreement fetch — pass the already-
+    computed map keyed by fixture_id. Per-fixture absence is treated as
+    {agrees_exact: 0, agrees_outcome: 0, total: 0}.
+    """
+    from app.schemas.prediction import PickPointsOut
+    from app.services.scoring import compute_match_points
+
+    match_cfg = scoring_config.get("match", {})
+    outcome_points = int(match_cfg.get("correct_outcome", 5))
+    exact_points = int(match_cfg.get("exact_score", 10))
+    rarity_cap = int(match_cfg.get("rarity_cap", match_cfg.get("hybrid_cap", 10)))
+    mode = str(scoring_config.get("mode", "logarithmic"))
+
+    out: dict = {}
+    for pred, fixture in pred_fixture_pairs:
+        # status may be a MatchStatus(str, Enum) or a plain string — unwrap
+        # .value first: str(MatchStatus.FINISHED) is "MatchStatus.FINISHED"
+        # on Python 3.11, which would silently skip every finished fixture.
+        status_value = getattr(fixture.status, "value", fixture.status)
+        if str(status_value).lower() != "finished":
+            continue
+        if fixture.score is None:
+            continue
+        agr = agreements_by_fixture.get(fixture.id, {})
+        total_predictors = int(agr.get("total", 0))
+        correct_predictors = int(agr.get("agrees_outcome", 0))
+
+        total, correct_outcome, exact_score = compute_match_points(
+            mode=mode,
+            predicted_home=pred.home_score,
+            predicted_away=pred.away_score,
+            actual_home=fixture.score.home_score,
+            actual_away=fixture.score.away_score,
+            total_predictors=total_predictors,
+            correct_predictors=correct_predictors,
+            outcome_points=outcome_points,
+            exact_points=exact_points,
+            cap=rarity_cap,
+        )
+
+        if exact_score:
+            base_kind = "exact"
+            base = outcome_points + exact_points
+        elif correct_outcome:
+            base_kind = "result"
+            base = outcome_points
+        else:
+            base_kind = "miss"
+            base = 0
+
+        rarity = total - base
+        out[fixture.id] = PickPointsOut(
+            base=base, base_kind=base_kind, rarity=rarity, total=total
+        )
+
     return out

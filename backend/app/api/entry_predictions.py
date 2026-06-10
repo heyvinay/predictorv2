@@ -153,7 +153,12 @@ async def _get_competition_and_entry_for_view(
 # ---------------------------------------------------------------------------
 # Match predictions
 # ---------------------------------------------------------------------------
-def _to_match_read(pred, fixture) -> MatchPredictionRead:
+def _to_match_read(pred, fixture, points=None) -> MatchPredictionRead:
+    """Map a (MatchPrediction, Fixture) pair to MatchPredictionRead.
+
+    `points` is the PickPointsOut for this fixture (FINISHED only); None
+    for not-yet-played and live fixtures.
+    """
     return MatchPredictionRead(
         id=pred.id,
         fixture_id=pred.fixture_id,
@@ -167,6 +172,7 @@ def _to_match_read(pred, fixture) -> MatchPredictionRead:
         away_team=fixture.away_team,
         kickoff=fixture.kickoff,
         is_locked=fixture.is_locked(),
+        points=points,
     )
 
 
@@ -181,7 +187,24 @@ async def list_match_predictions(
         session, entry_id, current_user
     )
     rows = await predictions_service.get_match_predictions(session, entry=entry)
-    return [_to_match_read(pred, fixture) for pred, fixture in rows]
+
+    # Bulk-fetch agreements (one query) + scoring config (one read) so the
+    # per-fixture points computation stays O(fixtures), not O(fixtures × entries).
+    from app.services.scoring import get_scoring_config
+
+    agreement_rows = await predictions_service.compute_agreements(
+        session, entry=entry, fixture_ids=None
+    )
+    agreements_by_fixture = {a["fixture_id"]: a for a in agreement_rows}
+    scoring_config = get_scoring_config()
+    points_by_fixture = predictions_service.compute_points_for_finished_fixtures(
+        rows, agreements_by_fixture, scoring_config
+    )
+
+    return [
+        _to_match_read(pred, fixture, points_by_fixture.get(fixture.id))
+        for pred, fixture in rows
+    ]
 
 
 @router.put(

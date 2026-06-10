@@ -54,6 +54,10 @@ from app.services.broadcast import (
     count_all_audiences,
     query_audience,
 )
+from app.services.completeness import (
+    EntryCompletenessResult,
+    check_all_eligible_entries,
+)
 from app.services.email import send_broadcast_email
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
@@ -1274,4 +1278,76 @@ async def send_broadcast(
         sent=sent,
         failed=failed,
         sample_emails=failure_samples,
+    )
+
+
+# ── Entry completeness check (E.1, report-only) ─────────────────────────────
+
+
+@router.get(
+    "/entries/completeness-check",
+    response_model=list[EntryCompletenessResult],
+)
+async def admin_entries_completeness_check(
+    session: DbSession,
+    _admin: AdminUser,
+    detail: bool = False,
+) -> list[EntryCompletenessResult]:
+    """Report-only check of pick fullness for every eligible entry.
+
+    Returns ALL eligible entries; the frontend filters to incompletes for
+    display. Pass ``?detail=true`` for the per-fixture / per-stage
+    drill-down. Admin-only. No enforcement — the admin chases gaps out of
+    band using the CSV variant below.
+    """
+    return await check_all_eligible_entries(session, detail=detail)
+
+
+@router.get("/entries/completeness-check.csv")
+async def admin_entries_completeness_check_csv(
+    session: DbSession,
+    _admin: AdminUser,
+) -> Response:
+    """Same check as the JSON endpoint, formatted as CSV. Only includes
+    INCOMPLETE entries — one row each, ready for a chase-up mailshot.
+    Admin-only."""
+    rows = await check_all_eligible_entries(session, detail=False)
+    incompletes = [r for r in rows if not r.is_complete]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "entry_id",
+            "entry_name",
+            "user_name",
+            "user_email",
+            "missing_match_picks",
+            "missing_bracket_picks",
+            "missing_bonus_picks",
+            "total_missing",
+        ]
+    )
+    for r in incompletes:
+        writer.writerow(
+            [
+                str(r.entry_id),
+                r.entry_name,
+                r.user_name,
+                r.user_email,
+                r.missing_match_picks,
+                r.missing_bracket_picks,
+                r.missing_bonus_picks,
+                r.missing_match_picks
+                + r.missing_bracket_picks
+                + r.missing_bonus_picks,
+            ]
+        )
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="entry-completeness.csv"'
+        },
     )

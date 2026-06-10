@@ -2060,6 +2060,13 @@
       "type": "feature",
       "summary": "Admins can now enter match results and seed knockout teams directly from the Score Sync page — an escape hatch for when the live-score feed fails or lags. Manually verified scores are protected from being overwritten by the automatic sync, every manual edit is recorded in the audit log, and a confirmation step guards against accidental saves.",
       "commit": "pending"
+    },
+    {
+      "version": "2.163.0",
+      "date": "2026-06-10",
+      "type": "feature",
+      "summary": "Brand-new Results experience: a round-by-round scoreboard with live indicators and a detailed page for every match, showing how the whole pool called it.",
+      "commit": "pending"
     }
   ]
 }
