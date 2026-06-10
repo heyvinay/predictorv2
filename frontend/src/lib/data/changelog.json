@@ -2032,6 +2032,13 @@
       "type": "fix",
       "summary": "Admin Entries page stat cards (Total / Submitted / Paid / Disabled-Withdrawn) now show the true global count for the active competition. Previously the cards were computed by filtering the visible table — which is paginated at 100 rows — so they undercounted whenever the pool grew beyond a page (e.g. showed 60 submitted when 89 actually exist). The Submitted figure now comes from the same shared helper that powers the landing 'Pot so far' and the admin overview prize pool, so all three views always agree. Admin overview prize pool gets the same fix in the same release.",
       "commit": "pending"
+    },
+    {
+      "version": "2.160.6",
+      "date": "2026-06-10",
+      "type": "feature",
+      "summary": "Admin Entries page gets an 'Export CSV' button. Downloads every entry in the active competition (including withdrawn / disabled) with twelve columns: reference, entry name, user name and email, employer (Atlas/JMFA/Neither), Atlas/JMFA contact, paid-to, status, paid flag, prize eligibility, created-at, and last-modified. The last-modified value uses the rolled-up timestamp introduced in 2.160.1 so it matches what the live UI shows. Filename embeds today's date.",
+      "commit": "pending"
     }
   ]
 }
