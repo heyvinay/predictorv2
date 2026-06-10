@@ -118,6 +118,10 @@ class CommunityPrediction(BaseModel):
     entry_name: str
     home_score: int
     away_score: int
+    # Overall leaderboard rank of this entry at request time. Null when the
+    # entry is not in the current ranking (drafts, disabled, pre-tournament
+    # before any points are awarded). Populated from the cached leaderboard.
+    rank: int | None = None
 
 
 class CommunityPredictionsResponse(BaseModel):
