@@ -2018,6 +2018,13 @@
       "type": "fix",
       "summary": "Landing 'Pot so far' now matches the Submitted count on the admin Entries page. Previously the pot was inflated because the underlying count included withdrawn and disabled entries (whose phase status remained 'submitted' after the lifecycle change) and counted entries with any phase row submitted instead of just phase 1. Now the count is scoped to actively eligible phase-1 submissions only — the same definition the admin Entries page already uses.",
       "commit": "pending"
+    },
+    {
+      "version": "2.160.4",
+      "date": "2026-06-10",
+      "type": "fix",
+      "summary": "Landing 'Pot so far' now scopes the entry count to the active competition. The previous 2.160.3 fix narrowed the phase / withdrawn / disabled filters but didn't filter by competition, so entries lingering from test or past competitions in the same database still inflated the pot figure. Now the count and the entry-fee multiplier both come from the active competition only, matching what the admin Entries page already shows.",
+      "commit": "pending"
     }
   ]
 }
