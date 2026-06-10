@@ -20,7 +20,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { track } from '$lib/analytics';
 	import ArrowRight from 'lucide-svelte/icons/arrow-right';
-	import { derivePhase, type CountdownPhase } from '$lib/utils/countdownPhase';
+	import { derivePhase, countdownCopy, type CountdownPhase } from '$lib/utils/countdownPhase';
 
 	export let phase1Deadline: string | null = null;
 	/** Where this countdown is rendered — passed to the auth CTA for
@@ -53,6 +53,13 @@
 	$: phase = derivePhase(secondsRemaining);
 	$: parts = secondsRemaining === null ? null : breakdown(secondsRemaining);
 	$: config = PHASE_CONFIG[phase];
+	// Dynamic label + subline derived from time-remaining, not the
+	// phase tier. Phase still drives colour / pulse / CTA, but the
+	// words update every tick within a tier (e.g. heads_up spans
+	// 2–7d but the label flips from "Last week" to "Final days" at
+	// the 3-day boundary). Sub-second updates are cheap — same
+	// shape on every render.
+	$: copy = countdownCopy(secondsRemaining);
 
 	// Fire analytics on phase transition.
 	$: if (phase !== lastPhase && phase !== 'unknown') {
@@ -81,53 +88,43 @@
 	type PhaseConfig = {
 		colorClass: string;
 		pulseClass: string;
-		label: string;
-		subline: string;
 		ctaLabel: string | null;
 	};
 
+	// PHASE_CONFIG now owns ONLY colour / pulse / CTA — the visual
+	// escalation. Wording (label + subline) is computed dynamically by
+	// `countdownCopy(secondsRemaining)` in countdownPhase.ts so the text
+	// stays accurate within each tier (heads_up spans 2–7d but the words
+	// flip between "Last week" and "Final days" inside that range).
 	const PHASE_CONFIG: Record<Phase, PhaseConfig> = {
 		calm: {
 			colorClass: 'text-success',
 			pulseClass: '',
-			label: 'Pools locks in',
-			subline:
-				"Plenty of time. But picks stay editable until the deadline — lock in early, tweak later.",
 			ctaLabel: null
 		},
 		heads_up: {
 			colorClass: 'text-warning-text',
 			pulseClass: 'animate-pulse-soft',
-			label: 'Last week',
-			subline: "One week until your picks are frozen. Don't be the friend who forgot.",
 			ctaLabel: null
 		},
 		urgent: {
 			colorClass: 'text-error',
 			pulseClass: 'animate-pulse-soft',
-			label: 'Last day',
-			subline: 'Lock in your picks now. AI assisted Smart Fill takes 2 minutes.',
 			ctaLabel: 'Lock in'
 		},
 		critical: {
 			colorClass: 'text-error',
 			pulseClass: 'animate-pulse-soft',
-			label: 'Minutes left',
-			subline: 'Last chance. AI assisted Smart Fill finishes in 90 seconds.',
 			ctaLabel: 'Quick fill'
 		},
 		locked: {
 			colorClass: 'text-success',
 			pulseClass: '',
-			label: 'Locked',
-			subline: 'The tournament begins.',
 			ctaLabel: null
 		},
 		unknown: {
 			colorClass: 'text-base-content/60',
 			pulseClass: '',
-			label: 'Pools',
-			subline: 'Locks in soon.',
 			ctaLabel: null
 		}
 	};
@@ -144,7 +141,7 @@
 	<div class="bg-base-300/40 border-y border-primary noise">
 		<div class="max-w-[1200px] mx-auto mobile-padding py-10 sm:py-12 text-center">
 			<p class="text-xs sm:text-sm font-mono uppercase tracking-[0.18em] {config.colorClass} mb-3">
-				{config.label}
+				{copy.label}
 			</p>
 			<div
 				class="font-hero tabular-nums whitespace-nowrap {config.colorClass} {config.pulseClass}
@@ -169,7 +166,7 @@
 				{/if}
 			</div>
 			<p class="text-sm text-base-content/70 mt-4 max-w-2xl mx-auto leading-relaxed">
-				{config.subline}
+				{copy.subline}
 			</p>
 			{#if config.ctaLabel}
 				<a
@@ -188,7 +185,7 @@
 	<!-- 'card' variant — fits in a grid column next to other content -->
 	<div class="text-center">
 		<p class="text-xs sm:text-sm font-mono uppercase tracking-[0.18em] {config.colorClass} mb-3">
-			{config.label}
+			{copy.label}
 		</p>
 		<div
 			class="font-hero tabular-nums whitespace-nowrap {config.colorClass} {config.pulseClass}
@@ -213,7 +210,7 @@
 			{/if}
 		</div>
 		<p class="text-sm text-base-content/70 mt-4 leading-relaxed">
-			{config.subline}
+			{copy.subline}
 		</p>
 		{#if config.ctaLabel}
 			<a

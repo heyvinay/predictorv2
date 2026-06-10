@@ -252,7 +252,16 @@
 	}
 </script>
 
-<div class="stadium-card no-glow p-7">
+<!--
+	border-2 border-primary/60 + shadow-glow-gold = the "pop" treatment.
+	Stadium-card's default 1px base-300/50 border is replaced by a 2px
+	champagne-gold ring; shadow-card is replaced by the gold-glow halo
+	defined in tailwind.config.js. Both themes inherit correctly because
+	primary is theme-aware (champagne in premium-night, deeper gold in
+	hybrid). Locked cohort gets the same treatment — submissions are
+	closed but the card is still the primary surface on the page.
+-->
+<div class="stadium-card no-glow p-7 border-2 border-primary/60 shadow-glow-gold">
 	<p class="text-xs font-mono uppercase tracking-[0.18em] text-base-content/60 mb-3">
 		Welcome back, {firstName}
 	</p>
