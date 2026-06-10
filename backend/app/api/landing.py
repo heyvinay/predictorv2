@@ -80,44 +80,54 @@ async def get_landing_stats(session: DbSession) -> LandingStats:
         .where(User.name.is_not(None))
         .where(User.created_at >= one_hour_ago)
     )
-    # Submitted-entries count — must match the admin /admin/entries
-    # page's "Submitted" stat-card definition so the landing pot and
-    # the admin headline don't disagree.
-    #
-    # The admin page filters to "actively eligible" entries (see
-    # frontend/src/routes/admin/entries/+page.svelte:161):
-    #   • PHASE_1 status === SUBMITTED  (phase_2 is dormant for this
-    #     competition; counting any-phase SUBMITTED also inflated the
-    #     number by entries with phase_2 DRAFT rows that linger)
-    #   • NOT withdrawn  (withdrawn_at IS NULL)
-    #   • NOT disabled   (is_disabled = false)
-    #
-    # Withdrawn / disabled entries' phase_1 status is preserved when
-    # the lifecycle flag flips, so without these guards they leak in
-    # — that was the 89-vs-60 discrepancy this fix addresses.
-    #
-    # The admin /stats endpoint at admin.py:181-189 still uses the old
-    # broader query — known follow-up; same fix applies there.
-    submitted_entries = (
-        await session.scalar(
-            select(func.count(func.distinct(PredictionEntry.id)))
-            .join(
-                PredictionEntryPhase,
-                PredictionEntryPhase.entry_id == PredictionEntry.id,
-            )
-            .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
-            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
-            .where(PredictionEntry.withdrawn_at.is_(None))
-            .where(PredictionEntry.is_disabled.is_(False))
-        )
-    ) or 0
-    # Active competition's entry fee. None / inactive → 0.0; the
-    # frontend renders no pot when the value is zero.
+    # Active competition first — every downstream count is scoped to
+    # it. None / inactive → empty pot (frontend hides the column).
     active_comp = (
         await session.execute(
             select(Competition).where(Competition.is_active.is_(True)).limit(1)
         )
     ).scalar_one_or_none()
+
+    # Submitted-entries count — must match the admin /admin/entries
+    # page's "Submitted" stat-card definition so the landing pot and
+    # the admin headline don't disagree.
+    #
+    # The admin page filters to "actively eligible" entries in the
+    # active competition (see admin_list_entries scoping +
+    # frontend/src/routes/admin/entries/+page.svelte:161):
+    #   • competition_id == active competition  ← critical: without
+    #     this, entries from past / test competitions inflate the
+    #     count (that was the 89-vs-60 discrepancy beyond the
+    #     phase/withdrawn/disabled filters)
+    #   • PHASE_1 status === SUBMITTED  (phase_2 is dormant for this
+    #     competition; counting any-phase SUBMITTED also inflated by
+    #     entries with phase_2 rows that linger from creation)
+    #   • NOT withdrawn  (withdrawn_at IS NULL)
+    #   • NOT disabled   (is_disabled = false)
+    #
+    # Withdrawn / disabled entries' phase_1 status is preserved when
+    # the lifecycle flag flips, so without these guards they leak in.
+    #
+    # The admin /stats endpoint at admin.py:181-189 still uses the
+    # older broader query — known follow-up; same fix applies there.
+    if active_comp is None:
+        submitted_entries = 0
+    else:
+        submitted_entries = (
+            await session.scalar(
+                select(func.count(func.distinct(PredictionEntry.id)))
+                .join(
+                    PredictionEntryPhase,
+                    PredictionEntryPhase.entry_id == PredictionEntry.id,
+                )
+                .where(PredictionEntry.competition_id == active_comp.id)
+                .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
+                .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+                .where(PredictionEntry.withdrawn_at.is_(None))
+                .where(PredictionEntry.is_disabled.is_(False))
+            )
+        ) or 0
+
     entry_fee = float(active_comp.entry_fee) if active_comp else 0.0
     prize_pot = entry_fee * submitted_entries
     return LandingStats(
