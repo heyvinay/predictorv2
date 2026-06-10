@@ -18,6 +18,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -576,6 +577,50 @@ async def admin_list_entries(
             item.owner = AdminEntryOwner.model_validate(r.user)
         items.append(item)
     return AdminEntriesPage(items=items, total=total)
+
+
+class AdminEntriesStatsResponse(BaseModel):
+    """Full entry-state breakdown for the /admin/entries stat cards.
+
+    Added v2.160.5 to replace per-page-derived stats on the frontend
+    (which only counted over the first 100 entries loaded for the
+    table). All counts are GLOBAL to the active competition — the
+    table's filter / paging state does not affect them.
+    """
+
+    total: int
+    submitted: int
+    drafts: int
+    paid: int
+    disabled_or_withdrawn: int
+
+
+@admin_router.get("/entries/stats", response_model=AdminEntriesStatsResponse)
+async def admin_entries_stats(
+    session: DbSession,
+    _admin: AdminUser,
+) -> AdminEntriesStatsResponse:
+    """Global entry-state breakdown for the active competition.
+
+    Powers the four stat cards on /admin/entries (Total / Submitted /
+    Paid / Disabled-Withdrawn) so the figures match the truth of the
+    table rather than counting over the visible 100-row page. The
+    Submitted figure uses the same canonical helper as the landing
+    /api/landing/stats prize pot and the admin overview /admin/stats
+    prize pool — see ``count_eligible_submitted_entries`` in
+    services/entries.py.
+    """
+    competition = await _get_competition(session)
+    stats = await entries_service.admin_entries_stats(
+        session, competition=competition
+    )
+    return AdminEntriesStatsResponse(
+        total=stats.total,
+        submitted=stats.submitted,
+        drafts=stats.drafts,
+        paid=stats.paid,
+        disabled_or_withdrawn=stats.disabled_or_withdrawn,
+    )
 
 
 @admin_router.post(

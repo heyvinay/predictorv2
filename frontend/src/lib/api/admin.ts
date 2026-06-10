@@ -57,8 +57,26 @@ export interface SyncScoresResponse {
 	errors: string[];
 }
 
+/** v2.160.5 — drives the /admin/entries stat cards (Total / Submitted /
+ *  Paid / Disabled-Withdrawn). All counts are GLOBAL to the active
+ *  competition; the page's table filter/paging state does NOT affect
+ *  them. Replaces the per-page-derived counts that capped at 100. */
+export interface AdminEntriesStatsResponse {
+	total: number;
+	submitted: number;
+	drafts: number;
+	paid: number;
+	disabled_or_withdrawn: number;
+}
+
 export async function getAdminStats(): Promise<AdminStats> {
 	return api.get<AdminStats>('/admin/stats');
+}
+
+/** Fetch global entry-state breakdown for the active competition.
+ *  Used by /admin/entries stat cards. */
+export async function getAdminEntriesStats(): Promise<AdminEntriesStatsResponse> {
+	return api.get<AdminEntriesStatsResponse>('/admin/entries/stats');
 }
 
 export async function getCompetitions(): Promise<CompetitionAdminView[]> {

@@ -42,6 +42,7 @@ from app.schemas.admin import (
     UserCohort,
     UserDetailRead,
 )
+from app.services import entries as entries_service
 from app.services import posthog_read
 from app.services.audit import query_audit_events, record_audit_event
 from app.services.bonus import (
@@ -173,30 +174,40 @@ async def get_admin_stats(
     total_predictions = await session.scalar(select(func.count(MatchPrediction.id)))
     total_scores = await session.scalar(select(func.count(Score.id)))
 
-    # Entry counts (v2.160.0 Overview cards). Total = every PredictionEntry
-    # row. Submitted = DISTINCT entry id where ANY phase row is SUBMITTED
-    # (an entry can have one row per phase; we don't want to double-count
-    # in phase-scoped mode).
-    total_entries = await session.scalar(select(func.count(PredictionEntry.id)))
-    submitted_entries = (
-        await session.scalar(
-            select(func.count(func.distinct(PredictionEntry.id)))
-            .join(
-                PredictionEntryPhase,
-                PredictionEntryPhase.entry_id == PredictionEntry.id,
-            )
-            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
-        )
-    ) or 0
-
-    # Prize pool = active competition's entry_fee × submitted entries.
-    # No active competition → 0.0 (frontend renders as "—" via the
-    # zero check).
+    # Active competition first — both submitted_entries and prize_pool
+    # are scoped to it via the shared service helper.
     active_comp = (
         await session.execute(
             select(Competition).where(Competition.is_active.is_(True)).limit(1)
         )
     ).scalar_one_or_none()
+
+    # Total entries — scoped to active competition (was unscoped pre
+    # v2.160.5; that inflated the count when test/past competitions
+    # shared the DB).
+    total_entries = (
+        await session.scalar(
+            select(func.count(PredictionEntry.id)).where(
+                PredictionEntry.competition_id == active_comp.id
+            )
+        )
+        if active_comp is not None
+        else 0
+    ) or 0
+
+    # Submitted-entries count via the shared helper — same definition
+    # as landing /api/landing/stats and the admin Entries page's
+    # Submitted stat card. See ``count_eligible_submitted_entries`` in
+    # services/entries.py for the canonical rule. Replaces the older
+    # any-phase / any-comp query that double-counted via phase_2 rows.
+    submitted_entries = (
+        await entries_service.count_eligible_submitted_entries(
+            session, competition=active_comp
+        )
+        if active_comp is not None
+        else 0
+    )
+
     entry_fee = float(active_comp.entry_fee) if active_comp else 0.0
     prize_pool = entry_fee * submitted_entries
 

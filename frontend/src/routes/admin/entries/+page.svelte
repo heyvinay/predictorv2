@@ -5,8 +5,10 @@
 	import { page as pageStore } from '$app/stores';
 	import {
 		adminListEntries,
+		getAdminEntriesStats,
 		getPaidLocal,
 		type AdminEntriesPage,
+		type AdminEntriesStatsResponse,
 	} from '$lib/api/admin';
 	import EntryDetailSlideOver from '$lib/components/admin/EntryDetailSlideOver.svelte';
 	import { computeDisplayStatus, type Entry } from '$lib/types/entry';
@@ -41,6 +43,14 @@
 	}
 
 	let listing: AdminEntriesPage = { items: [], total: 0 };
+
+	// v2.160.5 — global entry-state breakdown for the four stat cards
+	// at the top of the page. GLOBAL means: not affected by the table's
+	// current filter/paging state. Previously the cards were derived
+	// from `listing.items` which is capped at 100, so they undercounted
+	// once the pool grew beyond a page.
+	let stats: AdminEntriesStatsResponse | null = null;
+
 	let search = '';
 	let statusFilter = '';
 	// Lifecycle filter is orthogonal to status — 'disabled' (entry.is_disabled)
@@ -72,16 +82,26 @@
 			} else if (lifecycleFilter === 'withdrawn') {
 				effectiveStatus = 'withdrawn'; // backend special-cases this
 			}
-			listing = await adminListEntries(
-				{
-					search: search || undefined,
-					status: effectiveStatus,
-					disabled: effectiveDisabled,
-					paid: paidFilter ? paidFilter === 'paid' : undefined,
-					modified_within: modifiedWithin || undefined,
-				},
-				{ limit: 100, offset: 0 }
-			);
+			// Fetch table and global stats in parallel — the stats query
+			// doesn't depend on filters (it's always globally scoped to
+			// the active competition), but refetching alongside means the
+			// numbers stay live when admin actions (paid toggle, withdraw,
+			// disable) mutate state from the slide-over.
+			const [listingRes, statsRes] = await Promise.all([
+				adminListEntries(
+					{
+						search: search || undefined,
+						status: effectiveStatus,
+						disabled: effectiveDisabled,
+						paid: paidFilter ? paidFilter === 'paid' : undefined,
+						modified_within: modifiedWithin || undefined,
+					},
+					{ limit: 100, offset: 0 }
+				),
+				getAdminEntriesStats(),
+			]);
+			listing = listingRes;
+			stats = statsRes;
 		} catch (err) {
 			refreshError = err instanceof Error ? err.message : 'Failed to load entries.';
 		}
@@ -155,28 +175,19 @@
 		tableEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
 
-	// Submitted = entries with phase_1 status === 'submitted' and not
-	// disabled / withdrawn. Was previously `!is_disabled` which
-	// conflated drafts + submitted + withdrawn into one bucket.
-	$: submitted = listing.items.filter(
-		(e) =>
-			!e.is_disabled &&
-			!e.withdrawn_at &&
-			computeDisplayStatus(e, 'phase_1') === 'submitted'
-	).length;
-	// Paid count uses the effectively-paid check so per-user payment
-	// mode is honoured (entries don't have their own paid flag set
-	// in that mode).
-	$: paid = listing.items.filter(isEffectivelyPaid).length;
-	// Disabled + withdrawn (excluded from prize calculation either way).
-	$: disabled = listing.items.filter((e) => e.is_disabled || !!e.withdrawn_at).length;
-	// Draft = not disabled, not withdrawn, phase_1 not submitted yet.
-	$: drafts = listing.items.filter(
-		(e) =>
-			!e.is_disabled &&
-			!e.withdrawn_at &&
-			computeDisplayStatus(e, 'phase_1') !== 'submitted'
-	).length;
+	// Stat-card values come from the server-side global breakdown
+	// (v2.160.5). Defaults to 0 until the first stats response lands.
+	// Refresh-on-action keeps these in sync with admin mutations.
+	//
+	// Previously these were derived from `listing.items.filter(...)`
+	// which capped at the 100-row page size — so they undercounted once
+	// the pool grew beyond a page (e.g. prod's 149-entry competition
+	// showed "Submitted: 60" when the real number was 89).
+	$: submitted = stats?.submitted ?? 0;
+	$: paid = stats?.paid ?? 0;
+	$: disabled = stats?.disabled_or_withdrawn ?? 0;
+	$: drafts = stats?.drafts ?? 0;
+	$: totalEntries = stats?.total ?? listing.total;
 </script>
 
 <div class="max-w-[1380px] mx-auto px-4 sm:px-6 py-6">
@@ -195,7 +206,10 @@
 	<div class="grid grid-cols-2 sm:grid-cols-4 border border-base-300/30 rounded-2xl overflow-hidden mb-4">
 		<button on:click={() => { setStatusFilter(''); setLifecycleFilter(''); }} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Total entries</div>
-			<div class="value">{listing.total}</div>
+			<!-- totalEntries comes from /admin/entries/stats (global to the
+			     active competition); falls back to listing.total before the
+			     first stats fetch lands. -->
+			<div class="value">{totalEntries}</div>
 		</button>
 		<button on:click={() => setStatusFilter('submitted')} class="kpi-card is-clickable text-left border-r border-b border-base-300/30 rounded-none">
 			<div class="label">Submitted</div>

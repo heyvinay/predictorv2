@@ -1127,3 +1127,223 @@ class TestEffectiveUpdatedAt:
             session, entries=[]
         )
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# Submitted-entries count helper — single source of truth for the
+# "actively eligible submitted entries" stat. Used by:
+#   • landing /api/landing/stats prize-pot
+#   • admin overview /admin/stats prize_pool
+#   • admin /admin/entries/stats Submitted stat card
+#
+# CLAUDE.md PHASES rule: every test here exercises the PHASE_1 filter
+# explicitly because forgetting it silently double-counts via dormant
+# phase_2 rows.
+# ---------------------------------------------------------------------------
+class TestCountEligibleSubmittedEntries:
+    async def test_zero_for_competition_with_no_entries(
+        self, session: AsyncSession, competition: Competition
+    ):
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 0
+
+    async def test_counts_phase_1_submitted(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        # Set phase_1 row to SUBMITTED
+        phase_row = next(p for p in entry.phases if p.phase == PredictionPhase.PHASE_1)
+        phase_row.status = EntryStatus.SUBMITTED
+        await session.commit()
+
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 1
+
+    async def test_excludes_withdrawn(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        phase_row = next(p for p in entry.phases if p.phase == PredictionPhase.PHASE_1)
+        phase_row.status = EntryStatus.SUBMITTED
+        entry.withdrawn_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        await session.commit()
+
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 0
+
+    async def test_excludes_disabled(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        phase_row = next(p for p in entry.phases if p.phase == PredictionPhase.PHASE_1)
+        phase_row.status = EntryStatus.SUBMITTED
+        entry.is_disabled = True
+        await session.commit()
+
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 0
+
+    async def test_does_not_double_count_via_phase_2_row(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """CLAUDE.md PHASES rule pinned: each entry has TWO phase rows
+        (phase_1 and phase_2 — phase_2 is dormant but exists). A query
+        that doesn't filter to PHASE_1 would join both rows and count
+        the same entry twice. This test fails if that rule slips."""
+        entry = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        # Set BOTH phase rows to SUBMITTED — worst case for double-counting.
+        for p in entry.phases:
+            p.status = EntryStatus.SUBMITTED
+        await session.commit()
+
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 1  # the entry counts ONCE despite two SUBMITTED rows
+
+    async def test_excludes_other_competition(
+        self, session: AsyncSession, user: User, competition: Competition
+    ):
+        """Entries in a different competition must not leak in. Caught
+        the 2.160.4 bug where the landing query summed across all
+        competitions in the same DB."""
+        other_comp = Competition(
+            name="Other competition",
+            external_id="OTHER",
+            is_active=False,
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        session.add(other_comp)
+        await session.commit()
+        await session.refresh(other_comp)
+
+        # Submitted entry in the OTHER competition.
+        other_entry = await entries_service.create_entry(
+            session, user=user, competition=other_comp
+        )
+        for p in other_entry.phases:
+            if p.phase == PredictionPhase.PHASE_1:
+                p.status = EntryStatus.SUBMITTED
+        await session.commit()
+
+        # Query against `competition` (the active one) — should return 0.
+        result = await entries_service.count_eligible_submitted_entries(
+            session, competition=competition
+        )
+        assert result == 0
+
+
+class TestAdminEntriesStats:
+    """`admin_entries_stats(session, competition)` returns the full
+    breakdown shown on the /admin/entries stat cards. All counts
+    scoped to the active competition; every phase-row join filters
+    PHASE_1 per the CLAUDE.md rule."""
+
+    async def test_zero_stats_for_empty_competition(
+        self, session: AsyncSession, competition: Competition
+    ):
+        stats = await entries_service.admin_entries_stats(
+            session, competition=competition
+        )
+        assert stats.total == 0
+        assert stats.submitted == 0
+        assert stats.drafts == 0
+        assert stats.paid == 0
+        assert stats.disabled_or_withdrawn == 0
+
+    async def test_breaks_down_correctly(
+        self,
+        session: AsyncSession,
+        user: User,
+        other_user: User,
+        competition: Competition,
+    ):
+        """Realistic mix: one submitted, one draft, one withdrawn, one
+        disabled. Total = 4; submitted = 1; drafts = 1;
+        disabled_or_withdrawn = 2."""
+        # Submitted entry
+        e1 = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        next(p for p in e1.phases if p.phase == PredictionPhase.PHASE_1).status = (
+            EntryStatus.SUBMITTED
+        )
+        # Draft entry (default state after create)
+        await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        # Withdrawn entry (its phase row could still be SUBMITTED — common
+        # in production — but withdrawn_at takes precedence)
+        e3 = await entries_service.create_entry(
+            session, user=other_user, competition=competition
+        )
+        next(p for p in e3.phases if p.phase == PredictionPhase.PHASE_1).status = (
+            EntryStatus.SUBMITTED
+        )
+        e3.withdrawn_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        # Disabled entry
+        e4 = await entries_service.create_entry(
+            session, user=other_user, competition=competition
+        )
+        next(p for p in e4.phases if p.phase == PredictionPhase.PHASE_1).status = (
+            EntryStatus.SUBMITTED
+        )
+        e4.is_disabled = True
+        await session.commit()
+
+        stats = await entries_service.admin_entries_stats(
+            session, competition=competition
+        )
+        assert stats.total == 4
+        assert stats.submitted == 1  # only e1
+        assert stats.drafts == 1  # only the default-state second entry
+        assert stats.disabled_or_withdrawn == 2  # e3 (withdrawn) + e4 (disabled)
+
+    async def test_paid_uses_effective_or_logic(
+        self,
+        session: AsyncSession,
+        user: User,
+        other_user: User,
+        competition: Competition,
+    ):
+        """Effective paid = entry.paid OR user.paid. Matches the admin
+        Entries page's `isEffectivelyPaid` helper."""
+        # e1 — entry.paid=True (owner unpaid)
+        e1 = await entries_service.create_entry(
+            session, user=user, competition=competition
+        )
+        next(p for p in e1.phases if p.phase == PredictionPhase.PHASE_1).status = (
+            EntryStatus.SUBMITTED
+        )
+        e1.paid = True
+        # e2 — user.paid=True, entry.paid=False (entry is submitted)
+        e2 = await entries_service.create_entry(
+            session, user=other_user, competition=competition
+        )
+        next(p for p in e2.phases if p.phase == PredictionPhase.PHASE_1).status = (
+            EntryStatus.SUBMITTED
+        )
+        other_user.paid = True
+        await session.commit()
+
+        stats = await entries_service.admin_entries_stats(
+            session, competition=competition
+        )
+        assert stats.paid == 2

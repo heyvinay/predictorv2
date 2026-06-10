@@ -555,6 +555,156 @@ async def effective_updated_at_for_entries(
     return result
 
 
+@dataclass
+class AdminEntriesStats:
+    """Full entry-state breakdown for the admin /admin/entries stat cards.
+
+    Each count is global to the given competition (NOT filtered by the
+    admin page's current table view). The page's stat cards become
+    drill-in shortcuts whose values stay stable as the table is
+    filtered — fixing the v2.160.x bug where the cards counted over a
+    paginated 100-row subset rather than the whole table.
+    """
+
+    total: int
+    submitted: int
+    drafts: int
+    paid: int
+    disabled_or_withdrawn: int
+
+
+async def count_eligible_submitted_entries(
+    session: AsyncSession,
+    *,
+    competition: Competition,
+) -> int:
+    """Canonical "actively eligible submitted entries" count for the
+    given competition. Single source of truth.
+
+    An entry counts when ALL of:
+      • belongs to ``competition``
+      • PHASE_1 phase row has status SUBMITTED  ← CLAUDE.md PHASES rule
+      • ``withdrawn_at`` is NULL
+      • ``is_disabled`` is False
+
+    Callers:
+      • ``backend/app/api/landing.py``       — prize_pot
+      • ``backend/app/api/admin.py`` /stats  — prize_pool
+      • ``admin_entries_stats`` below        — Submitted stat card
+
+    Co-locating the query here eliminates the drift class — historically
+    three call sites had independently-evolving versions of this filter
+    and disagreed on the result. See the test class for the failure
+    modes (phase_2 double-count, withdrawn/disabled leak, cross-comp).
+    """
+    return (
+        await session.scalar(
+            select(func.count(func.distinct(PredictionEntry.id)))
+            .join(
+                PredictionEntryPhase,
+                PredictionEntryPhase.entry_id == PredictionEntry.id,
+            )
+            .where(PredictionEntry.competition_id == competition.id)
+            .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
+            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+            .where(PredictionEntry.withdrawn_at.is_(None))
+            .where(PredictionEntry.is_disabled.is_(False))
+        )
+    ) or 0
+
+
+async def admin_entries_stats(
+    session: AsyncSession,
+    *,
+    competition: Competition,
+) -> AdminEntriesStats:
+    """Full entry-state breakdown for the /admin/entries page's stat
+    cards. All counts scoped to ``competition``; every phase-row join
+    filters PHASE_1 per the CLAUDE.md rule.
+
+    Definitions:
+      • total                 — all entries in this competition
+      • submitted             — actively eligible, PHASE_1 SUBMITTED
+                                (see ``count_eligible_submitted_entries``)
+      • drafts                — actively eligible, PHASE_1 DRAFT
+      • paid                  — submitted AND (entry.paid OR user.paid).
+                                Mirrors the frontend's
+                                ``isEffectivelyPaid`` helper in
+                                ``frontend/src/routes/admin/entries/+page.svelte``.
+      • disabled_or_withdrawn — ``is_disabled OR withdrawn_at IS NOT NULL``
+
+    Four cheap COUNT queries; sub-ms at competition scale. Could be one
+    query with SUM(CASE WHEN ...) for further optimization if profiling
+    flags it — not needed now.
+    """
+    total = (
+        await session.scalar(
+            select(func.count(PredictionEntry.id)).where(
+                PredictionEntry.competition_id == competition.id
+            )
+        )
+    ) or 0
+
+    submitted = await count_eligible_submitted_entries(
+        session, competition=competition
+    )
+
+    drafts = (
+        await session.scalar(
+            select(func.count(func.distinct(PredictionEntry.id)))
+            .join(
+                PredictionEntryPhase,
+                PredictionEntryPhase.entry_id == PredictionEntry.id,
+            )
+            .where(PredictionEntry.competition_id == competition.id)
+            .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
+            .where(PredictionEntryPhase.status == EntryStatus.DRAFT)
+            .where(PredictionEntry.withdrawn_at.is_(None))
+            .where(PredictionEntry.is_disabled.is_(False))
+        )
+    ) or 0
+
+    # Effective-paid: entry.paid OR owner-user.paid. Join the users
+    # table so we can OR across the two columns.
+    paid = (
+        await session.scalar(
+            select(func.count(func.distinct(PredictionEntry.id)))
+            .join(
+                PredictionEntryPhase,
+                PredictionEntryPhase.entry_id == PredictionEntry.id,
+            )
+            .join(User, User.id == PredictionEntry.user_id)
+            .where(PredictionEntry.competition_id == competition.id)
+            .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
+            .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
+            .where(PredictionEntry.withdrawn_at.is_(None))
+            .where(PredictionEntry.is_disabled.is_(False))
+            .where(or_(PredictionEntry.paid.is_(True), User.paid.is_(True)))
+        )
+    ) or 0
+
+    disabled_or_withdrawn = (
+        await session.scalar(
+            select(func.count(PredictionEntry.id))
+            .where(PredictionEntry.competition_id == competition.id)
+            .where(
+                or_(
+                    PredictionEntry.is_disabled.is_(True),
+                    PredictionEntry.withdrawn_at.is_not(None),
+                )
+            )
+        )
+    ) or 0
+
+    return AdminEntriesStats(
+        total=total,
+        submitted=submitted,
+        drafts=drafts,
+        paid=paid,
+        disabled_or_withdrawn=disabled_or_withdrawn,
+    )
+
+
 async def get_entry(
     session: AsyncSession,
     *,

@@ -23,9 +23,8 @@ from sqlalchemy import func, select
 from app.dependencies import DbSession
 from app.models._datetime import utc_now
 from app.models.competition import Competition
-from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
-from app.models.prediction import PredictionPhase
 from app.models.user import User
+from app.services.entries import count_eligible_submitted_entries
 
 
 router = APIRouter()
@@ -88,45 +87,16 @@ async def get_landing_stats(session: DbSession) -> LandingStats:
         )
     ).scalar_one_or_none()
 
-    # Submitted-entries count — must match the admin /admin/entries
-    # page's "Submitted" stat-card definition so the landing pot and
-    # the admin headline don't disagree.
-    #
-    # The admin page filters to "actively eligible" entries in the
-    # active competition (see admin_list_entries scoping +
-    # frontend/src/routes/admin/entries/+page.svelte:161):
-    #   • competition_id == active competition  ← critical: without
-    #     this, entries from past / test competitions inflate the
-    #     count (that was the 89-vs-60 discrepancy beyond the
-    #     phase/withdrawn/disabled filters)
-    #   • PHASE_1 status === SUBMITTED  (phase_2 is dormant for this
-    #     competition; counting any-phase SUBMITTED also inflated by
-    #     entries with phase_2 rows that linger from creation)
-    #   • NOT withdrawn  (withdrawn_at IS NULL)
-    #   • NOT disabled   (is_disabled = false)
-    #
-    # Withdrawn / disabled entries' phase_1 status is preserved when
-    # the lifecycle flag flips, so without these guards they leak in.
-    #
-    # The admin /stats endpoint at admin.py:181-189 still uses the
-    # older broader query — known follow-up; same fix applies there.
-    if active_comp is None:
-        submitted_entries = 0
-    else:
-        submitted_entries = (
-            await session.scalar(
-                select(func.count(func.distinct(PredictionEntry.id)))
-                .join(
-                    PredictionEntryPhase,
-                    PredictionEntryPhase.entry_id == PredictionEntry.id,
-                )
-                .where(PredictionEntry.competition_id == active_comp.id)
-                .where(PredictionEntryPhase.phase == PredictionPhase.PHASE_1)
-                .where(PredictionEntryPhase.status == EntryStatus.SUBMITTED)
-                .where(PredictionEntry.withdrawn_at.is_(None))
-                .where(PredictionEntry.is_disabled.is_(False))
-            )
-        ) or 0
+    # Submitted-entries count via the shared service helper. Single
+    # source of truth across landing pot, admin overview prize pool,
+    # and admin entries stat card — see
+    # ``count_eligible_submitted_entries`` for the canonical definition
+    # (PHASE_1 only, not withdrawn, not disabled, scoped to comp).
+    submitted_entries = (
+        await count_eligible_submitted_entries(session, competition=active_comp)
+        if active_comp is not None
+        else 0
+    )
 
     entry_fee = float(active_comp.entry_fee) if active_comp else 0.0
     prize_pot = entry_fee * submitted_entries
