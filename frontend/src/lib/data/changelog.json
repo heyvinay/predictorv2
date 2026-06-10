@@ -2039,6 +2039,13 @@
       "type": "feature",
       "summary": "Admin Entries page gets an 'Export CSV' button. Downloads every entry in the active competition (including withdrawn / disabled) with twelve columns: reference, entry name, user name and email, employer (Atlas/JMFA/Neither), Atlas/JMFA contact, paid-to, status, paid flag, prize eligibility, created-at, and last-modified. The last-modified value uses the rolled-up timestamp introduced in 2.160.1 so it matches what the live UI shows. Filename embeds today's date.",
       "commit": "pending"
+    },
+    {
+      "version": "2.160.7",
+      "date": "2026-06-10",
+      "type": "internal",
+      "summary": "Internal: the 'last activity' rollup that powers the entries-list 'Updated' column and the CSV export's 'Last Modified' column now strictly filters to phase-1 contributions, in line with the elevated single-phase rule in CLAUDE.md. In practice the visible output is unchanged because phase-2 timestamps are pinned to entry creation and never won the max anyway — but the code path no longer depends on that happenstance. Regression test added to pin the rule.",
+      "commit": "pending"
     }
   ]
 }
