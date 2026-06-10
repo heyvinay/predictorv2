@@ -2053,6 +2053,13 @@
       "type": "fix",
       "summary": "Knockout-bracket picks for the quarter-finals and semi-finals now score correctly — a naming mismatch meant those rounds were silently worth 0 points. Knockout points also unlock as soon as a team is officially seeded into a round, instead of waiting for that match to finish. Submission-recap emails include those rounds again. Leaderboard loads are much faster under load, only submitted entries count toward the rarity-bonus maths, and leaderboard cache controls are admin-only.",
       "commit": "pending"
+    },
+    {
+      "version": "2.162.0",
+      "date": "2026-06-10",
+      "type": "feature",
+      "summary": "Admins can now enter match results and seed knockout teams directly from the Score Sync page — an escape hatch for when the live-score feed fails or lags. Manually verified scores are protected from being overwritten by the automatic sync, every manual edit is recorded in the audit log, and a confirmation step guards against accidental saves.",
+      "commit": "pending"
     }
   ]
 }
