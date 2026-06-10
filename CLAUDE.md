@@ -162,6 +162,59 @@ knockout result so `Score.outcome` can resolve a winner. Audit events
 fire on every edit. Spec lives at
 `docs/superpowers/specs/2026-06-10-admin-score-editor-design.md`.
 
+**V4 Results + Match Detail + admin completeness (v2.163.0).** Shipped
+2026-06-10. Three things landed:
+
+1. **V4 `/results` redesign** — round-tabbed scoreboard with entry
+   switcher (floating popover, submitted-only), points summary
+   (Group / Knockout / Total), per-round group + KO fixtures tables
+   with lineup-banked KO points, Summary tab + Winner tab.
+2. **`/results/[fixture_id]` Match Detail** — prev/next nav (click,
+   ←/→, swipe), hero + scoreline spread + rarity explainer + pool
+   list (user's row(s) pinned to top).
+3. **Admin completeness check** at `/admin/entries` — service
+   `app.services.completeness` + `GET /api/admin/entries/
+   completeness-check[.csv]`. Reports per-eligible-entry missing
+   counts across match / bracket / bonus. Bracket expected = 63
+   (32+16+8+4+2+1 — NO group_winners rows in real DB); bonus counts
+   only current question ids (legacy 10→4 trim left stale rows).
+
+**V4 Results is gated by `V4_RESULTS_ENABLED` const** at
+`frontend/src/routes/results/+page.svelte:67`. Default **FALSE**
+post-deploy — the page renders the pre-tournament stub for everyone
+until the flag flips. To enable: edit one line, commit, redeploy.
+Keep the flag in the codebase as a 2-week safety net even after
+enabling — flipping it back is a 60-second rollback.
+
+**Backend additions are LIVE (additive, dormant until V4 enabled):**
+- `MatchPredictionRead.points: PickPointsOut | None` populated for
+  FINISHED fixtures via a single bulk-agreement query.
+- `CommunityPrediction.rank: int | None` from the cached leaderboard.
+- `GET /api/leaderboard/scoring-rules` exposed for client templating.
+- `GET /api/admin/entries/completeness-check[.csv]` (admin-only).
+
+**V4 types live OUTSIDE the barrel** at `frontend/src/lib/types/
+results.ts` and `frontend/src/lib/types/admin.ts` because the user's
+Mission Control WIP holds `types/index.ts` open. Always import V4
+types directly (`from '$lib/types/results'`), never from `$types`.
+
+**4 execution deviations from the spec (documented in commit
+`6431e4d` + plan headers):**
+1. Bracket expected = 63, not 87 (no "group" stage TeamPrediction rows
+   in the real DB).
+2. `BonusPrediction` has NO phase column; count CURRENT question ids
+   only.
+3. `str(MatchStatus.FINISHED)` is `"MatchStatus.FINISHED"` on Py3.11
+   — unwrap `.value` before string compares (regression-tested).
+4. CSV downloads need a Bearer token (no cookie auth) — use the blob
+   pattern from `downloadAdminEntriesCsv`, never `window.location.href`.
+
+**Group fixtures have `match_number = NULL` in prod** (verified
+2026-06-10). The V4 round-bucketing util `deriveGroupMatchdays`
+infers matchdays from per-team kickoff order; `match_number` path
+remains primary when present so a future backfill works without code
+change.
+
 **Latent layout bug (filed, low priority).** The root `+layout.svelte`
 throws a recurring `TypeError: Cannot read properties of null (reading
 'pathname')` on every page load (since v2.156.0, commit `9301bbd`).
