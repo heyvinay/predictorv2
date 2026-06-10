@@ -44,6 +44,9 @@ export interface FixtureScore {
 	home_penalties: number | null;
 	away_penalties: number | null;
 	outcome: string; // '1', 'X', '2'
+	// Admin-verified scores are locked against the API sync (manual
+	// corrections survive the scheduler). Drives the /admin/sync lock badge.
+	verified?: boolean;
 }
 
 export interface Fixture {

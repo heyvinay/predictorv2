@@ -54,6 +54,9 @@ export interface UserAdminView {
 export interface SyncScoresResponse {
 	synced: number;
 	updated: number;
+	/** Rows left untouched because an admin verified the score via the
+	 *  /admin/sync editor (manual scores are locked against the API). */
+	skipped_verified: number;
 	errors: string[];
 }
 

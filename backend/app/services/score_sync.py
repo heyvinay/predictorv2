@@ -27,6 +27,7 @@ from app.services.leaderboard import invalidate_cache
 class ScoreSyncResult:
     synced: int = 0       # newly created Score rows
     updated: int = 0      # existing Score rows updated
+    skipped_verified: int = 0  # rows left alone because an admin verified them
     errors: list[str] = field(default_factory=list)
     skipped_reason: str | None = None  # set if sync was a no-op (e.g. no live matches)
 
@@ -135,12 +136,21 @@ async def _apply_external_score(
     if fixture is None:
         return
 
+    score_q = await session.execute(select(Score).where(Score.fixture_id == fixture.id))
+    score = score_q.scalar_one_or_none()
+
+    # Admin-verified scores are locked against the API: a manual
+    # correction entered via the /admin/sync editor must survive the
+    # 60-second scheduler re-applying a wrong upstream value. The fixture
+    # status/minute are left alone too — the admin save already set
+    # FINISHED. Un-verify the score to hand control back to the API.
+    if score is not None and score.verified:
+        result.skipped_verified += 1
+        return
+
     fixture.status = ext.status
     fixture.minute = ext.minute
     fixture.updated_at = utc_now()
-
-    score_q = await session.execute(select(Score).where(Score.fixture_id == fixture.id))
-    score = score_q.scalar_one_or_none()
 
     if score is None:
         session.add(
