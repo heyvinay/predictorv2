@@ -187,6 +187,20 @@ describe('deriveStage', () => {
 		expect(deriveStage(fx)).toBe('group');
 	});
 
+	it('treats slot:-format ingest placeholders as not-real (prod format)', () => {
+		// The production DB stores "slot:round_of_32:537430:home" until
+		// Football-Data seeds real teams — regression: these read as real
+		// teams and flipped the stage to knockout before kickoff.
+		const fx = [
+			mkFixture({
+				stage: 'round_of_32',
+				home_team: 'slot:round_of_32:537430:home',
+				away_team: 'slot:round_of_32:537430:away'
+			})
+		];
+		expect(deriveStage(fx)).toBe('group');
+	});
+
 	it('flips to knockout once a real team is seeded', () => {
 		const fx = [mkFixture({ stage: 'round_of_32', home_team: 'Brazil', away_team: '' })];
 		expect(deriveStage(fx)).toBe('knockout');
