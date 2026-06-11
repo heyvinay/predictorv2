@@ -2116,6 +2116,13 @@
       "type": "feature",
       "summary": "Transparency: a new All entries CSV download on the standings page gives everyone the same sheet of every entry's score predictions, bracket picks and bonus answers once results go live.",
       "commit": "pending"
+    },
+    {
+      "version": "2.170.1",
+      "date": "2026-06-11",
+      "type": "fix",
+      "summary": "Live scores: full-time results now arrive automatically the moment a match ends, so the leaderboard updates without waiting for an admin.",
+      "commit": "pending"
     }
   ]
 }
