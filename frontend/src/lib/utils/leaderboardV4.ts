@@ -279,6 +279,46 @@ export function rowDisplayName(row: NamedEntryRow, multiOwners: Set<string>): st
 		: row.user_name;
 }
 
+// ── Column sorting (v2.168.0) ────────────────────────────────────────────
+
+export type LbSortKey = 'entry' | 'group' | 'knockout' | 'total';
+
+export interface LbSort {
+	key: LbSortKey;
+	dir: 'asc' | 'desc';
+}
+
+/** Default: highest total first, alphabetical on ties. */
+export const DEFAULT_LB_SORT: LbSort = { key: 'total', dir: 'desc' };
+
+function sortValue(row: LbEntryV4, key: LbSortKey): number {
+	if (key === 'group') return groupPtsOf(row, row.bonus_group_points ?? 0);
+	if (key === 'knockout') return koPtsOf(row, row.bonus_knockout_points ?? 0);
+	return row.total_points;
+}
+
+/** Sort rows for the standings table. Numeric columns tie-break on the
+ *  display name (A→Z regardless of direction); the Entry column sorts on
+ *  the same rowDisplayName the cell renders. Server `position` values
+ *  ride along untouched — global ranks must survive any sort order. */
+export function sortRows(
+	rows: LbEntryV4[],
+	sort: LbSort,
+	multiOwners: Set<string>
+): LbEntryV4[] {
+	const flip = sort.dir === 'desc' ? -1 : 1;
+	const byName = (a: LbEntryV4, b: LbEntryV4) =>
+		rowDisplayName(a, multiOwners).localeCompare(rowDisplayName(b, multiOwners), undefined, {
+			sensitivity: 'base'
+		});
+	return [...rows].sort((a, b) => {
+		if (sort.key === 'entry') return flip * byName(a, b);
+		const diff = sortValue(a, sort.key) - sortValue(b, sort.key);
+		if (diff !== 0) return flip * diff;
+		return byName(a, b); // ties always read A→Z
+	});
+}
+
 /** Case- and accent-insensitive needle match (è≈e, ü≈u …). */
 function foldText(s: string): string {
 	return s

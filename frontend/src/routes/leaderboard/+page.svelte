@@ -80,25 +80,33 @@
 	async function load() {
 		loadError = false;
 		try {
-			const [b, , r, m, traj] = await Promise.all([
+			// Critical path only — the standings table renders the moment
+			// these three land. The snapshots call (every entry × 14 days)
+			// is by far the heaviest request and used to gate first paint
+			// behind itself; it now hydrates the sparklines in the
+			// background, as does the bonus meta (insights-only).
+			const [b, , r] = await Promise.all([
 				getLeaderboardV4(),
 				fetchAllFixtures(),
-				getScoringRules(),
-				getBonusMeta().catch(() => null),
-				getAllTrajectories(14).catch(() => null)
+				getScoringRules()
 			]);
 			board = b;
 			rules = r;
-			bonusMeta = m;
-			if (traj) {
-				trajectoriesByEntry = new Map(
-					traj.entries.map((t) => [t.entry_id, t.points.map((p) => p.total_points)])
-				);
-			}
 		} catch {
 			loadError = true;
 		}
 		loading = false;
+
+		void getBonusMeta()
+			.then((m) => (bonusMeta = m))
+			.catch(() => undefined);
+		void getAllTrajectories(14)
+			.then((traj) => {
+				trajectoriesByEntry = new Map(
+					traj.entries.map((t) => [t.entry_id, t.points.map((p) => p.total_points)])
+				);
+			})
+			.catch(() => undefined);
 	}
 
 	onMount(() => pageTitle.set('Standings'));
