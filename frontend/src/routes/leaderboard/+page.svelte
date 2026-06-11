@@ -222,7 +222,7 @@
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}
-			<RaceChart {rows} userId={$user?.id} />
+			<RaceChart {rows} userId={$user?.id} fixtures={$fixtures} />
 		{:else if view === 'insights'}
 			<InsightsGrid {rows} {rules} userId={$user?.id} fixtures={$fixtures} {stage} />
 		{/if}
