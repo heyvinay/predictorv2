@@ -254,18 +254,26 @@ export function remainingMatchPoints(fixtures: Fixture[], rules: ScoringRules): 
 
 // ── Row chrome helpers ───────────────────────────────────────────────────
 
+/** Minimal shape shared by leaderboard rows and race trajectories. */
+export interface NamedEntryRow {
+	user_id: string;
+	user_name: string;
+	entry_name: string;
+}
+
 /** Users holding more than one entry on the board — drives whether the
  *  entry name is appended to the owner's name in row labels. Computed
  *  from the FULL row set (pool filtering must not change naming). */
-export function multiEntryUserIds(rows: LbEntryV4[]): Set<string> {
+export function multiEntryUserIds(rows: NamedEntryRow[]): Set<string> {
 	const counts = new Map<string, number>();
 	for (const r of rows) counts.set(r.user_id, (counts.get(r.user_id) ?? 0) + 1);
 	return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id));
 }
 
-/** Standings row label: "Person — Entry name" when the person holds
- *  several entries, otherwise just the person's name. */
-export function rowDisplayName(row: LbEntryV4, multiOwners: Set<string>): string {
+/** THE display-name rule, used by every leaderboard surface (standings,
+ *  insights cards, race chart, drawer): "Person — Entry name" when the
+ *  person holds several entries, otherwise just the person's name. */
+export function rowDisplayName(row: NamedEntryRow, multiOwners: Set<string>): string {
 	return multiOwners.has(row.user_id)
 		? `${row.user_name} — ${row.entry_name}`
 		: row.user_name;

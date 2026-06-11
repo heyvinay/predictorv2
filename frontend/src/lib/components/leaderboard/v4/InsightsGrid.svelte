@@ -12,7 +12,13 @@
 	import type { Fixture } from '$types';
 	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
-	import { ceilingOf, dnaOf, remainingMatchPoints } from '$lib/utils/leaderboardV4';
+	import {
+		ceilingOf,
+		dnaOf,
+		multiEntryUserIds,
+		remainingMatchPoints,
+		rowDisplayName
+	} from '$lib/utils/leaderboardV4';
 	import { fifaPoints } from '$lib/utils/smartFill';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
@@ -29,6 +35,8 @@
 	const INSIGHTS_EXTENDED = false;
 
 	$: isOwn = (r: LbEntryV4) => r.user_id === userId;
+	// Same display-name rule as the standings table — consistency matters.
+	$: multiOwners = multiEntryUserIds(rows);
 	$: leaderTotal = rows.length ? Math.max(...rows.map((r) => r.total_points)) : 1;
 
 	// ── 1 · Points DNA: top 8 + own entries ──
@@ -89,11 +97,11 @@
 			const own = proj.filter((x) => isOwn(x.r)).sort((a, b) => b.p - a.p)[0];
 			return {
 				team: c.team,
-				topName: top.r.entry_name,
+				topName: rowDisplayName(top.r, multiOwners),
 				topIsOwn: isOwn(top.r),
 				topPts: top.p,
 				newLeader: top.r.entry_id !== leaderId,
-				yourBest: own ? `${own.r.entry_name.slice(0, 14)} ${own.p}` : '—'
+				yourBest: own ? `${rowDisplayName(own.r, multiOwners).slice(0, 18)} ${own.p}` : '—'
 			};
 		});
 
@@ -228,7 +236,7 @@
 						>#{r.position}</span
 					>
 					<span class="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold">
-						<span class="max-w-[150px] truncate">{r.entry_name}</span>
+						<span class="max-w-[220px] truncate">{rowDisplayName(r, multiOwners)}</span>
 						{#if isOwn(r)}<YouTag />{/if}
 					</span>
 					<span class="block" style="width:{(r.total_points / leaderTotal) * 100}%">
@@ -327,7 +335,7 @@
 						>#{cr.r.position}</span
 					>
 					<span class="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold">
-						<span class="max-w-[150px] truncate">{cr.r.entry_name}</span>
+						<span class="max-w-[220px] truncate">{rowDisplayName(cr.r, multiOwners)}</span>
 						{#if isOwn(cr.r)}<YouTag />{/if}
 					</span>
 					<span class="flex h-2.5 overflow-hidden rounded-full bg-base-300/40">
@@ -390,7 +398,7 @@
 				<div class="{MINI_ROW} {isOwn(c.r) ? YOURS_ROW : ''}">
 					<span class="font-display text-[11px] font-extrabold text-base-content/55">{i + 1}</span>
 					<span class="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs font-semibold">
-						<span class="truncate">{c.r.entry_name}</span>
+						<span class="truncate">{rowDisplayName(c.r, multiOwners)}</span>
 						{#if isOwn(c.r)}<YouTag />{/if}
 					</span>
 					<span class="h-[7px] w-[90px] overflow-hidden rounded-full bg-base-300/40">
@@ -421,7 +429,7 @@
 				<div class="{MINI_ROW} {isOwn(s) ? YOURS_ROW : ''}">
 					<span class="font-display text-[11px] font-extrabold text-base-content/55">{i + 1}</span>
 					<span class="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs font-semibold">
-						<span class="truncate">{s.entry_name}</span>
+						<span class="truncate">{rowDisplayName(s, multiOwners)}</span>
 						{#if isOwn(s)}<YouTag />{/if}
 					</span>
 					<span class="inline-flex gap-[3px]">
@@ -455,7 +463,7 @@
 					{#each climbing as e (e.entry_id)}
 						<div class="grid grid-cols-[1fr_40px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(e) ? YOURS_ROW : ''}">
 							<span class="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs font-semibold">
-								<span class="truncate">{e.entry_name}</span>
+								<span class="truncate">{rowDisplayName(e, multiOwners)}</span>
 								{#if isOwn(e)}<YouTag />{/if}
 							</span>
 							<b class="text-right font-display text-[13px] font-extrabold text-success"
@@ -471,7 +479,7 @@
 					{#each sliding as e (e.entry_id)}
 						<div class="grid grid-cols-[1fr_40px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(e) ? YOURS_ROW : ''}">
 							<span class="flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs font-semibold">
-								<span class="truncate">{e.entry_name}</span>
+								<span class="truncate">{rowDisplayName(e, multiOwners)}</span>
 								{#if isOwn(e)}<YouTag />{/if}
 							</span>
 							<b class="text-right font-display text-[13px] font-extrabold text-error"
