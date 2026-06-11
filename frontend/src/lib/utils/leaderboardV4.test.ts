@@ -22,6 +22,8 @@ import {
 	rowDisplayName,
 	searchRows,
 	seededByStage,
+	sortRows,
+	DEFAULT_LB_SORT,
 	storyLine
 } from './leaderboardV4';
 
@@ -455,5 +457,70 @@ describe('bestOwnSummary', () => {
 		expect(bestOwnSummary(rows, 'me')).toEqual({ bestRank: 3, ptsOffLead: 26 });
 		expect(bestOwnSummary(rows, 'nobody')).toBeNull();
 		expect(bestOwnSummary(rows, null)).toBeNull();
+	});
+});
+
+describe('sortRows (v2.168.0)', () => {
+	const none = new Set<string>();
+	const rows = [
+		mkRow({
+			entry_id: 'a',
+			user_id: 'ua',
+			user_name: 'Zara',
+			total_points: 50,
+			breakdown: mkBreakdown({ match_outcome_points: 30, quarter_final_points: 20 })
+		}),
+		mkRow({
+			entry_id: 'b',
+			user_id: 'ub',
+			user_name: 'Émile',
+			total_points: 50,
+			breakdown: mkBreakdown({ match_outcome_points: 10, quarter_final_points: 40 })
+		}),
+		mkRow({
+			entry_id: 'c',
+			user_id: 'uc',
+			user_name: 'adam',
+			total_points: 80,
+			breakdown: mkBreakdown({ match_outcome_points: 80 })
+		})
+	];
+
+	it('default sort: total desc, ties alphabetical A→Z', () => {
+		const out = sortRows(rows, DEFAULT_LB_SORT, none);
+		// c (80) first; a/b tie at 50 → Émile before Zara (accent-insensitive).
+		expect(out.map((r) => r.entry_id)).toEqual(['c', 'b', 'a']);
+	});
+
+	it('entry column sorts by display name, case/accent-insensitive', () => {
+		const asc = sortRows(rows, { key: 'entry', dir: 'asc' }, none);
+		expect(asc.map((r) => r.user_name)).toEqual(['adam', 'Émile', 'Zara']);
+		const desc = sortRows(rows, { key: 'entry', dir: 'desc' }, none);
+		expect(desc.map((r) => r.user_name)).toEqual(['Zara', 'Émile', 'adam']);
+	});
+
+	it('group and knockout columns sort by the rendered cell values', () => {
+		const group = sortRows(rows, { key: 'group', dir: 'desc' }, none);
+		expect(group.map((r) => r.entry_id)).toEqual(['c', 'a', 'b']); // 80/30/10
+		const ko = sortRows(rows, { key: 'knockout', dir: 'desc' }, none);
+		expect(ko.map((r) => r.entry_id)).toEqual(['b', 'a', 'c']); // 40/20/0
+	});
+
+	it('uses the multi-owner display name for the entry sort', () => {
+		const pair = [
+			mkRow({ entry_id: 'x1', user_id: 'u9', user_name: 'Bob', entry_name: 'Zulu' }),
+			mkRow({ entry_id: 'x2', user_id: 'u9', user_name: 'Bob', entry_name: 'Alpha' })
+		];
+		const multi = multiEntryUserIds(pair);
+		const out = sortRows(pair, { key: 'entry', dir: 'asc' }, multi);
+		// "Bob — Alpha" before "Bob — Zulu"
+		expect(out.map((r) => r.entry_id)).toEqual(['x2', 'x1']);
+	});
+
+	it('does not mutate the input and keeps server positions intact', () => {
+		const input = [...rows];
+		const out = sortRows(rows, { key: 'entry', dir: 'asc' }, none);
+		expect(rows).toEqual(input);
+		expect(out.every((r, i) => r.position === rows.find((x) => x.entry_id === r.entry_id)?.position)).toBe(true);
 	});
 });
