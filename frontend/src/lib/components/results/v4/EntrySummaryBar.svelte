@@ -58,7 +58,7 @@
 			<span class="truncate text-base-content/55"
 				>{userName} — {active?.display_name ?? ''}</span
 			>
-			<span class="flex-none whitespace-nowrap text-primary">· switch entry ▾</span>
+			<span class="flex-none whitespace-nowrap text-primary">· switch ▾</span>
 		</button>
 	{:else}
 		<span class="max-w-[260px] truncate text-[10.5px] font-semibold text-base-content/55"
