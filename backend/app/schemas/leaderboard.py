@@ -184,6 +184,21 @@ class LeaderboardEntry(BaseModel):
     exact_scores: int = 0
     movement: int = 0  # Position change since last update
 
+    # ── V4 leaderboard fields (v2.164.0) — all additive with defaults ──
+    # Pool pills: the owner's employer ("atlas" | "jmfa" | "neither").
+    # None when the user hasn't completed onboarding.
+    employer: str | None = None
+    # Champion / finalist picks (PHASE_1 TeamPrediction rows; team names
+    # as stored). Alive = not provably eliminated yet.
+    champion_pick: str | None = None
+    champion_alive: bool = True
+    finalist_picks: list[str] = []
+    finalists_alive: int = 0
+    # Movement vs yesterday's LeaderboardSnapshot (positive = climbed).
+    # None until at least one prior-day snapshot exists. Distinct from
+    # `movement`, which compares against the previous 30s cache rebuild.
+    daily_movement: int | None = None
+
 
 class LeaderboardResponse(BaseModel):
     """Full leaderboard response."""

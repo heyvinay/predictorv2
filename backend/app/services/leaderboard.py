@@ -27,7 +27,10 @@ from sqlmodel import select
 
 from app.models._datetime import utc_now
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
-from app.models.prediction import PredictionPhase
+from app.models.fixture import Fixture, MatchStatus
+from app.models.leaderboard_snapshot import LeaderboardSnapshot
+from app.models.prediction import PredictionPhase, TeamPrediction
+from app.models.score import Score
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
 from app.services.scoring import (
     calculate_entry_points,
@@ -159,6 +162,108 @@ async def calculate_leaderboard(
         return await _rebuild_leaderboard(session, phase, cache_key, now)
 
 
+async def _load_team_picks(
+    session: AsyncSession, entry_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, dict[str, list[str]]]:
+    """Champion ("winner") and finalist ("final") picks per entry.
+
+    PHASE_1 ONLY — every entry carries a dormant phase_2 row set; joining
+    without the phase filter double-counts (★ CLAUDE.md invariant).
+
+    Returns {entry_id: {"winner": [team], "final": [team, team]}}.
+    """
+    if not entry_ids:
+        return {}
+    result = await session.execute(
+        select(TeamPrediction.entry_id, TeamPrediction.stage, TeamPrediction.team)
+        .where(TeamPrediction.entry_id.in_(entry_ids))
+        .where(TeamPrediction.phase == PredictionPhase.PHASE_1)
+        .where(TeamPrediction.stage.in_(["winner", "final"]))
+    )
+    picks: dict[uuid.UUID, dict[str, list[str]]] = {}
+    for entry_id, stage, team in result.all():
+        picks.setdefault(entry_id, {"winner": [], "final": []})[stage].append(team)
+    return picks
+
+
+async def get_eliminated_teams(session: AsyncSession) -> set[str]:
+    """Teams provably out of the tournament. Conservative: alive until
+    elimination is certain.
+
+    Two elimination paths:
+    1. Lost a FINISHED knockout match (`Score.outcome` resolves the winner
+       after ET/pens — the level-knockout guard forbids drawn KO scores).
+    2. Failed to qualify from the group: only once EVERY round_of_32
+       fixture is fully seeded with real teams (each lineup name must be a
+       team we saw in a group fixture — Football-Data placeholders like
+       "Winner of Match 32" don't qualify, which keeps a half-seeded round
+       from wrongly eliminating qualified teams).
+    """
+    result = await session.execute(
+        select(Fixture, Score).outerjoin(Score, Fixture.id == Score.fixture_id)
+    )
+    rows = result.all()
+
+    group_teams: set[str] = set()
+    ko_lineup_teams: set[str] = set()
+    eliminated: set[str] = set()
+    r32_fixtures: list[Fixture] = []
+
+    for fixture, score in rows:
+        teams = [t for t in (fixture.home_team, fixture.away_team) if t]
+        if fixture.stage == "group":
+            group_teams.update(teams)
+            continue
+
+        ko_lineup_teams.update(teams)
+        if fixture.stage == "round_of_32":
+            r32_fixtures.append(fixture)
+
+        # Path 1: loser of a finished knockout match is out.
+        if fixture.status == MatchStatus.FINISHED and score:
+            if score.outcome == "1" and fixture.away_team:
+                eliminated.add(fixture.away_team)
+            elif score.outcome == "2" and fixture.home_team:
+                eliminated.add(fixture.home_team)
+
+    # Path 2: group-stage non-qualifiers, once the R32 lineup is real.
+    r32_fully_seeded = bool(r32_fixtures) and all(
+        f.home_team
+        and f.away_team
+        and f.home_team in group_teams
+        and f.away_team in group_teams
+        for f in r32_fixtures
+    )
+    if r32_fully_seeded:
+        eliminated.update(group_teams - ko_lineup_teams)
+
+    return eliminated
+
+
+async def _load_yesterday_positions(
+    session: AsyncSession,
+) -> dict[uuid.UUID, int]:
+    """Most recent pre-today snapshot position per entry (one query).
+
+    Drives `daily_movement`. Entries with no prior-day snapshot are absent
+    from the result (→ daily_movement stays None).
+    """
+    today = utc_now().date()
+    result = await session.execute(
+        select(
+            LeaderboardSnapshot.entry_id,
+            LeaderboardSnapshot.position,
+            LeaderboardSnapshot.captured_date,
+        ).where(LeaderboardSnapshot.captured_date < today)
+    )
+    latest: dict[uuid.UUID, tuple] = {}
+    for entry_id, position, captured_date in result.all():
+        prev = latest.get(entry_id)
+        if prev is None or captured_date > prev[1]:
+            latest[entry_id] = (position, captured_date)
+    return {entry_id: pos for entry_id, (pos, _d) in latest.items()}
+
+
 async def _rebuild_leaderboard(
     session: AsyncSession,
     phase: PhaseFilter,
@@ -182,6 +287,11 @@ async def _rebuild_leaderboard(
     outcome_counts_by_fixture = await get_all_outcome_counts(session)
     actual_advancement = await get_actual_advancement(session)
 
+    # V4 row inputs — each one bulk query per rebuild (v2.164.0).
+    team_picks = await _load_team_picks(session, [e.id for e in eligible])
+    eliminated_teams = await get_eliminated_teams(session)
+    yesterday_positions = await _load_yesterday_positions(session)
+
     entries: list[LeaderboardEntry] = []
     for entry in eligible:
         breakdown = await calculate_entry_points(
@@ -191,6 +301,15 @@ async def _rebuild_leaderboard(
             actual_advancement=actual_advancement,
         )
         phase_points = _get_phase_points(breakdown, phase)
+
+        picks = team_picks.get(entry.id, {"winner": [], "final": []})
+        champion_pick = picks["winner"][0] if picks["winner"] else None
+        finalist_picks = picks["final"]
+        employer = (
+            entry.user.employer.value
+            if entry.user and entry.user.employer
+            else None
+        )
 
         entries.append(
             LeaderboardEntry(
@@ -214,6 +333,17 @@ async def _rebuild_leaderboard(
                 correct_outcomes=breakdown.correct_outcomes,
                 exact_scores=breakdown.exact_scores,
                 movement=0,  # Calculated after positioning
+                employer=employer,
+                champion_pick=champion_pick,
+                champion_alive=(
+                    champion_pick is not None
+                    and champion_pick not in eliminated_teams
+                ),
+                finalist_picks=finalist_picks,
+                finalists_alive=sum(
+                    1 for t in finalist_picks if t not in eliminated_teams
+                ),
+                daily_movement=None,  # Set after positioning
             )
         )
 
@@ -236,6 +366,10 @@ async def _rebuild_leaderboard(
         prev_pos = previous_positions.get(entry.entry_id)
         if prev_pos is not None:
             entry.movement = prev_pos - entry.position  # Positive = moved up
+
+        snap_pos = yesterday_positions.get(entry.entry_id)
+        if snap_pos is not None:
+            entry.daily_movement = snap_pos - entry.position  # Positive = climbed
 
     total_participants = len(entries)
 
