@@ -150,22 +150,15 @@
 {/if}
 
 {#if $isAuthenticated && lbOpen}
-	<div class="container mx-auto max-w-[1180px] mobile-padding py-6">
-		<!-- ── header ── -->
-		<div class="mb-4 flex flex-wrap items-end justify-between gap-4">
-			<div>
-				<div
-					class="mb-2 font-display text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary"
-				>
-					World Cup 2026
-				</div>
-				<h1 class="font-hero text-[44px] leading-none tracking-[0.03em]">Leaderboard</h1>
-				<p class="mt-2 text-[13px] text-base-content/70">
-					{board?.total_participants ?? rows.length} entries
-					{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
-					· predictions locked since kick-off
-				</p>
-			</div>
+	<div class="container mx-auto max-w-[1180px] mobile-padding pb-6 pt-3">
+		<!-- ── slim header: info line left, view pills right (the navbar
+		     already titles the page — no big heading) ── -->
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+			<p class="text-[13px] text-base-content/70">
+				{board?.total_participants ?? rows.length} entries
+				{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
+				· predictions locked since kick-off
+			</p>
 			<div class="flex flex-wrap gap-2">
 				{#each VIEWS as v}
 					<button
