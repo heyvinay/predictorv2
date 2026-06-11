@@ -289,7 +289,13 @@
 
 			<RoundTabs {rounds} selected={selectedRound} {liveRounds} onSelect={selectRound} />
 
-			<RoundExplainer roundId={selectedRound} {rules} finalDate={finalDateLabel} />
+			<!-- Group / KO round tables move the scoring explainer into a
+			     ℹ popover next to the Points header. Summary + Winner
+			     views still get the always-on banner here because they
+			     don't have a per-round Points column to attach to. -->
+			{#if selectedRound === 'summary' || selectedRound === 'winner'}
+				<RoundExplainer roundId={selectedRound} {rules} finalDate={finalDateLabel} />
+			{/if}
 
 			{#if selectedRound === 'summary'}
 				<SummaryView
@@ -316,6 +322,7 @@
 					fixtures={roundFixtures}
 					{roundPicks}
 					stagePoints={stagePts}
+					{rules}
 				/>
 				{#if progressing && nextId && progressing.inNext.length + progressing.notInNext.length > 0}
 					<ProgressingCard
@@ -326,7 +333,12 @@
 					/>
 				{/if}
 			{:else if activeRound}
-				<GroupRoundTable round={activeRound} fixtures={roundFixtures} {predictionsByFixture} />
+				<GroupRoundTable
+					round={activeRound}
+					fixtures={roundFixtures}
+					{predictionsByFixture}
+					{rules}
+				/>
 			{/if}
 		{/if}
 	</div>
