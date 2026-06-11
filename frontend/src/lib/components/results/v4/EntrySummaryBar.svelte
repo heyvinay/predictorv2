@@ -1,10 +1,12 @@
 <script lang="ts">
-	/** Compact points-summary pill that doubles as the entry switcher.
-	 *  The whole pill is the dropdown trigger for multi-entry users —
-	 *  no separate identity row, no full-width chrome. Single-entry
-	 *  users see the same pill but it's inert (no caret, no listener).
-	 *  Dropdown rows surface 'Person — Entry · rank · pts' per the
-	 *  app-wide naming rule. */
+	/** Compact entry-summary pill — top sub-row carries the person/entry
+	 *  identity (and the 'switch ▾' CTA for multi-entry users); bottom
+	 *  sub-row carries GROUP / KNOCKOUT / TOTAL. Whole pill is the
+	 *  dropdown trigger for multi-entry users.
+	 *
+	 *  The two sub-rows live inside one bordered card — putting the
+	 *  identity label inside the chrome (instead of floating above)
+	 *  means the mobile navbar can never clip it. */
 	import type { Entry } from '$lib/types/entry';
 	import type { EntryRankInfo } from '$lib/types/results';
 
@@ -30,6 +32,9 @@
 	$: multiEntry = entries.length > 1;
 	$: active = entries.find((e) => e.id === selectedId) ?? entries[0];
 	$: grandTotal = groupTotal + knockoutTotal + bonusGroup + bonusKnockout;
+	$: identityLabel = multiEntry
+		? `${userName} — ${active?.display_name ?? ''}`
+		: userName;
 
 	function pick(id: string) {
 		onSelect(id);
@@ -48,67 +53,60 @@
 
 <svelte:window on:click={handleWindowClick} on:keydown={handleKey} />
 
-<div bind:this={containerEl} class="relative inline-flex flex-col items-end gap-0.5">
-	{#if multiEntry}
-		<button
-			type="button"
-			class="inline-flex max-w-[300px] items-baseline gap-1.5 text-[10.5px] font-semibold transition-colors hover:text-primary"
-			on:click={() => (open = !open)}
-		>
-			<span class="truncate text-base-content/55"
-				>{userName} — {active?.display_name ?? ''}</span
-			>
-			<span class="flex-none whitespace-nowrap text-primary">· switch ▾</span>
-		</button>
-	{:else}
-		<span class="max-w-[260px] truncate text-[10.5px] font-semibold text-base-content/55"
-			>{userName}</span
-		>
-	{/if}
+<div bind:this={containerEl} class="relative inline-block">
 	<button
 		type="button"
 		aria-haspopup={multiEntry ? 'listbox' : undefined}
 		aria-expanded={multiEntry ? open : undefined}
 		aria-label={multiEntry ? 'Switch entry' : undefined}
 		disabled={!multiEntry}
-		class="flex items-center gap-1.5 rounded-btn border border-base-300/60 bg-base-200 px-2.5 py-1 transition-colors disabled:cursor-default {multiEntry
+		class="flex flex-col items-stretch overflow-hidden rounded-btn border border-base-300/60 bg-base-200 transition-colors disabled:cursor-default {multiEntry
 			? 'cursor-pointer hover:border-primary/40'
 			: ''}"
 		on:click={() => multiEntry && (open = !open)}
 	>
-		<div class="flex items-baseline gap-1.5 pr-2 sm:pr-3">
-			<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
-				>Group</span
+		<!-- Identity sub-row -->
+		<div
+			class="flex items-baseline gap-1.5 border-b border-base-300/40 bg-base-300/15 px-2.5 py-1 text-left"
+		>
+			<span class="truncate text-[10.5px] font-semibold text-base-content/70"
+				>{identityLabel}</span
 			>
-			<span class="font-display text-[13px] leading-none text-base-content">{groupTotal}</span>
-			{#if bonusGroup > 0}
-				<span class="text-[9px] font-bold leading-none text-base-content/55">+{bonusGroup}b</span>
-			{/if}
-		</div>
-		<div class="flex items-baseline gap-1.5 border-l border-base-300/40 px-2 sm:px-3">
-			<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
-				>Knockout</span
-			>
-			<span class="font-display text-[13px] leading-none text-base-content">{knockoutTotal}</span>
-			{#if bonusKnockout > 0}
-				<span class="text-[9px] font-bold leading-none text-base-content/55">+{bonusKnockout}b</span
+			{#if multiEntry}
+				<span class="ml-auto flex-none whitespace-nowrap text-[10.5px] font-semibold text-primary"
+					>switch ▾</span
 				>
 			{/if}
 		</div>
-		<div class="flex items-baseline gap-1.5 border-l border-base-300/40 pl-2 sm:pl-3">
-			<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
-				>Total</span
-			>
-			<span class="font-display text-[14px] leading-none text-primary">{grandTotal}</span>
+
+		<!-- Score sub-row -->
+		<div class="flex items-center gap-1.5 px-2.5 py-1">
+			<div class="flex items-baseline gap-1.5 pr-2 sm:pr-3">
+				<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
+					>Group</span
+				>
+				<span class="font-display text-[13px] leading-none text-base-content">{groupTotal}</span>
+				{#if bonusGroup > 0}
+					<span class="text-[9px] font-bold leading-none text-base-content/55">+{bonusGroup}b</span>
+				{/if}
+			</div>
+			<div class="flex items-baseline gap-1.5 border-l border-base-300/40 px-2 sm:px-3">
+				<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
+					>Knockout</span
+				>
+				<span class="font-display text-[13px] leading-none text-base-content">{knockoutTotal}</span>
+				{#if bonusKnockout > 0}
+					<span class="text-[9px] font-bold leading-none text-base-content/55">+{bonusKnockout}b</span
+					>
+				{/if}
+			</div>
+			<div class="flex items-baseline gap-1.5 border-l border-base-300/40 pl-2 sm:pl-3">
+				<span class="text-[9px] font-semibold uppercase tracking-[0.08em] text-base-content/55"
+					>Total</span
+				>
+				<span class="font-display text-[14px] leading-none text-primary">{grandTotal}</span>
+			</div>
 		</div>
-		{#if multiEntry}
-			<span
-				class="ml-1 border-l border-base-300/40 pl-1.5 text-[10px] text-base-content/55 transition-transform {open
-					? 'rotate-180'
-					: ''}"
-				aria-hidden="true">▾</span
-			>
-		{/if}
 	</button>
 
 	{#if open && multiEntry}
