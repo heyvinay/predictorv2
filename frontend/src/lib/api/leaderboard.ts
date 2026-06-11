@@ -10,6 +10,11 @@
 
 import { api } from './client';
 import type { LeaderboardResponse, PointBreakdown } from '$types';
+import type {
+	AllTrajectoriesResponse,
+	BonusPredictionRead,
+	LbResponseV4
+} from '$lib/types/leaderboard';
 import type { ScoringRules } from '$lib/types/results';
 
 export type PhaseFilter = 'phase_1' | 'phase_2' | null;
@@ -26,6 +31,28 @@ export async function getLeaderboard(phase?: PhaseFilter): Promise<LeaderboardRe
 
 export async function getEntryBreakdown(entryId: string): Promise<PointBreakdown> {
 	return api.get<PointBreakdown>(`/leaderboard/breakdown/${entryId}`);
+}
+
+// ---- V4 leaderboard (v2.164.0) ------------------------------------------
+
+/** Same endpoint as getLeaderboard, typed for the V4 row fields (employer
+ *  pool, champion/finalists alive, daily movement). The barrel's
+ *  LeaderboardEntry can't be extended (user WIP lockout), so V4 callers
+ *  use this wrapper. */
+export async function getLeaderboardV4(): Promise<LbResponseV4> {
+	return api.get<LbResponseV4>('/leaderboard/');
+}
+
+/** GET /api/leaderboard/snapshots — every eligible entry's rank path in
+ *  one response. Powers the Race bump chart. */
+export async function getAllTrajectories(days = 30): Promise<AllTrajectoriesResponse> {
+	return api.get<AllTrajectoriesResponse>(`/leaderboard/snapshots?days=${days}`);
+}
+
+/** Bonus reads with settled hit/points/category (v2.164.0 fields). The
+ *  legacy api/bonus.ts getBonusPredictions predates these fields. */
+export async function getEntryBonusReads(entryId: string): Promise<BonusPredictionRead[]> {
+	return api.get<BonusPredictionRead[]>(`/entries/${entryId}/predictions/bonus`);
 }
 
 // ---- Rank trajectory + climbers (replaces stubRankTrajectory / stubSteepestClimb) -----
