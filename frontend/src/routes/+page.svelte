@@ -111,8 +111,13 @@
 	(no auth coupling inside them) — the page composer owns the gate.
 -->
 {#if dashOpen}
-	<!-- Signed-in landing: the V4 Dashboard (v2.165.0). -->
+	<!-- Signed-in landing: the V4 Dashboard (v2.165.0). The Touchline
+	     news band rides along below it — same server-loaded RSS feed
+	     (and the same section_viewed analytics) as the marketing page. -->
 	<DashboardV4 />
+	<TrackedSection name="news">
+		<FromTheTouchline news={data.news} />
+	</TrackedSection>
 {:else}
 	{#if !$isAuthenticated}
 		<StickyTopBar />
