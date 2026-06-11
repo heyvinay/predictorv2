@@ -1,4 +1,4 @@
-"""Tests for the windowing logic in score_sync.has_active_or_imminent_match."""
+"""Tests for score_sync: windowing logic and the external-score apply path."""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -7,11 +7,17 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select
 
 from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
-from app.services.score_sync import has_active_or_imminent_match
+from app.models.score import Score
+from app.services.external_scores import ExternalScore
+from app.services.score_sync import (
+    ScoreSyncResult,
+    _apply_external_score,
+    has_active_or_imminent_match,
+)
 
 
 @pytest_asyncio.fixture
@@ -98,3 +104,95 @@ async def test_returns_false_when_match_finished_long_ago(session, competition) 
     session.add(_fixture(competition.id, kickoff=NOW - timedelta(days=1), status=MatchStatus.FINISHED, ext="6"))
     await session.commit()
     assert await has_active_or_imminent_match(session, now=NOW) is False
+
+
+# ---------------------------------------------------------------------------
+# _apply_external_score: status transitions + idempotence
+# ---------------------------------------------------------------------------
+
+
+def _ext(status: MatchStatus, *, home: int = 1, away: int = 0, minute: int | None = None) -> ExternalScore:
+    return ExternalScore(
+        external_id="100",
+        home_team="Mexico",
+        away_team="South Africa",
+        home_score=home,
+        away_score=away,
+        status=status,
+        minute=minute,
+    )
+
+
+@pytest_asyncio.fixture
+async def live_fixture(session: AsyncSession, competition: Competition) -> Fixture:
+    f = _fixture(competition.id, kickoff=NOW - timedelta(hours=1), status=MatchStatus.LIVE, ext="100")
+    session.add(f)
+    await session.commit()
+    await session.refresh(f)
+    return f
+
+
+@pytest.mark.asyncio
+async def test_apply_creates_score_and_flips_status_to_live(session, competition) -> None:
+    f = _fixture(competition.id, kickoff=NOW, status=MatchStatus.SCHEDULED, ext="100")
+    session.add(f)
+    await session.commit()
+
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.LIVE, minute=12), result)
+    await session.commit()
+
+    assert result.synced == 1
+    assert f.status == MatchStatus.LIVE
+    assert f.minute == 12
+    score = (await session.execute(select(Score).where(Score.fixture_id == f.id))).scalar_one()
+    assert (score.home_score, score.away_score) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_apply_finished_transition_lands(session, competition, live_fixture) -> None:
+    """LIVE → FINISHED with the same scoreline must still be applied — the
+    status change alone is what releases scoring for the match."""
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.LIVE, minute=88), result)
+    await session.commit()
+
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED), result2)
+    await session.commit()
+
+    assert result2.updated == 1
+    assert live_fixture.status == MatchStatus.FINISHED
+
+
+@pytest.mark.asyncio
+async def test_apply_identical_data_is_a_noop(session, competition, live_fixture) -> None:
+    """Re-delivered FINISHED matches (the filter includes them every poll)
+    must not count as updates or rewrite rows."""
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED), result)
+    await session.commit()
+    assert result.synced + result.updated == 1
+
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED), result2)
+    await session.commit()
+
+    assert result2.synced == 0
+    assert result2.updated == 0
+
+
+@pytest.mark.asyncio
+async def test_apply_skips_verified_score(session, competition, live_fixture) -> None:
+    session.add(Score(fixture_id=live_fixture.id, home_score=2, away_score=2, verified=True))
+    live_fixture.status = MatchStatus.FINISHED
+    await session.commit()
+
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.LIVE, home=0, away=0), result)
+    await session.commit()
+
+    assert result.skipped_verified == 1
+    score = (await session.execute(select(Score).where(Score.fixture_id == live_fixture.id))).scalar_one()
+    assert (score.home_score, score.away_score) == (2, 2)
+    assert live_fixture.status == MatchStatus.FINISHED

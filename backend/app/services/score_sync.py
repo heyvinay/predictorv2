@@ -148,6 +148,24 @@ async def _apply_external_score(
         result.skipped_verified += 1
         return
 
+    # Change detection: the live filter includes FINISHED, so every poll
+    # during a match window re-delivers already-finished matches. Identical
+    # data must be a no-op — otherwise each tick rewrites rows, bumps
+    # updated_at, and invalidates the leaderboard cache for nothing.
+    unchanged = (
+        score is not None
+        and fixture.status == ext.status
+        and fixture.minute == ext.minute
+        and score.home_score == ext.home_score
+        and score.away_score == ext.away_score
+        and score.home_score_et == ext.home_score_et
+        and score.away_score_et == ext.away_score_et
+        and score.home_penalties == ext.home_penalties
+        and score.away_penalties == ext.away_penalties
+    )
+    if unchanged:
+        return
+
     fixture.status = ext.status
     fixture.minute = ext.minute
     fixture.updated_at = utc_now()

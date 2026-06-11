@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -10,6 +11,14 @@ from app.config import get_settings
 from app.database import init_db
 from app.services.analytics import flush_async, init_posthog, shutdown_posthog
 from app.services.score_scheduler import scheduler_lifespan
+
+
+# Root-logger handler for app INFO logs (score_scheduler ticks, snapshot
+# inserts, email sends). Without this only WARNING+ reaches stdout via
+# Python's last-resort handler, so a healthy scheduler is indistinguishable
+# from a dead one in `docker compose logs`. Uvicorn and Alembic configure
+# their own loggers with propagate=False, so no duplicate lines.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 
 
 @asynccontextmanager

@@ -42,7 +42,12 @@ class ScoreProviderBase(ABC):
 class FootballDataScoreProvider(ScoreProviderBase):
     """Live-score provider using football-data.org via the shared client."""
 
-    LIVE_STATUS_FILTER = "LIVE,IN_PLAY,PAUSED"
+    # FINISHED must stay in this filter: a match that ends between polls
+    # drops out of a live-only response, so the LIVE → FINISHED transition
+    # would never reach score_sync and the fixture would stay LIVE forever
+    # (scoring pays only on FINISHED). Already-applied finished matches are
+    # no-op'd by score_sync's change detection.
+    LIVE_STATUS_FILTER = "LIVE,IN_PLAY,PAUSED,FINISHED"
 
     def __init__(self, client: FootballDataClient | None = None) -> None:
         self._client = client or FootballDataClient()

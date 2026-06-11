@@ -45,4 +45,13 @@ async def test_fetch_live_scores_filters_by_status() -> None:
         mock_client.get_matches = AsyncMock(return_value=[])
         provider = FootballDataScoreProvider()
         await provider.fetch_live_scores("WC")
-        mock_client.get_matches.assert_awaited_once_with("WC", status="LIVE,IN_PLAY,PAUSED")
+        mock_client.get_matches.assert_awaited_once_with("WC", status="LIVE,IN_PLAY,PAUSED,FINISHED")
+
+
+def test_live_status_filter_includes_finished() -> None:
+    """Regression pin: a match that ends between polls drops out of a
+    live-only response, so FINISHED must stay in the filter or the
+    LIVE → FINISHED transition never reaches score_sync."""
+    from app.services.external_scores import FootballDataScoreProvider
+
+    assert "FINISHED" in FootballDataScoreProvider.LIVE_STATUS_FILTER
