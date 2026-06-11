@@ -19,6 +19,7 @@
 
 	const COHORT_OPTIONS: UserCohort[] = [
 		'active', 'all', 'admins', 'paid', 'unpaid', 'signed_up_only', 'verified_only',
+		'no_submission',
 	];
 
 	let page: UserAdminPage = { rows: [], total: 0 };
@@ -130,6 +131,13 @@
 	}
 
 	onMount(async () => {
+		// Deep-linkable cohort (?cohort=no_submission from the
+		// Close-the-pool card, v2.169.0). Unknown values fall back to
+		// the default.
+		const fromUrl = new URLSearchParams(window.location.search).get(
+			'cohort'
+		) as UserCohort | null;
+		if (fromUrl && COHORT_OPTIONS.includes(fromUrl)) cohort = fromUrl;
 		await Promise.all([refresh(), refreshStats()]);
 	});
 </script>
@@ -206,7 +214,7 @@
 					class:badge-outline={cohort !== c}
 					on:click={() => setCohort(c)}
 				>
-					{c === 'signed_up_only' ? 'Signed up only' : c === 'verified_only' ? 'Verified only' : c[0].toUpperCase() + c.slice(1)}
+					{c === 'signed_up_only' ? 'Signed up only' : c === 'verified_only' ? 'Verified only' : c === 'no_submission' ? 'No submission' : c[0].toUpperCase() + c.slice(1)}
 				</button>
 			{/each}
 		</div>

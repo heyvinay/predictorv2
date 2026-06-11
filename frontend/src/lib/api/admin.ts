@@ -429,7 +429,8 @@ export type UserCohort =
 	| 'unpaid'
 	| 'paid'
 	| 'signed_up_only'
-	| 'verified_only';
+	| 'verified_only'
+	| 'no_submission';
 
 export interface AuditEventRead {
 	id: string;
