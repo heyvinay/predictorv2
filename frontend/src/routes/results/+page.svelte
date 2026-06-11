@@ -43,8 +43,7 @@
 		progressingSplit,
 		stagePointsForRound
 	} from '$lib/utils/koPoints';
-	import EntryPillBar from '$lib/components/results/v4/EntryPillBar.svelte';
-	import PointsSummary from '$lib/components/results/v4/PointsSummary.svelte';
+	import EntrySummaryBar from '$lib/components/results/v4/EntrySummaryBar.svelte';
 	import RoundTabs from '$lib/components/results/v4/RoundTabs.svelte';
 	import RoundExplainer from '$lib/components/results/v4/RoundExplainer.svelte';
 	import GroupRoundTable from '$lib/components/results/v4/GroupRoundTable.svelte';
@@ -271,22 +270,19 @@
 				<span class="loading loading-spinner loading-lg text-primary"></span>
 			</div>
 		{:else}
-			<!-- Top strip: pills (multi-entry) + points summary -->
-			<div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-				{#if multiEntry && $activeEntryId}
-					<EntryPillBar
-						entries={visibleEntries}
-						selectedId={$activeEntryId}
-						{rankByEntry}
-						onSelect={selectEntry}
-					/>
-				{/if}
-				<PointsSummary
+			<!-- Top strip: merged identity + points-summary pill (the
+			     dropdown switcher engages only for multi-entry users). -->
+			{#if $activeEntryId}
+				<EntrySummaryBar
+					entries={visibleEntries}
+					selectedId={$activeEntryId}
+					{rankByEntry}
+					onSelect={selectEntry}
+					userName={$user?.name ?? $user?.email?.split('@')[0] ?? ''}
 					groupTotal={groupTotalPts}
 					knockoutTotal={knockoutTotalPts}
-					fullWidth={!multiEntry}
 				/>
-			</div>
+			{/if}
 
 			<RoundTabs {rounds} selected={selectedRound} {liveRounds} onSelect={selectRound} />
 
