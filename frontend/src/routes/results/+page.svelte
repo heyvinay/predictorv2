@@ -270,18 +270,21 @@
 				<span class="loading loading-spinner loading-lg text-primary"></span>
 			</div>
 		{:else}
-			<!-- Top strip: merged identity + points-summary pill (the
-			     dropdown switcher engages only for multi-entry users). -->
+			<!-- Top strip: merged identity + points-summary pill, right-
+			     aligned. Person-entry label sits in small muted text
+			     above the pill; clicking the pill opens the switcher. -->
 			{#if $activeEntryId}
-				<EntrySummaryBar
-					entries={visibleEntries}
-					selectedId={$activeEntryId}
-					{rankByEntry}
-					onSelect={selectEntry}
-					userName={$user?.name ?? $user?.email?.split('@')[0] ?? ''}
-					groupTotal={groupTotalPts}
-					knockoutTotal={knockoutTotalPts}
-				/>
+				<div class="flex justify-end">
+					<EntrySummaryBar
+						entries={visibleEntries}
+						selectedId={$activeEntryId}
+						{rankByEntry}
+						onSelect={selectEntry}
+						userName={$user?.name ?? $user?.email?.split('@')[0] ?? ''}
+						groupTotal={groupTotalPts}
+						knockoutTotal={knockoutTotalPts}
+					/>
+				</div>
 			{/if}
 
 			<RoundTabs {rounds} selected={selectedRound} {liveRounds} onSelect={selectRound} />
