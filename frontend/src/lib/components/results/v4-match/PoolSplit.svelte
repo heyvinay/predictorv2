@@ -90,9 +90,8 @@
 					{p.band.toUpperCase()}
 				</div>
 				<div class="mt-1.5 text-[11.5px]">
-					<span class="text-base-content/55">would pay </span>
-					<b class="font-display text-[14px]">+{p.total}</b>
-					<span class="text-[10.5px] text-base-content/55"> (+{p.rarity} rarity)</span>
+					<b class="font-display text-[14px]">+{p.total} pts</b>
+					<span class="text-[10.5px] text-base-content/55"> · +{p.rarity} rarity</span>
 				</div>
 			</div>
 		{/each}
