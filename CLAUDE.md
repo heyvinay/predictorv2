@@ -327,14 +327,41 @@ derivations in `frontend/src/lib/utils/leaderboardV4.ts`
   clip it (lesson learned this session: floating elements above
   sticky bars get clipped — always put them in a bordered card).
 
-**Latent layout bug (filed, low priority).** The root `+layout.svelte`
-throws a recurring `TypeError: Cannot read properties of null (reading
-'pathname')` on every page load (since v2.156.0, commit `9301bbd`).
-Doesn't break anything user-visible but is noisy in the console. Likely
-cause: `nav.to?.url.pathname` at lines 68-69 — optional-chains the
-container but not the nested `.url`. A deep optional-chain
-(`nav.to?.url?.pathname ?? ''`) probably fixes it. If you're refactoring
-the layout for any reason, fix this in the same change.
+**Launch-week state (v2.170.0–v2.172.4, shipped 2026-06-11 deadline
+night). Three temporary/operational surfaces are live:**
+
+1. **Rarity bonus is PAUSED** — `scoring.mode: "fixed"` in
+   `config/worldcup2026.yml` (was `logarithmic`) so eligible-pool churn
+   during entry verification / fee collection can't re-price rarity on
+   finished games. Base points are identical (5 outcome / 10 exact);
+   the BreakdownCard hides its rarity column via the served
+   `scoring-rules.mode`. **Flip-back is ONE release**: YAML mode back
+   to `logarithmic` + remove the rules-page paused callout
+   (`frontend/src/routes/rules/+page.svelte`, amber `role="status"`
+   block) + retire the site banner (below). No backfill — the 30s
+   leaderboard rebuild retro-applies rarity to all finished fixtures
+   from the final denominators. Config is `@lru_cache`d: deploy restart
+   required. Memory: `predictorv2_rarity_paused.md`.
+2. **Site notice banner** (`SiteNoticeBanner.svelte`, mounted in the
+   root layout next to `DeadlineCtaBanner`) — dismissible amber strip
+   on every signed-in page except /admin explaining the rarity pause +
+   live-scoring bedding-in, with a Help & Support link that opens the
+   support panel. Kill switch `SITE_NOTICE_ENABLED`; re-message by
+   changing `NOTICE_ID` (dismissals are keyed to it).
+3. **All-entries CSV export** (transparency sheet) —
+   `GET /api/predictions/export/all-entries.csv`
+   (service `app/services/predictions_export.py`, spec in
+   `docs/superpowers/specs/2026-06-11-all-entries-csv-export-design.md`)
+   + "All entries CSV" button in the /leaderboard toolbar. Gate
+   `is_admin OR post_deadline_live` — opens to the pool automatically
+   at go-live, NO rollout clause to delete. Wide matrix (one column
+   per eligible entry; knockout rows alphabetical per entry — stage
+   sets, not slots), BOM-prefixed for Excel, formula-injection guarded.
+
+**Verification gotcha:** all pages are client-rendered — served HTML
+is a ~5KB shell, so `curl | grep` for page copy always comes back
+empty even after a good deploy. Verify rendered copy with a browser;
+curl only works for API endpoints.
 
 **Scoring sync (resolved 2026-06-01).** `config/worldcup2026.yml` is the
 single source of truth for both the scoring engine and rules-page copy.

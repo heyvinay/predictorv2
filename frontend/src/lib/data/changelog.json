@@ -2144,6 +2144,20 @@
       "type": "fix",
       "summary": "Completes the live-score monitoring fix: scheduler activity is now fully visible to the team during matches.",
       "commit": "pending"
+    },
+    {
+      "version": "2.172.3",
+      "date": "2026-06-11",
+      "type": "improvement",
+      "summary": "The rarity bonus is paused while entries are verified and fees collected — base match and bracket points are unaffected, and rarity will be applied to every finished game in one go once the pool is confirmed.",
+      "commit": "pending"
+    },
+    {
+      "version": "2.172.4",
+      "date": "2026-06-11",
+      "type": "improvement",
+      "summary": "The rules page now flags the rarity-bonus pause right in the scoring section, so nobody is surprised that matches pay base points only until the pool is confirmed.",
+      "commit": "pending"
     }
   ]
 }

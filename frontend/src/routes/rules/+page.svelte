@@ -212,6 +212,23 @@
 			</div>
 		</div>
 
+		<!-- TEMPORARY (v2.172.x, rarity paused): remove this callout in the
+		     same release that flips scoring.mode back to "logarithmic".
+		     See memory/CLAUDE.md note + config/worldcup2026.yml comment. -->
+		<div
+			class="mt-4 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/15 px-4 py-3"
+			role="status"
+		>
+			<span class="text-base leading-none">⏸</span>
+			<p class="text-sm leading-relaxed text-base-content/85">
+				<b class="text-warning-text">The rarity bonus is temporarily paused</b>
+				while all entries are verified and fees collected. Matches currently score base
+				points only. Once the pool is confirmed, the rarity bonus switches on and is
+				applied <b class="text-warning-text">retroactively to every completed game</b> —
+				no points are lost.
+			</p>
+		</div>
+
 		<!-- Rarity bonus worked example: novice intro → narrow table → nerd footnote. -->
 		<p class="text-sm text-base-content/80 mt-4 mb-3 leading-relaxed">
 			<b class="text-base-content">How the rarity bonus works.</b>
