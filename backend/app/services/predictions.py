@@ -109,8 +109,11 @@ async def _validate_writeable(
         else competition.phase2_deadline
     )
     if deadline is not None and aware_utc(utc_now()) >= aware_utc(deadline):
+        # User-facing copy (surfaces as a 409 toast to anyone mid-edit
+        # when the deadline trips) — unphased language per the
+        # single-phase rule.
         raise PredictionLockedError(
-            f"Phase {phase.value} deadline has passed"
+            "The deadline has passed — predictions are locked."
         )
 
 
