@@ -12,7 +12,7 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
-	import { phase1Deadline } from '$stores/phase';
+	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
@@ -30,17 +30,12 @@
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
-	// Staged rollout (v2.164.0): admins ALWAYS see V4 (so we can verify
-	// it in prod before the global deadline), while non-admins see the
-	// stub until the deadline trips. To open V4 to the whole pool,
-	// delete the `$user?.is_admin === true ||` line below — non-admins
-	// will then fall through to the deadline check on their own. Flip
-	// the const to false for a full rollback.
+	// v2.166.0: the deadline passing no longer auto-opens the page —
+	// release is the admin's manual "Go live" switch on /admin
+	// (competitions.post_deadline_live, read via phase-status). Admins
+	// always see V4 so they can verify before flipping it.
 	const V4_LEADERBOARD_ENABLED = true;
-	$: lbOpen =
-		V4_LEADERBOARD_ENABLED &&
-		($user?.is_admin === true ||
-			(!!$phase1Deadline && new Date($phase1Deadline).getTime() < Date.now()));
+	$: lbOpen = V4_LEADERBOARD_ENABLED && ($user?.is_admin === true || $postDeadlineLive);
 
 	$: if (!$isAuthenticated) goto('/login');
 

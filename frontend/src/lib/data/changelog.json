@@ -2081,6 +2081,13 @@
       "type": "feature",
       "summary": "Your new home page: a personal dashboard with rotating announcements from the organisers, today's and upcoming matches with your picks, the latest results with points earned, a mini leaderboard and the day's biggest movers — all switchable between your entries.",
       "commit": "pending"
+    },
+    {
+      "version": "2.166.0",
+      "date": "2026-06-11",
+      "type": "feature",
+      "summary": "Deadline-day controls: a personalised countdown banner on every page in the final hours (submit-your-draft warnings included), a friendly locked-in screen after the deadline, and the post-deadline pages now open for everyone only when the organisers give the okay.",
+      "commit": "pending"
     }
   ]
 }

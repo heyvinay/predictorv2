@@ -1,7 +1,7 @@
 <script lang="ts">
 	/** V4 Results page (v2.163.0) — round-tabbed scoreboard.
 	 *
-	 *  Gated by `phase1Deadline < now` (spec D.2): pre-deadline shows the
+	 *  Gated by the admin go-live switch (v2.166.0): pre-release shows the
 	 *  "Results open at kickoff" stub; post-deadline renders the V4 shell.
 	 *  Entry selection rides the global activeEntryId store so it persists
 	 *  to the Match Detail page. Round selection auto-picks the LIVE round
@@ -26,7 +26,7 @@
 		setActiveEntry,
 		submittedEntries
 	} from '$stores/entries';
-	import { phase1Deadline } from '$stores/phase';
+	import { postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboard, getScoringRules } from '$api/leaderboard';
 	import type {
@@ -55,19 +55,14 @@
 
 	$: if (!$isAuthenticated) goto('/login');
 
-	// ── Gate (spec D.2): deadline passed → V4; else pre-tournament stub ──
+	// ── Gate: admin-released → V4; else pre-tournament stub ──
 	//
-	// Staged rollout (v2.164.0): admins ALWAYS see V4 (so we can verify
-	// it in prod before the global deadline), while non-admins see the
-	// stub until the deadline trips. To open V4 to the whole pool,
-	// delete the `$user?.is_admin === true ||` line below — non-admins
-	// will then fall through to the deadline check on their own. Flip
-	// the const to false for a full rollback.
+	// v2.166.0: the deadline passing no longer auto-opens the page —
+	// release is the admin's manual "Go live" switch on /admin
+	// (competitions.post_deadline_live, read via phase-status). Admins
+	// always see V4 so they can verify before flipping it.
 	const V4_RESULTS_ENABLED = true;
-	$: resultsOpen =
-		V4_RESULTS_ENABLED &&
-		($user?.is_admin === true ||
-			(!!$phase1Deadline && new Date($phase1Deadline).getTime() < Date.now()));
+	$: resultsOpen = V4_RESULTS_ENABLED && ($user?.is_admin === true || $postDeadlineLive);
 
 	let loading = true;
 	let rules: ScoringRules | null = null;

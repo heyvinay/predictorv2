@@ -136,6 +136,14 @@ export async function setPhase1Deadline(deadline: string): Promise<{ status: str
 	return api.post('/admin/competition/phase1/deadline', { deadline });
 }
 
+/** Flip the post-deadline release switch (v2.166.0) — opens/closes the
+ *  V4 dashboard, results and leaderboard for the whole pool. */
+export async function setPostDeadlineLive(
+	live: boolean
+): Promise<{ status: string; post_deadline_live: boolean }> {
+	return api.post('/admin/competition/go-live', { live });
+}
+
 export async function activatePhase2(bracketDeadline: string): Promise<{ status: string; bracket_deadline: string; activated_at: string }> {
 	return api.post('/admin/competition/phase2/activate', { bracket_deadline: bracketDeadline });
 }

@@ -29,6 +29,7 @@ from app.dependencies import (
     verify_password,
 )
 from app.models._datetime import aware_utc, utc_now
+from app.models.competition import Competition
 from app.models.entry import ActorRole
 from app.models.magic_link_token import MagicLinkToken, generate_magic_token, hash_token
 from app.models.user import AuthProvider, User
@@ -64,11 +65,40 @@ def get_google_sso() -> GoogleSSO:
     )
 
 
+SIGNUPS_CLOSED_DETAIL = (
+    "Entries are closed — the World Cup 2026 pool locked at the deadline. "
+    "New signups are no longer accepted."
+)
+
+
+async def _signups_closed(session: DbSession) -> bool:
+    """True once the active competition's phase-1 deadline has passed.
+
+    Door policy (v2.166.0): NEW account creation is refused after the
+    deadline — an account created now could never hold a scoring entry
+    and the close-out job would disable it minutes later. Existing
+    users keep signing in normally (they need to see results).
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if competition is None or competition.phase1_deadline is None:
+        return False
+    return utc_now() >= aware_utc(competition.phase1_deadline)
+
+
 @router.post("/register", response_model=Token)
 async def register(
     user_data: UserCreate, session: DbSession, ctx: AuditCtx
 ) -> Token:
     """Register a new user with email/password."""
+    if await _signups_closed(session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=SIGNUPS_CLOSED_DETAIL,
+        )
+
     # Check if email already exists
     result = await session.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
@@ -254,6 +284,12 @@ async def google_callback(request: Request, session: DbSession, ctx: AuditCtx):
             user.auth_provider = AuthProvider.GOOGLE
             audit_event_type = "auth.oauth_linked"
         else:
+            # Door policy: no NEW accounts via OAuth after the deadline.
+            if await _signups_closed(session):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=SIGNUPS_CLOSED_DETAIL,
+                )
             # Create new user
             user = User(
                 email=google_user.email,
@@ -360,6 +396,13 @@ async def request_magic_link(
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if user is None:
+        # Door policy: post-deadline, unknown emails don't get an
+        # account. Return the same generic message (no enumeration
+        # leak) — they simply never receive a link.
+        if await _signups_closed(session):
+            return MagicLinkResponse(
+                message="If that email is registered, a sign-in link is on its way."
+            )
         user = User(email=email, name=None, auth_provider=AuthProvider.EMAIL)
         session.add(user)
         await session.commit()

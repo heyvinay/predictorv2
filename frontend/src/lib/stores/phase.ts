@@ -35,6 +35,17 @@ export const isPhase1Locked = derived(
 	($phaseStatus) => $phaseStatus?.phase1_locked ?? false
 );
 
+/** Admin-controlled release switch for the post-deadline pages
+ *  (v2.166.0). The field exists on the wire but not on the barrel's
+ *  PhaseStatus interface (user WIP lockout) — cast through. False until
+ *  the admin clicks "Go live" on /admin after the deadline clean-up. */
+export const postDeadlineLive = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { post_deadline_live?: boolean }) | null)
+			?.post_deadline_live ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,

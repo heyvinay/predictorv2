@@ -408,6 +408,16 @@ async def create_entry(
     phase_1 and phase_2 phase rows in status `draft`. Writes an
     `entry.created` audit event.
     """
+    # Door policy (v2.166.0): no new entries once the deadline passes.
+    # A post-deadline draft could never be submitted (submit is
+    # time-locked) and would be auto-withdrawn within a minute.
+    if competition.phase1_deadline is not None and aware_utc(
+        utc_now()
+    ) >= aware_utc(competition.phase1_deadline):
+        raise EntryStateError(
+            "Entries are closed — the deadline has passed."
+        )
+
     # Enforce max-entries-per-user. Withdrawn entries don't count.
     active = await _count_user_entries(session, user.id, competition.id)
     if active >= competition.max_entries_per_user:

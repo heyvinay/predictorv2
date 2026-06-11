@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.dependencies import CurrentUser, DbSession
-from app.models._datetime import utc_now
+from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.models.user import User
 from app.services.locking import get_current_phase, is_phase2_bracket_locked
@@ -81,6 +81,9 @@ class PhaseStatus(BaseModel):
     is_phase2_active: bool
     phase2_bracket_deadline: datetime | None
     phase2_bracket_locked: bool
+    # Post-deadline release switch (v2.166.0) — admin-controlled; the
+    # V4 pages open to the pool only when this is true.
+    post_deadline_live: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -105,10 +108,11 @@ async def get_phase_status(
     current_phase = await get_current_phase(session)
     bracket_locked = await is_phase2_bracket_locked(session)
 
-    # Check if phase 1 is locked (past deadline)
+    # Check if phase 1 is locked (past deadline). aware_utc at the
+    # compare site — aiosqlite strips tzinfo on read (datetime rule).
     phase1_locked = False
     if competition and competition.phase1_deadline:
-        phase1_locked = utc_now() >= competition.phase1_deadline
+        phase1_locked = utc_now() >= aware_utc(competition.phase1_deadline)
 
     return PhaseStatus(
         current_phase=current_phase.value,
@@ -117,6 +121,7 @@ async def get_phase_status(
         is_phase2_active=competition.is_phase2_active if competition else False,
         phase2_bracket_deadline=competition.phase2_bracket_deadline if competition else None,
         phase2_bracket_locked=bracket_locked,
+        post_deadline_live=competition.post_deadline_live if competition else False,
     )
 
 

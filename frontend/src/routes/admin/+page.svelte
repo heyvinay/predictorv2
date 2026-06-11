@@ -24,7 +24,8 @@
 		phase1Deadline,
 		phase2BracketDeadline,
 		phase1Countdown,
-		phase2Countdown
+		phase2Countdown,
+		postDeadlineLive
 	} from '$stores/phase';
 	import {
 		getAdminStats,
@@ -37,6 +38,7 @@
 		getBroadcastAudienceCounts,
 		sendBroadcast,
 		sendBroadcastTest,
+		setPostDeadlineLive,
 		type AdminStats,
 		type CompetitionAdminView,
 		type EntrySettingsUpdate,
@@ -58,6 +60,28 @@
 	let settingPhase1 = false;
 	let phase1Error: string | null = null;
 	let phase1Success: string | null = null;
+
+	// ─── Post-deadline go-live switch (v2.166.0) ──────────────────────────
+	let togglingLive = false;
+	let goLiveError: string | null = null;
+
+	async function handleToggleGoLive() {
+		const next = !$postDeadlineLive;
+		const message = next
+			? 'Open the dashboard, results and leaderboard to the WHOLE pool? Every signed-in player sees them immediately.'
+			: 'Pull the post-deadline pages back behind the holding screen for non-admins?';
+		if (!confirm(message)) return;
+		togglingLive = true;
+		goLiveError = null;
+		try {
+			await setPostDeadlineLive(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			goLiveError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingLive = false;
+		}
+	}
 
 	// ─── Phase 2 activation form ───────────────────────────────────────────
 	let bracketDeadlineDate = '';
@@ -472,6 +496,43 @@
 						{settingPhase1 ? 'Setting…' : 'Set competition start'}
 					</button>
 				</div>
+			</section>
+
+			<!-- Post-deadline release (v2.166.0) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$postDeadlineLive
+					? 'border-success/40'
+					: 'border-warning/40'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Post-deadline release
+					<span class="text-xs text-base-content/40">
+						· dashboard, results &amp; leaderboard for the pool
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					The deadline passing does <b>not</b> open anything by itself. Non-admins see the
+					"you're locked in" holding screen until you flip this. Admins always see the
+					full pages — use the "View as pool" toggle on the home page to preview.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$postDeadlineLive
+							? 'bg-success/20 text-success'
+							: 'bg-warning/20 text-warning-text'}"
+					>
+						{$postDeadlineLive ? 'LIVE — pool sees everything' : 'HOLDING — pool is waiting'}
+					</span>
+					<button
+						class="btn btn-sm {$postDeadlineLive ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleGoLive}
+						disabled={togglingLive}
+					>
+						{togglingLive ? 'Switching…' : $postDeadlineLive ? 'Pull back to holding' : '🚀 Go live'}
+					</button>
+				</div>
+				{#if goLiveError}<div class="alert alert-error text-sm mt-3">{goLiveError}</div>{/if}
 			</section>
 
 			<!-- Phase 2 Activation -->
