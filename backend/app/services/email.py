@@ -1028,8 +1028,21 @@ def _broadcast_content_for_segment(
         )
 
     if segment == BroadcastSegment.DRAFT_HOLDERS:
+        # Last nudge for people who started but never hit Submit — same
+        # Malta-time / prize-pot / last-reminder treatment as NO_ENTRY,
+        # since both segments are essentially "haven't qualified yet,
+        # deadline looming".
+        malta_phrase = _format_deadline_malta(deadline_dt) or deadline_display
+        draft_html = (
+            f"before <strong>{malta_phrase}</strong>"
+            if malta_phrase
+            else "before the deadline"
+        )
+        draft_text = (
+            f"before {malta_phrase}" if malta_phrase else "before the deadline"
+        )
         return _BroadcastContent(
-            subject="Your World Cup 2026 picks aren't submitted yet",
+            subject="Atlas World Cup 2026 Pools | Submit your entry before the deadline",
             headline="Don't forget to submit.",
             body_html=(
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
@@ -1039,16 +1052,27 @@ def _broadcast_content_for_segment(
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "<strong>Draft entries don't count toward scoring</strong> — "
-                f"you need to submit {deadline_phrase_html} for your picks to "
-                "qualify. Hop in, review your predictions, and hit Submit.</p>\n"
+                f"you need to submit {draft_html} for your picks to qualify. "
+                "Hop in, review your predictions, and hit Submit.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The prize fund currently stands close to "
+                "<strong>&euro;800</strong>.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "This is the last reminder you will receive.</p>\n"
             ),
             body_text=(
                 f"Hi {safe_name}, you've started a World Cup 2026 entry but\n"
                 "haven't submitted it yet.\n"
                 "\n"
                 "Draft entries don't count toward scoring — you need to submit\n"
-                f"{deadline_phrase_text} for your picks to qualify. Hop in,\n"
+                f"{draft_text} for your picks to qualify. Hop in,\n"
                 "review your predictions, and hit Submit.\n"
+                "\n"
+                "The prize fund currently stands close to €800.\n"
+                "\n"
+                "This is the last reminder you will receive.\n"
             ),
             cta_label="Submit my picks",
         )
