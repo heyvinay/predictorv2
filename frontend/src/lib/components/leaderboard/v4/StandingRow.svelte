@@ -31,9 +31,10 @@
 </script>
 
 <button
-	class="grid w-full items-center gap-3 border-t border-base-300/40 px-4 py-1.5 text-left transition-colors hover:bg-base-content/5 {gridClass} {isOwn
+	class="group grid w-full items-center gap-3 border-t border-base-300/40 px-4 py-1.5 text-left transition-colors hover:bg-base-content/5 {gridClass} {isOwn
 		? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 		: ''}"
+	title="View this entry's predictions"
 	on:click={() => onOpen(row)}
 >
 	<span><RankCell rank={row.position} move={row.daily_movement} /></span>
@@ -83,5 +84,10 @@
 		class="text-right font-display text-[15px] font-extrabold {isOwn
 			? 'text-primary'
 			: 'text-base-content'}">{row.total_points}</span
+	>
+
+	<span
+		class="text-center text-sm font-bold text-base-content/25 transition-colors group-hover:text-primary"
+		aria-hidden="true">›</span
 	>
 </button>
