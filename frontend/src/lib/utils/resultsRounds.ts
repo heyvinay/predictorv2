@@ -111,8 +111,11 @@ export function roundIdForFixture(
 		case 'semi_final':
 			return 'sf';
 		case 'final':
-		case 'third_place':
 			return 'f';
+		// 'third_place' is omitted on purpose — the prediction game
+		// neither collects picks nor awards points for that fixture, so
+		// the Results page must not surface it (was previously bucketed
+		// into the 'f' round, producing a phantom second row in Finals).
 		default:
 			return null;
 	}
