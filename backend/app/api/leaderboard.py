@@ -32,7 +32,11 @@ from app.services.scoring import (
     get_scoring_config,
     resolve_default_entry_id,
 )
-from app.services.snapshots import get_entry_trajectory, get_steepest_climbers
+from app.services.snapshots import (
+    get_all_snapshots,
+    get_entry_trajectory,
+    get_steepest_climbers,
+)
 
 router = APIRouter()
 
@@ -227,6 +231,86 @@ async def _build_trajectory(
     return RankTrajectoryResponse(
         entry_id=entry_id,
         points=points,
+        total_participants=live.total_participants,
+    )
+
+
+class EntryTrajectory(BaseModel):
+    """One entry's labelled rank path for the Race chart."""
+
+    entry_id: uuid.UUID
+    entry_name: str
+    user_id: uuid.UUID
+    user_name: str
+    points: list[RankSnapshotPoint]
+
+
+class AllTrajectoriesResponse(BaseModel):
+    """Every eligible entry's rank trajectory (V4 Race chart)."""
+
+    days: int
+    entries: list[EntryTrajectory]
+    total_participants: int
+
+
+@router.get("/snapshots", response_model=AllTrajectoriesResponse)
+async def get_all_trajectories(
+    session: DbSession,
+    user: CurrentUser,
+    days: int = Query(30, ge=2, le=90),
+) -> AllTrajectoriesResponse:
+    """Rank trajectories for ALL eligible entries in one response — powers
+    the V4 leaderboard's Race bump chart.
+
+    One snapshot query for the whole field instead of N per-entry calls.
+    Each entry's final point is its live current rank (same convention as
+    the single-entry trajectory endpoints).
+
+    **Visibility:** pre-deadline, non-admins receive only their own
+    entries (blind pool); post-deadline everyone sees the full field.
+    """
+    live = await calculate_leaderboard(session, phase=None)
+    rows = live.entries
+    if not user.is_admin and not await is_phase1_locked(session):
+        rows = [e for e in rows if e.user_id == user.id]
+
+    snaps_by_entry = await get_all_snapshots(
+        session, [e.entry_id for e in rows], days=days
+    )
+
+    today = date.today()
+    entries: list[EntryTrajectory] = []
+    for row in rows:
+        points = [
+            RankSnapshotPoint(
+                position=s.position,
+                total_points=s.total_points,
+                captured_date=s.captured_date,
+            )
+            for s in snaps_by_entry.get(row.entry_id, [])
+        ]
+        live_point = RankSnapshotPoint(
+            position=row.position,
+            total_points=row.total_points,
+            captured_date=today,
+        )
+        if points and points[-1].captured_date == today:
+            points[-1] = live_point
+        else:
+            points.append(live_point)
+        entries.append(
+            EntryTrajectory(
+                entry_id=row.entry_id,
+                entry_name=row.entry_name,
+                user_id=row.user_id,
+                user_name=row.user_name,
+                points=points,
+            )
+        )
+
+    return AllTrajectoriesResponse(
+        days=days,
+        entries=entries,
         total_participants=live.total_participants,
     )
 

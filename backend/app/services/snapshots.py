@@ -78,6 +78,33 @@ async def take_daily_snapshots(session: AsyncSession) -> int:
     return inserted
 
 
+async def get_all_snapshots(
+    session: AsyncSession,
+    entry_ids: list[uuid.UUID],
+    days: int = 30,
+) -> dict[uuid.UUID, list[LeaderboardSnapshot]]:
+    """Snapshot history for many entries in one query (V4 Race chart).
+
+    Returns {entry_id: [snapshots oldest → newest]}. Entries with no
+    rows in the window are absent. Caller passes only eligible entry ids
+    (the live leaderboard's rows), so no per-entry visibility re-check
+    happens here.
+    """
+    if not entry_ids:
+        return {}
+    floor_date = utc_now().date() - timedelta(days=days - 1)
+    result = await session.execute(
+        select(LeaderboardSnapshot)
+        .where(LeaderboardSnapshot.entry_id.in_(entry_ids))
+        .where(LeaderboardSnapshot.captured_date >= floor_date)
+        .order_by(LeaderboardSnapshot.captured_date.asc())
+    )
+    by_entry: dict[uuid.UUID, list[LeaderboardSnapshot]] = {}
+    for snap in result.scalars().all():
+        by_entry.setdefault(snap.entry_id, []).append(snap)
+    return by_entry
+
+
 async def get_entry_trajectory(
     session: AsyncSession,
     entry_id: uuid.UUID,
