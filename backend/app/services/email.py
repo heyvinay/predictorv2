@@ -992,7 +992,7 @@ def _broadcast_content_for_segment(
             f"before {malta_phrase}" if malta_phrase else "before the deadline"
         )
         return _BroadcastContent(
-            subject="Make your World Cup 2026 picks",
+            subject="Last few hours to submit an entry",
             headline="Don't miss out on World Cup 2026.",
             body_html=(
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
