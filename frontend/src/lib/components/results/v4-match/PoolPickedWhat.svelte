@@ -25,18 +25,11 @@
 		(p) => filter === 'all' || sideOf(p.home_score, p.away_score) === filter
 	);
 
-	function ordinal(n: number): string {
-		const s = ['th', 'st', 'nd', 'rd'];
-		const v = n % 100;
-		return n + (s[(v - 20) % 10] || s[v] || s[0]);
-	}
-	function initials(name: string): string {
-		return name
-			.split(/\s+/)
-			.map((w) => w[0])
-			.join('')
-			.slice(0, 2)
-			.toUpperCase();
+	function rankMedal(rank: number | null | undefined): string {
+		if (rank === 1) return 'bg-primary/15 text-primary';
+		if (rank === 2) return 'bg-base-content/15 text-base-content/80';
+		if (rank === 3) return 'bg-amber-700/20 text-amber-600';
+		return 'bg-base-300/40 text-base-content/70';
 	}
 	function sideLabel(side: Side): string {
 		return side === 'draw'
@@ -70,29 +63,24 @@
 		{@const side = sideOf(p.home_score, p.away_score)}
 		{@const you = youReference !== null && p.entry_reference === youReference}
 		<div
-			class="flex items-center gap-2.5 rounded-btn px-2 py-1.5 {you
+			class="flex items-center gap-2 rounded-btn px-1.5 py-1 {you
 				? 'bg-primary/10 ring-1 ring-primary/40'
 				: ''}"
 		>
 			<span
-				class="grid h-[28px] w-[28px] flex-none place-items-center rounded-full bg-base-300/50 text-[10px] font-extrabold {you
-					? 'bg-primary/30 text-primary'
-					: 'text-base-content/70'}">{initials(p.user_name)}</span
+				class="grid h-[22px] min-w-[28px] flex-none place-items-center rounded-md px-1 font-display text-[11px] font-extrabold {rankMedal(
+					p.rank
+				)}">{p.rank ?? '—'}</span
 			>
-			<div class="min-w-0 flex-1">
-				<div class="flex items-center gap-2 truncate text-[12.5px] font-semibold">
-					{p.user_name}
-					{#if you}
-						<span
-							class="rounded-badge bg-primary/20 px-1.5 py-px text-[9px] font-extrabold tracking-[0.08em] text-primary"
-							>YOU</span
-						>
-					{/if}
-				</div>
-				<div class="text-[11px] text-base-content/55">
-					{p.rank != null ? `${ordinal(p.rank)} overall` : '—'}
-				</div>
-			</div>
+			<span class="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[12.5px] font-semibold">
+				<span class="truncate">{p.user_name}</span>
+				{#if you}
+					<span
+						class="flex-none rounded-badge bg-primary/20 px-1.5 py-px text-[9px] font-extrabold tracking-[0.08em] text-primary"
+						>YOU</span
+					>
+				{/if}
+			</span>
 			<span class="font-display text-[13px]">{p.home_score}-{p.away_score}</span>
 			<span
 				class="rounded-badge px-1.5 py-0.5 text-[9.5px] font-extrabold tracking-[0.04em] {payouts[side]
