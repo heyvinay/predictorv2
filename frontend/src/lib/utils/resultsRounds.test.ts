@@ -42,11 +42,16 @@ describe('roundIdForFixture', () => {
 		expect(roundIdForFixture(fx({ stage: 'quarter_final' }))).toBe('qf');
 		expect(roundIdForFixture(fx({ stage: 'semi_final' }))).toBe('sf');
 		expect(roundIdForFixture(fx({ stage: 'final' }))).toBe('f');
-		expect(roundIdForFixture(fx({ stage: 'third_place' }))).toBe('f');
 	});
 
 	it('returns null for unknown stages', () => {
 		expect(roundIdForFixture(fx({ stage: 'mystery' }))).toBeNull();
+	});
+
+	it('drops the third-place playoff — predictions are not collected for it', () => {
+		// Previously bucketed into 'f', which produced a phantom second
+		// row in the Finals tab. Now excluded everywhere.
+		expect(roundIdForFixture(fx({ stage: 'third_place' }))).toBeNull();
 	});
 });
 
