@@ -1174,7 +1174,8 @@ async def send_broadcast_test(
     deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
 
     comp = await _active_competition(session)
-    deadline_display = _format_deadline(comp.phase1_deadline if comp else None)
+    deadline_dt = comp.phase1_deadline if comp else None
+    deadline_display = _format_deadline(deadline_dt)
 
     try:
         await send_broadcast_email(
@@ -1183,6 +1184,7 @@ async def send_broadcast_test(
             segment=payload.segment,
             deep_link_url=deep_link_url,
             deadline_display=deadline_display,
+            deadline_dt=deadline_dt,
         )
         return BroadcastTestResult(sent=True, to_email=to_email, error=None)
     except Exception as exc:  # noqa: BLE001 — caller wants the error string
@@ -1229,7 +1231,8 @@ async def send_broadcast(
     deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
 
     comp = await _active_competition(session)
-    deadline_display = _format_deadline(comp.phase1_deadline if comp else None)
+    deadline_dt = comp.phase1_deadline if comp else None
+    deadline_display = _format_deadline(deadline_dt)
 
     sent = 0
     failed = 0
@@ -1243,6 +1246,7 @@ async def send_broadcast(
                 segment=payload.segment,
                 deep_link_url=deep_link_url,
                 deadline_display=deadline_display,
+                deadline_dt=deadline_dt,
             )
             sent += 1
         except Exception:  # noqa: BLE001
