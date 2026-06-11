@@ -140,7 +140,9 @@
 	$: visibleEntries = $submittedEntries.length > 0 ? $submittedEntries : $entries;
 </script>
 
-<div class="container mx-auto mobile-padding max-w-[1180px] py-3 pb-20">
+<!-- pb-10 (not the marketing pb-20): the Touchline news band renders
+     directly below this container with its own border-t. -->
+<div class="container mx-auto mobile-padding max-w-[1180px] py-3 pb-10">
 	{#if loading || !rules}
 		<div class="flex justify-center py-16">
 			<span class="loading loading-spinner loading-lg text-primary"></span>
