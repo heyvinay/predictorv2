@@ -125,13 +125,19 @@
 	$: eliminated = eliminatedTeams($fixtures);
 	$: seeded = seededByStage($fixtures);
 
-	// Bracket rounds, most recent first (spec §4.6).
-	const KO_ROUNDS: { label: string; stage: string; key: 'final' | 'semi_finals' | 'quarter_finals' }[] =
-		[
-			{ label: 'Finalists', stage: 'final', key: 'final' },
-			{ label: 'Semi-finalists', stage: 'semi_final', key: 'semi_finals' },
-			{ label: 'Quarter-finalists', stage: 'quarter_final', key: 'quarter_finals' }
-		];
+	// Bracket rounds, most recent first — ALL scored knockout rounds
+	// (R32 +20 and R16 +30 pay points too, so they must be visible).
+	const KO_ROUNDS: {
+		label: string;
+		stage: string;
+		key: 'final' | 'semi_finals' | 'quarter_finals' | 'round_of_16' | 'round_of_32';
+	}[] = [
+		{ label: 'Finalists', stage: 'final', key: 'final' },
+		{ label: 'Semi-finalists', stage: 'semi_final', key: 'semi_finals' },
+		{ label: 'Quarter-finalists', stage: 'quarter_final', key: 'quarter_finals' },
+		{ label: 'Round of 16', stage: 'round_of_16', key: 'round_of_16' },
+		{ label: 'Round of 32', stage: 'round_of_32', key: 'round_of_32' }
+	];
 	type KoRoundView = {
 		label: string;
 		stage: string;

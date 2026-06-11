@@ -326,6 +326,22 @@ describe('eliminatedTeams / seededByStage / chipState', () => {
 		expect(eliminatedTeams(seededFull)).toEqual(new Set(['Egypt', 'Italy']));
 	});
 
+	it('credits a finished KO match winner with the NEXT stage before lineups update', () => {
+		// Backend pays "reached R16" the moment the R32 match finishes —
+		// the drawer chips must agree even if no R16 fixture is seeded yet.
+		const fx = [
+			mkFixture({
+				stage: 'round_of_32',
+				home_team: 'Brazil',
+				away_team: 'Germany',
+				status: 'finished',
+				score: score('1')
+			})
+		];
+		const seeded = seededByStage(fx);
+		expect(seeded.get('round_of_16')).toEqual(new Set(['Brazil']));
+	});
+
 	it('seeds stages from lineups and crowns the final winner', () => {
 		const fx = [
 			mkFixture({ stage: 'semi_final', home_team: 'Brazil', away_team: 'France' }),
