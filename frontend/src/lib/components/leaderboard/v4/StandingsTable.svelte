@@ -14,12 +14,13 @@
 	export let multiOwners: Set<string>;
 	export let onOpen: (row: LbEntryV4) => void;
 
-	// Mobile (<880px): # · entry · champ · (final) · total.
-	// Desktop adds Group + Knockout numeric columns.
+	// Mobile (<880px): # · entry · champ · (final) · total · chevron.
+	// Desktop adds Group + Knockout numeric columns. The trailing 16px
+	// column is the click-affordance chevron.
 	const GRID_KO =
-		'grid-cols-[60px_minmax(0,1.4fr)_96px_52px_70px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_80px]';
+		'grid-cols-[60px_minmax(0,1.4fr)_96px_52px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_80px_16px]';
 	const GRID_GROUP =
-		'grid-cols-[60px_minmax(0,1.4fr)_96px_70px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_80px]';
+		'grid-cols-[60px_minmax(0,1.4fr)_96px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_80px_16px]';
 
 	$: gridClass = stage === 'knockout' ? GRID_KO : GRID_GROUP;
 
@@ -46,6 +47,7 @@
 			title="Bracket points + knockout bonus questions">Knockout</span
 		>
 		<span class="{HEAD_CLASS} text-right">Total</span>
+		<span></span>
 	</div>
 
 	{#each rows as row (row.entry_id)}
