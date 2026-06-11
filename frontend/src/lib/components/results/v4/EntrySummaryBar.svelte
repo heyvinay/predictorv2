@@ -28,6 +28,7 @@
 	}
 
 	$: multiEntry = entries.length > 1;
+	$: active = entries.find((e) => e.id === selectedId) ?? entries[0];
 	$: grandTotal = groupTotal + knockoutTotal + bonusGroup + bonusKnockout;
 
 	function pick(id: string) {
@@ -47,7 +48,10 @@
 
 <svelte:window on:click={handleWindowClick} on:keydown={handleKey} />
 
-<div bind:this={containerEl} class="relative inline-block">
+<div bind:this={containerEl} class="relative inline-flex flex-col items-end gap-0.5">
+	<span class="text-[10.5px] font-semibold text-base-content/55 truncate max-w-[260px]"
+		>{multiEntry ? `${userName} — ${active?.display_name ?? ''}` : userName}</span
+	>
 	<button
 		type="button"
 		aria-haspopup={multiEntry ? 'listbox' : undefined}
