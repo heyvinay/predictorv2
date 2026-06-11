@@ -18,6 +18,7 @@
 	} from '$stores/adminAttention';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DeadlineCtaBanner from '$lib/components/DeadlineCtaBanner.svelte';
+	import SiteNoticeBanner from '$lib/components/SiteNoticeBanner.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
@@ -530,6 +531,7 @@
 	     only reserve space for them when actually rendering them —
 	     otherwise guests get a phantom left column on `/` (the landing). -->
 	<main class="flex-1 {$isAuthenticated ? 'pb-16 min-[700px]:pb-0 min-[700px]:pl-48' : ''}">
+		<SiteNoticeBanner />
 		<DeadlineCtaBanner />
 		<slot />
 	</main>
