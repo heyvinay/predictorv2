@@ -118,8 +118,32 @@
 	$: ceilMax = ceilRows.length ? Math.max(...ceilRows.map((x) => x.ceil)) : 1;
 	$: finalVal = rules?.advancement?.final ?? 75;
 
-	// ── 5 · Tournament superlatives (from finished group fixtures + FIFA ranks) ──
-	type Superlative = { lbl: string; team: string; val: string; note: string };
+	// ── 5 · Tournament superlatives ──
+	//
+	// Each criterion typically has multiple teams tied (especially early
+	// on, when "most goals" might be 5 teams at 2 goals each). We render
+	// ALL ties as flag pills, capped at 5 with a "+N more" footnote so
+	// the card doesn't blow up in the opening days. Pills are sorted
+	// alphabetically inside each tied group for stable ordering.
+	const SUPERLATIVE_LIMIT = 5;
+	type Superlative = {
+		lbl: string;
+		teams: string[];
+		shown: string[];
+		extra: number;
+		val: string;
+		note: string;
+	};
+	function topTiedBy<K>(map: Map<K, number>): { keys: K[]; n: number } {
+		if (map.size === 0) return { keys: [], n: 0 };
+		const n = Math.max(...map.values());
+		const keys = [...map.entries()]
+			.filter(([, v]) => v === n)
+			.map(([k]) => k)
+			.sort((a, b) => String(a).localeCompare(String(b)));
+		return { keys, n };
+	}
+
 	$: superlatives = (() => {
 		const out: Superlative[] = [];
 		const gf = new Map<string, number>();
@@ -131,26 +155,42 @@
 			ga.set(f.home_team, (ga.get(f.home_team) ?? 0) + f.score.away_score);
 			ga.set(f.away_team, (ga.get(f.away_team) ?? 0) + f.score.home_score);
 		}
-		const maxBy = (m: Map<string, number>) =>
-			[...m.entries()].sort((a, b) => b[1] - a[1])[0];
+
+		const push = (
+			lbl: string,
+			teams: string[],
+			val: string,
+			note: string
+		): void => {
+			if (teams.length === 0) return;
+			out.push({
+				lbl,
+				teams,
+				shown: teams.slice(0, SUPERLATIVE_LIMIT),
+				extra: Math.max(0, teams.length - SUPERLATIVE_LIMIT),
+				val,
+				note
+			});
+		};
+
 		if (gf.size > 0) {
-			const [team, n] = maxBy(gf);
-			out.push({
-				lbl: 'Most goals · group phase',
-				team,
-				val: `${n} scored`,
-				note: 'highest-scoring attack so far'
-			});
-			const [cteam, cn] = maxBy(ga);
-			out.push({
-				lbl: 'Most conceded · group phase',
-				team: cteam,
-				val: `${cn} conceded`,
-				note: 'leakiest defence so far'
-			});
+			const scored = topTiedBy(gf);
+			push(
+				'Most goals · group phase',
+				scored.keys,
+				`${scored.n} scored`,
+				'highest-scoring attack so far'
+			);
+			const conceded = topTiedBy(ga);
+			push(
+				'Most conceded · group phase',
+				conceded.keys,
+				`${conceded.n} conceded`,
+				'leakiest defence so far'
+			);
 		}
-		// Flop: strongest FIFA side already eliminated. Dark horse:
-		// weakest FIFA side still alive (only meaningful in knockout).
+
+		// Flop: highest-FIFA teams provably out (tied within rounding).
 		const allTeams = new Set<string>();
 		for (const f of fixtures) {
 			if (f.stage === 'group') {
@@ -158,21 +198,29 @@
 				if (f.away_team) allTeams.add(f.away_team);
 			}
 		}
-		const eliminated = new Set(
-			[...allTeams].filter((t) =>
-				rows.some((r) => r.champion_pick === t && r.champion_alive === false)
-			)
+		const eliminated = [...allTeams].filter((t) =>
+			rows.some((r) => r.champion_pick === t && r.champion_alive === false)
 		);
-		if (stage === 'knockout' && eliminated.size > 0) {
-			const flop = [...eliminated].sort((a, b) => fifaPoints(b) - fifaPoints(a))[0];
-			if (flop) {
-				out.push({
-					lbl: 'Biggest flop · strong seed out',
-					team: flop,
-					val: 'eliminated',
-					note: 'highest FIFA rating already out'
-				});
-			}
+		if (stage === 'knockout' && eliminated.length > 0) {
+			const ranked = eliminated
+				.map((t) => ({ t, pts: fifaPoints(t) }))
+				.sort((a, b) => b.pts - a.pts);
+			// Treat the top "tier" as anyone within 30 FIFA points of the
+			// strongest eliminated team (FIFA points are spaced by ~10–40
+			// at the top, so this groups co-favourites without over-listing).
+			const top = ranked[0].pts;
+			const flopTeams = ranked
+				.filter((x) => top - x.pts <= 30)
+				.map((x) => x.t)
+				.sort((a, b) => a.localeCompare(b));
+			push(
+				'Biggest flop · strong seed out',
+				flopTeams,
+				'eliminated',
+				flopTeams.length === 1
+					? 'highest FIFA rating already out'
+					: 'top FIFA seeds already out'
+			);
 		}
 		return out;
 	})();
@@ -366,19 +414,29 @@
 		title="Tournament superlatives"
 		sub="The stories of the group phase, straight from the scores"
 	>
-		<div class="flex flex-col gap-3">
+		<div class="flex flex-col gap-3.5">
 			{#each superlatives as s (s.lbl)}
-				<div class="flex items-start gap-3">
-					<span class="mt-0.5"><FlagCode team={s.team} size="md" /></span>
-					<span class="flex min-w-0 flex-col gap-px">
-						<span class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/55"
+				<div class="flex flex-col gap-1.5">
+					<span class="flex items-baseline gap-2 flex-wrap">
+						<span
+							class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/55"
 							>{s.lbl}</span
 						>
-						<span class="text-[13px] font-bold">
-							<b class="font-display font-extrabold text-primary">{s.val}</b>
-						</span>
-						<span class="text-[11px] text-base-content/55">{s.note}</span>
+						<b class="font-display text-[13px] font-extrabold text-primary">{s.val}</b>
 					</span>
+					<div class="flex flex-wrap items-center gap-1.5">
+						{#each s.shown as team (team)}
+							<span
+								class="inline-flex items-center gap-1.5 rounded-full bg-base-300/30 px-2 py-1"
+							>
+								<FlagCode {team} size="sm" />
+							</span>
+						{/each}
+						{#if s.extra > 0}
+							<span class="text-[11px] text-base-content/55">+{s.extra} more</span>
+						{/if}
+					</div>
+					<span class="text-[11px] text-base-content/55">{s.note}</span>
 				</div>
 			{:else}
 				<p class="text-xs text-base-content/40">
