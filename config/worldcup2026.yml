@@ -62,6 +62,14 @@ scoring:
     # Knockout round advancement points. Source of truth: /rules page
     # (BRACKET_STAGES constant). Bumped 2026-06-01 to match the rules-page
     # values; the prior 10/15/20/40/60 scale undercut what users saw.
+    #
+    # ★ This list is also the WHITELIST of scored fixture stages. Fixture
+    #   rows with stage values not in this list (notably 'third_place', the
+    #   bronze-medal playoff between the semi-final losers — a real FIFA
+    #   fixture but irrelevant to the pool) must NEVER appear in any
+    #   prediction wizard, scoring path, or results UI surface. The round
+    #   bucketer at frontend/src/lib/utils/resultsRounds.ts pins this rule
+    #   (regression-tested in resultsRounds.test.ts).
     round_of_32: 20
     round_of_16: 30
     quarter_final: 40

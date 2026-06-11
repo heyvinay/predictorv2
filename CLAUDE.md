@@ -124,6 +124,22 @@ frontend bundles; migration `b3c4d5e6f7a8` converted historical rows.
 Never write plural stage values; never compare stored stages against
 plural literals.
 
+**`third_place` is an UNSCORED fixture stage (★ invariant, v2.164.0).**
+Football-Data ingests the bronze-medal playoff (semi-final losers, the
+day before the actual final) as `Fixture.stage = 'third_place'`. The
+prediction pool does NOT collect picks for it and the scoring engine
+does NOT award points for it — the YAML's `scoring.advancement` block
+is the authoritative whitelist of scored stages, and `third_place` is
+not in it. Any UI bucketer, scoring path, or results surface that
+enumerates knockout stages MUST exclude `third_place`. The round
+bucketer at [resultsRounds.ts:104-118](frontend/src/lib/utils/resultsRounds.ts:104)
+returns `null` for it (regression-pinned in
+`resultsRounds.test.ts`); previously it shared the Finals bucket and
+produced a phantom second TBD-vs-TBD row in the V4 Results page.
+Unrelated namesake: `bracketConfig.ts` uses `"third_place"` to mean
+"best third-placed group team" (a seeding mechanism for R32) —
+that's a different concept and stays.
+
 **Advancement timing is lineup-based (v2.161.0).** Knockout "reached
 stage X" credit fires when a team is seeded into a stage-X fixture
 (`get_actual_advancement` scans ALL knockout fixtures, not just
