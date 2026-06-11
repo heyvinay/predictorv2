@@ -2,14 +2,16 @@
 	/** Fixtures card for KO rounds — bracket-call column + stage-specific
 	 *  points. Subtotal counts each fixture's hits × stage points. */
 	import type { Fixture } from '$types';
-	import type { RoundDef } from '$lib/types/results';
+	import type { RoundDef, ScoringRules } from '$lib/types/results';
 	import FixtureRowKo from './FixtureRowKo.svelte';
+	import PointsHelpButton from './PointsHelpButton.svelte';
 	import { fixtureKoHits } from '$lib/utils/koPoints';
 
 	export let round: RoundDef;
 	export let fixtures: Fixture[];
 	export let roundPicks: Set<string>;
 	export let stagePoints: number;
+	export let rules: ScoringRules;
 
 	$: subtotal = fixtures.reduce(
 		(s, f) => s + fixtureKoHits(f, roundPicks).hits * stagePoints,
@@ -29,8 +31,11 @@
 		<div class="text-center text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55">
 			Your bracket
 		</div>
-		<div class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55">
-			Points
+		<div
+			class="flex items-center justify-end gap-1 text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+		>
+			<span>Points</span>
+			<PointsHelpButton roundId={round.id} {rules} />
 		</div>
 	</div>
 	<div

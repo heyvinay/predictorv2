@@ -1,12 +1,14 @@
 <script lang="ts">
 	/** Fixtures card for R1/R2/R3 — header, rows, gold round-subtotal footer. */
 	import type { Fixture } from '$types';
-	import type { MatchPredictionWithPoints, RoundDef } from '$lib/types/results';
+	import type { MatchPredictionWithPoints, RoundDef, ScoringRules } from '$lib/types/results';
 	import FixtureRowGroup from './FixtureRowGroup.svelte';
+	import PointsHelpButton from './PointsHelpButton.svelte';
 
 	export let round: RoundDef;
 	export let fixtures: Fixture[];
 	export let predictionsByFixture: Map<string, MatchPredictionWithPoints>;
+	export let rules: ScoringRules;
 
 	$: subtotal = fixtures.reduce(
 		(s, f) => s + (predictionsByFixture.get(f.id)?.points?.total ?? 0),
@@ -26,8 +28,11 @@
 		<div class="text-center text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55">
 			Pick
 		</div>
-		<div class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55">
-			Points
+		<div
+			class="flex items-center justify-end gap-1 text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+		>
+			<span>Points</span>
+			<PointsHelpButton roundId={round.id} {rules} />
 		</div>
 	</div>
 	<div
