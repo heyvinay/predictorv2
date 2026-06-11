@@ -49,9 +49,22 @@
 <svelte:window on:click={handleWindowClick} on:keydown={handleKey} />
 
 <div bind:this={containerEl} class="relative inline-flex flex-col items-end gap-0.5">
-	<span class="text-[10.5px] font-semibold text-base-content/55 truncate max-w-[260px]"
-		>{multiEntry ? `${userName} — ${active?.display_name ?? ''}` : userName}</span
-	>
+	{#if multiEntry}
+		<button
+			type="button"
+			class="inline-flex max-w-[300px] items-baseline gap-1.5 text-[10.5px] font-semibold transition-colors hover:text-primary"
+			on:click={() => (open = !open)}
+		>
+			<span class="truncate text-base-content/55"
+				>{userName} — {active?.display_name ?? ''}</span
+			>
+			<span class="flex-none whitespace-nowrap text-primary">· switch entry ▾</span>
+		</button>
+	{:else}
+		<span class="max-w-[260px] truncate text-[10.5px] font-semibold text-base-content/55"
+			>{userName}</span
+		>
+	{/if}
 	<button
 		type="button"
 		aria-haspopup={multiEntry ? 'listbox' : undefined}
