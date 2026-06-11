@@ -30,17 +30,17 @@
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
-	// Staged rollout (v2.164.0): V4 is enabled but ADMIN-ONLY — admins see
-	// the real leaderboard in production while everyone else keeps the
-	// "Standings open at kickoff" stub. To open it to the whole pool,
-	// delete the `$user?.is_admin` clause below and redeploy. Flip the
-	// const to false for a full rollback.
+	// Staged rollout (v2.164.0): admins ALWAYS see V4 (so we can verify
+	// it in prod before the global deadline), while non-admins see the
+	// stub until the deadline trips. To open V4 to the whole pool,
+	// delete the `$user?.is_admin === true ||` line below — non-admins
+	// will then fall through to the deadline check on their own. Flip
+	// the const to false for a full rollback.
 	const V4_LEADERBOARD_ENABLED = true;
 	$: lbOpen =
 		V4_LEADERBOARD_ENABLED &&
-		!!$phase1Deadline &&
-		new Date($phase1Deadline).getTime() < Date.now() &&
-		$user?.is_admin === true;
+		($user?.is_admin === true ||
+			(!!$phase1Deadline && new Date($phase1Deadline).getTime() < Date.now()));
 
 	$: if (!$isAuthenticated) goto('/login');
 

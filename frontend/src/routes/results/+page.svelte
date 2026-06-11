@@ -57,17 +57,17 @@
 
 	// ── Gate (spec D.2): deadline passed → V4; else pre-tournament stub ──
 	//
-	// Staged rollout (v2.164.0): V4 is enabled but ADMIN-ONLY — admins see
-	// the real page in production for a final check while everyone else
-	// keeps the "Results open at kickoff" stub. To open it to the whole
-	// pool, delete the `$user?.is_admin` clause below and redeploy. Flip
+	// Staged rollout (v2.164.0): admins ALWAYS see V4 (so we can verify
+	// it in prod before the global deadline), while non-admins see the
+	// stub until the deadline trips. To open V4 to the whole pool,
+	// delete the `$user?.is_admin === true ||` line below — non-admins
+	// will then fall through to the deadline check on their own. Flip
 	// the const to false for a full rollback.
 	const V4_RESULTS_ENABLED = true;
 	$: resultsOpen =
 		V4_RESULTS_ENABLED &&
-		!!$phase1Deadline &&
-		new Date($phase1Deadline).getTime() < Date.now() &&
-		$user?.is_admin === true;
+		($user?.is_admin === true ||
+			(!!$phase1Deadline && new Date($phase1Deadline).getTime() < Date.now()));
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
