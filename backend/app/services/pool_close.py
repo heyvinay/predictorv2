@@ -38,7 +38,7 @@ class PoolCloseError(Exception):
     """Raised when the close-out cannot run (deadline not passed)."""
 
 
-def _has_counting_submission_predicate(competition_id):
+def has_counting_submission_predicate(competition_id):
     """User owns ≥1 entry that actually counts: SUBMITTED phase-1 row,
     not withdrawn, not disabled, in this competition."""
     return (
@@ -93,7 +93,7 @@ async def preview_pool_close(
     session: AsyncSession, competition: Competition
 ) -> PoolClosePreview:
     """Counts only — no writes. Safe to call any time."""
-    has_submission = _has_counting_submission_predicate(competition.id)
+    has_submission = has_counting_submission_predicate(competition.id)
 
     accounts_to_disable = await _count(
         session,
@@ -156,7 +156,7 @@ async def close_pool(
                 select(User).where(
                     User.is_active.is_(True),
                     User.is_admin.is_(False),
-                    ~_has_counting_submission_predicate(competition.id),
+                    ~has_counting_submission_predicate(competition.id),
                 )
             )
         )

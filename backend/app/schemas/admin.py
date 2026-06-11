@@ -78,6 +78,9 @@ class UserCohort(str, Enum):
     - signed_up_only   : EMAIL provider, name=NULL, no MagicLinkToken.used_at
     - verified_only    : name=NULL with EITHER (Google provider) OR (any
                          MagicLinkToken.used_at IS NOT NULL)
+    - no_submission    : active, non-admin, zero counting submissions in
+                         the active competition — exactly the set the
+                         Close-the-pool action would disable (v2.169.0)
     - all              : no filter
     """
 
@@ -88,6 +91,7 @@ class UserCohort(str, Enum):
     PAID = "paid"
     SIGNED_UP_ONLY = "signed_up_only"
     VERIFIED_ONLY = "verified_only"
+    NO_SUBMISSION = "no_submission"
 
 
 class UserAdminRowV2(BaseModel):

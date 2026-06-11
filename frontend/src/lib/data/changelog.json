@@ -2102,6 +2102,13 @@
       "type": "improvement",
       "summary": "Standings polish: sort the table by entry name, group, knockout or total points (highest total first by default, ties alphabetical), and the page now appears noticeably faster — trend sparklines fill in a moment later instead of holding everything up.",
       "commit": "pending"
+    },
+    {
+      "version": "2.169.0",
+      "date": "2026-06-11",
+      "type": "improvement",
+      "summary": "Organiser tooling: the user roster gains a No-submission filter showing exactly which accounts the post-deadline clean-up would retire, linked straight from the clean-up panel.",
+      "commit": "pending"
     }
   ]
 }

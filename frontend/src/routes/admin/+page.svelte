@@ -649,6 +649,14 @@
 						>
 							Refresh counts
 						</button>
+						{#if poolPreview.accounts_to_disable > 0}
+							<a
+								href="/admin/users?cohort=no_submission"
+								class="btn btn-ghost btn-sm text-primary"
+							>
+								View the {poolPreview.accounts_to_disable} accounts →
+							</a>
+						{/if}
 						{#if !poolPreview.deadline_passed}
 							<span class="text-xs text-warning-text">
 								Locked until the deadline passes.

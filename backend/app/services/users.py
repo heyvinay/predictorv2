@@ -31,6 +31,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.competition import Competition
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.magic_link_token import MagicLinkToken
 from app.models.prediction import MatchPrediction
@@ -73,6 +74,9 @@ async def list_users_with_cohort(
                               ``used_at IS NOT NULL``) — i.e. verified
                               the link / OAuth callback but abandoned
                               the /onboarding screen
+    * ``NO_SUBMISSION``     — active, non-admin, zero counting
+                              submissions in the active competition —
+                              the Close-the-pool target set (v2.169.0)
 
     Search matches case-insensitively on ``User.email`` or ``User.name``.
     Empty / whitespace-only search is treated as no filter.
@@ -120,6 +124,25 @@ async def list_users_with_cohort(
                 verified_subq.c.user_id.is_not(None),
             )
         )
+    elif cohort == UserCohort.NO_SUBMISSION:
+        # Exactly the Close-the-pool target set: active, non-admin,
+        # zero counting submissions (SUBMITTED phase-1 row, not
+        # withdrawn, not disabled) in the active competition. Shares
+        # the predicate with services.pool_close so the card's count
+        # and this list can never disagree. After the close-out runs,
+        # these users flip inactive and the cohort empties.
+        from app.services.pool_close import has_counting_submission_predicate
+
+        comp_id = (
+            await session.execute(
+                select(Competition.id)
+                .where(Competition.is_active == True)  # noqa: E712
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        base = base.where(User.is_active.is_(True)).where(User.is_admin.is_(False))
+        if comp_id is not None:
+            base = base.where(~has_counting_submission_predicate(comp_id))
     # UserCohort.ALL → no extra clause
 
     if search and search.strip():

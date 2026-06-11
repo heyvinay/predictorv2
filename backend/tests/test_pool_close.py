@@ -279,3 +279,33 @@ async def test_endpoints_admin_gated(db_session: AsyncSession, world):
         assert (await ac.get("/api/admin/close-pool/preview")).status_code == 403
         assert (await ac.post("/api/admin/close-pool")).status_code == 403
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# NO_SUBMISSION cohort (v2.169.0) — /admin/users filter must show exactly
+# the accounts the close-out would disable.
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_no_submission_cohort_matches_close_target(
+    db_session: AsyncSession, world
+):
+    from app.schemas.admin import UserCohort
+    from app.services.users import list_users_with_cohort
+
+    page = await list_users_with_cohort(
+        db_session, cohort=UserCohort.NO_SUBMISSION, limit=100
+    )
+    emails = {r.email for r in page.rows}
+    assert emails == {
+        world["withdrawn_submitter"].email,
+        world["draft_only"].email,
+        world["no_entry"].email,
+    }
+    assert page.total == 3
+
+    # After the close-out runs, the cohort empties (they're inactive now).
+    await close_pool(db_session, competition=world["comp"], admin=world["admin"])
+    page_after = await list_users_with_cohort(
+        db_session, cohort=UserCohort.NO_SUBMISSION, limit=100
+    )
+    assert page_after.total == 0
