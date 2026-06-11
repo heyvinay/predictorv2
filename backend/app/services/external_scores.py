@@ -43,6 +43,12 @@ class ExternalScore:
     away_score_et: int | None = None
     home_penalties: int | None = None
     away_penalties: int | None = None
+    # False when the provider had NO score values (nulls) and home/away
+    # are merely the 0-coercion of missing data. Football-Data transiently
+    # served FINISHED-with-null-fullTime at the WC2026 opener's final
+    # whistle — writing that fabricated a 0-0 result. score_sync refuses
+    # to act on score-bearing statuses when this is False.
+    has_score: bool = True
 
 
 class ScoreProviderBase(ABC):
@@ -53,7 +59,13 @@ class ScoreProviderBase(ABC):
         ...
 
     @abstractmethod
-    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
+    async def fetch_fixture_score(
+        self,
+        fixture_id: str,
+        *,
+        home_team: str | None = None,
+        away_team: str | None = None,
+    ) -> ExternalScore | None:
         ...
 
 
@@ -74,7 +86,13 @@ class FootballDataScoreProvider(ScoreProviderBase):
         matches = await self._client.get_matches(competition_id, status=self.LIVE_STATUS_FILTER)
         return [self._to_external_score(m) for m in matches]
 
-    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
+    async def fetch_fixture_score(
+        self,
+        fixture_id: str,
+        *,
+        home_team: str | None = None,
+        away_team: str | None = None,
+    ) -> ExternalScore | None:
         match = await self._client.get_match(fixture_id)
         if match is None:
             return None
@@ -101,6 +119,12 @@ class FootballDataScoreProvider(ScoreProviderBase):
             away_score_et=extra_time.get("away"),
             home_penalties=penalty.get("home"),
             away_penalties=penalty.get("away"),
+            # Null fullTime means FD hasn't published a score — observed
+            # alongside status FINISHED at the WC2026 opener. 0-coerced
+            # values must not be mistaken for a real 0-0.
+            has_score=(
+                full_time.get("home") is not None and full_time.get("away") is not None
+            ),
         )
 
 
@@ -136,10 +160,66 @@ class EspnScoreProvider(ScoreProviderBase):
                 scores.append(ext)
         return scores
 
-    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
-        # Per-fixture lookups are keyed by Football-Data external ids, which
-        # ESPN can't resolve — the fallback provider routes these to FD.
+    async def fetch_fixture_score(
+        self,
+        fixture_id: str,
+        *,
+        home_team: str | None = None,
+        away_team: str | None = None,
+    ) -> ExternalScore | None:
+        """Backup finisher: resolve a final result by TEAM NAMES from the
+        scoreboard's 'post' events (ESPN can't resolve Football-Data ids).
+
+        Only STATUS_FULL_TIME events qualify — abandoned/postponed posts
+        are not a result. Exists because Football-Data served
+        FINISHED-with-null-scores (then regressed to TIMED) at the WC2026
+        opener while ESPN's post event carried the correct 2-0.
+        """
+        if not home_team or not away_team:
+            return None
+        events = await self._client.get_scoreboard(*self._scoreboard_args())
+        for event in events:
+            ext = self._post_event_to_external_score(event)
+            if ext is not None and ext.home_team == home_team and ext.away_team == away_team:
+                return ext
         return None
+
+    @staticmethod
+    def _scoreboard_args() -> tuple[str, str]:
+        now = utc_now()
+        dates = (
+            f"{(now - timedelta(days=1)).strftime('%Y%m%d')}"
+            f"-{(now + timedelta(days=1)).strftime('%Y%m%d')}"
+        )
+        return ("fifa.world", dates)
+
+    @staticmethod
+    def _post_event_to_external_score(event: dict) -> ExternalScore | None:
+        """Map a finished (STATUS_FULL_TIME) event to a FINISHED ExternalScore."""
+        try:
+            comp = event["competitions"][0]
+            status_type = comp.get("status", {}).get("type", {})
+            if status_type.get("state") != "post" or status_type.get("name") != "STATUS_FULL_TIME":
+                return None
+            sides = {c.get("homeAway"): c for c in comp.get("competitors", [])}
+            home, away = sides.get("home"), sides.get("away")
+            if not home or not away or home.get("score") is None or away.get("score") is None:
+                return None
+            shootout_home = home.get("shootoutScore")
+            shootout_away = away.get("shootoutScore")
+            return ExternalScore(
+                external_id="",
+                home_team=canonical_team_name(home.get("team", {}).get("displayName", "")),
+                away_team=canonical_team_name(away.get("team", {}).get("displayName", "")),
+                home_score=int(home.get("score")),
+                away_score=int(away.get("score")),
+                status=MatchStatus.FINISHED,
+                minute=None,
+                home_penalties=int(shootout_home) if shootout_home is not None else None,
+                away_penalties=int(shootout_away) if shootout_away is not None else None,
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            return None
 
     @staticmethod
     def _to_external_score(event: dict) -> ExternalScore | None:
@@ -171,16 +251,21 @@ class EspnScoreProvider(ScoreProviderBase):
 
 class FallbackScoreProvider(ScoreProviderBase):
     """ESPN-first chain: live scores try each provider in order, falling
-    through on exceptions; per-fixture resolution always goes to
-    Football-Data (it owns the external ids and the FT/ET/pens split)."""
+    through on exceptions. Per-fixture resolution tries Football-Data
+    first (it owns the external ids and the FT/ET/pens split); when FD
+    has no usable final — null scores, lagging status, error — the
+    backup resolver (ESPN post events, matched by team names) finishes
+    the match instead."""
 
     def __init__(
         self,
         live_providers: list[ScoreProviderBase],
         resolver: ScoreProviderBase,
+        backup_resolver: ScoreProviderBase | None = None,
     ) -> None:
         self._live_providers = live_providers
         self._resolver = resolver
+        self._backup_resolver = backup_resolver
 
     async def fetch_live_scores(self, competition_id: str) -> list[ExternalScore]:
         last_exc: Exception | None = None
@@ -196,17 +281,63 @@ class FallbackScoreProvider(ScoreProviderBase):
                 )
         raise last_exc if last_exc else RuntimeError("no live score providers configured")
 
-    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
-        return await self._resolver.fetch_fixture_score(fixture_id)
+    async def fetch_fixture_score(
+        self,
+        fixture_id: str,
+        *,
+        home_team: str | None = None,
+        away_team: str | None = None,
+    ) -> ExternalScore | None:
+        primary: ExternalScore | None = None
+        try:
+            primary = await self._resolver.fetch_fixture_score(
+                fixture_id, home_team=home_team, away_team=away_team
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "resolver %s failed for %s, trying backup: %s",
+                type(self._resolver).__name__,
+                fixture_id,
+                exc,
+            )
+
+        # A usable final from FD wins — it carries the FT/ET/pens split.
+        if (
+            primary is not None
+            and primary.status == MatchStatus.FINISHED
+            and primary.has_score
+        ):
+            return primary
+
+        if self._backup_resolver is not None:
+            try:
+                backup = await self._backup_resolver.fetch_fixture_score(
+                    fixture_id, home_team=home_team, away_team=away_team
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("backup resolver failed for %s: %s", fixture_id, exc)
+                backup = None
+            if backup is not None:
+                logger.info(
+                    "backup resolver finished %s vs %s (primary had no usable final)",
+                    home_team,
+                    away_team,
+                )
+                return backup
+
+        return primary
 
 
 def get_score_provider() -> ScoreProviderBase:
     """ESPN paints live scores (Football-Data bulk as same-tick fallback);
-    Football-Data resolves finals. No configuration on purpose — nothing
-    to wire into prod env, and the fallback engages by itself per tick.
+    Football-Data resolves finals with ESPN's post events as the backup
+    finisher. No configuration on purpose — nothing to wire into prod
+    env, and every fallback engages by itself per tick.
     """
+    espn = EspnScoreProvider()
     football_data = FootballDataScoreProvider()
     return FallbackScoreProvider(
-        live_providers=[EspnScoreProvider(), football_data],
+        live_providers=[espn, football_data],
         resolver=football_data,
+        backup_resolver=espn,
     )

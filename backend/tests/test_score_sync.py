@@ -241,7 +241,13 @@ class FakeProvider:
     async def fetch_live_scores(self, competition_id: str) -> list[ExternalScore]:
         return self.live
 
-    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
+    async def fetch_fixture_score(
+        self,
+        fixture_id: str,
+        *,
+        home_team: str | None = None,
+        away_team: str | None = None,
+    ) -> ExternalScore | None:
         self.fixture_fetches.append(str(fixture_id))
         return self.by_id.get(str(fixture_id))
 
@@ -372,6 +378,80 @@ async def test_fixture_present_in_live_response_is_not_fetched_individually(
     assert fx.status == MatchStatus.LIVE
     score = await _get_score(session, fx.id)
     assert score is not None and (score.home_score, score.away_score) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_finished_with_null_scores_is_not_applied(
+    session, competition, monkeypatch
+) -> None:
+    # Regression for the WC2026 opener: Football-Data transiently served
+    # status FINISHED with null fullTime (has_score=False, 0-coerced).
+    # Writing it fabricated a 0-0 result. The null-score guard must leave
+    # the fixture in-play so resolution retries next tick.
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(hours=2), status=MatchStatus.LIVE, ext="106")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    garbage = ExternalScore(
+        external_id="106",
+        home_team="Mexico",
+        away_team="South Africa",
+        home_score=0,
+        away_score=0,
+        status=MatchStatus.FINISHED,
+        has_score=False,
+    )
+    provider = FakeProvider(live=[], by_id={"106": garbage})
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert result.synced == 0 and result.updated == 0
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.LIVE  # untouched — retry next tick
+    assert await _get_score(session, fx.id) is None
+
+
+@pytest.mark.asyncio
+async def test_finished_fixture_is_not_demoted_by_stale_status(
+    session, competition, live_fixture
+) -> None:
+    # Regression for the WC2026 opener: FD flapped FINISHED → TIMED after
+    # the final whistle. A non-FINISHED payload must never un-finish a
+    # played match (that would claw back paid leaderboard points).
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED, home=2, away=0), result)
+    await session.commit()
+    assert live_fixture.status == MatchStatus.FINISHED
+
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.SCHEDULED, home=0, away=0), result2)
+    await session.commit()
+
+    assert result2.synced == 0 and result2.updated == 0
+    assert live_fixture.status == MatchStatus.FINISHED
+    score = (await session.execute(select(Score).where(Score.fixture_id == live_fixture.id))).scalar_one()
+    assert (score.home_score, score.away_score) == (2, 0)
+
+
+@pytest.mark.asyncio
+async def test_finished_score_correction_still_applies(
+    session, competition, live_fixture
+) -> None:
+    # The demotion guard must NOT block a FINISHED→FINISHED correction
+    # (e.g. FD revising a wrong final).
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED, home=1, away=0), result)
+    await session.commit()
+
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.FINISHED, home=2, away=0), result2)
+    await session.commit()
+
+    assert result2.updated == 1
+    score = (await session.execute(select(Score).where(Score.fixture_id == live_fixture.id))).scalar_one()
+    assert (score.home_score, score.away_score) == (2, 0)
 
 
 @pytest.mark.asyncio

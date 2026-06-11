@@ -136,7 +136,11 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
     unresolved = await _find_unresolved_fixtures(session, competition.id, seen_fixture_ids)
     for fixture in unresolved[:_MAX_RESOLVE_FETCHES]:
         try:
-            ext = await provider.fetch_fixture_score(fixture.external_id)
+            ext = await provider.fetch_fixture_score(
+                fixture.external_id,
+                home_team=fixture.home_team,
+                away_team=fixture.away_team,
+            )
         except Exception as exc:  # noqa: BLE001
             result.errors.append(
                 f"Resolve error for {fixture.home_team} vs {fixture.away_team}: {exc}"
@@ -230,6 +234,21 @@ async def _apply_external_score(
     # returns the fixture id so the resolution pass won't re-fetch it.
     if score is not None and score.verified:
         result.skipped_verified += 1
+        return fixture.id
+
+    # Demotion guard: a FINISHED fixture can only be touched by another
+    # FINISHED payload (score corrections). Football-Data flapped
+    # FINISHED → TIMED at the WC2026 opener; letting that through would
+    # un-finish a played match and claw back paid leaderboard points.
+    if fixture.status == MatchStatus.FINISHED and ext.status != MatchStatus.FINISHED:
+        return fixture.id
+
+    # Null-score guard: a score-bearing status whose payload carried no
+    # actual score values (has_score=False — nulls coerced to 0) must not
+    # be applied. Writing it would fabricate a 0-0 FINISHED result; doing
+    # nothing leaves the fixture in-play so the resolution pass retries
+    # next tick until a provider serves a real final.
+    if ext.status in _SCORE_BEARING_STATUSES and not ext.has_score:
         return fixture.id
 
     fixture_unchanged = fixture.status == ext.status and fixture.minute == ext.minute
