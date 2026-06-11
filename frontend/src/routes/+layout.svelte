@@ -42,9 +42,12 @@
 	// back/forward — everything. nav.type is SvelteKit's discriminator
 	// ('link' | 'goto' | 'enter' | 'popstate' | 'leave' | 'form').
 	afterNavigate((nav) => {
+		// Deep optional-chain: on the very first client navigation `url`
+		// itself can be null inside the nav object, which threw a noisy
+		// (harmless) TypeError on every page load since v2.156.0.
 		void track('page_viewed', {
-			path: nav.to?.url.pathname ?? '',
-			referrer_path: nav.from?.url.pathname ?? null,
+			path: nav.to?.url?.pathname ?? '',
+			referrer_path: nav.from?.url?.pathname ?? null,
 			nav_type: nav.type,
 		});
 	});

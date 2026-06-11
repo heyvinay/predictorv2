@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api import (
     admin,
+    announcements,
     auth,
     competition,
     entries,
@@ -44,3 +45,11 @@ api_router.include_router(telemetry.router, prefix="/telemetry", tags=["telemetr
 api_router.include_router(odds.router, prefix="/odds", tags=["odds"])
 # Landing-page social-proof stats. Public, two simple counts.
 api_router.include_router(landing.router, prefix="/landing", tags=["landing"])
+# Dashboard announcements: signed-in feed at /announcements, admin CRUD
+# nested under /admin/announcements (same split as entries.py).
+api_router.include_router(
+    announcements.user_router, prefix="/announcements", tags=["announcements"]
+)
+api_router.include_router(
+    announcements.admin_router, prefix="/admin/announcements", tags=["admin"]
+)

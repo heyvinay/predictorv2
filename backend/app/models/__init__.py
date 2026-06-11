@@ -1,5 +1,6 @@
 """SQLModel database models."""
 
+from app.models.announcement import Announcement
 from app.models.audit import AuditEvent
 from app.models.bonus import BonusAnswer, BonusPrediction
 from app.models.competition import Competition
@@ -21,6 +22,7 @@ from app.models.user import AuthProvider, User
 __all__ = [
     "User",
     "ActorRole",
+    "Announcement",
     "AuditEvent",
     "AuthProvider",
     "BonusAnswer",

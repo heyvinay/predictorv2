@@ -31,8 +31,11 @@
 	import { onMount } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { loadEntries } from '$stores/entries';
+	import { phase1Deadline } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { track } from '$lib/analytics';
+
+	import DashboardV4 from '$lib/components/dashboard/v4/DashboardV4.svelte';
 
 	import StickyTopBar from '$lib/components/landing/StickyTopBar.svelte';
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
@@ -51,6 +54,26 @@
 
 	export let data: PageData;
 
+	// ── V4 Dashboard gate (v2.165.0) ──
+	//
+	// Signed-in users get the dashboard instead of the marketing landing.
+	// Staged rollout, same recipe as the V4 Results / Leaderboard pages:
+	// admins ALWAYS see it (prod verification), non-admins fall through
+	// to the deadline check — once the global deadline trips, the
+	// dashboard opens to the whole pool on its own. Flip the const to
+	// false for a 60-second rollback to the marketing landing.
+	//
+	// The deadline reads the phase store with the server-load value as a
+	// pre-hydration fallback, so a signed-in user doesn't flash the
+	// marketing page while /competition/phase-status resolves.
+	const V4_DASHBOARD_ENABLED = true;
+	$: effectiveDeadline = $phase1Deadline ?? data.phase1Deadline;
+	$: dashOpen =
+		V4_DASHBOARD_ENABLED &&
+		$isAuthenticated &&
+		($user?.is_admin === true ||
+			(!!effectiveDeadline && new Date(effectiveDeadline).getTime() < Date.now()));
+
 	onMount(() => {
 		// Empty so the logo alone carries the brand and doesn't collide with the countdown pill on narrow viewports.
 		pageTitle.set('');
@@ -66,7 +89,7 @@
 	// behind a /entries navigation, which made the landing card silently
 	// report 0 entries for new sessions.
 	let hasLoadedLanding = false;
-	$: if ($isAuthenticated && $user?.id && !hasLoadedLanding) {
+	$: if ($isAuthenticated && $user?.id && !hasLoadedLanding && !dashOpen) {
 		hasLoadedLanding = true;
 		void loadEntries($user.id);
 	}
@@ -87,49 +110,54 @@
 	stack two top bars and surface two toggles. Keep the components pure
 	(no auth coupling inside them) — the page composer owns the gate.
 -->
-{#if !$isAuthenticated}
-	<StickyTopBar />
-{/if}
+{#if dashOpen}
+	<!-- Signed-in landing: the V4 Dashboard (v2.165.0). -->
+	<DashboardV4 />
+{:else}
+	{#if !$isAuthenticated}
+		<StickyTopBar />
+	{/if}
 
-<TrackedSection name="hero">
-	<LandingHero phase1Deadline={data.phase1Deadline} />
-</TrackedSection>
+	<TrackedSection name="hero">
+		<LandingHero phase1Deadline={data.phase1Deadline} />
+	</TrackedSection>
 
-<TrackedSection name="typography">
-	<TypographicHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
-</TrackedSection>
+	<TrackedSection name="typography">
+		<TypographicHero totalPlayers={data.totalPlayers} phase1Deadline={data.phase1Deadline} />
+	</TrackedSection>
 
-<TrackedSection name="how_it_works">
-	<HowItWorks />
-</TrackedSection>
+	<TrackedSection name="how_it_works">
+		<HowItWorks />
+	</TrackedSection>
 
-<TrackedSection name="entry_depth">
-	<EntryDepth />
-</TrackedSection>
+	<TrackedSection name="entry_depth">
+		<EntryDepth />
+	</TrackedSection>
 
-<TrackedSection name="scoring">
-	<ScoringAtAGlance />
-</TrackedSection>
+	<TrackedSection name="scoring">
+		<ScoringAtAGlance />
+	</TrackedSection>
 
-<TrackedSection name="faq">
-	<FaqSection phase1Deadline={data.phase1Deadline} />
-</TrackedSection>
+	<TrackedSection name="faq">
+		<FaqSection phase1Deadline={data.phase1Deadline} />
+	</TrackedSection>
 
-<TrackedSection name="stakes">
-	<StakesBanner />
-</TrackedSection>
+	<TrackedSection name="stakes">
+		<StakesBanner />
+	</TrackedSection>
 
-<TrackedSection name="news">
-	<FromTheTouchline news={data.news} />
-</TrackedSection>
+	<TrackedSection name="news">
+		<FromTheTouchline news={data.news} />
+	</TrackedSection>
 
-<TrackedSection name="final_cta">
-	<FinalCTABand />
-</TrackedSection>
+	<TrackedSection name="final_cta">
+		<FinalCTABand />
+	</TrackedSection>
 
-<!-- SiteFooter now renders globally via +layout.svelte — no longer
-     mounted here. Removed 2026-06-01 to avoid double-render. -->
+	<!-- SiteFooter now renders globally via +layout.svelte — no longer
+	     mounted here. Removed 2026-06-01 to avoid double-render. -->
 
-{#if !$isAuthenticated}
-	<ThemeTogglePill />
+	{#if !$isAuthenticated}
+		<ThemeTogglePill />
+	{/if}
 {/if}
