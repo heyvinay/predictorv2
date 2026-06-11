@@ -144,6 +144,27 @@ export async function setPostDeadlineLive(
 	return api.post('/admin/competition/go-live', { live });
 }
 
+/** Close-the-pool dry-run counts (v2.166.0). */
+export interface PoolClosePreview {
+	deadline_passed: boolean;
+	accounts_to_disable: number;
+	submitters_kept: number;
+	admins_exempt: number;
+	already_inactive: number;
+	drafts_withdrawn: number;
+	eligible_submitted_entries: number;
+}
+
+export async function getPoolClosePreview(): Promise<PoolClosePreview> {
+	return api.get<PoolClosePreview>('/admin/close-pool/preview');
+}
+
+/** Disable every account without a counting submission (admins exempt,
+ *  post-deadline only, idempotent, audited). */
+export async function runPoolClose(): Promise<{ disabled_count: number }> {
+	return api.post('/admin/close-pool');
+}
+
 export async function activatePhase2(bracketDeadline: string): Promise<{ status: string; bracket_deadline: string; activated_at: string }> {
 	return api.post('/admin/competition/phase2/activate', { bracket_deadline: bracketDeadline });
 }

@@ -59,6 +59,7 @@ from app.services.completeness import (
     check_all_eligible_entries,
 )
 from app.services.email import send_broadcast_email
+from app.services.pool_close import PoolCloseError, close_pool, preview_pool_close
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
 from app.services.score_sync import sync_scores_once
@@ -654,6 +655,64 @@ async def set_post_deadline_live(
     await session.commit()
 
     return {"status": "ok", "post_deadline_live": request.live}
+
+
+# ---------------------------------------------------------------------------
+# Close the pool (v2.166.0) — disable accounts with zero counting
+# submissions after the deadline. Preview first, then one confirm click.
+# ---------------------------------------------------------------------------
+class PoolClosePreviewOut(BaseModel):
+    deadline_passed: bool
+    accounts_to_disable: int
+    submitters_kept: int
+    admins_exempt: int
+    already_inactive: int
+    drafts_withdrawn: int
+    eligible_submitted_entries: int
+
+
+class PoolCloseResultOut(BaseModel):
+    disabled_count: int
+
+
+async def _active_competition_or_404(session: DbSession) -> Competition:
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+    return competition
+
+
+@router.get("/close-pool/preview", response_model=PoolClosePreviewOut)
+async def get_pool_close_preview(
+    session: DbSession, _admin: AdminUser
+) -> PoolClosePreviewOut:
+    """Dry-run counts for the Close-the-pool card. No writes."""
+    competition = await _active_competition_or_404(session)
+    preview = await preview_pool_close(session, competition)
+    return PoolClosePreviewOut(**preview.__dict__)
+
+
+@router.post("/close-pool", response_model=PoolCloseResultOut)
+async def run_pool_close(
+    session: DbSession, admin: AdminUser
+) -> PoolCloseResultOut:
+    """Disable every active non-admin account without a counting
+    submission. Admin-exempt by construction; refuses pre-deadline;
+    idempotent; audited with the affected user ids."""
+    competition = await _active_competition_or_404(session)
+    try:
+        result = await close_pool(session, competition=competition, admin=admin)
+    except PoolCloseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        )
+    return PoolCloseResultOut(disabled_count=result.disabled_count)
 
 
 class SyncScoresResponse(BaseModel):
