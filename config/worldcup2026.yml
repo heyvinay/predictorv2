@@ -42,7 +42,7 @@ scoring:
   #   R = 10  when f ≤ 3.82%    (capped)
   # See docs/scoring-system.md for derivation.
   #
-  # TEMPORARILY "fixed" (2026-06-11, v2.171.1): rarity is paused until all
+  # TEMPORARILY "fixed" (2026-06-11, v2.172.3): rarity is paused until all
   # entries are verified and fees collected — eligible-pool churn during
   # verification would re-price rarity on already-finished games. Flip back
   # to "logarithmic" once the pool is final; the next leaderboard rebuild
