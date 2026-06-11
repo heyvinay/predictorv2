@@ -2118,10 +2118,10 @@
       "commit": "pending"
     },
     {
-      "version": "2.170.1",
+      "version": "2.171.0",
       "date": "2026-06-11",
-      "type": "fix",
-      "summary": "Live scores: full-time results now arrive automatically the moment a match ends, so the leaderboard updates without waiting for an admin.",
+      "type": "feature",
+      "summary": "A site-wide notice now explains launch-week status: the rarity bonus arrives once entries are verified and fees collected, and live scoring is being brought online — with a one-click link to Help & Support.",
       "commit": "pending"
     }
   ]
