@@ -15,17 +15,19 @@ Two endpoints remain here because they aren't user-state:
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.dependencies import DbSession, OptionalUser
+from app.dependencies import CurrentUser, DbSession, OptionalUser
+from app.models._datetime import utc_now
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction
 from app.models.user import User
-from app.services.locking import is_phase1_locked
+from app.services.locking import get_active_competition, is_phase1_locked
+from app.services.predictions_export import build_all_entries_export
 from app.schemas.fixture import FixtureScore
 from app.schemas.prediction import CommunityPrediction, CommunityPredictionsResponse
 from app.services.bonus import (
@@ -170,6 +172,44 @@ async def get_community_predictions(
         away_team=fixture.away_team,
         predictions=predictions,
         actual=actual,
+    )
+
+
+@router.get("/export/all-entries.csv", response_class=Response)
+async def export_all_entries_csv(
+    session: DbSession,
+    user: CurrentUser,
+) -> Response:
+    """Every eligible entry's full predictions as one wide CSV.
+
+    Transparency control: the whole pool downloads the same sheet
+    (group scores + bracket + bonus answers, one column per entry) so
+    disputes are settled against a shared record. Visibility matches
+    the V4 pages exactly — admins always, everyone else once the
+    post-deadline release switch is flipped. Until then the blind
+    pool stays sealed.
+
+    Service: app.services.predictions_export (spec in
+    docs/superpowers/specs/2026-06-11-all-entries-csv-export-design.md).
+    """
+    competition = await get_active_competition(session)
+    if competition is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition",
+        )
+    if not (user.is_admin or competition.post_deadline_live):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The all-entries sheet becomes available once results go live",
+        )
+
+    csv_text = await build_all_entries_export(session, competition)
+    filename = f"all-entries-predictions-{utc_now().strftime('%Y-%m-%d')}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

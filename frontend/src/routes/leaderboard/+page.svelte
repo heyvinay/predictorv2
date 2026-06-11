@@ -16,6 +16,7 @@
 	import { pageTitle } from '$stores/pageTitle';
 	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
+	import { downloadAllEntriesCsv } from '$api/export';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
@@ -137,6 +138,23 @@
 	$: multiOwners = multiEntryUserIds(rows);
 	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
 
+	// ── all-entries CSV download (transparency sheet, v2.168+) ──
+	// Backend re-checks the same gate (admin || post_deadline_live), so
+	// this button is convenience chrome, not the access control.
+	let downloadingCsv = false;
+	let downloadCsvError = false;
+	async function downloadAllEntries() {
+		if (downloadingCsv) return;
+		downloadingCsv = true;
+		downloadCsvError = false;
+		try {
+			await downloadAllEntriesCsv();
+		} catch {
+			downloadCsvError = true;
+		}
+		downloadingCsv = false;
+	}
+
 	function formatKickoff(iso: string | null): string {
 		if (!iso) return '';
 		try {
@@ -201,8 +219,39 @@
 						{#if v.sub}<span class="hidden text-[10px] font-bold opacity-55 sm:inline">{v.sub}</span>{/if}
 					</button>
 				{/each}
+				<button
+					class="inline-flex items-center gap-1.5 rounded-btn border-[1.5px] border-transparent bg-base-200 px-2.5 py-1 font-display text-[11px] font-bold tracking-[0.04em] text-base-content/70 transition-all hover:text-base-content disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-xs"
+					title="Download every entry's predictions as one CSV — the shared transparency sheet"
+					disabled={downloadingCsv}
+					on:click={downloadAllEntries}
+				>
+					{#if downloadingCsv}
+						<span class="loading loading-spinner loading-xs"></span>
+					{:else}
+						<svg
+							class="h-3.5 w-3.5"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M3 15v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3" />
+							<path d="M12 3v12" />
+							<path d="m7 11 5 5 5-5" />
+						</svg>
+					{/if}
+					<span><span class="hidden sm:inline">All entries </span>CSV</span>
+				</button>
 			</div>
 		</div>
+		{#if downloadCsvError}
+			<p class="mb-2 text-right text-[11px] text-error" role="alert">
+				Download failed — try again in a moment.
+			</p>
+		{/if}
 
 		<YourEntriesStrip {rows} userId={$user?.id} {pool} onPool={setPool} bind:search />
 
