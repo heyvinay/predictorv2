@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel, select
 
+from app.models._datetime import utc_now
 from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score
@@ -17,6 +18,7 @@ from app.services.score_sync import (
     ScoreSyncResult,
     _apply_external_score,
     has_active_or_imminent_match,
+    sync_scores_once,
 )
 
 
@@ -111,9 +113,16 @@ async def test_returns_false_when_match_finished_long_ago(session, competition) 
 # ---------------------------------------------------------------------------
 
 
-def _ext(status: MatchStatus, *, home: int = 1, away: int = 0, minute: int | None = None) -> ExternalScore:
+def _ext(
+    status: MatchStatus,
+    *,
+    ext_id: str = "100",
+    home: int = 1,
+    away: int = 0,
+    minute: int | None = None,
+) -> ExternalScore:
     return ExternalScore(
-        external_id="100",
+        external_id=ext_id,
         home_team="Mexico",
         away_team="South Africa",
         home_score=home,
@@ -196,3 +205,197 @@ async def test_apply_skips_verified_score(session, competition, live_fixture) ->
     score = (await session.execute(select(Score).where(Score.fixture_id == live_fixture.id))).scalar_one()
     assert (score.home_score, score.away_score) == (2, 2)
     assert live_fixture.status == MatchStatus.FINISHED
+
+
+@pytest.mark.asyncio
+async def test_apply_verified_lock_survives_non_score_bearing_status(
+    session, competition, live_fixture
+) -> None:
+    """The admin lock beats every inbound status — including non-score-bearing
+    ones like POSTPONED, which take the early fixture-status path."""
+    session.add(Score(fixture_id=live_fixture.id, home_score=2, away_score=2, verified=True))
+    live_fixture.status = MatchStatus.FINISHED
+    await session.commit()
+
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, _ext(MatchStatus.POSTPONED), result)
+    await session.commit()
+
+    assert result.skipped_verified == 1
+    assert live_fixture.status == MatchStatus.FINISHED
+
+
+# ---------------------------------------------------------------------------
+# sync_scores_once: live apply + the per-fixture resolution pass
+# ---------------------------------------------------------------------------
+
+
+class FakeProvider:
+    """Score provider double: a canned live response + per-id lookups."""
+
+    def __init__(self, live: list[ExternalScore], by_id: dict[str, ExternalScore] | None = None):
+        self.live = live
+        self.by_id = by_id or {}
+        self.fixture_fetches: list[str] = []
+
+    async def fetch_live_scores(self, competition_id: str) -> list[ExternalScore]:
+        return self.live
+
+    async def fetch_fixture_score(self, fixture_id: str) -> ExternalScore | None:
+        self.fixture_fetches.append(str(fixture_id))
+        return self.by_id.get(str(fixture_id))
+
+
+async def _get_score(session: AsyncSession, fixture_id) -> Score | None:
+    q = await session.execute(select(Score).where(Score.fixture_id == fixture_id))
+    return q.scalar_one_or_none()
+
+
+@pytest.mark.asyncio
+async def test_live_fixture_absent_from_response_is_resolved_to_finished(
+    session, competition, monkeypatch
+) -> None:
+    # DB says LIVE, but the live-filtered response no longer contains the
+    # match — Football-Data marked it FINISHED. The resolution pass must
+    # fetch it individually and land the final score + status.
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(hours=2), status=MatchStatus.LIVE, ext="100")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    provider = FakeProvider(live=[], by_id={"100": _ext(MatchStatus.FINISHED, home=2, away=1)})
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert provider.fixture_fetches == ["100"]
+    assert result.synced == 1 and not result.errors
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.FINISHED
+    score = await _get_score(session, fx.id)
+    assert score is not None and (score.home_score, score.away_score) == (2, 1)
+
+
+@pytest.mark.asyncio
+async def test_scheduled_fixture_past_kickoff_is_resolved(
+    session, competition, monkeypatch
+) -> None:
+    # Backend was down through the whole match: status never left SCHEDULED.
+    # The resolution pass picks it up from the recent-kickoff window. Unlike
+    # the LIVE-status cases, this window is evaluated against the real clock
+    # inside sync_scores_once, so the kickoff must be relative to utc_now().
+    fx = _fixture(competition.id, kickoff=utc_now() - timedelta(hours=3), status=MatchStatus.SCHEDULED, ext="101")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    provider = FakeProvider(live=[], by_id={"101": _ext(MatchStatus.FINISHED, ext_id="101", home=0, away=3)})
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    await sync_scores_once(session)
+
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.FINISHED
+    score = await _get_score(session, fx.id)
+    assert score is not None and (score.home_score, score.away_score) == (0, 3)
+
+
+@pytest.mark.asyncio
+async def test_resolution_does_not_fabricate_score_for_unstarted_match(
+    session, competition, monkeypatch
+) -> None:
+    # Delayed kickoff: our DB thinks the match should have started, but the
+    # API still reports TIMED (→ SCHEDULED). Status syncs back, yet no 0-0
+    # Score row may be written for a match that hasn't been played.
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(minutes=30), status=MatchStatus.LIVE, ext="102")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    provider = FakeProvider(live=[], by_id={"102": _ext(MatchStatus.SCHEDULED, ext_id="102", home=0, away=0)})
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert result.synced == 0 and result.updated == 0
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.SCHEDULED
+    assert await _get_score(session, fx.id) is None
+
+
+@pytest.mark.asyncio
+async def test_espn_style_score_without_external_id_matches_by_name(
+    session, competition, monkeypatch
+) -> None:
+    # The ESPN provider carries no Football-Data external_id — the fixture
+    # must match via team names, and once touched it must NOT be re-fetched
+    # by the resolution pass (which would let a laggier source overwrite
+    # the fresh live score on the same tick).
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(minutes=30), status=MatchStatus.LIVE, ext="104")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    live = _ext(MatchStatus.LIVE, ext_id="", home=2, away=1, minute=67)
+    provider = FakeProvider(live=[live])
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert provider.fixture_fetches == []  # touched by name-match → no resolve call
+    assert result.synced == 1
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.LIVE and fx.minute == 67
+    score = await _get_score(session, fx.id)
+    assert score is not None and (score.home_score, score.away_score) == (2, 1)
+
+
+@pytest.mark.asyncio
+async def test_fixture_present_in_live_response_is_not_fetched_individually(
+    session, competition, monkeypatch
+) -> None:
+    # Normal in-play tick: bulk response covers the match, so the resolution
+    # pass must not spend an extra API call on it.
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(minutes=30), status=MatchStatus.LIVE, ext="103")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+
+    provider = FakeProvider(live=[_ext(MatchStatus.LIVE, ext_id="103", home=1, away=0)])
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert provider.fixture_fetches == []
+    assert result.synced == 1
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.LIVE
+    score = await _get_score(session, fx.id)
+    assert score is not None and (score.home_score, score.away_score) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_resolution_skips_verified_fixture_without_refetch_loop(
+    session, competition, monkeypatch
+) -> None:
+    # An admin-verified score on a fixture the live response re-delivers:
+    # the verified guard must hold through a full sync_scores_once pass and
+    # the fixture must not be re-fetched individually.
+    fx = _fixture(competition.id, kickoff=NOW - timedelta(hours=1), status=MatchStatus.FINISHED, ext="105")
+    session.add(fx)
+    await session.commit()
+    await session.refresh(fx)
+    session.add(Score(fixture_id=fx.id, home_score=3, away_score=1, verified=True))
+    await session.commit()
+
+    provider = FakeProvider(live=[_ext(MatchStatus.LIVE, ext_id="105", home=0, away=0)])
+    monkeypatch.setattr("app.services.score_sync.get_score_provider", lambda: provider)
+
+    result = await sync_scores_once(session)
+
+    assert result.skipped_verified == 1
+    assert provider.fixture_fetches == []
+    await session.refresh(fx)
+    assert fx.status == MatchStatus.FINISHED
+    score = await _get_score(session, fx.id)
+    assert (score.home_score, score.away_score) == (3, 1) and score.verified

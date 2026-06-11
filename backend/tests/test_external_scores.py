@@ -45,13 +45,22 @@ async def test_fetch_live_scores_filters_by_status() -> None:
         mock_client.get_matches = AsyncMock(return_value=[])
         provider = FootballDataScoreProvider()
         await provider.fetch_live_scores("WC")
-        mock_client.get_matches.assert_awaited_once_with("WC", status="LIVE,IN_PLAY,PAUSED,FINISHED")
+        mock_client.get_matches.assert_awaited_once_with("WC", status="LIVE,IN_PLAY,PAUSED")
 
 
-def test_live_status_filter_includes_finished() -> None:
-    """Regression pin: a match that ends between polls drops out of a
-    live-only response, so FINISHED must stay in the filter or the
-    LIVE → FINISHED transition never reaches score_sync."""
-    from app.services.external_scores import FootballDataScoreProvider
+def test_default_provider_is_espn_first_with_fd_resolver() -> None:
+    """Regression pin for the provider chain: ESPN paints live scores,
+    Football-Data is the bulk fallback AND the per-fixture resolver that
+    lands FINISHED results (the live filter never delivers them)."""
+    from app.services.external_scores import (
+        EspnScoreProvider,
+        FallbackScoreProvider,
+        FootballDataScoreProvider,
+        get_score_provider,
+    )
 
-    assert "FINISHED" in FootballDataScoreProvider.LIVE_STATUS_FILTER
+    provider = get_score_provider()
+    assert isinstance(provider, FallbackScoreProvider)
+    assert isinstance(provider._live_providers[0], EspnScoreProvider)
+    assert isinstance(provider._live_providers[1], FootballDataScoreProvider)
+    assert isinstance(provider._resolver, FootballDataScoreProvider)

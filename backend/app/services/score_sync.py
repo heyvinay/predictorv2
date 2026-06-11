@@ -39,6 +39,11 @@ _PRE_KICKOFF_BUFFER = timedelta(minutes=10)
 _POST_FINISH_BUFFER = timedelta(minutes=10)
 _LIVE_MATCH_WINDOW = timedelta(hours=4)  # generous upper bound (group + ET + pens)
 
+# Cap on per-fixture resolution fetches in a single sync. Each costs one
+# API call on top of the bulk live call; Free tier allows 10/min, so 8
+# keeps a worst-case tick (1 bulk + 8 singles) inside the budget.
+_MAX_RESOLVE_FETCHES = 8
+
 
 async def has_active_or_imminent_match(
     session: AsyncSession,
@@ -104,17 +109,51 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
         result.errors.append(f"Provider error: {exc}")
         return result
 
-    if not external_scores:
-        result.skipped_reason = "no live matches returned by provider"
-        return result
-
+    # Fixtures the live response actually touched this tick (by row id, NOT
+    # external id — the ESPN provider matches by team name and carries no
+    # Football-Data id, so id-string bookkeeping would mark everything
+    # unresolved and let a laggier source overwrite fresh live scores).
+    seen_fixture_ids: set = set()
     for ext in external_scores:
+        try:
+            touched = await _apply_external_score(session, competition.id, ext, result)
+            if touched is not None:
+                seen_fixture_ids.add(touched)
+        except Exception as exc:  # noqa: BLE001
+            result.errors.append(
+                f"Error applying {ext.home_team} vs {ext.away_team}: {exc}"
+            )
+
+    # Resolution pass. The live feed only covers pre/in-play matches (ESPN
+    # drops finished ones by design; Football-Data's bulk call filters on
+    # LIVE/IN_PLAY/PAUSED) — so the moment a match ends it vanishes from
+    # the response, and without this pass its fixture would sit at LIVE
+    # with the last in-play score forever (blocking scoring + pushes).
+    # Any fixture we believe is in-play (or that kicked off recently but
+    # never transitioned, e.g. after backend downtime) that the live
+    # response did not touch gets fetched from Football-Data by external
+    # id — landing the authoritative final with the FT/ET/pens split.
+    unresolved = await _find_unresolved_fixtures(session, competition.id, seen_fixture_ids)
+    for fixture in unresolved[:_MAX_RESOLVE_FETCHES]:
+        try:
+            ext = await provider.fetch_fixture_score(fixture.external_id)
+        except Exception as exc:  # noqa: BLE001
+            result.errors.append(
+                f"Resolve error for {fixture.home_team} vs {fixture.away_team}: {exc}"
+            )
+            continue
+        if ext is None:
+            continue
         try:
             await _apply_external_score(session, competition.id, ext, result)
         except Exception as exc:  # noqa: BLE001
             result.errors.append(
                 f"Error applying {ext.home_team} vs {ext.away_team}: {exc}"
             )
+
+    if not external_scores and not unresolved:
+        result.skipped_reason = "no live matches returned by provider"
+        return result
 
     await session.commit()
 
@@ -124,17 +163,60 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
     return result
 
 
+async def _find_unresolved_fixtures(
+    session: AsyncSession,
+    competition_id,
+    seen_fixture_ids: set,
+    *,
+    now: datetime | None = None,
+) -> list[Fixture]:
+    """Fixtures that should be in the live response but weren't.
+
+    Two shapes: (a) status LIVE/HALFTIME — almost certainly just finished;
+    (b) status SCHEDULED with a kickoff in the recent past — a transition
+    we missed entirely (e.g. the backend was down through the match).
+    """
+    now = now or utc_now()
+    q = await session.execute(
+        select(Fixture).where(
+            Fixture.competition_id == competition_id,
+            Fixture.external_id.is_not(None),  # type: ignore[union-attr]
+            (
+                Fixture.status.in_([MatchStatus.LIVE, MatchStatus.HALFTIME])
+                | (
+                    (Fixture.status == MatchStatus.SCHEDULED)
+                    & (Fixture.kickoff <= now)
+                    & (Fixture.kickoff >= now - _LIVE_MATCH_WINDOW)
+                )
+            ),
+        )
+    )
+    return [f for f in q.scalars().all() if f.id not in seen_fixture_ids]
+
+
+# Statuses for which the provider's score payload is meaningful. For a
+# match that hasn't started (or won't be played) Football-Data reports
+# nulls, which _to_external_score coerces to 0 — writing that would
+# fabricate a 0-0 result, so we only touch the Score row in these states.
+_SCORE_BEARING_STATUSES = frozenset(
+    {MatchStatus.LIVE, MatchStatus.HALFTIME, MatchStatus.FINISHED}
+)
+
+
 async def _apply_external_score(
     session: AsyncSession,
     competition_id,
     ext: ExternalScore,
     result: ScoreSyncResult,
-) -> None:
+):
     """Match an ExternalScore to a Fixture by external_id (or team-name fallback)
-    and create/update the corresponding Score row."""
+    and create/update the corresponding Score row.
+
+    Returns the touched fixture's id (or None if no fixture matched) so the
+    caller can exclude it from the resolution pass this tick."""
     fixture = await _find_fixture(session, competition_id, ext)
     if fixture is None:
-        return
+        return None
 
     score_q = await session.execute(select(Score).where(Score.fixture_id == fixture.id))
     score = score_q.scalar_one_or_none()
@@ -144,18 +226,31 @@ async def _apply_external_score(
     # 60-second scheduler re-applying a wrong upstream value. The fixture
     # status/minute are left alone too — the admin save already set
     # FINISHED. Un-verify the score to hand control back to the API.
+    # This guard runs BEFORE any fixture mutation on purpose; it also
+    # returns the fixture id so the resolution pass won't re-fetch it.
     if score is not None and score.verified:
         result.skipped_verified += 1
-        return
+        return fixture.id
 
-    # Change detection: the live filter includes FINISHED, so every poll
-    # during a match window re-delivers already-finished matches. Identical
-    # data must be a no-op — otherwise each tick rewrites rows, bumps
+    fixture_unchanged = fixture.status == ext.status and fixture.minute == ext.minute
+
+    # Non-score-bearing statuses (SCHEDULED / POSTPONED / CANCELLED): sync
+    # the fixture status but never write a Score row — null scores coerce
+    # to 0 and would fabricate a 0-0 result for an unplayed match.
+    if ext.status not in _SCORE_BEARING_STATUSES:
+        if not fixture_unchanged:
+            fixture.status = ext.status
+            fixture.minute = ext.minute
+            fixture.updated_at = utc_now()
+        return fixture.id
+
+    # Change detection: ESPN repaints the same in-play score every tick and
+    # the resolution pass can re-deliver a finished match. Identical data
+    # must be a no-op — otherwise each tick rewrites rows, bumps
     # updated_at, and invalidates the leaderboard cache for nothing.
     unchanged = (
-        score is not None
-        and fixture.status == ext.status
-        and fixture.minute == ext.minute
+        fixture_unchanged
+        and score is not None
         and score.home_score == ext.home_score
         and score.away_score == ext.away_score
         and score.home_score_et == ext.home_score_et
@@ -164,7 +259,7 @@ async def _apply_external_score(
         and score.away_penalties == ext.away_penalties
     )
     if unchanged:
-        return
+        return fixture.id
 
     fixture.status = ext.status
     fixture.minute = ext.minute
@@ -184,7 +279,7 @@ async def _apply_external_score(
             )
         )
         result.synced += 1
-        return
+        return fixture.id
 
     score.home_score = ext.home_score
     score.away_score = ext.away_score
@@ -195,6 +290,7 @@ async def _apply_external_score(
     score.source = ScoreSource.API
     score.updated_at = utc_now()
     result.updated += 1
+    return fixture.id
 
 
 async def _find_fixture(
