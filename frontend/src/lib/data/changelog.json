@@ -2137,6 +2137,13 @@
       "type": "fix",
       "summary": "Server logging fix so the team can monitor live-score updates in real time during matches.",
       "commit": "pending"
+    },
+    {
+      "version": "2.172.2",
+      "date": "2026-06-11",
+      "type": "fix",
+      "summary": "Completes the live-score monitoring fix: scheduler activity is now fully visible to the team during matches.",
+      "commit": "pending"
     }
   ]
 }
