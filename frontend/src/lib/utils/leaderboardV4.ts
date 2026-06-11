@@ -279,6 +279,24 @@ export function rowDisplayName(row: NamedEntryRow, multiOwners: Set<string>): st
 		: row.user_name;
 }
 
+/** Case- and accent-insensitive needle match (è≈e, ü≈u …). */
+function foldText(s: string): string {
+	return s
+		.normalize('NFD')
+		.replace(/[̀-ͯ]/g, '')
+		.toLowerCase();
+}
+
+/** Filter rows on person OR entry name. Empty query returns rows as-is;
+ *  global positions are never recomputed (same rule as pool filtering). */
+export function searchRows(rows: LbEntryV4[], query: string): LbEntryV4[] {
+	const q = foldText(query.trim());
+	if (!q) return rows;
+	return rows.filter(
+		(r) => foldText(r.user_name).includes(q) || foldText(r.entry_name).includes(q)
+	);
+}
+
 /** Two-character avatar initials from an entry name. */
 export function initialsOf(name: string): string {
 	const words = name.trim().split(/\s+/).filter(Boolean);

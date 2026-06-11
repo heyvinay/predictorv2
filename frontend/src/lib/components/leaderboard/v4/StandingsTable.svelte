@@ -54,7 +54,7 @@
 		<StandingRow {row} {stage} isOwn={row.user_id === userId} {gridClass} {multiOwners} {onOpen} />
 	{:else}
 		<div class="border-t border-base-300/40 px-4 py-8 text-center text-sm text-base-content/55">
-			No entries in this pool
+			No entries match — try another pool or clear the search
 		</div>
 	{/each}
 </div>

@@ -20,6 +20,7 @@ import {
 	poolOf,
 	remainingMatchPoints,
 	rowDisplayName,
+	searchRows,
 	seededByStage,
 	storyLine
 } from './leaderboardV4';
@@ -367,6 +368,30 @@ describe('eliminatedTeams / seededByStage / chipState', () => {
 		expect(chipState('Brazil', 'semi_final', seeded, out)).toBe('hit');
 		expect(chipState('Germany', 'semi_final', seeded, out)).toBe('out');
 		expect(chipState('France', 'semi_final', seeded, out)).toBe('pend');
+	});
+});
+
+describe('searchRows', () => {
+	const rows = [
+		mkRow({ entry_id: 'a', user_name: 'Karl Schembri', entry_name: 'Route One FC', position: 4 }),
+		mkRow({ entry_id: 'b', user_name: 'Elena Galea', entry_name: 'Tiki-Taka', position: 7 }),
+		mkRow({ entry_id: 'c', user_name: 'José Müller', entry_name: 'Samba Kings', position: 9 })
+	];
+
+	it('matches person or entry name, case-insensitively', () => {
+		expect(searchRows(rows, 'karl').map((r) => r.entry_id)).toEqual(['a']);
+		expect(searchRows(rows, 'TIKI').map((r) => r.entry_id)).toEqual(['b']);
+	});
+
+	it('is accent-insensitive and keeps global positions', () => {
+		const hit = searchRows(rows, 'jose muller');
+		expect(hit.map((r) => r.entry_id)).toEqual(['c']);
+		expect(hit[0].position).toBe(9);
+	});
+
+	it('empty or blank query returns everything', () => {
+		expect(searchRows(rows, '')).toHaveLength(3);
+		expect(searchRows(rows, '   ')).toHaveLength(3);
 	});
 });
 

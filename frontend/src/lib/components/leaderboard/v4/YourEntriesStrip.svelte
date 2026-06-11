@@ -9,6 +9,8 @@
 	export let userId: string | null | undefined;
 	export let pool: LbPool;
 	export let onPool: (p: LbPool) => void;
+	/** Two-way bound search query (person or entry name). */
+	export let search = '';
 
 	const POOLS: LbPool[] = ['All', 'Atlas', 'JMFA', 'Guests'];
 
@@ -37,7 +39,21 @@
 		{/if}
 	</div>
 
-	<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Pool filter">
+	<div class="flex flex-wrap items-center gap-1.5">
+		<label class="relative">
+			<span
+				class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-base-content/40"
+				aria-hidden="true">⌕</span
+			>
+			<input
+				type="search"
+				bind:value={search}
+				placeholder="Search name…"
+				aria-label="Search entries by person or entry name"
+				class="h-[34px] w-36 rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-7 pr-2.5 text-xs font-semibold text-base-content placeholder:text-base-content/40 focus:border-primary focus:outline-none sm:w-44 sm:focus:w-52 transition-all"
+			/>
+		</label>
+		<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Pool filter">
 		{#each POOLS as p}
 			<button
 				role="radio"
@@ -56,5 +72,6 @@
 				>
 			</button>
 		{/each}
+		</div>
 	</div>
 </div>
