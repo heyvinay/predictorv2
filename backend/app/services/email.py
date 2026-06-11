@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -885,11 +887,28 @@ class _BroadcastContent:
     cta_label: str
 
 
+def _format_deadline_malta(dt: datetime | None) -> str | None:
+    """Render a deadline as '11 Jun 2026, 7:00 PM Malta Time'.
+
+    Used by broadcast segments that prefer a localised, human-friendly
+    timestamp over the bare UTC one. Returns None if no deadline is set.
+    """
+    if dt is None:
+        return None
+    local = dt.astimezone(ZoneInfo("Europe/Malta"))
+    hour12 = local.hour % 12 or 12
+    ampm = "AM" if local.hour < 12 else "PM"
+    # Portable day-of-month (no leading zero) — %-d / %#d differ by platform.
+    day = str(local.day)
+    return f"{day} {local.strftime('%b %Y')}, {hour12}:{local.minute:02d} {ampm} Malta Time"
+
+
 def _broadcast_content_for_segment(
     segment: BroadcastSegment,
     *,
     player_name: str,
     deadline_display: str | None,
+    deadline_dt: datetime | None = None,
 ) -> _BroadcastContent:
     """Branch on segment → return per-segment copy.
 
@@ -959,6 +978,19 @@ def _broadcast_content_for_segment(
         )
 
     if segment == BroadcastSegment.NO_ENTRY:
+        # This is the LAST nudge for sign-ups who haven't started — copy
+        # leans on Malta-time phrasing, the live prize pot, and a hard
+        # "no more reminders" line so the recipient knows it's their
+        # final ping.
+        malta_phrase = _format_deadline_malta(deadline_dt) or deadline_display
+        no_entry_html = (
+            f"before <strong>{malta_phrase}</strong>"
+            if malta_phrase
+            else "before the deadline"
+        )
+        no_entry_text = (
+            f"before {malta_phrase}" if malta_phrase else "before the deadline"
+        )
         return _BroadcastContent(
             subject="Make your World Cup 2026 picks",
             headline="Don't miss out on World Cup 2026.",
@@ -969,17 +1001,28 @@ def _broadcast_content_for_segment(
                 "pool but haven't made your picks yet.</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                f"The deadline to enter is {deadline_phrase_html}. It takes about "
+                f"The deadline to enter is {no_entry_html}. It takes about "
                 "ten minutes to fill in your group-stage predictions, bracket, and "
                 "bonus answers — and you only need to do it once.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The prize fund currently stands close to "
+                "<strong>&euro;800</strong>.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "This is the last reminder you will receive.</p>\n"
             ),
             body_text=(
                 f"Hi {safe_name}, you signed up for the World Cup 2026 prediction\n"
                 "pool but haven't made your picks yet.\n"
                 "\n"
-                f"The deadline to enter is {deadline_phrase_text}. It takes about\n"
+                f"The deadline to enter is {no_entry_text}. It takes about\n"
                 "ten minutes to fill in your group-stage predictions, bracket, and\n"
                 "bonus answers — and you only need to do it once.\n"
+                "\n"
+                "The prize fund currently stands close to €800.\n"
+                "\n"
+                "This is the last reminder you will receive.\n"
             ),
             cta_label="Make my picks",
         )
@@ -1020,6 +1063,7 @@ async def send_broadcast_email(
     segment: BroadcastSegment,
     deep_link_url: str,
     deadline_display: str | None,
+    deadline_dt: datetime | None = None,
 ) -> None:
     """Send ONE broadcast email to ONE recipient.
 
@@ -1037,7 +1081,10 @@ async def send_broadcast_email(
     """
     settings = get_settings()
     content = _broadcast_content_for_segment(
-        segment, player_name=player_name, deadline_display=deadline_display
+        segment,
+        player_name=player_name,
+        deadline_display=deadline_display,
+        deadline_dt=deadline_dt,
     )
 
     if not settings.resend_api_key:
