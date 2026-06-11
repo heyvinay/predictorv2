@@ -325,6 +325,26 @@ async def toggle_user_admin(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    # Lockout guard (v2.166.0): never demote the LAST active admin —
+    # with no admin left, nobody can flip go-live, manage users, or
+    # restore admin rights. Promote someone else first.
+    if user.is_admin:
+        other_admins = await session.scalar(
+            select(func.count(User.id)).where(
+                User.is_admin == True,  # noqa: E712
+                User.is_active == True,  # noqa: E712
+                User.id != user.id,
+            )
+        )
+        if not other_admins:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Cannot remove admin from the last active admin — "
+                    "promote another admin first."
+                ),
+            )
+
     user.is_admin = not user.is_admin
     user.updated_at = utc_now()
     await session.commit()
@@ -362,6 +382,20 @@ async def toggle_user_active(
 
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Lockout guard (v2.166.0): admin accounts can never be DEACTIVATED
+    # — is_active=false blocks every login path (password, magic link,
+    # OAuth), so a slip here locks the admin out of production for good.
+    # Revoke admin first if an admin account truly must be disabled.
+    # Re-activation is always allowed.
+    if user.is_active and user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Admin accounts can't be deactivated — remove their "
+                "admin role first."
+            ),
+        )
 
     user.is_active = not user.is_active
     user.updated_at = utc_now()
