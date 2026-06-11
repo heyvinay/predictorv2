@@ -10,16 +10,18 @@
 	 * (pre-authorized by ACCEPTANCE M4: ship behind a flag, don't block).
 	 */
 	import type { Fixture } from '$types';
-	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
+	import type { BonusMeta } from '$api/bonus';
+	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
 		ceilingOf,
 		dnaOf,
+		isRealTeam,
 		multiEntryUserIds,
 		remainingMatchPoints,
-		rowDisplayName
+		rowDisplayName,
+		seededByStage
 	} from '$lib/utils/leaderboardV4';
-	import { fifaPoints } from '$lib/utils/smartFill';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
@@ -29,7 +31,9 @@
 	export let rules: ScoringRules | null;
 	export let userId: string | null | undefined;
 	export let fixtures: Fixture[];
-	export let stage: LbStage;
+	/** FIFA top_n cutoff + team list driving bonus questions 3 (Dark
+	 *  Horse) and 4 (Bottlers). Null until the page load completes. */
+	export let bonusMeta: BonusMeta | null = null;
 
 	// 5 cards needing all-entries per-fixture data — not yet served.
 	const INSIGHTS_EXTENDED = false;
@@ -126,6 +130,10 @@
 	// the card doesn't blow up in the opening days. Pills are sorted
 	// alphabetically inside each tied group for stable ordering.
 	const SUPERLATIVE_LIMIT = 5;
+	$: groupStageComplete = (() => {
+		const gx = fixtures.filter((f) => f.stage === 'group');
+		return gx.length > 0 && gx.every((f) => f.status === 'finished');
+	})();
 	type Superlative = {
 		lbl: string;
 		teams: string[];
@@ -190,36 +198,134 @@
 			);
 		}
 
-		// Flop: highest-FIFA teams provably out (tied within rounding).
-		const allTeams = new Set<string>();
-		for (const f of fixtures) {
-			if (f.stage === 'group') {
-				if (f.home_team) allTeams.add(f.home_team);
-				if (f.away_team) allTeams.add(f.away_team);
+		// ── Bonus Q3 / Q4 (group stage must be complete to seed candidates).
+		//
+		// These map directly to the bonus questions every entry answered:
+		//   Q3 Dark Horse — team OUTSIDE FIFA top N progressing furthest.
+		//   Q4 Bottlers   — team INSIDE FIFA top N eliminated earliest
+		//                   (including not making the knockout stage).
+		// Both become meaningful once the group stage finishes: Q4's
+		// candidates seed from top-N sides that didn't qualify (or all
+		// top-N sides if every favourite qualified — they're tied earliest
+		// until a KO match knocks one out). Q3's candidates seed from
+		// outside-top-N sides that did qualify (all tied for "furthest"
+		// at R32 until KO matches narrow the field).
+		const groupFixtures = fixtures.filter((f) => f.stage === 'group');
+		const groupStageComplete =
+			groupFixtures.length > 0 &&
+			groupFixtures.every((f) => f.status === 'finished');
+
+		if (groupStageComplete && bonusMeta) {
+			const topN = new Set(bonusMeta.fifa_top_teams);
+			// Teams seeded into ANY knockout fixture = qualified from groups.
+			const seeded = seededByStage(fixtures);
+			const qualified = new Set<string>();
+			for (const set of seeded.values()) for (const t of set) qualified.add(t);
+
+			const allGroupTeams = new Set<string>();
+			for (const f of groupFixtures) {
+				if (isRealTeam(f.home_team)) allGroupTeams.add(f.home_team);
+				if (isRealTeam(f.away_team)) allGroupTeams.add(f.away_team);
 			}
-		}
-		const eliminated = [...allTeams].filter((t) =>
-			rows.some((r) => r.champion_pick === t && r.champion_alive === false)
-		);
-		if (stage === 'knockout' && eliminated.length > 0) {
-			const ranked = eliminated
-				.map((t) => ({ t, pts: fifaPoints(t) }))
-				.sort((a, b) => b.pts - a.pts);
-			// Treat the top "tier" as anyone within 30 FIFA points of the
-			// strongest eliminated team (FIFA points are spaced by ~10–40
-			// at the top, so this groups co-favourites without over-listing).
-			const top = ranked[0].pts;
-			const flopTeams = ranked
-				.filter((x) => top - x.pts <= 30)
-				.map((x) => x.t)
+
+			// Q3: outside-top-N teams that progressed. Once the tournament
+			// runs further, this narrows to whoever's still alive deepest.
+			const eliminated = new Set<string>();
+			for (const f of fixtures) {
+				if (
+					f.stage !== 'group' &&
+					f.status === 'finished' &&
+					f.score &&
+					isRealTeam(f.home_team) &&
+					isRealTeam(f.away_team)
+				) {
+					if (f.score.outcome === '1') eliminated.add(f.away_team);
+					else if (f.score.outcome === '2') eliminated.add(f.home_team);
+				}
+			}
+			const darkHorseCandidates = [...allGroupTeams]
+				.filter((t) => !topN.has(t) && qualified.has(t) && !eliminated.has(t))
 				.sort((a, b) => a.localeCompare(b));
 			push(
-				'Biggest flop · strong seed out',
-				flopTeams,
-				'eliminated',
-				flopTeams.length === 1
-					? 'highest FIFA rating already out'
-					: 'top FIFA seeds already out'
+				`Dark horse · outside FIFA top ${bonusMeta.top_n}`,
+				darkHorseCandidates,
+				darkHorseCandidates.length === 1 ? 'still standing' : 'still in contention',
+				'Bonus Q3 — outsider running furthest'
+			);
+
+			// Q4: top-N teams eliminated earliest. After group stage that's
+			// "didn't qualify"; once KO is running, also top-N KO losers
+			// from the earliest round to have any (the question rewards
+			// the EARLIEST exit, so eliminating from the latest survivors
+			// downward is wrong — pick the lowest stage in which any top-N
+			// side has been knocked out).
+			const STAGE_ORDER = [
+				'group',
+				'round_of_32',
+				'round_of_16',
+				'quarter_final',
+				'semi_final',
+				'final'
+			];
+			const topNNotQualified = [...topN].filter(
+				(t) => allGroupTeams.has(t) && !qualified.has(t)
+			);
+			let bottlerCandidates: string[];
+			let bottlerNote: string;
+			if (topNNotQualified.length > 0) {
+				bottlerCandidates = topNNotQualified.sort((a, b) => a.localeCompare(b));
+				bottlerNote = 'Bonus Q4 — top FIFA side failed to qualify';
+			} else {
+				// Every top-N side qualified — find the earliest KO round
+				// any top-N team lost in, list everyone tied at that depth.
+				let earliest: string | null = null;
+				const koLosers = new Map<string, string>(); // team → stage of loss
+				for (const f of fixtures) {
+					if (
+						f.stage === 'group' ||
+						f.status !== 'finished' ||
+						!f.score ||
+						!isRealTeam(f.home_team) ||
+						!isRealTeam(f.away_team)
+					)
+						continue;
+					const loser =
+						f.score.outcome === '1'
+							? f.away_team
+							: f.score.outcome === '2'
+							? f.home_team
+							: null;
+					if (loser && topN.has(loser)) {
+						koLosers.set(loser, f.stage);
+						if (
+							earliest === null ||
+							STAGE_ORDER.indexOf(f.stage) < STAGE_ORDER.indexOf(earliest)
+						) {
+							earliest = f.stage;
+						}
+					}
+				}
+				bottlerCandidates =
+					earliest === null
+						? []
+						: [...koLosers.entries()]
+								.filter(([, s]) => s === earliest)
+								.map(([t]) => t)
+								.sort((a, b) => a.localeCompare(b));
+				bottlerNote =
+					earliest === null
+						? 'Bonus Q4 — every top-FIFA side still alive'
+						: `Bonus Q4 — top FIFA side out at ${earliest.replace(/_/g, ' ')}`;
+			}
+			push(
+				`Bottlers · inside FIFA top ${bonusMeta.top_n}`,
+				bottlerCandidates,
+				bottlerCandidates.length === 0
+					? 'TBD'
+					: bottlerCandidates.length === 1
+					? 'eliminated'
+					: 'all eliminated',
+				bottlerNote
 			);
 		}
 		return out;
@@ -412,7 +518,7 @@
 	<!-- 5 · Tournament superlatives -->
 	<InsightCard
 		title="Tournament superlatives"
-		sub="The stories of the group phase, straight from the scores"
+		sub="The stories of the tournament — and the bonus-question candidates"
 	>
 		<div class="flex flex-col gap-3.5">
 			{#each superlatives as s (s.lbl)}
@@ -424,18 +530,20 @@
 						>
 						<b class="font-display text-[13px] font-extrabold text-primary">{s.val}</b>
 					</span>
-					<div class="flex flex-wrap items-center gap-1.5">
-						{#each s.shown as team (team)}
-							<span
-								class="inline-flex items-center gap-1.5 rounded-full bg-base-300/30 px-2 py-1"
-							>
-								<FlagCode {team} size="sm" />
-							</span>
-						{/each}
-						{#if s.extra > 0}
-							<span class="text-[11px] text-base-content/55">+{s.extra} more</span>
-						{/if}
-					</div>
+					{#if s.shown.length > 0}
+						<div class="flex flex-wrap items-center gap-1.5">
+							{#each s.shown as team (team)}
+								<span
+									class="inline-flex items-center gap-1.5 rounded-full bg-base-300/30 px-2 py-1"
+								>
+									<FlagCode {team} size="sm" />
+								</span>
+							{/each}
+							{#if s.extra > 0}
+								<span class="text-[11px] text-base-content/55">+{s.extra} more</span>
+							{/if}
+						</div>
+					{/if}
 					<span class="text-[11px] text-base-content/55">{s.note}</span>
 				</div>
 			{:else}
@@ -443,6 +551,15 @@
 					Superlatives appear once the first matches finish.
 				</p>
 			{/each}
+			{#if !groupStageComplete}
+				<p
+					class="mt-1 border-t border-base-300/45 pt-3 text-[11px] text-base-content/55"
+				>
+					Bonus questions <b class="font-display font-extrabold">3</b> &amp;
+					<b class="font-display font-extrabold">4</b> unlock once the group
+					stage finishes.
+				</p>
+			{/if}
 		</div>
 	</InsightCard>
 

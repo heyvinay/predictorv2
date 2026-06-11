@@ -15,6 +15,7 @@
 	import { phase1Deadline } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
@@ -71,6 +72,7 @@
 	// ── data ──
 	let board: LbResponseV4 | null = null;
 	let rules: ScoringRules | null = null;
+	let bonusMeta: BonusMeta | null = null;
 	let loading = true;
 	let loadError = false;
 	let selected: LbEntryV4 | null = null;
@@ -79,13 +81,15 @@
 	async function load() {
 		loadError = false;
 		try {
-			const [b, , r] = await Promise.all([
+			const [b, , r, m] = await Promise.all([
 				getLeaderboardV4(),
 				fetchAllFixtures(),
-				getScoringRules()
+				getScoringRules(),
+				getBonusMeta().catch(() => null)
 			]);
 			board = b;
 			rules = r;
+			bonusMeta = m;
 		} catch {
 			loadError = true;
 		}
@@ -224,7 +228,13 @@
 		{:else if view === 'race'}
 			<RaceChart {rows} userId={$user?.id} fixtures={$fixtures} />
 		{:else if view === 'insights'}
-			<InsightsGrid {rows} {rules} userId={$user?.id} fixtures={$fixtures} {stage} />
+			<InsightsGrid
+				{rows}
+				{rules}
+				{bonusMeta}
+				userId={$user?.id}
+				fixtures={$fixtures}
+			/>
 		{/if}
 
 		{#if selected}
