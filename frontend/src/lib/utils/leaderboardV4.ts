@@ -101,9 +101,20 @@ export function eliminatedTeams(fixtures: Fixture[]): Set<string> {
 	return out;
 }
 
-/** stage → set of real teams seeded into that stage's fixtures. The
- *  pseudo-stage "winner" holds the champion once the final is finished. */
+/** stage → set of real teams credited with reaching that stage. Mirrors
+ *  the backend's get_actual_advancement: (a) being seeded into a stage's
+ *  fixture lineup counts, AND (b) winning a FINISHED knockout match
+ *  credits the winner with the NEXT stage — even before Football-Data
+ *  updates the next round's lineups. The pseudo-stage "winner" holds the
+ *  champion once the final is finished. */
 export function seededByStage(fixtures: Fixture[]): Map<string, Set<string>> {
+	const NEXT_STAGE: Record<string, string> = {
+		round_of_32: 'round_of_16',
+		round_of_16: 'quarter_final',
+		quarter_final: 'semi_final',
+		semi_final: 'final',
+		final: 'winner'
+	};
 	const map = new Map<string, Set<string>>();
 	const add = (stage: string, team: string) => {
 		if (!map.has(stage)) map.set(stage, new Set());
@@ -113,9 +124,11 @@ export function seededByStage(fixtures: Fixture[]): Map<string, Set<string>> {
 		if (f.stage === 'group') continue;
 		if (isRealTeam(f.home_team)) add(f.stage, f.home_team);
 		if (isRealTeam(f.away_team)) add(f.stage, f.away_team);
-		if (f.stage === 'final' && f.status === 'finished' && f.score) {
-			if (f.score.outcome === '1' && isRealTeam(f.home_team)) add('winner', f.home_team);
-			else if (f.score.outcome === '2' && isRealTeam(f.away_team)) add('winner', f.away_team);
+		if (f.status === 'finished' && f.score) {
+			const next = NEXT_STAGE[f.stage];
+			if (!next) continue;
+			if (f.score.outcome === '1' && isRealTeam(f.home_team)) add(next, f.home_team);
+			else if (f.score.outcome === '2' && isRealTeam(f.away_team)) add(next, f.away_team);
 		}
 	}
 	return map;
