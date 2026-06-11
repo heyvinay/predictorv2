@@ -2158,6 +2158,13 @@
       "type": "improvement",
       "summary": "The rules page now flags the rarity-bonus pause right in the scoring section, so nobody is surprised that matches pay base points only until the pool is confirmed.",
       "commit": "pending"
+    },
+    {
+      "version": "2.172.5",
+      "date": "2026-06-11",
+      "type": "fix",
+      "summary": "Hardened full-time result handling after the opening match: incomplete data from the score feed can no longer record a wrong final score, and a second source now confirms every result.",
+      "commit": "pending"
     }
   ]
 }
