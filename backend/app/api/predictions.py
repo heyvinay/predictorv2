@@ -25,6 +25,7 @@ from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction
 from app.models.user import User
+from app.services.locking import is_phase1_locked
 from app.schemas.fixture import FixtureScore
 from app.schemas.prediction import CommunityPrediction, CommunityPredictionsResponse
 from app.services.bonus import (
@@ -71,11 +72,13 @@ async def get_community_predictions(
 ) -> CommunityPredictionsResponse:
     """All eligible entries' predictions for a fixture (blind-pool gated).
 
-    Only visible after the fixture's prediction lock (5 min before kickoff)
-    or once the match is finished. Returns one row per submitted-or-locked
-    entry — a user with two submitted entries appears twice with distinct
-    references. Each row includes the entry's current overall leaderboard
-    rank (null when the entry is not in the ranking).
+    Visibility: predictions for ALL fixtures become visible the moment the
+    global Phase 1 deadline passes (open-pool model — CLAUDE.md). The
+    older per-fixture 5-minute pre-kickoff lock is kept as a belt-and-
+    braces fallback so a single misconfigured deadline can't blow the
+    blind pool open early. Once the deadline is past, every fixture's
+    pool list, spread, and rarity split are immediately available — the
+    upcoming match-detail page leans on this.
     """
     # Load fixture with score.
     fixture_row = await session.execute(
@@ -87,8 +90,13 @@ async def get_community_predictions(
             status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found"
         )
 
-    # Blind-pool gate.
-    if not fixture.is_locked(LOCK_MINUTES) and fixture.status != MatchStatus.FINISHED:
+    # Blind-pool gate: global deadline OR per-fixture lock OR finished.
+    deadline_passed = await is_phase1_locked(session)
+    if (
+        not deadline_passed
+        and not fixture.is_locked(LOCK_MINUTES)
+        and fixture.status != MatchStatus.FINISHED
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Predictions are not yet visible for this match",
