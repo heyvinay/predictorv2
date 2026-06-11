@@ -32,7 +32,13 @@ from app.models import (  # noqa: F401
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False is load-bearing: init_db() runs this
+    # inside FastAPI startup, and the default (True) silently disables every
+    # logger created before it — uvicorn's "Application startup complete",
+    # the score_scheduler tick/warning lines, all app INFO+WARNING output.
+    # That made a healthy scheduler indistinguishable from a dead one and
+    # swallowed sync errors entirely.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = SQLModel.metadata
 

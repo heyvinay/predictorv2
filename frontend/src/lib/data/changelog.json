@@ -2130,6 +2130,13 @@
       "type": "feature",
       "summary": "Live scores got a major reliability upgrade: in-play scores now update in near real time, and full-time results land automatically the moment a match ends — no admin action needed.",
       "commit": "pending"
+    },
+    {
+      "version": "2.172.1",
+      "date": "2026-06-11",
+      "type": "fix",
+      "summary": "Server logging fix so the team can monitor live-score updates in real time during matches.",
+      "commit": "pending"
     }
   ]
 }
