@@ -14,7 +14,7 @@
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
 	import { phase1Deadline } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
-	import { getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
@@ -73,6 +73,10 @@
 	let board: LbResponseV4 | null = null;
 	let rules: ScoringRules | null = null;
 	let bonusMeta: BonusMeta | null = null;
+	/** entry_id → points-over-time series, for the standings sparkline.
+	 *  Populated from the bulk snapshots endpoint; empty if it 403s
+	 *  pre-deadline (sparklines fall back to a dash placeholder). */
+	let trajectoriesByEntry = new Map<string, number[]>();
 	let loading = true;
 	let loadError = false;
 	let selected: LbEntryV4 | null = null;
@@ -81,15 +85,21 @@
 	async function load() {
 		loadError = false;
 		try {
-			const [b, , r, m] = await Promise.all([
+			const [b, , r, m, traj] = await Promise.all([
 				getLeaderboardV4(),
 				fetchAllFixtures(),
 				getScoringRules(),
-				getBonusMeta().catch(() => null)
+				getBonusMeta().catch(() => null),
+				getAllTrajectories(14).catch(() => null)
 			]);
 			board = b;
 			rules = r;
 			bonusMeta = m;
+			if (traj) {
+				trajectoriesByEntry = new Map(
+					traj.entries.map((t) => [t.entry_id, t.points.map((p) => p.total_points)])
+				);
+			}
 		} catch {
 			loadError = true;
 		}
@@ -225,6 +235,7 @@
 				{stage}
 				userId={$user?.id}
 				{multiOwners}
+				{trajectoriesByEntry}
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}

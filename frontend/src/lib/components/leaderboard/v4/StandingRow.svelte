@@ -6,6 +6,7 @@
 	import { groupPtsOf, koPtsOf, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import FlagCode from './FlagCode.svelte';
 	import RankCell from './RankCell.svelte';
+	import Sparkline from './Sparkline.svelte';
 	import YouTag from './YouTag.svelte';
 
 	export let row: LbEntryV4;
@@ -14,6 +15,8 @@
 	export let gridClass: string;
 	/** Users with >1 entries (computed from the UNFILTERED board). */
 	export let multiOwners: Set<string>;
+	/** Points-over-time series for this entry (≥2 to draw). */
+	export let trajectory: number[] = [];
 	export let onOpen: (row: LbEntryV4) => void;
 
 	$: bonusG = row.bonus_group_points ?? 0;
@@ -78,6 +81,10 @@
 		title={koTitle}
 	>
 		{koPts}{#if bonusK}<span class="ml-0.5 align-super text-[8.5px] text-primary">+B</span>{/if}
+	</span>
+
+	<span class="hidden justify-self-center min-[880px]:flex">
+		<Sparkline points={trajectory} />
 	</span>
 
 	<span
