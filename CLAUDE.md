@@ -195,12 +195,16 @@ fire on every edit. Spec lives at
    (32+16+8+4+2+1 — NO group_winners rows in real DB); bonus counts
    only current question ids (legacy 10→4 trim left stale rows).
 
-**V4 Results is gated by `V4_RESULTS_ENABLED` const** at
-`frontend/src/routes/results/+page.svelte:67`. Default **FALSE**
-post-deploy — the page renders the pre-tournament stub for everyone
-until the flag flips. To enable: edit one line, commit, redeploy.
-Keep the flag in the codebase as a 2-week safety net even after
-enabling — flipping it back is a 60-second rollback.
+**V4 Results gate (updated v2.164.0).** Two layers:
+`V4_RESULTS_ENABLED = true` (the kill switch — flip to `false` and
+redeploy for a 60-second rollback) AND `$user?.is_admin === true`
+(the staged-rollout filter). Together: V4 ships behind an admin gate
+on top of the deadline check; non-admins see the pre-tournament stub
+until the `is_admin` clause is deleted from the gate in
+`frontend/src/routes/results/+page.svelte`. Same shape as the V4
+Leaderboard gate — both pages roll out via the same recipe (admin
+verifies in prod, then one-line clause removal + redeploy opens it
+to the pool).
 
 **Backend additions are LIVE (additive, dormant until V4 enabled):**
 - `MatchPredictionRead.points: PickPointsOut | None` populated for
@@ -240,10 +244,11 @@ Components in `frontend/src/lib/components/leaderboard/v4/`; types in
 derivations in `frontend/src/lib/utils/leaderboardV4.ts`
 (vitest-covered).
 
-- **Gate:** `V4_LEADERBOARD_ENABLED = true` at
-  `frontend/src/routes/leaderboard/+page.svelte` — ANDed with the
-  phase1-deadline check, so pre-deadline users still get the stub.
-  Flip to `false` + redeploy for a 60-second rollback.
+- **Gate:** `V4_LEADERBOARD_ENABLED = true` AND `$user?.is_admin === true`
+  in `frontend/src/routes/leaderboard/+page.svelte` — admin-only
+  staged rollout (same pattern as V4 Results, see above). To open
+  the page to the whole pool, delete the `is_admin` clause and
+  redeploy. The `V4_LEADERBOARD_ENABLED` flag stays as a kill switch.
 - **Backend additions (additive, no migrations):** `LeaderboardEntry`
   gained `employer`, `champion_pick`/`champion_alive`,
   `finalist_picks`/`finalists_alive`, `daily_movement` (vs yesterday's
@@ -255,12 +260,33 @@ derivations in `frontend/src/lib/utils/leaderboardV4.ts`
 - **Pools:** Atlas/JMFA/Guests pills map onto `User.employer`
   (`atlas`/`jmfa`/`neither`|null → Guests). Filtering keeps GLOBAL
   ranks — server positions are never recomputed client-side.
-- **Race chart x-axis is daily snapshots**, not per-round checkpoints
-  (that's what the backend records). Empty state until 2 scoring days.
-- **Insights:** 9 of the spec's 14 cards ship; the 5 needing
-  all-entries per-fixture data (herd, heartbreak, hauls, hot hand,
-  pick twins) sit behind `INSIGHTS_EXTENDED = false` in
-  `InsightsGrid.svelte` pending a backend insights endpoint.
+- **Search box** in the your-entries strip filters by person OR entry
+  name (accent-insensitive, `searchRows()` in `leaderboardV4.ts`).
+  Composes with the pool filter; global ranks still survive.
+- **Sparkline column** (Trend, desktop only) renders a 60×18 SVG of
+  each entry's 14-day points trajectory — coloured by net delta —
+  fed by the same `/leaderboard/snapshots` bulk endpoint as the Race
+  view. No N+1 fetch.
+- **Naming rule (★ consistency).** `rowDisplayName()` in
+  `leaderboardV4.ts` is THE rule for surfacing entry identity:
+  `Person — Entry name` when the owner holds multiple entries, just
+  `Person` otherwise. Used by standings rows, drawer header, race
+  chart labels + tip bar, every insights card. Computed from the
+  UNFILTERED board so pool/search filtering can't flip a label.
+- **Race chart x-axis anchors to fixture timeline:** start = first
+  fixture's UTC kickoff date, end = today (advances each day). Snapshot
+  points outside this window are filtered out per-entry, so seed
+  snapshots from before kickoff can never pull the axis backwards.
+- **Insights:** 8 of the spec's 14 cards ship (Atlas-vs-JMFA was
+  dropped per user feedback); the 5 needing all-entries per-fixture
+  data (herd, heartbreak, hauls, hot hand, pick twins) sit behind
+  `INSIGHTS_EXTENDED = false` in `InsightsGrid.svelte` pending a
+  backend insights endpoint. Tournament Superlatives now lists ALL
+  teams tied at each criterion (capped at 5 + "+N more"); bonus Q3
+  Dark Horse and Q4 Bottlers candidates surface in the same card
+  once `groupStageComplete` flips true (every group fixture
+  FINISHED), driven by `bonusMeta.fifa_top_teams` from
+  `/predictions/bonus/meta`.
 - **Elimination is conservative** (`get_eliminated_teams` backend,
   `eliminatedTeams` frontend mirror): KO-match losers + group
   non-qualifiers only once every R32 fixture holds real
@@ -270,6 +296,36 @@ derivations in `frontend/src/lib/utils/leaderboardV4.ts`
   frontend overlay test needs `docker compose restart frontend-dev`
   (~12s); stale module graphs otherwise produce phantom
   "does not provide an export" errors and SSR 500s.
+
+**V4 Match Detail polish (v2.164.0).**
+
+- **Upcoming-match panes now render** (`/results/{fixture_id}` for
+  a not-yet-played fixture). The community endpoint
+  (`GET /api/predictions/matches/{fixture_id}/community`) was gating
+  on the per-fixture 5-min lock; now also accepts the global
+  `is_phase1_locked` — open-pool post-deadline, every fixture's
+  picks immediately surface. Pool split + scoreline bubble grid +
+  "Who picked what" all appear pre-kickoff.
+- **Scoreline-spread bubble grid:** responsive 4×4 with
+  aspect-square cells, bubble fill `bg-amber-400` / `bg-emerald-400`
+  / `bg-slate-400` for home/away/draw outcomes (NOT the surface
+  `warning/success` tokens — those render too dark for chart fills,
+  per the "text-warning is a surface trap" rule).
+- **Per-round scoring explainer** moved from an always-on banner
+  to a ℹ popover next to the table's Points column header
+  (`PointsHelpButton.svelte`). Summary + Winner views still get the
+  banner since they don't have a Points column.
+- **Third-place playoff** (`Fixture.stage === 'third_place'`) is
+  explicitly OMITTED from the Finals tab and every other surface —
+  prediction game doesn't score it. ★ Invariant documented above
+  and pinned in `resultsRounds.test.ts`.
+- **Entry switcher** merged into the points-summary pill
+  (`EntrySummaryBar.svelte`) — single right-aligned card with two
+  sub-rows: identity ("Person — Entry · switch ▾") on top, score
+  breakdown below. One click target for the whole thing. Identity
+  sub-row lives INSIDE the pill chrome so the mobile navbar can't
+  clip it (lesson learned this session: floating elements above
+  sticky bars get clipped — always put them in a bordered card).
 
 **Latent layout bug (filed, low priority).** The root `+layout.svelte`
 throws a recurring `TypeError: Cannot read properties of null (reading

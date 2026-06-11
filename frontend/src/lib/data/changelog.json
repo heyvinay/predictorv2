@@ -2072,7 +2072,7 @@
       "version": "2.164.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "Brand-new Leaderboard: live standings with pool filters, a tap-to-open breakdown of every entry's picks, a rank-over-time race chart, and an insights page full of pool stats.",
+      "summary": "Brand-new Leaderboard and revamped Results: live standings with search, pool filters, sparkline trend column, race chart and insights cards; the Match Detail page now shows the pool split, predicted-scoreline bubble grid and who picked what — for both played and upcoming matches. Both pages are admin-only for a final taste-check before opening to the whole pool.",
       "commit": "pending"
     }
   ]
