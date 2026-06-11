@@ -2109,6 +2109,13 @@
       "type": "improvement",
       "summary": "Organiser tooling: the user roster gains a No-submission filter showing exactly which accounts the post-deadline clean-up would retire, linked straight from the clean-up panel.",
       "commit": "pending"
+    },
+    {
+      "version": "2.170.0",
+      "date": "2026-06-11",
+      "type": "feature",
+      "summary": "Transparency: a new All entries CSV download on the standings page gives everyone the same sheet of every entry's score predictions, bracket picks and bonus answers once results go live.",
+      "commit": "pending"
     }
   ]
 }
