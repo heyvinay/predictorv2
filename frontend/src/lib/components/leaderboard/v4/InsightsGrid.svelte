@@ -312,10 +312,15 @@
 								.filter(([, s]) => s === earliest)
 								.map(([t]) => t)
 								.sort((a, b) => a.localeCompare(b));
-				bottlerNote =
-					earliest === null
-						? 'Bonus Q4 — every top-FIFA side still alive'
-						: `Bonus Q4 — top FIFA side out at ${earliest.replace(/_/g, ' ')}`;
+				if (earliest === null) {
+					bottlerNote = 'Bonus Q4 — every top-FIFA side still alive';
+				} else {
+					const stageLbl = earliest.replace(/_/g, ' ');
+					bottlerNote =
+						bottlerCandidates.length === 1
+							? `Bonus Q4 — top FIFA side out at ${stageLbl}`
+							: `Bonus Q4 — top FIFA sides tied · all out at ${stageLbl}`;
+				}
 			}
 			push(
 				`Bottlers · inside FIFA top ${bonusMeta.top_n}`,
