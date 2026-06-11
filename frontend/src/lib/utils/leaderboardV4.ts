@@ -41,10 +41,15 @@ export function poolCounts(rows: LbEntryV4[]): Record<LbPool, number> {
 
 // ── Stage ────────────────────────────────────────────────────────────────
 
-const PLACEHOLDER_RE = /^(winner|loser|runner|1[a-l]|2[a-l]|3[a-l])\b/i;
+// "slot:round_of_32:537430:home" is OUR ingest placeholder format (the
+// production DB stores exactly this until Football-Data seeds real
+// teams) — its absence here made deriveStage report 'knockout' before
+// the tournament even started (Final column + trophy what-ifs showed
+// pre-kickoff, caught 2026-06-11).
+const PLACEHOLDER_RE = /^(winner|loser|runner|slot:|1[a-l]|2[a-l]|3[a-l])\b/i;
 
 /** True when a fixture lineup slot holds a real team rather than a
- *  Football-Data placeholder ("Winner of Match 12", "1A", empty). */
+ *  placeholder ("Winner of Match 12", "1A", "slot:…", empty). */
 export function isRealTeam(name: string | null | undefined): boolean {
 	return !!name && name.trim() !== '' && !PLACEHOLDER_RE.test(name.trim());
 }

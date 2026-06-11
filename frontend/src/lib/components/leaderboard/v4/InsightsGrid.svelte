@@ -15,6 +15,7 @@
 	import type { ScoringRules } from '$lib/types/results';
 	import {
 		ceilingOf,
+		deriveStage,
 		dnaOf,
 		isRealTeam,
 		multiEntryUserIds,
@@ -83,6 +84,9 @@
 		yourBest: string;
 	};
 	$: leaderId = rows[0]?.entry_id;
+	// Lineup-based stage — the what-if card is placeholder-only until
+	// the knockout bracket holds real teams.
+	$: lbStage = deriveStage(fixtures);
 	$: whatIfRows = champRows
 		.filter((c) => c.alive)
 		.slice(0, 6)
@@ -439,11 +443,27 @@
 		</svelte:fragment>
 	</InsightCard>
 
-	<!-- 3 · What-if -->
+	<!-- 3 · What-if. Group stage: every projection reads "champion pick
+	     + winner bonus = new leader", which is noise — the card stays as
+	     a placeholder until the bracket is real (lineup-based stage
+	     derivation, same rule as the Final column). -->
 	<InsightCard
 		title="If they lift the trophy…"
 		sub="Who tops the pool under each remaining champion · +{winnerVal} for the right pick"
 	>
+		{#if lbStage !== 'knockout'}
+			<div class="flex flex-col items-start gap-1.5 py-2">
+				<span
+					class="rounded-badge bg-base-300/50 px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/60"
+					>Unlocks in the knockouts</span
+				>
+				<p class="text-xs leading-relaxed text-base-content/55">
+					Once the bracket is set, this card shows who'd top the pool under each
+					remaining champion. During the groups every scenario just adds the winner
+					bonus — not much of a story yet.
+				</p>
+			</div>
+		{:else}
 		<div class="flex flex-col gap-2">
 			{#each whatIfRows as w (w.team)}
 				<div
@@ -469,9 +489,14 @@
 				<p class="text-xs text-base-content/40">No live champion scenarios.</p>
 			{/each}
 		</div>
+		{/if}
 		<svelte:fragment slot="foot">
-			Simplified projection — champion bonus only; finalist and remaining match points not
-			included.
+			{#if lbStage !== 'knockout'}
+				Live from the Round of 32 — when champion scenarios start to mean something.
+			{:else}
+				Simplified projection — champion bonus only; finalist and remaining match points not
+				included.
+			{/if}
 		</svelte:fragment>
 	</InsightCard>
 
