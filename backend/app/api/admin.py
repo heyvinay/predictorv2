@@ -575,6 +575,53 @@ async def set_phase1_deadline(
     }
 
 
+class GoLiveRequest(BaseModel):
+    """Toggle the post-deadline release switch."""
+
+    live: bool
+
+
+@router.post("/competition/go-live")
+async def set_post_deadline_live(
+    request: GoLiveRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the post-deadline release switch (v2.166.0).
+
+    `live=true` opens the V4 dashboard / results / leaderboard to the
+    whole pool; `live=false` pulls them back behind the holding stubs.
+    The deadline passing alone no longer releases anything — this is
+    the admin's manual okay after the post-deadline clean-up.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.post_deadline_live
+    competition.post_deadline_live = request.live
+    competition.updated_at = utc_now()
+    if previous != request.live:
+        record_audit_event(
+            session,
+            event_type="competition.post_deadline_live_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.live},
+        )
+    await session.commit()
+
+    return {"status": "ok", "post_deadline_live": request.live}
+
+
 class SyncScoresResponse(BaseModel):
     """Response from score sync operation."""
 

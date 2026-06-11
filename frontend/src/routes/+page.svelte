@@ -31,11 +31,12 @@
 	import { onMount } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { loadEntries } from '$stores/entries';
-	import { phase1Deadline } from '$stores/phase';
+	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { track } from '$lib/analytics';
 
 	import DashboardV4 from '$lib/components/dashboard/v4/DashboardV4.svelte';
+	import LockedInHero from '$lib/components/dashboard/v4/LockedInHero.svelte';
 
 	import StickyTopBar from '$lib/components/landing/StickyTopBar.svelte';
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
@@ -54,25 +55,52 @@
 
 	export let data: PageData;
 
-	// ── V4 Dashboard gate (v2.165.0) ──
+	// ── Home-page view model (v2.166.0) ──
 	//
-	// Signed-in users get the dashboard instead of the marketing landing.
-	// Staged rollout, same recipe as the V4 Results / Leaderboard pages:
-	// admins ALWAYS see it (prod verification), non-admins fall through
-	// to the deadline check — once the global deadline trips, the
-	// dashboard opens to the whole pool on its own. Flip the const to
-	// false for a 60-second rollback to the marketing landing.
+	// Three variants:
+	//   'dash'    — V4 Dashboard (signed-in, released by the admin)
+	//   'holding' — post-deadline, pre-release: "you're locked in" card
+	//   'landing' — the marketing page (guests + pre-deadline users)
+	//
+	// The deadline passing does NOT release the dashboard — the admin
+	// flips the go-live switch on /admin after the close-out clean-up
+	// (`competitions.post_deadline_live`, read via phase-status). Admins
+	// always see the dashboard, with a floating toggle to preview what
+	// the pool currently sees. Flip the const to false for a 60-second
+	// rollback to the marketing landing.
 	//
 	// The deadline reads the phase store with the server-load value as a
 	// pre-hydration fallback, so a signed-in user doesn't flash the
 	// marketing page while /competition/phase-status resolves.
 	const V4_DASHBOARD_ENABLED = true;
+	const ADMIN_VIEW_KEY = 'predictor:admin:view';
+	let adminPreviewPool = false;
+	onMount(() => {
+		adminPreviewPool = localStorage.getItem(ADMIN_VIEW_KEY) === 'pool';
+	});
+	function toggleAdminView() {
+		adminPreviewPool = !adminPreviewPool;
+		localStorage.setItem(ADMIN_VIEW_KEY, adminPreviewPool ? 'pool' : 'admin');
+	}
+
+	type HomeView = 'landing' | 'holding' | 'dash';
 	$: effectiveDeadline = $phase1Deadline ?? data.phase1Deadline;
-	$: dashOpen =
-		V4_DASHBOARD_ENABLED &&
-		$isAuthenticated &&
-		($user?.is_admin === true ||
-			(!!effectiveDeadline && new Date(effectiveDeadline).getTime() < Date.now()));
+	$: deadlinePassed =
+		!!effectiveDeadline && new Date(effectiveDeadline).getTime() < Date.now();
+	// What a non-admin sees right now.
+	let poolView: HomeView = 'landing';
+	$: poolView = !$isAuthenticated
+		? 'landing'
+		: V4_DASHBOARD_ENABLED && $postDeadlineLive
+		? 'dash'
+		: deadlinePassed
+		? 'holding'
+		: 'landing';
+	let view: HomeView = 'landing';
+	$: view =
+		$isAuthenticated && $user?.is_admin === true && V4_DASHBOARD_ENABLED && !adminPreviewPool
+			? 'dash'
+			: poolView;
 
 	onMount(() => {
 		// Empty so the logo alone carries the brand and doesn't collide with the countdown pill on narrow viewports.
@@ -89,7 +117,7 @@
 	// behind a /entries navigation, which made the landing card silently
 	// report 0 entries for new sessions.
 	let hasLoadedLanding = false;
-	$: if ($isAuthenticated && $user?.id && !hasLoadedLanding && !dashOpen) {
+	$: if ($isAuthenticated && $user?.id && !hasLoadedLanding && view === 'landing') {
 		hasLoadedLanding = true;
 		void loadEntries($user.id);
 	}
@@ -110,11 +138,18 @@
 	stack two top bars and surface two toggles. Keep the components pure
 	(no auth coupling inside them) — the page composer owns the gate.
 -->
-{#if dashOpen}
+{#if view === 'dash'}
 	<!-- Signed-in landing: the V4 Dashboard (v2.165.0). The Touchline
 	     news band rides along below it — same server-loaded RSS feed
 	     (and the same section_viewed analytics) as the marketing page. -->
 	<DashboardV4 />
+	<TrackedSection name="news">
+		<FromTheTouchline news={data.news} />
+	</TrackedSection>
+{:else if view === 'holding'}
+	<!-- Post-deadline, pre-release: the pool is sealed, the admin
+	     hasn't flipped the go-live switch yet. -->
+	<LockedInHero />
 	<TrackedSection name="news">
 		<FromTheTouchline news={data.news} />
 	</TrackedSection>
@@ -165,4 +200,19 @@
 	{#if !$isAuthenticated}
 		<ThemeTogglePill />
 	{/if}
+{/if}
+
+{#if $isAuthenticated && $user?.is_admin === true && V4_DASHBOARD_ENABLED}
+	<!-- Admin-only: flip between the admin view (dashboard) and exactly
+	     what the pool currently sees (landing / holding / dashboard,
+	     depending on deadline + go-live state). Sits above the mobile
+	     bottom nav; bordered chrome per the sticky-bar clipping rule. -->
+	<button
+		type="button"
+		class="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 rounded-btn border border-base-300/70 bg-base-200 px-3 py-1.5 text-[11px] font-bold text-base-content/80 shadow-card transition-colors hover:border-primary/50 min-[700px]:bottom-6"
+		on:click={toggleAdminView}
+	>
+		<span aria-hidden="true">👁</span>
+		{adminPreviewPool ? 'Viewing as pool — back to admin view' : 'View as pool'}
+	</button>
 {/if}

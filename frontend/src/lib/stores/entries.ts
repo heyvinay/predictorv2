@@ -139,8 +139,14 @@ export async function loadEntries(userId: string): Promise<void> {
 
 		let workingList = list;
 		if (workingList.length === 0 && settings.auto_create_first_entry) {
-			const created = await entriesApi.createEntry();
-			workingList = [created];
+			try {
+				const created = await entriesApi.createEntry();
+				workingList = [created];
+			} catch {
+				// Post-deadline the backend refuses new entries (409,
+				// v2.166.0 door policy). A signed-in user with no entry
+				// just proceeds with an empty list — not a load error.
+			}
 		}
 		entries.set(workingList);
 

@@ -35,6 +35,13 @@ class Competition(SQLModel, table=True):
     phase2_bracket_deadline: datetime | None = Field(default=None, sa_column=utc_datetime_column(nullable=True))
     phase2_deadline: datetime | None = Field(default=None, sa_column=utc_datetime_column(nullable=True))
 
+    # Post-deadline release control (v2.166.0): after the deadline the
+    # V4 pages (dashboard / results / leaderboard) stay behind their
+    # pre-tournament stubs until an admin flips this from /admin
+    # ("Go live") — backend clean-up happens in that window. Admins
+    # always see the V4 pages regardless.
+    post_deadline_live: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 
