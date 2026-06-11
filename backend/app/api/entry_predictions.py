@@ -16,7 +16,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlmodel import select
+
 from app.dependencies import CurrentUser, DbSession
+from app.models.bonus import BonusAnswer
 from app.models.prediction import PredictionPhase, TeamPrediction, normalize_stage
 from app.schemas.prediction import (
     BracketPrediction,
@@ -28,6 +31,7 @@ from app.schemas.prediction import (
 from app.services import entries as entries_service
 from app.services import predictions as predictions_service
 from app.services.audit import AuditContext, audit_context
+from app.services.bonus import answer_in
 from app.services.bonus import get_questions as get_bonus_questions
 from app.services.bracket_exposure import compute_bracket_exposure
 from app.services.entries import (
@@ -52,6 +56,12 @@ AuditCtx = Annotated[AuditContext, Depends(audit_context)]
 class BonusPredictionResponse(BaseModel):
     question_id: str
     answer: str
+    # ── V4 read-side scoring (v2.164.0) — populated on GET only. ──
+    # The save route returns them as None (it echoes what was written;
+    # settlement state is irrelevant mid-wizard).
+    category: str | None = None  # "group_stage" | "top_flop" | "awards"
+    points: int | None = None  # question's value when hit
+    hit: bool | None = None  # None = question not settled yet
 
 
 class BonusPredictionUpdate(BaseModel):
@@ -415,14 +425,41 @@ async def __get_current_phase(session: AsyncSession) -> PredictionPhase:
 async def get_bonus_predictions(
     entry_id: uuid.UUID, session: DbSession, current_user: CurrentUser
 ) -> list[BonusPredictionResponse]:
-    _competition, entry = await _get_competition_and_entry_for_view(
+    competition, entry = await _get_competition_and_entry_for_view(
         session, entry_id, current_user
     )
     rows = await predictions_service.get_bonus_predictions(session, entry=entry)
-    return [
-        BonusPredictionResponse(question_id=r.question_id, answer=r.answer)
-        for r in rows
-    ]
+
+    # Settlement state (V4 leaderboard drawer): mark each answer hit /
+    # missed once the question has recorded correct answer(s). Matching
+    # reuses the same accent-insensitive matcher the scorer uses, so the
+    # drawer can never disagree with awarded points.
+    questions = {q.id: q for q in get_bonus_questions()}
+    ans_rows = (
+        await session.execute(
+            select(BonusAnswer).where(
+                BonusAnswer.competition_id == competition.id
+            )
+        )
+    ).scalars().all()
+    correct_by_qid: dict[str, list[str]] = {}
+    for a in ans_rows:
+        correct_by_qid.setdefault(a.question_id, []).append(a.correct_answer)
+
+    out: list[BonusPredictionResponse] = []
+    for r in rows:
+        question = questions.get(r.question_id)
+        corrects = correct_by_qid.get(r.question_id)
+        out.append(
+            BonusPredictionResponse(
+                question_id=r.question_id,
+                answer=r.answer,
+                category=question.category if question else None,
+                points=question.points if question else None,
+                hit=answer_in(r.answer, corrects) if corrects else None,
+            )
+        )
+    return out
 
 
 @router.post(

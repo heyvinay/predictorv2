@@ -2067,6 +2067,13 @@
       "type": "feature",
       "summary": "Brand-new Results experience: a round-by-round scoreboard with live indicators and a detailed page for every match, showing how the whole pool called it.",
       "commit": "pending"
+    },
+    {
+      "version": "2.164.0",
+      "date": "2026-06-11",
+      "type": "feature",
+      "summary": "Brand-new Leaderboard: live standings with pool filters, a tap-to-open breakdown of every entry's picks, a rank-over-time race chart, and an insights page full of pool stats.",
+      "commit": "pending"
     }
   ]
 }

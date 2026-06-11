@@ -215,6 +215,46 @@ infers matchdays from per-team kickoff order; `match_number` path
 remains primary when present so a future backfill works without code
 change.
 
+**V4 Leaderboard (v2.164.0, built 2026-06-11).** Full `/leaderboard`
+rebuild from `mockups/Leaderboard-redesign/` — three views (Standings
+table + pool filters, Race bump chart, Insights cards) plus an entry
+detail drawer (open pool: any entry's full picks + scoring).
+Components in `frontend/src/lib/components/leaderboard/v4/`; types in
+`frontend/src/lib/types/leaderboard.ts` (outside the barrel); pure
+derivations in `frontend/src/lib/utils/leaderboardV4.ts`
+(vitest-covered).
+
+- **Gate:** `V4_LEADERBOARD_ENABLED = true` at
+  `frontend/src/routes/leaderboard/+page.svelte` — ANDed with the
+  phase1-deadline check, so pre-deadline users still get the stub.
+  Flip to `false` + redeploy for a 60-second rollback.
+- **Backend additions (additive, no migrations):** `LeaderboardEntry`
+  gained `employer`, `champion_pick`/`champion_alive`,
+  `finalist_picks`/`finalists_alive`, `daily_movement` (vs yesterday's
+  snapshot), `bonus_group_points`/`bonus_knockout_points` — all bulk
+  queries per 30s cache rebuild, PHASE_1-filtered. New
+  `GET /api/leaderboard/snapshots?days=N` (all entries' rank paths,
+  blind-pool gated). Bonus prediction GETs carry
+  `category`/`points`/`hit` (None until settled).
+- **Pools:** Atlas/JMFA/Guests pills map onto `User.employer`
+  (`atlas`/`jmfa`/`neither`|null → Guests). Filtering keeps GLOBAL
+  ranks — server positions are never recomputed client-side.
+- **Race chart x-axis is daily snapshots**, not per-round checkpoints
+  (that's what the backend records). Empty state until 2 scoring days.
+- **Insights:** 9 of the spec's 14 cards ship; the 5 needing
+  all-entries per-fixture data (herd, heartbreak, hauls, hot hand,
+  pick twins) sit behind `INSIGHTS_EXTENDED = false` in
+  `InsightsGrid.svelte` pending a backend insights endpoint.
+- **Elimination is conservative** (`get_eliminated_teams` backend,
+  `eliminatedTeams` frontend mirror): KO-match losers + group
+  non-qualifiers only once every R32 fixture holds real
+  (non-placeholder) team names. Alive until provably out.
+- **Dev-loop gotcha:** Vite file-watching is dead on the OneDrive
+  bind mount — overlay copies are NOT picked up by HMR. Every
+  frontend overlay test needs `docker compose restart frontend-dev`
+  (~12s); stale module graphs otherwise produce phantom
+  "does not provide an export" errors and SSR 500s.
+
 **Latent layout bug (filed, low priority).** The root `+layout.svelte`
 throws a recurring `TypeError: Cannot read properties of null (reading
 'pathname')` on every page load (since v2.156.0, commit `9301bbd`).
