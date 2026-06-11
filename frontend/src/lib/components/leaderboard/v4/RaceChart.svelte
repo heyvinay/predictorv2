@@ -10,11 +10,15 @@
 	 */
 	import { onMount } from 'svelte';
 	import { getAllTrajectories } from '$api/leaderboard';
+	import type { Fixture } from '$types';
 	import type { EntryTrajectory, LbEntryV4 } from '$lib/types/leaderboard';
 	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null | undefined;
+	/** Fixture list — anchors the x-axis to tournament time, not seed-data
+	 *  snapshot dates. Start = first kickoff's UTC date, end = today. */
+	export let fixtures: Fixture[] = [];
 
 	let loading = true;
 	let loadError = false;
@@ -43,7 +47,45 @@
 	const PAD_B = 16;
 	const W = 1080;
 
-	$: dates = [...new Set(trajectories.flatMap((t) => t.points.map((p) => p.captured_date)))].sort();
+	function utcDate(iso: string): string {
+		// Normalize an ISO datetime (or date) to its UTC calendar date.
+		return new Date(iso).toISOString().slice(0, 10);
+	}
+
+	function dailyRange(start: string, end: string): string[] {
+		if (start > end) return [start];
+		const out: string[] = [];
+		const startMs = Date.UTC(
+			Number(start.slice(0, 4)),
+			Number(start.slice(5, 7)) - 1,
+			Number(start.slice(8, 10))
+		);
+		const endMs = Date.UTC(
+			Number(end.slice(0, 4)),
+			Number(end.slice(5, 7)) - 1,
+			Number(end.slice(8, 10))
+		);
+		for (let t = startMs; t <= endMs; t += 86_400_000) {
+			out.push(new Date(t).toISOString().slice(0, 10));
+		}
+		return out;
+	}
+
+	// X-axis anchors: tournament timeline, not seed snapshots.
+	$: kickoffDates = fixtures.map((f) => utcDate(f.kickoff)).sort();
+	$: startDate = kickoffDates[0] ?? new Date().toISOString().slice(0, 10);
+	$: todayUtc = new Date().toISOString().slice(0, 10);
+	// End grows as days pass — capped at the latest scoring day actually
+	// represented in the data so the field doesn't trail off to empty.
+	$: latestPointDate = trajectories
+		.flatMap((t) => t.points.map((p) => p.captured_date))
+		.filter((d) => d >= startDate)
+		.sort()
+		.at(-1) ?? startDate;
+	$: endDate = todayUtc > latestPointDate ? todayUtc : latestPointDate;
+	$: dates =
+		startDate && endDate && startDate <= endDate ? dailyRange(startDate, endDate) : [];
+
 	$: n = Math.max(totalParticipants, trajectories.length, 2);
 	$: H = Math.max(360, PAD_T + PAD_B + n * 16);
 	$: dateIndex = new Map(dates.map((d, i) => [d, i]));
@@ -72,31 +114,40 @@
 	// Same display-name rule as the standings table (consistency).
 	$: multiOwners = multiEntryUserIds(trajectories);
 	$: lines = trajectories
-		.map((t): Line => {
-			const pts = t.points.map((p) => ({ date: p.captured_date, rank: p.position }));
-			const last = t.points[t.points.length - 1];
+		.map((t): Line | null => {
+			// Drop snapshot points outside the tournament window — pre-kickoff
+			// seed data shouldn't pull the axis backwards.
+			const pts = t.points
+				.filter((p) => p.captured_date >= startDate && p.captured_date <= endDate)
+				.map((p) => ({ date: p.captured_date, rank: p.position }));
+			if (pts.length === 0) return null;
+			const last = pts[pts.length - 1];
 			return {
 				id: t.entry_id,
 				name: rowDisplayName(t, multiOwners),
 				owner: t.user_name,
 				isOwn: t.user_id === userId,
-				isLeader: (last?.position ?? 99) === 1,
+				isLeader: last.rank === 1,
 				path: pts
 					.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(p.date).toFixed(1)} ${yOf(p.rank).toFixed(1)}`)
 					.join(' '),
-				finalRank: last?.position ?? n,
-				pts: last?.total_points ?? 0,
+				finalRank: last.rank,
+				pts:
+					t.points.find((p) => p.captured_date === last.date)?.total_points ?? 0,
 				points: pts
 			};
 		})
+		.filter((l): l is Line => l !== null)
 		.sort((a, b) => a.finalRank - b.finalRank);
 
 	// Right-edge labels get sequential slots so tied ranks don't overlap.
 	$: labelSlots = new Map(lines.map((l, i) => [l.id, PAD_T + i * ((H - PAD_T - PAD_B) / Math.max(n - 1, 1))]));
 
-	// Sparse x-axis tick labels (at most ~8).
+	// Sparse x-axis tick labels (at most ~8 across the daily timeline).
 	$: tickEvery = Math.max(1, Math.ceil(dates.length / 8));
-	$: axisDates = dates.filter((_, i) => i % tickEvery === 0 || i === dates.length - 1);
+	$: axisDates = dates.filter(
+		(_, i) => i === 0 || i === dates.length - 1 || i % tickEvery === 0
+	);
 
 	// Sparse rank axis.
 	$: rankTicks = [1, ...[5, 10, 15, 20, 25, 30, 40, 50, 75, 100].filter((r) => r <= n)];
@@ -122,7 +173,8 @@
 		if (hoverId === l.id) return 3.2;
 		return l.isOwn ? 2.6 : l.isLeader ? 2 : 1.4;
 	}
-	$: hasEnoughData = dates.length > 1;
+	$: hasEnoughData = dates.length > 1 && lines.length > 0;
+	$: preKickoff = startDate > todayUtc;
 </script>
 
 <div class="rounded-xl border border-base-300/60 bg-base-200 px-4 pb-3 pt-4 sm:px-5">
@@ -161,8 +213,11 @@
 	{:else if !hasEnoughData}
 		<div class="grid h-56 place-items-center text-center">
 			<p class="max-w-sm text-sm text-base-content/55">
-				The race chart unlocks after the first full day of scoring — check back once a second
-				daily snapshot lands.
+				{#if preKickoff}
+					The race chart unlocks at kickoff — first match {dateLabel(startDate)}.
+				{:else}
+					The race chart unlocks after the first full day of scoring.
+				{/if}
 			</p>
 		</div>
 	{:else}
