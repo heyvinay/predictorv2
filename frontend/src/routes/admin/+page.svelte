@@ -39,6 +39,9 @@
 		sendBroadcast,
 		sendBroadcastTest,
 		setPostDeadlineLive,
+		getPoolClosePreview,
+		runPoolClose,
+		type PoolClosePreview,
 		type AdminStats,
 		type CompetitionAdminView,
 		type EntrySettingsUpdate,
@@ -80,6 +83,52 @@
 			goLiveError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingLive = false;
+		}
+	}
+
+	// ─── Close the pool (v2.166.0) ─────────────────────────────────────────
+	let poolPreview: PoolClosePreview | null = null;
+	let poolPreviewLoading = false;
+	let poolClosing = false;
+	let poolCloseError: string | null = null;
+	let poolCloseSuccess: string | null = null;
+
+	async function loadPoolPreview() {
+		poolPreviewLoading = true;
+		poolCloseError = null;
+		try {
+			poolPreview = await getPoolClosePreview();
+		} catch (e) {
+			poolCloseError = e instanceof Error ? e.message : 'Failed to load preview';
+		} finally {
+			poolPreviewLoading = false;
+		}
+	}
+
+	async function handleClosePool() {
+		if (!poolPreview) return;
+		const n = poolPreview.accounts_to_disable;
+		if (
+			!confirm(
+				`Disable ${n} account${n === 1 ? '' : 's'} with no submitted entry? ` +
+					'They will no longer be able to sign in. Admins are exempt; ' +
+					'individual accounts can be re-enabled from Users.'
+			)
+		)
+			return;
+		poolClosing = true;
+		poolCloseError = null;
+		poolCloseSuccess = null;
+		try {
+			const result = await runPoolClose();
+			poolCloseSuccess = `Done — ${result.disabled_count} account${
+				result.disabled_count === 1 ? '' : 's'
+			} disabled.`;
+			await loadPoolPreview();
+		} catch (e) {
+			poolCloseError = e instanceof Error ? e.message : 'Close failed';
+		} finally {
+			poolClosing = false;
 		}
 	}
 
@@ -301,7 +350,7 @@
 	// never run and `loading` stays true forever.
 	onMount(async () => {
 		await loadData();
-		await Promise.all([loadEntrySettings(), loadAudienceCounts()]);
+		await Promise.all([loadEntrySettings(), loadAudienceCounts(), loadPoolPreview()]);
 	});
 
 	async function loadData() {
@@ -533,6 +582,86 @@
 					</button>
 				</div>
 				{#if goLiveError}<div class="alert alert-error text-sm mt-3">{goLiveError}</div>{/if}
+			</section>
+
+			<!-- Close the pool (v2.166.0) -->
+			<section class="rounded-xl border border-error/30 bg-base-200 shadow-card p-5">
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Close the pool
+					<span class="text-xs text-base-content/40">
+						· disable accounts with no submitted entry
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					Post-deadline clean-up. Disables sign-in for every account that ended the
+					competition without a counting submission — admins are exempt, drafts were
+					already auto-withdrawn, and any account can be re-enabled individually from
+					Users. Runs once; a re-run finds nothing left.
+				</p>
+
+				{#if poolPreviewLoading && !poolPreview}
+					<span class="loading loading-spinner loading-sm text-primary"></span>
+				{:else if poolPreview}
+					<div class="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+						<span>
+							<b class="font-display {poolPreview.accounts_to_disable > 0 ? 'text-error' : ''}"
+								>{poolPreview.accounts_to_disable}</b
+							>
+							<span class="text-base-content/60">accounts to disable</span>
+						</span>
+						<span>
+							<b class="font-display text-success">{poolPreview.submitters_kept}</b>
+							<span class="text-base-content/60">submitters kept</span>
+						</span>
+						<span>
+							<b class="font-display">{poolPreview.eligible_submitted_entries}</b>
+							<span class="text-base-content/60">entries in the prize pool</span>
+						</span>
+						<span>
+							<b class="font-display">{poolPreview.drafts_withdrawn}</b>
+							<span class="text-base-content/60">drafts auto-withdrawn</span>
+						</span>
+						<span>
+							<b class="font-display">{poolPreview.admins_exempt}</b>
+							<span class="text-base-content/60">admins exempt</span>
+						</span>
+					</div>
+					<div class="flex flex-wrap items-center gap-3">
+						<button
+							class="btn btn-error btn-sm"
+							type="button"
+							on:click={handleClosePool}
+							disabled={poolClosing ||
+								!poolPreview.deadline_passed ||
+								poolPreview.accounts_to_disable === 0}
+						>
+							{poolClosing
+								? 'Closing…'
+								: `Close the pool — disable ${poolPreview.accounts_to_disable} account${
+										poolPreview.accounts_to_disable === 1 ? '' : 's'
+								  }`}
+						</button>
+						<button
+							class="btn btn-ghost btn-sm"
+							type="button"
+							on:click={loadPoolPreview}
+							disabled={poolPreviewLoading}
+						>
+							Refresh counts
+						</button>
+						{#if !poolPreview.deadline_passed}
+							<span class="text-xs text-warning-text">
+								Locked until the deadline passes.
+							</span>
+						{/if}
+					</div>
+				{/if}
+				{#if poolCloseSuccess}
+					<div class="alert alert-success text-sm mt-3">{poolCloseSuccess}</div>
+				{/if}
+				{#if poolCloseError}
+					<div class="alert alert-error text-sm mt-3">{poolCloseError}</div>
+				{/if}
 			</section>
 
 			<!-- Phase 2 Activation -->

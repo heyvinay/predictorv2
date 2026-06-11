@@ -2088,6 +2088,13 @@
       "type": "feature",
       "summary": "Deadline-day controls: a personalised countdown banner on every page in the final hours (submit-your-draft warnings included), a friendly locked-in screen after the deadline, and the post-deadline pages now open for everyone only when the organisers give the okay.",
       "commit": "pending"
+    },
+    {
+      "version": "2.167.0",
+      "date": "2026-06-11",
+      "type": "feature",
+      "summary": "Organiser tooling: a one-click post-deadline clean-up that retires accounts which never submitted an entry — with a preview of exactly what it will do before anything happens.",
+      "commit": "pending"
     }
   ]
 }
