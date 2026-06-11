@@ -12,7 +12,7 @@
 	import type { Fixture } from '$types';
 	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
-	import { ceilingOf, dnaOf, poolOf, remainingMatchPoints } from '$lib/utils/leaderboardV4';
+	import { ceilingOf, dnaOf, remainingMatchPoints } from '$lib/utils/leaderboardV4';
 	import { fifaPoints } from '$lib/utils/smartFill';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
@@ -168,31 +168,6 @@
 		}
 		return out;
 	})();
-
-	// ── 6 · Atlas vs JMFA ──
-	type PoolStats = { n: number; avg: number; exacts: number; alive: number; top10: number; best: LbEntryV4 | null };
-	function poolStats(pool: 'Atlas' | 'JMFA'): PoolStats {
-		const members = rows.filter((r) => poolOf(r.employer) === pool);
-		if (members.length === 0) return { n: 0, avg: 0, exacts: 0, alive: 0, top10: 0, best: null };
-		return {
-			n: members.length,
-			avg: Math.round(members.reduce((s, r) => s + r.total_points, 0) / members.length),
-			exacts: members.reduce((s, r) => s + r.exact_scores, 0),
-			alive: members.filter((r) => r.champion_alive && r.champion_pick).length,
-			top10: members.filter((r) => r.position <= 10).length,
-			best: members.reduce((a, b) => (b.position < a.position ? b : a))
-		};
-	}
-	$: atlas = poolStats('Atlas');
-	$: jmfa = poolStats('JMFA');
-	$: battleStats = [
-		['Average points', atlas.avg, jmfa.avg],
-		['Exact scores called', atlas.exacts, jmfa.exacts],
-		['Champion picks alive', atlas.alive, jmfa.alive],
-		['Entries in the top 10', atlas.top10, jmfa.top10]
-	] as [string, number, number][];
-	$: atlasWins = battleStats.filter(([, a, j]) => a > j).length;
-	$: jmfaWins = battleStats.filter(([, a, j]) => j > a).length;
 
 	// ── 7 · Contrarian index ──
 	$: contrarians = rows
@@ -403,57 +378,6 @@
 				</p>
 			{/each}
 		</div>
-	</InsightCard>
-
-	<!-- 6 · Atlas vs JMFA (wide) -->
-	<InsightCard title="Atlas vs JMFA" sub="Pool against pool — bragging rights, quantified" wide>
-		<div class="mb-3 flex items-baseline justify-between">
-			<span class="font-hero text-[19px] tracking-[0.05em]">Atlas · {atlas.n}</span>
-			<span class="text-[10px] font-extrabold uppercase tracking-[0.14em] text-base-content/30"
-				>vs</span
-			>
-			<span class="text-right font-hero text-[19px] tracking-[0.05em]">JMFA · {jmfa.n}</span>
-		</div>
-		<div class="flex flex-col gap-2">
-			{#each battleStats as [lbl, a, j] (lbl)}
-				<div class="grid grid-cols-[40px_1fr_minmax(120px,auto)_1fr_40px] items-center gap-2.5">
-					<b
-						class="font-display text-[13px] font-extrabold {a >= j
-							? 'text-primary'
-							: 'text-base-content/55'}">{a}</b
-					>
-					<span class="flex h-2 justify-end overflow-hidden rounded-full bg-base-300/40">
-						<span
-							class="h-full rounded-full bg-base-content/45"
-							style="width:{(a / Math.max(a, j, 1)) * 100}%"
-						></span>
-					</span>
-					<span class="text-center text-[10.5px] font-bold tracking-[0.04em] text-base-content/55"
-						>{lbl}</span
-					>
-					<span class="flex h-2 overflow-hidden rounded-full bg-base-300/40">
-						<span
-							class="h-full rounded-full bg-primary"
-							style="width:{(j / Math.max(a, j, 1)) * 100}%"
-						></span>
-					</span>
-					<b
-						class="text-right font-display text-[13px] font-extrabold {j >= a
-							? 'text-primary'
-							: 'text-base-content/55'}">{j}</b
-					>
-				</div>
-			{/each}
-		</div>
-		<svelte:fragment slot="foot">
-			{#if atlasWins === jmfaWins}Dead level so far{:else}{atlasWins > jmfaWins
-					? 'Atlas'
-					: 'JMFA'} lead {Math.max(atlasWins, jmfaWins)}–{Math.min(atlasWins, jmfaWins)} on
-				categories{/if}{#if atlas.best || jmfa.best}
-				· best-placed entry: {#if atlas.best && (!jmfa.best || atlas.best.position <= jmfa.best.position)}{atlas
-						.best.entry_name} (Atlas, #{atlas.best.position}){:else if jmfa.best}{jmfa.best
-						.entry_name} (JMFA, #{jmfa.best.position}){/if}{/if}.
-		</svelte:fragment>
 	</InsightCard>
 
 	<!-- 7 · Contrarian index -->
