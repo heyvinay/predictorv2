@@ -29,13 +29,17 @@
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
-	// Manual override (V4 Results pattern): flip to false + redeploy for a
-	// 60-second rollback to the pre-tournament stub.
+	// Staged rollout (v2.164.0): V4 is enabled but ADMIN-ONLY — admins see
+	// the real leaderboard in production while everyone else keeps the
+	// "Standings open at kickoff" stub. To open it to the whole pool,
+	// delete the `$user?.is_admin` clause below and redeploy. Flip the
+	// const to false for a full rollback.
 	const V4_LEADERBOARD_ENABLED = true;
 	$: lbOpen =
 		V4_LEADERBOARD_ENABLED &&
 		!!$phase1Deadline &&
-		new Date($phase1Deadline).getTime() < Date.now();
+		new Date($phase1Deadline).getTime() < Date.now() &&
+		$user?.is_admin === true;
 
 	$: if (!$isAuthenticated) goto('/login');
 
