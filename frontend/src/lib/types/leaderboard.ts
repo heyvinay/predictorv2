@@ -30,6 +30,10 @@ export type LbEntryV4 = LeaderboardEntry & {
 	finalists_alive?: number;
 	/** Rank delta vs yesterday's snapshot; null until one exists. */
 	daily_movement?: number | null;
+	/** Settled bonus points by category — group_stage → group column,
+	 *  top_flop/awards → knockout column. */
+	bonus_group_points?: number;
+	bonus_knockout_points?: number;
 };
 
 export interface LbResponseV4 {

@@ -26,11 +26,13 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.models._datetime import utc_now
+from app.models.bonus import BonusAnswer, BonusPrediction
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.leaderboard_snapshot import LeaderboardSnapshot
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.models.score import Score
+from app.services.bonus import answer_in, get_questions
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
 from app.services.scoring import (
     calculate_entry_points,
@@ -186,6 +188,50 @@ async def _load_team_picks(
     return picks
 
 
+async def _load_bonus_splits(
+    session: AsyncSession, entry_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[int, int]]:
+    """Settled bonus points per entry split by category — (group, knockout).
+
+    group_stage questions land in the Group column, everything else
+    (top_flop / awards) in the Knockout column. Uses the same answer_in
+    matcher as calculate_bonus_points so the split always sums to
+    breakdown.bonus_question_points.
+    """
+    if not entry_ids:
+        return {}
+    ans_rows = (await session.execute(select(BonusAnswer))).scalars().all()
+    if not ans_rows:
+        return {}
+    correct_by_qid: dict[str, list[str]] = {}
+    for a in ans_rows:
+        correct_by_qid.setdefault(a.question_id, []).append(a.correct_answer)
+
+    questions = {q.id: q for q in get_questions()}
+    pred_rows = (
+        await session.execute(
+            select(BonusPrediction)
+            .where(BonusPrediction.entry_id.in_(entry_ids))
+            .where(BonusPrediction.question_id.in_(list(correct_by_qid.keys())))
+        )
+    ).scalars().all()
+
+    splits: dict[uuid.UUID, tuple[int, int]] = {}
+    for pred in pred_rows:
+        question = questions.get(pred.question_id)
+        if question is None:
+            continue
+        if not answer_in(pred.answer, correct_by_qid[pred.question_id]):
+            continue
+        group, knockout = splits.get(pred.entry_id, (0, 0))
+        if question.category == "group_stage":
+            group += question.points
+        else:
+            knockout += question.points
+        splits[pred.entry_id] = (group, knockout)
+    return splits
+
+
 async def get_eliminated_teams(session: AsyncSession) -> set[str]:
     """Teams provably out of the tournament. Conservative: alive until
     elimination is certain.
@@ -291,6 +337,7 @@ async def _rebuild_leaderboard(
     team_picks = await _load_team_picks(session, [e.id for e in eligible])
     eliminated_teams = await get_eliminated_teams(session)
     yesterday_positions = await _load_yesterday_positions(session)
+    bonus_splits = await _load_bonus_splits(session, [e.id for e in eligible])
 
     entries: list[LeaderboardEntry] = []
     for entry in eligible:
@@ -344,6 +391,8 @@ async def _rebuild_leaderboard(
                     1 for t in finalist_picks if t not in eliminated_teams
                 ),
                 daily_movement=None,  # Set after positioning
+                bonus_group_points=bonus_splits.get(entry.id, (0, 0))[0],
+                bonus_knockout_points=bonus_splits.get(entry.id, (0, 0))[1],
             )
         )
 

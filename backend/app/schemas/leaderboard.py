@@ -198,6 +198,11 @@ class LeaderboardEntry(BaseModel):
     # None until at least one prior-day snapshot exists. Distinct from
     # `movement`, which compares against the previous 30s cache rebuild.
     daily_movement: int | None = None
+    # Settled bonus points folded by question category: group_stage →
+    # group column, everything else (top_flop / awards) → knockout column.
+    # Sums to breakdown.bonus_question_points.
+    bonus_group_points: int = 0
+    bonus_knockout_points: int = 0
 
 
 class LeaderboardResponse(BaseModel):

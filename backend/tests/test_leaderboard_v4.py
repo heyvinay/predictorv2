@@ -20,6 +20,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  — registers all models
+from app.models._datetime import utc_now
+from app.models.bonus import BonusAnswer, BonusPrediction
 from app.models.competition import Competition
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
@@ -282,6 +284,52 @@ async def test_no_group_elimination_without_r32_fixtures(db_session, competition
     )
     await db_session.commit()
     assert await get_eliminated_teams(db_session) == set()
+
+
+# ---------------------------------------------------------------------------
+# Bonus category split
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bonus_split_by_category(db_session, competition):
+    entry = await _make_entry(db_session, competition, email="alice@example.com")
+    db_session.add_all(
+        [
+            # Group-stage question hit (15) + knockout-category hit (20).
+            BonusPrediction(
+                entry_id=entry.id,
+                question_id="most_goals_scored_group",
+                answer="France",
+            ),
+            BonusPrediction(
+                entry_id=entry.id, question_id="dark_horse", answer="Morocco"
+            ),
+            BonusAnswer(
+                competition_id=competition.id,
+                question_id="most_goals_scored_group",
+                correct_answer="France",
+                resolved_at=utc_now(),
+            ),
+            BonusAnswer(
+                competition_id=competition.id,
+                question_id="dark_horse",
+                correct_answer="Morocco",
+                resolved_at=utc_now(),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    board = await calculate_leaderboard(db_session, force_refresh=True)
+    row = board.entries[0]
+    assert row.bonus_group_points == 15
+    assert row.bonus_knockout_points == 20
+    # The split must always sum to the breakdown's bonus total.
+    assert (
+        row.bonus_group_points + row.bonus_knockout_points
+        == row.breakdown.bonus_question_points
+    )
 
 
 # ---------------------------------------------------------------------------
