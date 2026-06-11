@@ -222,6 +222,7 @@
 				row={selected}
 				isOwn={selected.user_id === $user?.id}
 				{rules}
+				{multiOwners}
 				onClose={() => (selected = null)}
 			/>
 		{/if}

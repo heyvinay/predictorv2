@@ -11,6 +11,7 @@
 	import { onMount } from 'svelte';
 	import { getAllTrajectories } from '$api/leaderboard';
 	import type { EntryTrajectory, LbEntryV4 } from '$lib/types/leaderboard';
+	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null | undefined;
@@ -68,13 +69,15 @@
 		pts: number;
 		points: { date: string; rank: number }[];
 	};
+	// Same display-name rule as the standings table (consistency).
+	$: multiOwners = multiEntryUserIds(trajectories);
 	$: lines = trajectories
 		.map((t): Line => {
 			const pts = t.points.map((p) => ({ date: p.captured_date, rank: p.position }));
 			const last = t.points[t.points.length - 1];
 			return {
 				id: t.entry_id,
-				name: t.entry_name,
+				name: rowDisplayName(t, multiOwners),
 				owner: t.user_name,
 				isOwn: t.user_id === userId,
 				isLeader: (last?.position ?? 99) === 1,
@@ -282,7 +285,7 @@
 				class="mt-1.5 flex flex-wrap items-center gap-2.5 rounded-lg bg-base-300/25 px-3.5 py-2 text-xs"
 			>
 				<b>{hovered.name}</b>
-				<span class="text-base-content/55">· {hovered.isOwn ? 'your entry' : hovered.owner}</span>
+				{#if hovered.isOwn}<span class="text-base-content/55">· your entry</span>{/if}
 				<span class="font-display font-extrabold text-primary">{hovered.pts} pts</span>
 				<span class="text-base-content/55">{tipPath}</span>
 			</div>

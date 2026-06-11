@@ -25,6 +25,7 @@
 		groupPtsOf,
 		initialsOf,
 		koPtsOf,
+		rowDisplayName,
 		seededByStage,
 		storyLine
 	} from '$lib/utils/leaderboardV4';
@@ -38,6 +39,8 @@
 	export let row: LbEntryV4;
 	export let isOwn: boolean;
 	export let rules: ScoringRules | null;
+	/** Users with >1 entries — same display-name rule as the table. */
+	export let multiOwners: Set<string>;
 	export let onClose: () => void;
 
 	let panel: HTMLElement;
@@ -211,16 +214,16 @@
 		<span
 			class="grid h-[38px] w-[38px] flex-none place-items-center rounded-full font-display text-xs font-extrabold {isOwn
 				? 'bg-primary/15 text-primary ring-[1.5px] ring-primary'
-				: 'bg-base-300 text-base-content/70'}">{initialsOf(row.entry_name)}</span
+				: 'bg-base-300 text-base-content/70'}">{initialsOf(row.user_name)}</span
 		>
 		<div class="min-w-0 flex-1">
 			<div class="flex items-center gap-2 font-display text-base font-extrabold">
-				<span class="truncate">{row.entry_name}</span>
+				<span class="truncate">{rowDisplayName(row, multiOwners)}</span>
 				{#if isOwn}<YouTag />{/if}
 			</div>
 			<div class="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-base-content/55">
-				<span>{isOwn ? 'your entry' : row.user_name}</span>
-				<span>·</span>
+				{#if isOwn}<span>your entry</span>
+					<span>·</span>{/if}
 				<span class="font-display font-extrabold text-base-content/80">#{row.position}</span>
 				<MoveChip move={row.daily_movement} />
 			</div>
