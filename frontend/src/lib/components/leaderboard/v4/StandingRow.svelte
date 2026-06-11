@@ -3,7 +3,7 @@
 	 *  entry drawer (a11y per ACCEPTANCE). Own entries get the gold glow
 	 *  highlight + YOU tag + gold total. */
 	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
-	import { groupPtsOf, initialsOf, koPtsOf } from '$lib/utils/leaderboardV4';
+	import { groupPtsOf, koPtsOf, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import FlagCode from './FlagCode.svelte';
 	import RankCell from './RankCell.svelte';
 	import YouTag from './YouTag.svelte';
@@ -12,6 +12,8 @@
 	export let stage: LbStage;
 	export let isOwn: boolean;
 	export let gridClass: string;
+	/** Users with >1 entries (computed from the UNFILTERED board). */
+	export let multiOwners: Set<string>;
 	export let onOpen: (row: LbEntryV4) => void;
 
 	$: bonusG = row.bonus_group_points ?? 0;
@@ -36,21 +38,9 @@
 >
 	<span><RankCell rank={row.position} move={row.daily_movement} /></span>
 
-	<span class="flex min-w-0 items-center gap-2.5">
-		<span
-			class="grid h-[26px] w-[26px] flex-none place-items-center rounded-full font-display text-[10px] font-extrabold {isOwn
-				? 'bg-primary/15 text-primary ring-[1.5px] ring-primary'
-				: 'bg-base-300 text-base-content/70'}">{initialsOf(row.entry_name)}</span
-		>
-		<span class="flex min-w-0 flex-col leading-tight">
-			<span class="flex items-center gap-1.5 truncate text-[13px] font-bold text-base-content">
-				<span class="truncate">{row.entry_name}</span>
-				{#if isOwn}<YouTag />{/if}
-			</span>
-			<span class="truncate text-[10.5px] text-base-content/55"
-				>{isOwn ? 'your entry' : row.user_name}</span
-			>
-		</span>
+	<span class="flex min-w-0 items-center gap-1.5 text-[13px] font-bold text-base-content">
+		<span class="truncate">{rowDisplayName(row, multiOwners)}</span>
+		{#if isOwn}<YouTag />{/if}
 	</span>
 
 	<span class="flex">

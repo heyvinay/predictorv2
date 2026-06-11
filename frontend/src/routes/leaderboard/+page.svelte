@@ -17,7 +17,7 @@
 	import { getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
-	import { deriveStage, filterByPool } from '$lib/utils/leaderboardV4';
+	import { deriveStage, filterByPool, multiEntryUserIds } from '$lib/utils/leaderboardV4';
 	import StandingsTable from '$lib/components/leaderboard/v4/StandingsTable.svelte';
 	import YourEntriesStrip from '$lib/components/leaderboard/v4/YourEntriesStrip.svelte';
 	import EntryDrawer from '$lib/components/leaderboard/v4/EntryDrawer.svelte';
@@ -107,6 +107,7 @@
 	$: rows = board?.entries ?? [];
 	$: stage = deriveStage($fixtures);
 	$: filteredRows = filterByPool(rows, pool);
+	$: multiOwners = multiEntryUserIds(rows);
 	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
 
 	function formatKickoff(iso: string | null): string {
@@ -214,6 +215,7 @@
 				rows={filteredRows}
 				{stage}
 				userId={$user?.id}
+				{multiOwners}
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}
