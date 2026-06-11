@@ -9,6 +9,9 @@
 	export let rows: LbEntryV4[];
 	export let stage: LbStage;
 	export let userId: string | null | undefined;
+	/** Users with >1 entries (from the UNFILTERED board — naming must not
+	 *  change when a pool filter hides one of someone's entries). */
+	export let multiOwners: Set<string>;
 	export let onOpen: (row: LbEntryV4) => void;
 
 	// Mobile (<880px): # · entry · champ · (final) · total.
@@ -46,7 +49,7 @@
 	</div>
 
 	{#each rows as row (row.entry_id)}
-		<StandingRow {row} {stage} isOwn={row.user_id === userId} {gridClass} {onOpen} />
+		<StandingRow {row} {stage} isOwn={row.user_id === userId} {gridClass} {multiOwners} {onOpen} />
 	{:else}
 		<div class="border-t border-base-300/40 px-4 py-8 text-center text-sm text-base-content/55">
 			No entries in this pool

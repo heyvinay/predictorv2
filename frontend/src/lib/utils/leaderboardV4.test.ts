@@ -15,9 +15,11 @@ import {
 	groupPtsOf,
 	initialsOf,
 	koPtsOf,
+	multiEntryUserIds,
 	poolCounts,
 	poolOf,
 	remainingMatchPoints,
+	rowDisplayName,
 	seededByStage,
 	storyLine
 } from './leaderboardV4';
@@ -365,6 +367,20 @@ describe('eliminatedTeams / seededByStage / chipState', () => {
 		expect(chipState('Brazil', 'semi_final', seeded, out)).toBe('hit');
 		expect(chipState('Germany', 'semi_final', seeded, out)).toBe('out');
 		expect(chipState('France', 'semi_final', seeded, out)).toBe('pend');
+	});
+});
+
+describe('multiEntryUserIds / rowDisplayName', () => {
+	it('appends the entry name only for multi-entry owners', () => {
+		const rows = [
+			mkRow({ entry_id: 'a', user_id: 'u1', user_name: 'Vinay', entry_name: 'Entry 7' }),
+			mkRow({ entry_id: 'b', user_id: 'u1', user_name: 'Vinay', entry_name: 'Bold' }),
+			mkRow({ entry_id: 'c', user_id: 'u2', user_name: 'Maya', entry_name: 'Solo XI' })
+		];
+		const multi = multiEntryUserIds(rows);
+		expect(rowDisplayName(rows[0], multi)).toBe('Vinay — Entry 7');
+		expect(rowDisplayName(rows[1], multi)).toBe('Vinay — Bold');
+		expect(rowDisplayName(rows[2], multi)).toBe('Maya');
 	});
 });
 
