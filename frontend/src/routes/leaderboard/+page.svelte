@@ -166,24 +166,26 @@
 {#if $isAuthenticated && lbOpen}
 	<div class="container mx-auto max-w-[1180px] mobile-padding pb-6 pt-3">
 		<!-- ── slim header: info line left, view pills right (the navbar
-		     already titles the page — no big heading) ── -->
-		<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-			<p class="text-[13px] text-base-content/70">
+		     already titles the page — no big heading). On mobile the
+		     pills shrink and drop their sub-labels so all three fit in
+		     one row alongside the info line. ── -->
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+			<p class="text-[12px] text-base-content/70 sm:text-[13px]">
 				{board?.total_participants ?? rows.length} entries
 				{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
 				· predictions locked since kick-off
 			</p>
-			<div class="flex flex-wrap gap-2">
+			<div class="flex gap-1.5 sm:gap-2">
 				{#each VIEWS as v}
 					<button
-						class="inline-flex items-center gap-2 rounded-btn border-[1.5px] px-4 py-2 font-display text-xs font-bold tracking-[0.04em] transition-all {view ===
+						class="inline-flex items-center gap-1.5 rounded-btn border-[1.5px] px-2.5 py-1 font-display text-[11px] font-bold tracking-[0.04em] transition-all sm:gap-2 sm:px-4 sm:py-2 sm:text-xs {view ===
 						v.id
 							? 'border-primary bg-primary/15 text-primary ring-4 ring-primary/20'
 							: 'border-transparent bg-base-200 text-base-content/70 hover:text-base-content'}"
 						on:click={() => setView(v.id)}
 					>
 						<span>{v.label}</span>
-						{#if v.sub}<span class="text-[10px] font-bold opacity-55">{v.sub}</span>{/if}
+						{#if v.sub}<span class="hidden text-[10px] font-bold opacity-55 sm:inline">{v.sub}</span>{/if}
 					</button>
 				{/each}
 			</div>

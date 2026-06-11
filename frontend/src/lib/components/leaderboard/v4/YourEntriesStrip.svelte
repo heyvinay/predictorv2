@@ -19,7 +19,7 @@
 </script>
 
 <div
-	class="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-box border-[1.5px] border-primary/30 bg-primary/[0.06] px-4 py-3"
+	class="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-box border-[1.5px] border-primary/30 bg-primary/[0.06] px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3"
 >
 	<div class="flex flex-col gap-1">
 		<span class="font-display text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary"
@@ -39,10 +39,10 @@
 		{/if}
 	</div>
 
-	<div class="flex flex-wrap items-center gap-1.5">
+	<div class="flex flex-wrap items-center gap-1 sm:gap-1.5">
 		<label class="relative">
 			<span
-				class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-base-content/40"
+				class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-base-content/40 sm:left-2.5 sm:text-xs"
 				aria-hidden="true">⌕</span
 			>
 			<input
@@ -50,28 +50,28 @@
 				bind:value={search}
 				placeholder="Search name…"
 				aria-label="Search entries by person or entry name"
-				class="h-[34px] w-36 rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-7 pr-2.5 text-xs font-semibold text-base-content placeholder:text-base-content/40 focus:border-primary focus:outline-none sm:w-44 sm:focus:w-52 transition-all"
+				class="h-[28px] w-28 rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-6 pr-2 text-[11px] font-semibold text-base-content placeholder:text-base-content/40 transition-all focus:border-primary focus:outline-none sm:h-[34px] sm:w-44 sm:pl-7 sm:pr-2.5 sm:text-xs sm:focus:w-52"
 			/>
 		</label>
-		<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Pool filter">
-		{#each POOLS as p}
-			<button
-				role="radio"
-				aria-checked={pool === p}
-				class="inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3.5 py-1.5 font-display text-xs font-extrabold tracking-[0.03em] transition-colors {pool ===
-				p
-					? 'border-primary bg-primary/10 text-primary'
-					: 'border-base-300/80 bg-base-200 text-base-content/70 hover:border-base-300 hover:text-base-content'}"
-				on:click={() => onPool(p)}
-			>
-				{p}
-				<span
-					class="rounded-full px-1.5 py-px text-[10px] {pool === p
-						? 'bg-primary/20 text-primary'
-						: 'bg-base-content/10 text-base-content/55'}">{counts[p]}</span
+		<div class="flex flex-wrap gap-1 sm:gap-1.5" role="radiogroup" aria-label="Pool filter">
+			{#each POOLS as p}
+				<button
+					role="radio"
+					aria-checked={pool === p}
+					class="inline-flex items-center gap-1 rounded-full border-[1.5px] px-2 py-0.5 font-display text-[11px] font-extrabold tracking-[0.03em] transition-colors sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs {pool ===
+					p
+						? 'border-primary bg-primary/10 text-primary'
+						: 'border-base-300/80 bg-base-200 text-base-content/70 hover:border-base-300 hover:text-base-content'}"
+					on:click={() => onPool(p)}
 				>
-			</button>
-		{/each}
+					{p}
+					<span
+						class="rounded-full px-1 py-px text-[9px] sm:px-1.5 sm:text-[10px] {pool === p
+							? 'bg-primary/20 text-primary'
+							: 'bg-base-content/10 text-base-content/55'}">{counts[p]}</span
+					>
+				</button>
+			{/each}
 		</div>
 	</div>
 </div>
