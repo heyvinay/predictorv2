@@ -72,8 +72,10 @@
 	$: isBonus = currentPath === '/admin/bonus' || currentPath.startsWith('/admin/bonus/');
 	$: isAudit = currentPath === '/admin/audit' || currentPath.startsWith('/admin/audit/');
 	$: isReleases = currentPath === '/admin/releases' || currentPath.startsWith('/admin/releases/');
+	$: isAnnouncements =
+		currentPath === '/admin/announcements' || currentPath.startsWith('/admin/announcements/');
 
-	// Single source of truth for the 7 tabs — desktop strip + mobile
+	// Single source of truth for the 8 tabs — desktop strip + mobile
 	// pills both render from this list.
 	$: navItems = [
 		{ href: '/admin', label: 'Overview', active: isOverview, badge: null as number | null },
@@ -87,6 +89,7 @@
 		{ href: '/admin/sync', label: 'Sync', active: isSync, badge: null },
 		{ href: '/admin/bonus', label: 'Bonus', active: isBonus, badge: null },
 		{ href: '/admin/audit', label: 'Audit', active: isAudit, badge: null },
+		{ href: '/admin/announcements', label: 'News', active: isAnnouncements, badge: null },
 		{ href: '/admin/releases', label: 'Notes', active: isReleases, badge: null }
 	];
 </script>

@@ -62,6 +62,8 @@ export type EventName =
 	// Navigation (v2.155.0)
 	| 'page_viewed'
 	| 'nav_clicked'
+	// V4 Dashboard (v2.165.0)
+	| 'dashboard_view'
 	// Reserved for future server-side fires (declared in advance so
 	// allow-list and dashboards stay aligned). Add backend
 	// analytics.capture() call sites for these as they get wired.
