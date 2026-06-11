@@ -2095,6 +2095,13 @@
       "type": "feature",
       "summary": "Organiser tooling: a one-click post-deadline clean-up that retires accounts which never submitted an entry — with a preview of exactly what it will do before anything happens.",
       "commit": "pending"
+    },
+    {
+      "version": "2.168.0",
+      "date": "2026-06-11",
+      "type": "improvement",
+      "summary": "Standings polish: sort the table by entry name, group, knockout or total points (highest total first by default, ties alphabetical), and the page now appears noticeably faster — trend sparklines fill in a moment later instead of holding everything up.",
+      "commit": "pending"
     }
   ]
 }
