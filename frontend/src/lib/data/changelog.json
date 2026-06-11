@@ -2116,6 +2116,13 @@
       "type": "feature",
       "summary": "Transparency: a new All entries CSV download on the standings page gives everyone the same sheet of every entry's score predictions, bracket picks and bonus answers once results go live.",
       "commit": "pending"
+    },
+    {
+      "version": "2.171.0",
+      "date": "2026-06-11",
+      "type": "feature",
+      "summary": "A site-wide notice now explains launch-week status: the rarity bonus arrives once entries are verified and fees collected, and live scoring is being brought online — with a one-click link to Help & Support.",
+      "commit": "pending"
     }
   ]
 }
