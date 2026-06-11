@@ -6,8 +6,10 @@ import type { ScoringRules } from '$lib/types/results';
 import {
 	bestOwnSummary,
 	ceilingOf,
+	chipState,
 	deriveStage,
 	dnaOf,
+	eliminatedTeams,
 	filterByPool,
 	foldBonus,
 	groupPtsOf,
@@ -16,6 +18,7 @@ import {
 	poolCounts,
 	poolOf,
 	remainingMatchPoints,
+	seededByStage,
 	storyLine
 } from './leaderboardV4';
 
@@ -278,6 +281,74 @@ describe('ceilingOf / remainingMatchPoints', () => {
 		];
 		// 2 unfinished group fixtures × (5+10+10)
 		expect(remainingMatchPoints(fx, RULES)).toBe(50);
+	});
+});
+
+describe('eliminatedTeams / seededByStage / chipState', () => {
+	const score = (outcome: string) => ({
+		home_score: 1,
+		away_score: 0,
+		home_score_et: null,
+		away_score_et: null,
+		home_penalties: null,
+		away_penalties: null,
+		outcome
+	});
+
+	it('marks KO losers eliminated', () => {
+		const fx = [
+			mkFixture({
+				stage: 'quarter_final',
+				home_team: 'Brazil',
+				away_team: 'Germany',
+				status: 'finished',
+				score: score('1')
+			})
+		];
+		expect(eliminatedTeams(fx)).toEqual(new Set(['Germany']));
+	});
+
+	it('eliminates group non-qualifiers only once R32 is fully real', () => {
+		const groupDone = [
+			mkFixture({ home_team: 'Brazil', away_team: 'Egypt', status: 'finished' }),
+			mkFixture({ home_team: 'France', away_team: 'Italy', status: 'finished' })
+		];
+		const partial = [
+			...groupDone,
+			mkFixture({ stage: 'round_of_32', home_team: 'Brazil', away_team: 'Winner of Match 4' })
+		];
+		expect(eliminatedTeams(partial)).toEqual(new Set());
+
+		const seededFull = [
+			...groupDone,
+			mkFixture({ stage: 'round_of_32', home_team: 'Brazil', away_team: 'France' })
+		];
+		expect(eliminatedTeams(seededFull)).toEqual(new Set(['Egypt', 'Italy']));
+	});
+
+	it('seeds stages from lineups and crowns the final winner', () => {
+		const fx = [
+			mkFixture({ stage: 'semi_final', home_team: 'Brazil', away_team: 'France' }),
+			mkFixture({
+				stage: 'final',
+				home_team: 'Brazil',
+				away_team: 'Spain',
+				status: 'finished',
+				score: score('2')
+			})
+		];
+		const seeded = seededByStage(fx);
+		expect(seeded.get('semi_final')).toEqual(new Set(['Brazil', 'France']));
+		expect(seeded.get('final')).toEqual(new Set(['Brazil', 'Spain']));
+		expect(seeded.get('winner')).toEqual(new Set(['Spain']));
+	});
+
+	it('derives chip states', () => {
+		const seeded = new Map([['semi_final', new Set(['Brazil'])]]);
+		const out = new Set(['Germany']);
+		expect(chipState('Brazil', 'semi_final', seeded, out)).toBe('hit');
+		expect(chipState('Germany', 'semi_final', seeded, out)).toBe('out');
+		expect(chipState('France', 'semi_final', seeded, out)).toBe('pend');
 	});
 });
 

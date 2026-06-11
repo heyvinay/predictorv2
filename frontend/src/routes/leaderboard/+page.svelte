@@ -1,70 +1,114 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	/**
+	 * V4 Leaderboard (v2.164.0) — Standings / The Race / Insights.
+	 *
+	 * Spec: mockups/Leaderboard-redesign/ (README + ACCEPTANCE). Three
+	 * views over one data load; entry drawer on row click; pool filters
+	 * keep global ranks. Pre-deadline (or flag off) renders the same
+	 * pre-tournament stub this page has shown since v2.x.
+	 */
+	import { onDestroy, onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user } from '$stores/auth';
-	import {
-		startPolling,
-		stopPolling,
-		leaderboard,
-		leaderboardLoading,
-		lastCalculated,
-		totalParticipants,
-		activeEntryPosition,
-		leaderboardPhase,
-		type LeaderboardPhase
-	} from '$stores/leaderboard';
-	import { getGroupTotal, type PhaseBreakdown, type PointBreakdown } from '$types';
-	import Sparkline from '$components/Sparkline.svelte';
-	import { stubRankTrajectory } from '$lib/utils/widgetFallbacks';
-	import { loadEntries, entrySettings } from '$stores/entries';
+	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
 	import { phase1Deadline } from '$stores/phase';
-	import { isYouRow, shouldShowReference } from '$lib/utils/leaderboard';
 	import { pageTitle } from '$stores/pageTitle';
+	import { getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
+	import type { ScoringRules } from '$lib/types/results';
+	import { deriveStage, filterByPool } from '$lib/utils/leaderboardV4';
+	import StandingsTable from '$lib/components/leaderboard/v4/StandingsTable.svelte';
+	import YourEntriesStrip from '$lib/components/leaderboard/v4/YourEntriesStrip.svelte';
+	import EntryDrawer from '$lib/components/leaderboard/v4/EntryDrawer.svelte';
+	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
+	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
-	// Flag-gated: when true, restore the full standings table below.
-	const SHOW_CONTENT = false;
+	// Manual override (V4 Results pattern): flip to false + redeploy for a
+	// 60-second rollback to the pre-tournament stub.
+	const V4_LEADERBOARD_ENABLED = true;
+	$: lbOpen =
+		V4_LEADERBOARD_ENABLED &&
+		!!$phase1Deadline &&
+		new Date($phase1Deadline).getTime() < Date.now();
 
-	$: if (!$isAuthenticated) {
-		goto('/login');
+	$: if (!$isAuthenticated) goto('/login');
+
+	// ── view + pool persistence ──
+	const VIEW_KEY = 'predictor:lb:view';
+	const POOL_KEY = 'predictor:lb:pool';
+	const VIEWS: { id: LbView; label: string; sub: string }[] = [
+		{ id: 'table', label: 'Standings', sub: '' },
+		{ id: 'race', label: 'The Race', sub: 'rank over time' },
+		{ id: 'insights', label: 'Insights', sub: 'for the nerds' }
+	];
+	let view: LbView = 'table';
+	let pool: LbPool = 'All';
+	if (browser) {
+		const v = localStorage.getItem(VIEW_KEY);
+		if (v === 'table' || v === 'race' || v === 'insights') view = v;
+		const p = localStorage.getItem(POOL_KEY);
+		if (p === 'All' || p === 'Atlas' || p === 'JMFA' || p === 'Guests') pool = p;
+	}
+	function setView(v: LbView) {
+		view = v;
+		if (browser) localStorage.setItem(VIEW_KEY, v);
+	}
+	function setPool(p: LbPool) {
+		pool = p;
+		if (browser) localStorage.setItem(POOL_KEY, p);
 	}
 
-	onMount(() => {
-		pageTitle.set('Standings');
-		if ($isAuthenticated && SHOW_CONTENT) {
-			startPolling(60000);
+	// ── data ──
+	let board: LbResponseV4 | null = null;
+	let rules: ScoringRules | null = null;
+	let loading = true;
+	let loadError = false;
+	let selected: LbEntryV4 | null = null;
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+	async function load() {
+		loadError = false;
+		try {
+			const [b, , r] = await Promise.all([
+				getLeaderboardV4(),
+				fetchAllFixtures(),
+				getScoringRules()
+			]);
+			board = b;
+			rules = r;
+		} catch {
+			loadError = true;
 		}
-	});
-
-	// Pull entry settings as soon as $user.id resolves. The conditional
-	// reference column on each row needs $entrySettings to be populated.
-	let entriesLoadStarted = false;
-	$: if ($isAuthenticated && $user?.id && !entriesLoadStarted) {
-		entriesLoadStarted = true;
-		void loadEntries($user.id);
+		loading = false;
 	}
 
+	onMount(() => pageTitle.set('Standings'));
+
+	// Load reactively, not in onMount — $phase1Deadline hydrates after this
+	// page mounts (same race the results page hit), so a one-shot mount
+	// check would skip the fetch and strand the page at "0 entries".
+	let loadRequested = false;
+	$: if ($isAuthenticated && lbOpen && !loadRequested) {
+		loadRequested = true;
+		void load();
+		// Refresh standings every 60s while the page is open (backend
+		// cache TTL is 30s, so this stays cheap).
+		pollTimer = setInterval(() => {
+			getLeaderboardV4()
+				.then((b) => (board = b))
+				.catch(() => {});
+		}, 60_000);
+	}
 	onDestroy(() => {
-		stopPolling();
+		if (pollTimer) clearInterval(pollTimer);
 	});
 
-	function ordinal(n: number): string {
-		if (n % 100 >= 11 && n % 100 <= 13) return 'th';
-		switch (n % 10) {
-			case 1: return 'st';
-			case 2: return 'nd';
-			case 3: return 'rd';
-			default: return 'th';
-		}
-	}
+	$: rows = board?.entries ?? [];
+	$: stage = deriveStage($fixtures);
+	$: filteredRows = filterByPool(rows, pool);
+	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
 
-	function formatLastUpdated(date: string | null): string {
-		if (!date) return '';
-		return new Date(date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-	}
-
-	/** Tournament-start date for the pre-kickoff "Standings open at…" copy.
-	 *  Short, weekday-anchored format (e.g. "Thu, 11 Jun") — readable on
-	 *  mobile without taking the hero off the fold. */
 	function formatKickoff(iso: string | null): string {
 		if (!iso) return '';
 		try {
@@ -77,94 +121,13 @@
 			return '';
 		}
 	}
-
-	// Match-cell value for the current phase filter
-	function exactPts(b: PointBreakdown, phase: LeaderboardPhase): number {
-		if (phase === 'phase_1') return b.phase1.exact_score_points;
-		if (phase === 'phase_2') return b.phase2.exact_score_points;
-		return b.exact_score_points;
-	}
-	function outcomePts(b: PointBreakdown, phase: LeaderboardPhase): number {
-		if (phase === 'phase_1') return b.phase1.match_outcome_points;
-		if (phase === 'phase_2') return b.phase2.match_outcome_points;
-		return b.match_outcome_points;
-	}
-	function bonusPts(b: PointBreakdown, phase: LeaderboardPhase): number {
-		if (phase === 'phase_1') return b.phase1.hybrid_bonus_points;
-		if (phase === 'phase_2') return b.phase2.hybrid_bonus_points;
-		return b.hybrid_bonus_points;
-	}
-	function bracketPts(b: PointBreakdown, phase: LeaderboardPhase): number {
-		if (phase === 'phase_1') return getGroupTotal(b.phase1) + b.phase1.round_of_32_points + b.phase1.round_of_16_points + b.phase1.quarter_final_points + b.phase1.semi_final_points + b.phase1.final_points + b.phase1.winner_points;
-		if (phase === 'phase_2') return getGroupTotal(b.phase2) + b.phase2.round_of_32_points + b.phase2.round_of_16_points + b.phase2.quarter_final_points + b.phase2.semi_final_points + b.phase2.final_points + b.phase2.winner_points;
-		return b.bracket_total;
-	}
-
-	// Row expansion state — keyed by entry_id (a user can hold multiple
-	// entries, each with its own row).
-	let expanded = new Set<string>();
-	function toggle(entryId: string) {
-		if (expanded.has(entryId)) expanded.delete(entryId);
-		else expanded.add(entryId);
-		expanded = expanded; // trigger reactivity
-	}
-
-	// Per-row breakdown buckets. Single-phase production model means
-	// `phase2` is dormant (always zero) — the array shape stays intact so
-	// Phase 2 data still flows through if admin ever activates it, but the
-	// user-facing labels are neutral (no "Phase I/II" language anywhere).
-	const DETAIL_PHASES: Array<{ k: 'phase1' | 'phase2'; name: string }> = [
-		{ k: 'phase1', name: 'Pre-tournament' },
-		{ k: 'phase2', name: 'Knockout' }
-	];
-
-	function phaseTotal(p: PhaseBreakdown): number {
-		return (
-			p.match_outcome_points +
-			p.exact_score_points +
-			p.hybrid_bonus_points +
-			getGroupTotal(p) +
-			p.round_of_32_points +
-			p.round_of_16_points +
-			p.quarter_final_points +
-			p.semi_final_points +
-			p.final_points +
-			p.winner_points
-		);
-	}
-	function phaseBracketSum(p: PhaseBreakdown): number {
-		return (
-			getGroupTotal(p) +
-			p.round_of_32_points +
-			p.round_of_16_points +
-			p.quarter_final_points +
-			p.semi_final_points +
-			p.final_points +
-			p.winner_points
-		);
-	}
-
-	$: yourRank = $activeEntryPosition?.position ?? 0;
-	$: yourPoints = $activeEntryPosition?.total_points ?? 0;
-	$: leaderPoints = $leaderboard[0]?.total_points ?? 0;
-	$: toFirst = yourRank > 1 ? yourPoints - leaderPoints : 0;
-	$: yourMovement = $activeEntryPosition?.movement ?? 0;
-	$: yourExact = $activeEntryPosition?.exact_scores ?? 0;
-	$: yourOutcomes = $activeEntryPosition?.correct_outcomes ?? 0;
-
-	function posBadgeClass(position: number): string {
-		if (position === 1) return 'position-badge gold';
-		if (position === 2) return 'position-badge silver';
-		if (position === 3) return 'position-badge bronze';
-		return 'position-badge';
-	}
 </script>
 
 <svelte:head>
 	<title>Standings — Predictor v2</title>
 </svelte:head>
 
-{#if $isAuthenticated && !SHOW_CONTENT}
+{#if $isAuthenticated && !lbOpen}
 	<div class="hero min-h-[60vh]">
 		<div class="hero-content text-center">
 			<div class="max-w-md">
@@ -185,139 +148,87 @@
 	</div>
 {/if}
 
-{#if $isAuthenticated && SHOW_CONTENT}
-	<div class="container mx-auto mobile-padding py-6">
-		<!-- Header (phase tabs removed — single-phase production model) -->
-		<div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+{#if $isAuthenticated && lbOpen}
+	<div class="container mx-auto max-w-[1180px] mobile-padding py-6">
+		<!-- ── header ── -->
+		<div class="mb-4 flex flex-wrap items-end justify-between gap-4">
 			<div>
-				<h1 class="text-3xl sm:text-4xl font-display tracking-wide">Standings</h1>
-				<p class="text-sm text-base-content/50 mt-1">
-					{$totalParticipants || $leaderboard.length} players
-					{#if $leaderboardLoading}· updating…{:else if $lastCalculated}· updated {formatLastUpdated($lastCalculated)}{/if}
+				<div
+					class="mb-2 font-display text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary"
+				>
+					World Cup 2026
+				</div>
+				<h1 class="font-hero text-[44px] leading-none tracking-[0.03em]">Leaderboard</h1>
+				<p class="mt-2 text-[13px] text-base-content/70">
+					{board?.total_participants ?? rows.length} entries
+					{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
+					· predictions locked since kick-off
 				</p>
 			</div>
+			<div class="flex flex-wrap gap-2">
+				{#each VIEWS as v}
+					<button
+						class="inline-flex items-center gap-2 rounded-btn border-[1.5px] px-4 py-2 font-display text-xs font-bold tracking-[0.04em] transition-all {view ===
+						v.id
+							? 'border-primary bg-primary/15 text-primary ring-4 ring-primary/20'
+							: 'border-transparent bg-base-200 text-base-content/70 hover:text-base-content'}"
+						on:click={() => setView(v.id)}
+					>
+						<span>{v.label}</span>
+						{#if v.sub}<span class="text-[10px] font-bold opacity-55">{v.sub}</span>{/if}
+					</button>
+				{/each}
+			</div>
 		</div>
 
-		<!-- Your position -->
-		{#if $activeEntryPosition}
-			<div class="stadium-card p-5 mb-6">
-				<div class="flex items-center gap-4 flex-wrap">
-					<div class="text-center">
-						<div class="font-display text-5xl tracking-wide leading-none text-primary">
-							{yourRank}<span class="text-xl text-base-content/50 align-top">{ordinal(yourRank)}</span>
-						</div>
-					</div>
-					<div class="flex-1 min-w-[160px]">
-						<div class="font-semibold flex items-center gap-2">
-							{$activeEntryPosition.entry_name}
-							<span class="badge badge-error badge-sm">YOU</span>
-						</div>
-						<div class="text-xs text-base-content/50 mt-0.5">
-							{$activeEntryPosition.user_name} · {yourExact} exact · {yourOutcomes} outcomes
-							{#if yourMovement !== 0}
-								· <span class={yourMovement > 0 ? 'text-success' : 'text-error'}>{yourMovement > 0 ? '▲' : '▼'}{Math.abs(yourMovement)}</span>
-							{/if}
-						</div>
-					</div>
-					<div class="flex gap-6">
-						<div class="text-center">
-							<div class="stat-title">Total</div>
-							<div class="font-display text-2xl tracking-wide">{yourPoints}</div>
-						</div>
-						<div class="text-center">
-							<div class="stat-title">To #1</div>
-							<div class="font-display text-2xl tracking-wide">{toFirst < 0 ? toFirst : toFirst === 0 ? '—' : `+${toFirst}`}</div>
-						</div>
-					</div>
+		<YourEntriesStrip {rows} userId={$user?.id} {pool} onPool={setPool} />
+
+		{#if loading}
+			<!-- skeleton: same card + row rhythm as the real table -->
+			<div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">
+				<div class="bg-base-300/40 px-4 py-2">
+					<div class="h-3 w-40 animate-pulse rounded bg-base-300"></div>
 				</div>
+				{#each Array(10) as _}
+					<div class="flex items-center gap-4 border-t border-base-300/40 px-4 py-2">
+						<div class="h-4 w-10 animate-pulse rounded bg-base-300"></div>
+						<div class="h-6 w-6 animate-pulse rounded-full bg-base-300"></div>
+						<div class="h-4 flex-1 animate-pulse rounded bg-base-300"></div>
+						<div class="h-4 w-14 animate-pulse rounded bg-base-300"></div>
+					</div>
+				{/each}
 			</div>
+		{:else if loadError}
+			<div class="rounded-xl border border-error/40 bg-error/10 px-5 py-6 text-center">
+				<p class="text-sm text-base-content/80">Couldn't load the leaderboard.</p>
+				<button
+					class="btn btn-outline btn-sm mt-3"
+					on:click={() => {
+						loading = true;
+						void load();
+					}}>Retry</button
+				>
+			</div>
+		{:else if view === 'table'}
+			<StandingsTable
+				rows={filteredRows}
+				{stage}
+				userId={$user?.id}
+				onOpen={(row) => (selected = row)}
+			/>
+		{:else if view === 'race'}
+			<RaceChart {rows} userId={$user?.id} />
+		{:else if view === 'insights'}
+			<InsightsGrid {rows} {rules} userId={$user?.id} fixtures={$fixtures} {stage} />
 		{/if}
 
-		<!-- Standings table -->
-		<div class="stadium-card no-glow overflow-hidden">
-			<div class="overflow-x-auto">
-				<table class="table table-sm">
-					<thead>
-						<tr class="text-xs uppercase tracking-wider text-base-content/40">
-							<th>#</th>
-							<th>Player</th>
-							<th class="text-center hidden md:table-cell">Exact</th>
-							<th class="text-center hidden md:table-cell">Outcome</th>
-							<th class="text-center hidden md:table-cell">Bonus</th>
-							<th class="text-center hidden md:table-cell">Bracket</th>
-							<th class="text-center hidden lg:table-cell">Trend · 7d</th>
-							<th class="text-right">Total</th>
-							<th class="text-right">Move</th>
-							<th></th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each $leaderboard as r (r.entry_id)}
-							{@const isYou = isYouRow(r, $user?.id)}
-							{@const showRef = shouldShowReference(r, $entrySettings, $user?.id, $user?.is_admin ?? false)}
-							{@const traj = stubRankTrajectory(r.entry_id, r.position, $totalParticipants || $leaderboard.length || 32)}
-							{@const isOpen = expanded.has(r.entry_id)}
-							<tr
-								class="cursor-pointer hover:bg-base-200/40 {isYou ? 'bg-primary/10' : ''}"
-								on:click={() => toggle(r.entry_id)}
-							>
-								<td>
-									<span class="{posBadgeClass(r.position)} !w-8 !h-8 !text-sm">{r.position}</span>
-								</td>
-								<td>
-									<a href="/profile/{r.user_id}" class="hover:text-primary" on:click|stopPropagation>
-										<div class="font-semibold flex items-center gap-1.5">
-											{r.entry_name}
-											{#if isYou}<span class="badge badge-error badge-xs">YOU</span>{/if}
-											{#if showRef}<span class="text-[10px] font-mono text-base-content/40">{r.entry_reference}</span>{/if}
-										</div>
-										<div class="text-xs text-base-content/40">{r.user_name}</div>
-									</a>
-								</td>
-								<td class="text-center hidden md:table-cell text-primary">{exactPts(r.breakdown, $leaderboardPhase)}</td>
-								<td class="text-center hidden md:table-cell">{outcomePts(r.breakdown, $leaderboardPhase)}</td>
-								<td class="text-center hidden md:table-cell text-accent">{bonusPts(r.breakdown, $leaderboardPhase)}</td>
-								<td class="text-center hidden md:table-cell text-info">{bracketPts(r.breakdown, $leaderboardPhase)}</td>
-								<td class="hidden lg:table-cell {isYou ? 'text-error' : 'text-base-content/60'}" style="width: 90px;">
-									<Sparkline ranks={traj.ranks} maxRank={traj.maxRank} width={80} height={22} />
-								</td>
-								<td class="text-right font-display text-lg tracking-wide">{r.total_points}</td>
-								<td class="text-right">
-									{#if r.movement > 0}<span class="text-success">▲{r.movement}</span>
-									{:else if r.movement < 0}<span class="text-error">▼{Math.abs(r.movement)}</span>
-									{:else}<span class="text-base-content/30">—</span>{/if}
-								</td>
-								<td class="text-base-content/30">{isOpen ? '▴' : '▾'}</td>
-							</tr>
-							{#if isOpen}
-								<tr class="bg-base-200/30">
-									<td colspan="10">
-										<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-2">
-											{#each DETAIL_PHASES as ph (ph.k)}
-												{@const p = r.breakdown[ph.k]}
-												<div class="rounded-lg bg-base-300/30 p-3">
-													<div class="flex items-center justify-between mb-2">
-														<span class="text-xs uppercase tracking-wider text-base-content/50">{ph.name}</span>
-														<b class="font-display tracking-wide">{phaseTotal(p)} pts</b>
-													</div>
-													<div class="grid grid-cols-4 gap-2 text-center">
-														<div><div class="stat-title">Outcome</div><div class="font-semibold">{p.match_outcome_points}</div></div>
-														<div><div class="stat-title">Exact</div><div class="font-semibold text-primary">{p.exact_score_points}</div></div>
-														<div><div class="stat-title">Bonus</div><div class="font-semibold text-accent">{p.hybrid_bonus_points}</div></div>
-														<div><div class="stat-title">Bracket</div><div class="font-semibold text-info">{phaseBracketSum(p)}</div></div>
-													</div>
-												</div>
-											{/each}
-										</div>
-									</td>
-								</tr>
-							{/if}
-						{:else}
-							<tr><td colspan="10" class="text-center py-8 text-base-content/40">No standings yet</td></tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		</div>
+		{#if selected}
+			<EntryDrawer
+				row={selected}
+				isOwn={selected.user_id === $user?.id}
+				{rules}
+				onClose={() => (selected = null)}
+			/>
+		{/if}
 	</div>
 {/if}

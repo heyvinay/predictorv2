@@ -41,20 +41,101 @@ export function poolCounts(rows: LbEntryV4[]): Record<LbPool, number> {
 
 // ── Stage ────────────────────────────────────────────────────────────────
 
+const PLACEHOLDER_RE = /^(winner|loser|runner|1[a-l]|2[a-l]|3[a-l])\b/i;
+
+/** True when a fixture lineup slot holds a real team rather than a
+ *  Football-Data placeholder ("Winner of Match 12", "1A", empty). */
+export function isRealTeam(name: string | null | undefined): boolean {
+	return !!name && name.trim() !== '' && !PLACEHOLDER_RE.test(name.trim());
+}
+
 /** Knockout stage begins when any non-group fixture has a real team seeded
- *  (lineup-based, consistent with the scoring engine's advancement timing).
- *  Placeholder names like "Winner of Match 12" don't count. */
+ *  (lineup-based, consistent with the scoring engine's advancement timing). */
 export function deriveStage(fixtures: Fixture[]): LbStage {
-	const placeholder = /^(winner|loser|runner|1[a-l]|2[a-l]|3[a-l])\b/i;
 	for (const f of fixtures) {
 		if (f.stage === 'group') continue;
-		for (const team of [f.home_team, f.away_team]) {
-			if (team && team.trim() !== '' && !placeholder.test(team.trim())) {
-				return 'knockout';
-			}
-		}
+		if (isRealTeam(f.home_team) || isRealTeam(f.away_team)) return 'knockout';
 	}
 	return 'group';
+}
+
+// ── Bracket chip derivations (drawer) ────────────────────────────────────
+
+/** Teams provably out — client-side mirror of the backend's
+ *  get_eliminated_teams (same conservative rules): KO-match losers, plus
+ *  group non-qualifiers once every R32 fixture holds real teams. */
+export function eliminatedTeams(fixtures: Fixture[]): Set<string> {
+	const groupTeams = new Set<string>();
+	const koLineup = new Set<string>();
+	const out = new Set<string>();
+	const r32: Fixture[] = [];
+
+	for (const f of fixtures) {
+		if (f.stage === 'group') {
+			if (isRealTeam(f.home_team)) groupTeams.add(f.home_team);
+			if (isRealTeam(f.away_team)) groupTeams.add(f.away_team);
+			continue;
+		}
+		if (isRealTeam(f.home_team)) koLineup.add(f.home_team);
+		if (isRealTeam(f.away_team)) koLineup.add(f.away_team);
+		if (f.stage === 'round_of_32') r32.push(f);
+
+		if (f.status === 'finished' && f.score) {
+			if (f.score.outcome === '1' && isRealTeam(f.away_team)) out.add(f.away_team);
+			else if (f.score.outcome === '2' && isRealTeam(f.home_team)) out.add(f.home_team);
+		}
+	}
+
+	const r32Real =
+		r32.length > 0 &&
+		r32.every(
+			(f) =>
+				isRealTeam(f.home_team) &&
+				isRealTeam(f.away_team) &&
+				groupTeams.has(f.home_team) &&
+				groupTeams.has(f.away_team)
+		);
+	if (r32Real) {
+		for (const t of groupTeams) if (!koLineup.has(t)) out.add(t);
+	}
+	return out;
+}
+
+/** stage → set of real teams seeded into that stage's fixtures. The
+ *  pseudo-stage "winner" holds the champion once the final is finished. */
+export function seededByStage(fixtures: Fixture[]): Map<string, Set<string>> {
+	const map = new Map<string, Set<string>>();
+	const add = (stage: string, team: string) => {
+		if (!map.has(stage)) map.set(stage, new Set());
+		map.get(stage)?.add(team);
+	};
+	for (const f of fixtures) {
+		if (f.stage === 'group') continue;
+		if (isRealTeam(f.home_team)) add(f.stage, f.home_team);
+		if (isRealTeam(f.away_team)) add(f.stage, f.away_team);
+		if (f.stage === 'final' && f.status === 'finished' && f.score) {
+			if (f.score.outcome === '1' && isRealTeam(f.home_team)) add('winner', f.home_team);
+			else if (f.score.outcome === '2' && isRealTeam(f.away_team)) add('winner', f.away_team);
+		}
+	}
+	return map;
+}
+
+export type ChipState = 'hit' | 'out' | 'pend';
+
+/** Bracket chip state for "predicted `team` reaches `stage`":
+ *  hit  — team actually seeded into that stage (lineup-banked credit)
+ *  out  — eliminated before reaching it
+ *  pend — still possible. */
+export function chipState(
+	team: string,
+	stage: string,
+	seeded: Map<string, Set<string>>,
+	eliminated: Set<string>
+): ChipState {
+	if (seeded.get(stage)?.has(team)) return 'hit';
+	if (eliminated.has(team)) return 'out';
+	return 'pend';
 }
 
 // ── Points DNA ───────────────────────────────────────────────────────────
