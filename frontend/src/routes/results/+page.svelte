@@ -58,16 +58,17 @@
 
 	// ── Gate (spec D.2): deadline passed → V4; else pre-tournament stub ──
 	//
-	// Manual override (v2.163.0 ship): keep V4 hidden in prod for a final
-	// taste-check pass, even after the deadline auto-trigger fires. Flip to
-	// `true` and redeploy when you're ready for the pool to see it. Until
-	// then the page renders the same "Results open at kickoff" stub it has
-	// since v2.x — zero user-visible change from the prior deploy.
-	const V4_RESULTS_ENABLED = false;
+	// Staged rollout (v2.164.0): V4 is enabled but ADMIN-ONLY — admins see
+	// the real page in production for a final check while everyone else
+	// keeps the "Results open at kickoff" stub. To open it to the whole
+	// pool, delete the `$user?.is_admin` clause below and redeploy. Flip
+	// the const to false for a full rollback.
+	const V4_RESULTS_ENABLED = true;
 	$: resultsOpen =
 		V4_RESULTS_ENABLED &&
 		!!$phase1Deadline &&
-		new Date($phase1Deadline).getTime() < Date.now();
+		new Date($phase1Deadline).getTime() < Date.now() &&
+		$user?.is_admin === true;
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -90,11 +91,16 @@
 
 	onMount(() => pageTitle.set('Results'));
 
-	onMount(async () => {
-		if (!$isAuthenticated || !resultsOpen) {
-			loading = false;
-			return;
-		}
+	// Core data loads reactively, not in onMount — the admin-only gate
+	// makes resultsOpen depend on $user, which hydrates after this page
+	// mounts (same race as the entries load below).
+	let coreRequested = false;
+	$: if (resultsOpen && !coreRequested) {
+		coreRequested = true;
+		void loadCore();
+	}
+
+	async function loadCore() {
 		const [, leaderboard, scoringRules] = await Promise.all([
 			fetchAllFixtures(),
 			getLeaderboard().catch(() => null),
@@ -110,7 +116,7 @@
 			);
 		}
 		loading = false;
-	});
+	}
 
 	// Entries + predictions load reactively once the user store hydrates —
 	// at onMount time $user is usually still null (auth/me resolves in the
