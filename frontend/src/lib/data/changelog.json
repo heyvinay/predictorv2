@@ -2214,6 +2214,13 @@
       "type": "fix",
       "summary": "The rules-page rarity bonus worked example now divides by the actual number of scoring entries (which can be more than one per person) rather than the user count, so the published bands match what scoring really pays out.",
       "commit": "pending"
+    },
+    {
+      "version": "2.175.2",
+      "date": "2026-06-12",
+      "type": "improvement",
+      "summary": "The rarity bonus explanation on the rules page now points at our actual pool and the table's top band, instead of an abstract \"out of 30 predictors\" anchor that nobody in the pool relates to.",
+      "commit": "pending"
     }
   ]
 }
