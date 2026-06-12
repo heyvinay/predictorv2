@@ -1,7 +1,9 @@
 <script lang="ts">
-	/** Gold-tinted band under the header: your best rank + gap to the lead
-	 *  on the left, pool filter pills (All / Atlas / JMFA / Guests) right.
-	 *  Pool selection persists; filtering keeps global ranks (spec §2). */
+	/** Gold-tinted toolbar under the header: search box left (grows to
+	 *  max-w-sm on desktop, full row on phones), best-rank summary when
+	 *  the user has entries on the board, pool filter pills
+	 *  (All / Atlas / JMFA / Guests) right. Pool selection persists;
+	 *  filtering keeps global ranks (spec §2). */
 	import type { LbEntryV4, LbPool } from '$lib/types/leaderboard';
 	import { bestOwnSummary, poolCounts } from '$lib/utils/leaderboardV4';
 
@@ -19,41 +21,34 @@
 </script>
 
 <div
-	class="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-box border-[1.5px] border-primary/30 bg-primary/[0.06] px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3"
+	class="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-box border-[1.5px] border-primary/30 bg-primary/[0.06] px-3 py-2.5 sm:gap-x-4 sm:px-4 sm:py-3"
 >
-	<div class="flex flex-col gap-1">
-		<span class="font-display text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary"
-			>Your entries</span
+	<label class="relative min-w-[180px] flex-1 sm:max-w-sm">
+		<span
+			class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-base-content/40 sm:left-2.5 sm:text-xs"
+			aria-hidden="true">⌕</span
 		>
-		{#if best}
-			<span class="text-xs text-base-content/70">
-				best is <b class="font-display font-extrabold text-primary">#{best.bestRank}</b>
-				{#if best.ptsOffLead > 0}
-					· {best.ptsOffLead} pts off the lead
-				{:else}
-					· leading the pool
-				{/if}
-			</span>
-		{:else}
-			<span class="text-xs text-base-content/55">no eligible entry on the board</span>
-		{/if}
-	</div>
+		<input
+			type="search"
+			bind:value={search}
+			placeholder="Search name…"
+			aria-label="Search entries by person or entry name"
+			class="h-[30px] w-full rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-6 pr-2 text-[11px] font-semibold text-base-content placeholder:text-base-content/40 transition-colors focus:border-primary focus:outline-none sm:h-[34px] sm:pl-7 sm:pr-2.5 sm:text-xs"
+		/>
+	</label>
 
-	<div class="flex flex-wrap items-center gap-1 sm:gap-1.5">
-		<label class="relative">
-			<span
-				class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-base-content/40 sm:left-2.5 sm:text-xs"
-				aria-hidden="true">⌕</span
-			>
-			<input
-				type="search"
-				bind:value={search}
-				placeholder="Search name…"
-				aria-label="Search entries by person or entry name"
-				class="h-[28px] w-28 rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-6 pr-2 text-[11px] font-semibold text-base-content placeholder:text-base-content/40 transition-all focus:border-primary focus:outline-none sm:h-[34px] sm:w-44 sm:pl-7 sm:pr-2.5 sm:text-xs sm:focus:w-52"
-			/>
-		</label>
-		<div class="flex flex-wrap gap-1 sm:gap-1.5" role="radiogroup" aria-label="Pool filter">
+	{#if best}
+		<span class="text-xs text-base-content/70">
+			best is <b class="font-display font-extrabold text-primary">#{best.bestRank}</b>
+			{#if best.ptsOffLead > 0}
+				· {best.ptsOffLead} pts off the lead
+			{:else}
+				· leading the pool
+			{/if}
+		</span>
+	{/if}
+
+	<div class="flex flex-wrap gap-1 sm:gap-1.5" role="radiogroup" aria-label="Pool filter">
 			{#each POOLS as p}
 				<button
 					role="radio"
@@ -72,6 +67,5 @@
 					>
 				</button>
 			{/each}
-		</div>
 	</div>
 </div>
