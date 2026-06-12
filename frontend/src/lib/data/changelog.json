@@ -2200,6 +2200,13 @@
       "type": "improvement",
       "summary": "Your own entries are now pinned at the top of the standings table — no more scrolling through 183 rows to find yourself.",
       "commit": "pending"
+    },
+    {
+      "version": "2.175.0",
+      "date": "2026-06-12",
+      "type": "feature",
+      "summary": "The rarity bonus is now live. With the entry pool confirmed, rarity has been applied retroactively to every finished match — leaderboard totals jumped up once across the pool. The rules page now shows the actual bands for the confirmed pool size, and the rarity column is back on every match's points breakdown.",
+      "commit": "pending"
     }
   ]
 }
