@@ -5,7 +5,8 @@
 	import type { CommunityPredictionWithRank, OutcomePayout } from '$lib/types/results';
 	import type { Side } from '$lib/utils/matchDetailV4';
 	import { sideOf } from '$lib/utils/matchDetailV4';
-	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
+	import TeamName from '$lib/components/TeamName.svelte';
 
 	export let fixture: Fixture;
 	export let preds: CommunityPredictionWithRank[];
@@ -15,10 +16,10 @@
 	let filter: 'all' | Side = 'all';
 
 	$: filters = [
-		{ k: 'all' as const, label: 'All' },
-		{ k: 'home' as const, label: displayTeamName(fixture.home_team) },
-		{ k: 'draw' as const, label: 'Draw' },
-		{ k: 'away' as const, label: displayTeamName(fixture.away_team) }
+		{ k: 'all' as const, label: 'All', team: null as string | null },
+		{ k: 'home' as const, label: '', team: fixture.home_team as string | null },
+		{ k: 'draw' as const, label: 'Draw', team: null as string | null },
+		{ k: 'away' as const, label: '', team: fixture.away_team as string | null }
 	];
 	$: sorted = [...preds].sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
 	$: filtered = sorted.filter(
@@ -32,11 +33,12 @@
 		return 'bg-base-300/40 text-base-content/70';
 	}
 	function sideLabel(side: Side): string {
+		// Real FIFA codes (KOR), not first-3-letters pseudo-codes (SOU).
 		return side === 'draw'
 			? 'DRAW'
 			: side === 'home'
-			? displayTeamName(fixture.home_team).slice(0, 3).toUpperCase()
-			: displayTeamName(fixture.away_team).slice(0, 3).toUpperCase();
+			? teamCode(fixture.home_team)
+			: teamCode(fixture.away_team);
 	}
 </script>
 
@@ -54,7 +56,7 @@
 					: 'bg-base-300/30 text-base-content/70 hover:bg-base-300/50'}"
 				on:click={() => (filter = f.k)}
 			>
-				{f.label}
+				{#if f.team}<TeamName name={f.team} />{:else}{f.label}{/if}
 			</button>
 		{/each}
 	</div>

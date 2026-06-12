@@ -14,7 +14,8 @@
 	 */
 	import type { Fixture } from '$types';
 	import type { SpreadGrid } from '$lib/types/results';
-	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
+	import TeamName from '$lib/components/TeamName.svelte';
 
 	export let fixture: Fixture;
 	export let mode: 'played' | 'upcoming';
@@ -113,22 +114,20 @@
 		{/if}
 		<span class="inline-flex items-center gap-1.5">
 			<span class="h-2 w-2 rounded-full bg-amber-400"></span>
-			{displayTeamName(fixture.home_team)} win
+			<TeamName name={fixture.home_team} /> win
 		</span>
 		<span class="inline-flex items-center gap-1.5">
 			<span class="h-2 w-2 rounded-full bg-slate-400/80"></span> Draw
 		</span>
 		<span class="inline-flex items-center gap-1.5">
 			<span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-			{displayTeamName(fixture.away_team)} win
+			<TeamName name={fixture.away_team} /> win
 		</span>
 		<span class="inline-flex items-center gap-1.5">
 			<span class="h-2 w-2 rounded-full bg-primary"></span> your pick
 		</span>
 		<span class="ml-auto text-base-content/40">
-			{displayTeamName(fixture.home_team).toUpperCase()} ↓ · {displayTeamName(
-				fixture.away_team
-			).toUpperCase()} →
+			{teamCode(fixture.home_team)} ↓ · {teamCode(fixture.away_team)} →
 		</span>
 	</div>
 </div>

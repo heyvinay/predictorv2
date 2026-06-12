@@ -2,6 +2,7 @@
 	import type { Fixture } from '$types';
 	import type { MatchPredictionWithPoints } from '$lib/types/results';
 	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import PointsCellGroup from './PointsCellGroup.svelte';
 
@@ -80,7 +81,9 @@
 				{#if hasFlag(fixture.home_team)}
 					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
-				<span class="text-[13px] font-semibold">{displayTeamName(fixture.home_team)}</span>
+				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.home_team)}
+					>{teamCode(fixture.home_team)}</span
+				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
 				{#if score}{score.home_score}{:else}<span class="text-base-content/30">—</span>{/if}
@@ -91,7 +94,9 @@
 				{#if hasFlag(fixture.away_team)}
 					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
-				<span class="text-[13px] font-semibold">{displayTeamName(fixture.away_team)}</span>
+				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.away_team)}
+					>{teamCode(fixture.away_team)}</span
+				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
 				{#if score}{score.away_score}{:else}<span class="text-base-content/30">—</span>{/if}

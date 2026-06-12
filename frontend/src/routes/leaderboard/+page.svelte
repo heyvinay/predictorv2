@@ -15,6 +15,7 @@
 	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import { startLivePoll } from '$lib/utils/livePoll';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import { downloadAllEntriesCsv } from '$api/export';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
@@ -76,7 +77,7 @@
 	let loading = true;
 	let loadError = false;
 	let selected: LbEntryV4 | null = null;
-	let pollTimer: ReturnType<typeof setInterval> | null = null;
+	let stopPoll: (() => void) | null = null;
 
 	async function load() {
 		loadError = false;
@@ -119,17 +120,16 @@
 	$: if ($isAuthenticated && lbOpen && !loadRequested) {
 		loadRequested = true;
 		void load();
-		// Refresh standings every 60s while the page is open (backend
-		// cache TTL is 30s, so this stays cheap).
-		pollTimer = setInterval(() => {
+		// Refresh standings every 60s while the page is open and visible
+		// (backend cache TTL is 30s, so this stays cheap; the poll pauses
+		// while the tab is hidden and catches up on return).
+		stopPoll = startLivePoll(() => {
 			getLeaderboardV4()
 				.then((b) => (board = b))
 				.catch(() => {});
-		}, 60_000);
+		});
 	}
-	onDestroy(() => {
-		if (pollTimer) clearInterval(pollTimer);
-	});
+	onDestroy(() => stopPoll?.());
 
 	let search = '';
 	$: rows = board?.entries ?? [];

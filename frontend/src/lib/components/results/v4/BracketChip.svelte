@@ -1,12 +1,12 @@
 <script lang="ts">
 	/** ✓ MEX (green) when the team is in the entry's bracket for this
-	 *  round; muted otherwise. Label = first 3 letters of the short name. */
-	import { displayTeamName } from '$lib/utils/teamName';
+	 *  round; muted otherwise. Label = FIFA three-letter code. */
+	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let team: string;
 	export let picked: boolean;
 
-	$: label = displayTeamName(team).toUpperCase().slice(0, 3);
+	$: label = teamCode(team);
 </script>
 
 <span

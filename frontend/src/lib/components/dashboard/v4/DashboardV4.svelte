@@ -40,6 +40,7 @@
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { Announcement } from '$lib/types/dashboard';
 	import { deriveGroupMatchdays } from '$lib/utils/resultsRounds';
+	import { startLivePoll } from '$lib/utils/livePoll';
 	import {
 		bucketDashboardFixtures,
 		firstNameOf,
@@ -110,8 +111,9 @@
 		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
 	}
 
-	// ── 60s refresh: live scores + movement ──
-	const poll = setInterval(() => {
+	// ── 60s refresh: live scores + movement (visibility-aware — pauses
+	// while the tab is hidden, catches up immediately on return) ──
+	const stopPoll = startLivePoll(() => {
 		now = new Date();
 		void fetchAllFixtures();
 		void getLeaderboardV4()
@@ -120,8 +122,8 @@
 				totalEntries = lb.entries.length;
 			})
 			.catch(() => undefined);
-	}, 60_000);
-	onDestroy(() => clearInterval(poll));
+	});
+	onDestroy(stopPoll);
 
 	onMount(() => {
 		track('dashboard_view', {});

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Fixture } from '$types';
 	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import BracketChip from './BracketChip.svelte';
 	import PointsCellKo from './PointsCellKo.svelte';
@@ -100,8 +101,8 @@
 				{#if seeded && hasFlag(fixture.home_team)}
 					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
-				<span class="text-[13px] font-semibold"
-					>{seeded ? displayTeamName(fixture.home_team) : 'TBD'}</span
+				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.home_team)}
+					>{seeded ? teamCode(fixture.home_team) : 'TBD'}</span
 				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
@@ -113,8 +114,8 @@
 				{#if seeded && hasFlag(fixture.away_team)}
 					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
 				{/if}
-				<span class="text-[13px] font-semibold"
-					>{seeded ? displayTeamName(fixture.away_team) : 'TBD'}</span
+				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.away_team)}
+					>{seeded ? teamCode(fixture.away_team) : 'TBD'}</span
 				>
 			</span>
 			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">

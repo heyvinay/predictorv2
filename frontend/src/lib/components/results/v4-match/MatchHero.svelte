@@ -2,8 +2,8 @@
 	/** Hero card. mode='played': badge + big score + winner emphasis.
 	 *  mode='upcoming': LOCKED badge + big VS + kickoff countdown. */
 	import type { Fixture } from '$types';
-	import { displayTeamName } from '$lib/utils/teamName';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import TeamName from '$lib/components/TeamName.svelte';
 
 	export let fixture: Fixture;
 	export let mode: 'played' | 'upcoming';
@@ -57,8 +57,8 @@
 					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
 				/>
 			{/if}
-			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[11px]">
-				{displayTeamName(fixture.home_team)}
+			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[13px]">
+				<TeamName name={fixture.home_team} />
 			</div>
 		</div>
 
@@ -93,8 +93,8 @@
 					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
 				/>
 			{/if}
-			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[11px]">
-				{displayTeamName(fixture.away_team)}
+			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[13px]">
+				<TeamName name={fixture.away_team} />
 			</div>
 		</div>
 	</div>

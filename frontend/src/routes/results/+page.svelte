@@ -7,7 +7,7 @@
 	 *  to the Match Detail page. Round selection auto-picks the LIVE round
 	 *  (spec D.1) and syncs to ?round= for refresh persistence.
 	 */
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
@@ -36,6 +36,7 @@
 		ScoringRules
 	} from '$lib/types/results';
 	import { buildRounds, NEXT_ROUND, ROUND_LABELS } from '$lib/utils/resultsRounds';
+	import { startLivePoll } from '$lib/utils/livePoll';
 	import { defaultRound, roundsWithLive } from '$lib/utils/roundsLive';
 	import {
 		bracketPicksForRound,
@@ -101,16 +102,34 @@
 			getScoringRules()
 		]);
 		rules = scoringRules;
-		if (leaderboard) {
-			rankByEntry = new Map(
-				leaderboard.entries.map((e) => [
-					e.entry_id,
-					{ position: e.position, total_points: e.total_points }
-				])
-			);
-		}
+		applyLeaderboard(leaderboard);
 		loading = false;
+		// 60s live refresh (visibility-aware — pauses while the tab is
+		// hidden, catches up on return): scores via fetchAllFixtures, the
+		// entry's per-fixture points via fetchMatchPredictions, ranks for
+		// the summary bar via the leaderboard.
+		stopPoll ??= startLivePoll(() => {
+			void fetchAllFixtures();
+			void fetchMatchPredictions().catch(() => undefined);
+			void getLeaderboard()
+				.then(applyLeaderboard)
+				.catch(() => undefined);
+		});
 	}
+
+	type LeaderboardPayload = Awaited<ReturnType<typeof getLeaderboard>> | null;
+	function applyLeaderboard(leaderboard: LeaderboardPayload) {
+		if (!leaderboard) return;
+		rankByEntry = new Map(
+			leaderboard.entries.map((e) => [
+				e.entry_id,
+				{ position: e.position, total_points: e.total_points }
+			])
+		);
+	}
+
+	let stopPoll: (() => void) | null = null;
+	onDestroy(() => stopPoll?.());
 
 	// Entries + predictions load reactively once the user store hydrates —
 	// at onMount time $user is usually still null (auth/me resolves in the

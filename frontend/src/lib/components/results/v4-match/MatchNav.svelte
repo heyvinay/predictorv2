@@ -1,8 +1,10 @@
 <script lang="ts">
 	/** Back · prev/next pager · position counter. Arrows disable at round
-	 *  edges (no cross-round wrap, spec §8.6). Team names hide < 480px. */
+	 *  edges (no cross-round wrap, spec §8.6). Full team names < 480px
+	 *  compress to FIFA three-letter codes ("MEX v KOR"). */
 	import type { Fixture } from '$types';
-	import { displayTeamName } from '$lib/utils/teamName';
+	import { displayTeamName, isPlaceholderTeam } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let roundId: string;
 	export let roundLabel: string;
@@ -15,6 +17,9 @@
 
 	const label = (f: Fixture | null) =>
 		f ? `${displayTeamName(f.home_team)} vs ${displayTeamName(f.away_team)}` : null;
+	const code = (t: string) => (isPlaceholderTeam(t) ? 'TBD' : teamCode(t));
+	const codeLabel = (f: Fixture | null) =>
+		f ? `${code(f.home_team)} v ${code(f.away_team)}` : null;
 </script>
 
 <div
@@ -41,6 +46,9 @@
 			<span class="hidden max-w-[140px] truncate min-[480px]:inline">
 				{label(prevFixture) ?? 'Round start'}
 			</span>
+			{#if codeLabel(prevFixture)}
+				<span class="min-[480px]:hidden">{codeLabel(prevFixture)}</span>
+			{/if}
 		</button>
 
 		<div class="flex flex-col items-center px-2">
@@ -62,6 +70,9 @@
 			<span class="hidden max-w-[140px] truncate min-[480px]:inline">
 				{label(nextFixture) ?? 'Round end'}
 			</span>
+			{#if codeLabel(nextFixture)}
+				<span class="min-[480px]:hidden">{codeLabel(nextFixture)}</span>
+			{/if}
 			<span class="text-[15px] leading-none">→</span>
 		</button>
 	</div>

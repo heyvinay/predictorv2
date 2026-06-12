@@ -25,6 +25,7 @@
 		ScoringRules
 	} from '$lib/types/results';
 	import { buildRounds } from '$lib/utils/resultsRounds';
+	import { startLivePoll } from '$lib/utils/livePoll';
 	import {
 		isUpset,
 		outcomeOf,
@@ -59,6 +60,31 @@
 		rules = scoringRules;
 		loading = false;
 	});
+
+	// 60s live refresh (visibility-aware — pauses while the tab is hidden,
+	// catches up on return). Scores ride fetchAllFixtures; the entry's own
+	// points land via fetchMatchPredictions once a fixture finishes; the
+	// pool refetch keeps ranks/points current without resetting state.
+	onMount(() =>
+		startLivePoll(() => {
+			void fetchAllFixtures();
+			void fetchMatchPredictions().catch(() => undefined);
+			refreshPool();
+		})
+	);
+
+	function refreshPool() {
+		const id = fixtureId;
+		if (!id) return;
+		void getCommunityPredictions(id)
+			.then((resp) => {
+				if (poolLoadedFor === id) {
+					pool = resp.predictions as CommunityPredictionWithRank[];
+					poolUnavailable = false;
+				}
+			})
+			.catch(() => undefined);
+	}
 
 	// Entries + own predictions — reactive on user hydration (same pattern
 	// as the Results page; $user is null at onMount).
@@ -216,13 +242,26 @@
 						<!-- Spec D.4 — render the consensus-variant explainer even when
 						     rarity = 0, so the user understands WHY no rarity was awarded
 						     (everyone agreed). Hides only on a missed outcome, where
-						     there's nothing rarity-related to explain. -->
-						<RarityExplainer
-							n={rarityCallers}
-							total={pool.length}
-							pts={prediction.points.rarity}
-							finished={fixture.status === 'finished'}
-						/>
+						     there's nothing rarity-related to explain.
+						     Gated on the served scoring mode: while rarity is paused
+						     (mode "fixed"), the band scale would contradict the site
+						     notice — show a short paused note instead (same rule as
+						     BreakdownCard's rarity column). -->
+						{#if rules.mode === 'logarithmic'}
+							<RarityExplainer
+								n={rarityCallers}
+								total={pool.length}
+								pts={prediction.points.rarity}
+								finished={fixture.status === 'finished'}
+							/>
+						{:else}
+							<div
+								class="rounded-box border border-base-300/60 bg-base-200 px-4 py-3 text-[12.5px] leading-relaxed text-base-content/55"
+							>
+								★ The rarity bonus is paused for now — match points are scoring at fixed
+								values. Details on the <a href="/rules" class="link text-primary">rules page</a>.
+							</div>
+						{/if}
 					{/if}
 					{#if grid}
 						<ScorelineSpread

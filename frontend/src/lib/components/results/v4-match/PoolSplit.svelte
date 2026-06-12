@@ -4,15 +4,17 @@
 	import type { Fixture } from '$types';
 	import type { OutcomePayout } from '$lib/types/results';
 	import type { Side } from '$lib/utils/matchDetailV4';
-	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
+	import TeamName from '$lib/components/TeamName.svelte';
 
 	export let fixture: Fixture;
 	export let payouts: Record<Side, OutcomePayout>;
 	export let yourSide: Side | null;
 
 	$: total = payouts.home.count + payouts.draw.count + payouts.away.count;
-	$: home3 = displayTeamName(fixture.home_team).slice(0, 3).toUpperCase();
-	$: away3 = displayTeamName(fixture.away_team).slice(0, 3).toUpperCase();
+	// Real FIFA codes (KOR), not first-3-letters pseudo-codes (SOU).
+	$: home3 = teamCode(fixture.home_team);
+	$: away3 = teamCode(fixture.away_team);
 
 	const CARDS: { side: Side; cls: string }[] = [
 		{ side: 'home', cls: 'bg-warning/25 text-warning-text' },
@@ -20,12 +22,8 @@
 		{ side: 'away', cls: 'bg-error/25 text-error' }
 	];
 
-	function cardLabel(side: Side): string {
-		return side === 'home'
-			? `${displayTeamName(fixture.home_team)} win`
-			: side === 'away'
-			? `${displayTeamName(fixture.away_team)} win`
-			: 'Draw';
+	function cardTeam(side: Side): string | null {
+		return side === 'home' ? fixture.home_team : side === 'away' ? fixture.away_team : null;
 	}
 </script>
 
@@ -72,7 +70,8 @@
 			>
 				<div class="flex items-center justify-between gap-1">
 					<span class="text-[10.5px] font-bold text-base-content/70"
-						>{cardLabel(c.side)} · {p.count} {p.count === 1 ? 'pick' : 'picks'}</span
+						>{#if cardTeam(c.side)}<TeamName name={cardTeam(c.side)} /> win{:else}Draw{/if} · {p.count}
+						{p.count === 1 ? 'pick' : 'picks'}</span
 					>
 					{#if yourSide === c.side}
 						<span

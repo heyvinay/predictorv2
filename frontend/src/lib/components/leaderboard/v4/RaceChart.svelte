@@ -182,7 +182,8 @@
 		<div>
 			<h2 class="font-hero text-2xl tracking-[0.04em]">The Race</h2>
 			<p class="mt-1 text-xs text-base-content/55">
-				Rank after every scoring day — gold lines are your entries. Hover any line to trace it.
+				Rank after every scoring day — gold lines are your entries. Hover or tap any line to
+				trace it.
 			</p>
 		</div>
 		<div class="flex gap-2">
@@ -222,12 +223,18 @@
 		</div>
 	{:else}
 		<div class="overflow-x-auto">
+			<!-- Tap support (touch devices have no hover): tapping a line or
+			     its label toggles the trace; tapping the chart background
+			     clears it. svelte-ignore: 183 chart paths must not join the
+			     tab order — the standings table is the accessible surface. -->
+			<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
 			<svg
 				viewBox="0 0 {W} {H}"
 				class="block h-auto w-full min-w-[720px]"
 				role="img"
 				aria-label="Rank-over-time chart for all entries"
 				on:mouseleave={() => (hoverId = null)}
+				on:click={() => (hoverId = null)}
 			>
 				<!-- date columns -->
 				{#each axisDates as d (d)}
@@ -291,6 +298,7 @@
 
 				<!-- invisible fat hit strokes -->
 				{#each lines as l (l.id)}
+					<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
 					<path
 						d={l.path}
 						fill="none"
@@ -299,11 +307,16 @@
 						class="cursor-pointer"
 						role="presentation"
 						on:mouseenter={() => (hoverId = l.id)}
+						on:click={(e) => {
+							e.stopPropagation();
+							hoverId = hoverId === l.id ? null : l.id;
+						}}
 					/>
 				{/each}
 
 				<!-- right-edge labels -->
 				{#each lines as l (l.id)}
+					<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
 					<text
 						x={W - PAD_R + 10}
 						y={(labelSlots.get(l.id) ?? 0) + 3.5}
@@ -313,7 +326,11 @@
 							? 'fill-success font-extrabold'
 							: 'fill-base-content/55'} {hoverId && hoverId !== l.id ? 'opacity-25' : ''}"
 						role="presentation"
-						on:mouseenter={() => (hoverId = l.id)}>{l.finalRank}. {l.name}</text
+						on:mouseenter={() => (hoverId = l.id)}
+						on:click={(e) => {
+							e.stopPropagation();
+							hoverId = hoverId === l.id ? null : l.id;
+						}}>{l.finalRank}. {l.name}</text
 					>
 				{/each}
 
