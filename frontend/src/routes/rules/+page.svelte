@@ -208,8 +208,9 @@
 						The fewer of your fellow predictors who picked the same outcome,
 						the higher this bonus. Gated at 50% — consensus picks pay nothing
 						extra. Derived from Shannon surprisal (the same logarithmic
-						scoring rule used in forecasting tournaments), scaled so a uniquely
-						correct call out of ~30 predictors hits the cap of +10.
+						scoring rule used in forecasting tournaments); the table below
+						shows exactly how the bands fall against our confirmed
+						{rarityPredictorCount}-entry pool.
 					</div>
 				</div>
 			</div>
@@ -250,7 +251,7 @@
 			<b class="text-base-content/70">For the nerds.</b>
 			Derived from Shannon surprisal — the same logarithmic scoring rule used in forecasting tournaments. The bonus is
 			<code class="font-mono text-[11px] bg-base-300/40 px-1.5 py-0.5 rounded text-base-content/70">R = min(10, round(α · log₂(1 / 2f)))</code>
-			where <i>f</i> is the fraction of predictors who got it right (e.g. <i>f</i> = 1 ⁄ {rarityPredictorCount} for a uniquely-correct call against the confirmed {rarityPredictorCount}-entry pool), and α ≈ 2.56 is calibrated so a uniquely correct call out of ~30 predictors hits the +10 cap.
+			where <i>f</i> is the fraction of predictors who got it right (e.g. <i>f</i> = 1 ⁄ {rarityPredictorCount} for a uniquely-correct call against the confirmed {rarityPredictorCount}-entry pool), and α ≈ 2.56 is the calibration that produces the bands above — the <b class="text-base-content/70">+10 cap</b> is reached for any correct call within the top band ({rarityRows[0]?.countLabel ?? '1'} of {rarityPredictorCount} entries).
 		</p>
 	</section>
 
