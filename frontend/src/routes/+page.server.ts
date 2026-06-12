@@ -21,6 +21,14 @@
  * marketing page content doesn't need request-level freshness, and the
  * RSS aggregator is the most expensive bit by far. 5 min balances
  * "fresh-ish news" against "don't hammer the feeds".
+ *
+ * STREAMED news (v2.173.0): `news` is returned as an UN-AWAITED promise.
+ * SvelteKit streams it after the shell, so the page renders immediately
+ * on internal data (info + fixtures, ~150ms) and the bottom-of-page news
+ * band fills in whenever BBC/Guardian respond — a slow or hung feed
+ * (worst case 5s timeout) can no longer hold the whole page hostage.
+ * `fetchNewsSafely` never rejects (failures → []), which streamed
+ * promises require — an unhandled rejection would error the page.
  */
 import type { PageServerLoad } from './$types';
 import { env } from '$env/dynamic/private';
@@ -45,17 +53,17 @@ export const load: PageServerLoad = async ({ fetch, setHeaders }) => {
 		'cache-control': 'public, max-age=300'
 	});
 
-	const [info, fixtures, news] = await Promise.all([
+	const [info, fixtures] = await Promise.all([
 		fetchCompetitionInfo(fetch),
-		fetchFixtures(fetch),
-		fetchNewsSafely()
+		fetchFixtures(fetch)
 	]);
 
 	return {
 		totalPlayers: info?.total_players ?? null,
 		phase1Deadline: info?.phase1_deadline ?? null,
 		firstKickoff: computeFirstKickoff(fixtures),
-		news
+		// Deliberately NOT awaited — streamed to the client (see header).
+		news: fetchNewsSafely()
 	};
 };
 

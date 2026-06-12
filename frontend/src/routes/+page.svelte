@@ -143,15 +143,22 @@
 	     news band rides along below it — same server-loaded RSS feed
 	     (and the same section_viewed analytics) as the marketing page. -->
 	<DashboardV4 />
+	<!-- data.news is a STREAMED promise (see +page.server.ts) — the page
+	     paints immediately and the news band pops in when the feeds
+	     resolve. No pending skeleton: it's the last section on the page. -->
 	<TrackedSection name="news">
-		<FromTheTouchline news={data.news} />
+		{#await data.news then news}
+			<FromTheTouchline {news} />
+		{/await}
 	</TrackedSection>
 {:else if view === 'holding'}
 	<!-- Post-deadline, pre-release: the pool is sealed, the admin
 	     hasn't flipped the go-live switch yet. -->
 	<LockedInHero />
 	<TrackedSection name="news">
-		<FromTheTouchline news={data.news} />
+		{#await data.news then news}
+			<FromTheTouchline {news} />
+		{/await}
 	</TrackedSection>
 {:else}
 	{#if !$isAuthenticated}
@@ -187,7 +194,9 @@
 	</TrackedSection>
 
 	<TrackedSection name="news">
-		<FromTheTouchline news={data.news} />
+		{#await data.news then news}
+			<FromTheTouchline {news} />
+		{/await}
 	</TrackedSection>
 
 	<TrackedSection name="final_cta">
