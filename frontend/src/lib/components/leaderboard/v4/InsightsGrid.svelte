@@ -593,7 +593,10 @@
 		</div>
 	</InsightCard>
 
-	<!-- 7 · Contrarian index -->
+	<!-- 7 · Contrarian index — hidden while the rarity bonus is paused
+	     (mode "fixed"): every entry's rarity share is 0, so the ranking
+	     is meaningless. Self-restores at flip-back. -->
+	{#if rules?.mode === 'logarithmic'}
 	<InsightCard
 		title="Contrarian index"
 		sub="Share of points earned from rarity bonuses — who profits when favourites fall"
@@ -622,6 +625,7 @@
 			Rarity pays when you back outcomes the pool didn't see coming.
 		</svelte:fragment>
 	</InsightCard>
+	{/if}
 
 	<!-- 8 · Exact-score snipers -->
 	<InsightCard
