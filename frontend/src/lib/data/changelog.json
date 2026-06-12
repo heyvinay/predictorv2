@@ -2165,6 +2165,13 @@
       "type": "fix",
       "summary": "Hardened full-time result handling after the opening match: incomplete data from the score feed can no longer record a wrong final score, and a second source now confirms every result.",
       "commit": "pending"
+    },
+    {
+      "version": "2.173.0",
+      "date": "2026-06-12",
+      "type": "feature",
+      "summary": "A short welcome tour now greets you on your first visit since the tournament kicked off, and a new corner announcement points out the all-entries spreadsheet download on the Leaderboard.",
+      "commit": "pending"
     }
   ]
 }
