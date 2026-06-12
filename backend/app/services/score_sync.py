@@ -27,6 +27,12 @@ from app.services.leaderboard import expire_cache
 class ScoreSyncResult:
     synced: int = 0       # newly created Score rows
     updated: int = 0      # existing Score rows updated
+    # Score writes at FINISHED status — a finish transition or a correction
+    # to an already-finished match. Only these can move leaderboard points
+    # (the scoring engine ignores in-play scores), so only these expire the
+    # leaderboard cache. Live 1-0 → 2-0 paints update Score rows but leave
+    # the board untouched.
+    points_relevant: int = 0
     skipped_verified: int = 0  # rows left alone because an admin verified them
     errors: list[str] = field(default_factory=list)
     skipped_reason: str | None = None  # set if sync was a no-op (e.g. no live matches)
@@ -161,12 +167,15 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
 
     await session.commit()
 
-    if result.synced > 0 or result.updated > 0:
-        # Soft-expire (not invalidate): the boards keep serving instantly
-        # via stale-while-revalidate while the rebuild with the new score
-        # happens off the request path. Hard invalidation here used to
-        # force a seconds-long blocking rebuild onto a user request after
-        # every synced score — i.e. continuously during live matches.
+    if result.points_relevant > 0:
+        # Soft-expire (not invalidate), and ONLY when a fixture finished or
+        # a finished score was corrected — in-play score paints can't move
+        # points (the scoring engine ignores non-FINISHED fixtures), so
+        # expiring on them only churned rebuilds. The boards keep serving
+        # instantly via stale-while-revalidate while the rebuild with the
+        # new result happens off the request path. (Hard invalidation here
+        # used to force a seconds-long blocking rebuild onto a user request
+        # after every synced score — i.e. continuously during matches.)
         expire_cache()
 
     return result
@@ -303,6 +312,8 @@ async def _apply_external_score(
             )
         )
         result.synced += 1
+        if ext.status == MatchStatus.FINISHED:
+            result.points_relevant += 1
         return fixture.id
 
     score.home_score = ext.home_score
@@ -314,6 +325,8 @@ async def _apply_external_score(
     score.source = ScoreSource.API
     score.updated_at = utc_now()
     result.updated += 1
+    if ext.status == MatchStatus.FINISHED:
+        result.points_relevant += 1
     return fixture.id
 
 

@@ -479,3 +479,62 @@ async def test_resolution_skips_verified_fixture_without_refetch_loop(
     assert fx.status == MatchStatus.FINISHED
     score = await _get_score(session, fx.id)
     assert (score.home_score, score.away_score) == (3, 1) and score.verified
+
+
+# ---------------------------------------------------------------------------
+# points_relevant: only FINISHED score writes may expire the leaderboard
+# cache (v2.173.0). In-play paints update Score rows but cannot move
+# points — the scoring engine ignores non-FINISHED fixtures.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_live_score_paint_is_not_points_relevant(session, live_fixture) -> None:
+    result = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.LIVE, minute=30), result)
+    assert result.updated + result.synced == 1
+    assert result.points_relevant == 0
+
+    # Score moves while still live — board still can't change.
+    result2 = ScoreSyncResult()
+    await _apply_external_score(
+        session, live_fixture.competition_id, _ext(MatchStatus.LIVE, home=2, away=0, minute=55), result2
+    )
+    assert result2.updated == 1
+    assert result2.points_relevant == 0
+
+
+@pytest.mark.asyncio
+async def test_finish_transition_is_points_relevant(session, live_fixture) -> None:
+    result = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.LIVE, minute=88), result)
+    assert result.points_relevant == 0
+
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED), result2)
+    assert result2.points_relevant == 1
+
+
+@pytest.mark.asyncio
+async def test_finished_score_correction_is_points_relevant(session, live_fixture) -> None:
+    result = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=1, away=0), result)
+    assert result.points_relevant == 1
+
+    # Resolution pass re-delivers a corrected final score — points moved.
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=2, away=0), result2)
+    assert result2.points_relevant == 1
+
+
+@pytest.mark.asyncio
+async def test_identical_finished_redelivery_is_not_points_relevant(session, live_fixture) -> None:
+    result = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=1, away=0), result)
+    assert result.points_relevant == 1
+
+    # Same final score again — change-detection no-op, no expiry signal.
+    result2 = ScoreSyncResult()
+    await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=1, away=0), result2)
+    assert result2.points_relevant == 0
+    assert result2.synced == 0 and result2.updated == 0
