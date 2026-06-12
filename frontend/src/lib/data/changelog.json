@@ -2165,6 +2165,13 @@
       "type": "fix",
       "summary": "Hardened full-time result handling after the opening match: incomplete data from the score feed can no longer record a wrong final score, and a second source now confirms every result.",
       "commit": "pending"
+    },
+    {
+      "version": "2.173.0",
+      "date": "2026-06-12",
+      "type": "feature",
+      "summary": "Live scores now refresh automatically on the Results, Match Detail, Dashboard and Standings pages, the Race chart works with a tap on phones, and match listings use three-letter country codes on small screens.",
+      "commit": "pending"
     }
   ]
 }
