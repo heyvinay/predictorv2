@@ -2186,6 +2186,13 @@
       "type": "fix",
       "summary": "The pool-split bar on match pages now uses bold, readable colours, and while the rarity bonus is paused the match pages no longer hint at rarity points that would not be paid.",
       "commit": "pending"
+    },
+    {
+      "version": "2.174.0",
+      "date": "2026-06-12",
+      "type": "feature",
+      "summary": "Leaderboard now shows when it was last updated, which match it includes, and a Provisional pill explaining that standings are finalised by hand after the tournament — with a matching new section on the rules page. Plus accessibility polish across the app: finalist picks read clearly without colour, the support panel handles keyboard focus correctly, and arrow keys now navigate the pool filters.",
+      "commit": "pending"
     }
   ]
 }
