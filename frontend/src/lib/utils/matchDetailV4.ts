@@ -117,29 +117,38 @@ export function poolRows(
 /** Prospective payout per outcome for the upcoming layout. base =
  *  correct_outcome; rarity from the pool share of that side. The
  *  exact-score bonus is shown separately by the UI ("exact adds
- *  +{exact} on top"), not folded in here. */
+ *  +{exact} on top"), not folded in here.
+ *
+ *  Mode-gated (same rule as BreakdownCard / RarityExplainer): while
+ *  rarity is paused (scoring-rules mode !== "logarithmic") the rarity
+ *  component is 0 and `band` is null so the UI doesn't promise bonus
+ *  points the engine won't pay. */
 export function outcomePayouts(
 	preds: CommunityPredictionWithRank[],
 	rules: ScoringRules
 ): Record<Side, OutcomePayout> {
 	const { counts, pcts } = poolSplit(preds);
 	const total = preds.length;
+	const rarityActive = rules.mode === 'logarithmic';
 	const make = (side: Side): OutcomePayout => {
 		const count = counts[side];
-		const rarity = logarithmicRarityBonus(total, count, rules.match.rarity_cap);
+		const rarity = rarityActive
+			? logarithmicRarityBonus(total, count, rules.match.rarity_cap)
+			: 0;
 		const tier = rarityTier(rarity, count);
 		return {
 			base: rules.match.correct_outcome,
 			rarity,
 			total: rules.match.correct_outcome + rarity,
-			band:
-				tier.cls === 'solo'
-					? 'solo'
-					: tier.cls === 'rare'
-					? 'rare'
-					: tier.cls === 'uncommon'
-					? 'uncommon'
-					: 'common',
+			band: !rarityActive
+				? null
+				: tier.cls === 'solo'
+				? 'solo'
+				: tier.cls === 'rare'
+				? 'rare'
+				: tier.cls === 'uncommon'
+				? 'uncommon'
+				: 'common',
 			count,
 			pct: pcts[side]
 		};

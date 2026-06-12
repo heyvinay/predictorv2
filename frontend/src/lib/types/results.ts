@@ -77,7 +77,11 @@ export interface OutcomePayout {
 	base: number;
 	rarity: number;
 	total: number;
-	band: 'common' | 'uncommon' | 'rare' | 'solo';
+	/** Rarity band for the chip. `null` while the rarity bonus is paused
+	 *  (scoring-rules mode !== "logarithmic") — consumers hide the band
+	 *  chip and the "+N rarity" suffix instead of promising points that
+	 *  won't be paid. */
+	band: 'common' | 'uncommon' | 'rare' | 'solo' | null;
 	count: number;
 	pct: number; // integer 0..100
 }

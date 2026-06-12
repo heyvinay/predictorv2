@@ -16,11 +16,7 @@
 	$: home3 = teamCode(fixture.home_team);
 	$: away3 = teamCode(fixture.away_team);
 
-	const CARDS: { side: Side; cls: string }[] = [
-		{ side: 'home', cls: 'bg-warning/25 text-warning-text' },
-		{ side: 'draw', cls: 'bg-base-300/60 text-base-content/70' },
-		{ side: 'away', cls: 'bg-error/25 text-error' }
-	];
+	const SIDES: Side[] = ['home', 'draw', 'away'];
 
 	function cardTeam(side: Side): string | null {
 		return side === 'home' ? fixture.home_team : side === 'away' ? fixture.away_team : null;
@@ -33,10 +29,15 @@
 		<span class="text-[11px] text-base-content/55">{total} entries · outcome</span>
 	</div>
 
+	<!-- Chart fills use the Tailwind palette, NOT surface tokens — the
+	     warning/error/base fills rendered nearly invisible on the dark
+	     card (the "surface tokens are not chart fills" rule). Same
+	     home=amber / draw=slate / away=emerald mapping as ScorelineSpread
+	     so the two cards on this page read as one system. -->
 	<div class="flex h-7 overflow-hidden rounded-btn text-[10px] font-extrabold">
 		{#if payouts.home.pct > 0}
 			<div
-				class="flex items-center justify-center bg-warning/30 text-warning-text"
+				class="flex items-center justify-center bg-amber-400 text-slate-900"
 				style="flex-basis: {payouts.home.pct}%"
 			>
 				{home3} {payouts.home.pct}
@@ -44,7 +45,7 @@
 		{/if}
 		{#if payouts.draw.pct > 0}
 			<div
-				class="flex items-center justify-center bg-base-300/70 text-base-content/70"
+				class="flex items-center justify-center bg-slate-400 text-slate-900"
 				style="flex-basis: {payouts.draw.pct}%"
 			>
 				DRAW {payouts.draw.pct}
@@ -52,7 +53,7 @@
 		{/if}
 		{#if payouts.away.pct > 0}
 			<div
-				class="flex items-center justify-center bg-error/30 text-error"
+				class="flex items-center justify-center bg-emerald-400 text-emerald-950"
 				style="flex-basis: {payouts.away.pct}%"
 			>
 				{away3} {payouts.away.pct}
@@ -61,36 +62,42 @@
 	</div>
 
 	<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-		{#each CARDS as c (c.side)}
-			{@const p = payouts[c.side]}
+		{#each SIDES as side (side)}
+			{@const p = payouts[side]}
 			<div
-				class="rounded-btn border border-base-300/50 bg-base-300/15 p-2.5 {yourSide === c.side
+				class="rounded-btn border border-base-300/50 bg-base-300/15 p-2.5 {yourSide === side
 					? 'ring-1 ring-primary/60'
 					: ''}"
 			>
 				<div class="flex items-center justify-between gap-1">
 					<span class="text-[10.5px] font-bold text-base-content/70"
-						>{#if cardTeam(c.side)}<TeamName name={cardTeam(c.side)} /> win{:else}Draw{/if} · {p.count}
+						>{#if cardTeam(side)}<TeamName name={cardTeam(side)} /> win{:else}Draw{/if} · {p.count}
 						{p.count === 1 ? 'pick' : 'picks'}</span
 					>
-					{#if yourSide === c.side}
+					{#if yourSide === side}
 						<span
 							class="rounded-badge bg-primary/20 px-1.5 text-[9px] font-extrabold tracking-[0.06em] text-primary"
 							>you</span
 						>
 					{/if}
 				</div>
-				<div
-					class="mt-1.5 inline-block rounded-badge px-1.5 py-px text-[9px] font-extrabold tracking-[0.06em] {p.rarity >
-					0
-						? 'bg-primary/15 text-primary'
-						: 'bg-base-300/40 text-base-content/55'}"
-				>
-					{p.band.toUpperCase()}
-				</div>
+				<!-- band is null while rarity is paused — no chip, no rarity
+				     suffix, just the flat payout. -->
+				{#if p.band}
+					<div
+						class="mt-1.5 inline-block rounded-badge px-1.5 py-px text-[9px] font-extrabold tracking-[0.06em] {p.rarity >
+						0
+							? 'bg-primary/15 text-primary'
+							: 'bg-base-300/40 text-base-content/55'}"
+					>
+						{p.band.toUpperCase()}
+					</div>
+				{/if}
 				<div class="mt-1.5 text-[11.5px]">
 					<b class="font-display text-[14px]">+{p.total} pts</b>
-					<span class="text-[10.5px] text-base-content/55"> · +{p.rarity} rarity</span>
+					{#if p.band}
+						<span class="text-[10.5px] text-base-content/55"> · +{p.rarity} rarity</span>
+					{/if}
 				</div>
 			</div>
 		{/each}

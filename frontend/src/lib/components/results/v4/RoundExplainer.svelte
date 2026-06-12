@@ -40,9 +40,10 @@
 	{#if roundId === 'summary'}
 		<span>
 			<b>Summary</b> — points across every round of the tournament for the selected entry.
-			<b>Group stage</b> rounds award <b>+{exactTotal} exact / +{resultPts} result</b> plus a
-			<b>rarity bonus</b>; <b>knockout</b> rounds award stage-specific points per bracket pick
-			that reaches the round. Tap any row to jump to that round.
+			<b>Group stage</b> rounds award
+			<b>+{exactTotal} exact / +{resultPts} result</b>{#if rules.mode === 'logarithmic'}
+				plus a <b>rarity bonus</b>{/if}; <b>knockout</b> rounds award stage-specific points per
+			bracket pick that reaches the round. Tap any row to jump to that round.
 		</span>
 	{:else if roundId === 'winner'}
 		<span>
@@ -64,8 +65,10 @@
 	{:else}
 		<span>
 			<b>How {roundLabel} scoring works:</b> <b>+{exactTotal}</b> for the exact score,
-			<b>+{resultPts}</b> for the correct result — plus a <b>rarity bonus</b> on top when your
-			correct pick was one few others made.
+			<b>+{resultPts}</b> for the correct
+			result{#if rules.mode === 'logarithmic'}
+				— plus a <b>rarity bonus</b> on top when your correct pick was one few others
+				made{:else}. The rarity bonus is paused for now — see the rules page{/if}.
 		</span>
 	{/if}
 </div>

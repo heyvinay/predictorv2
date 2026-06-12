@@ -97,6 +97,25 @@ describe('outcomePayouts', () => {
 		expect(p.draw.band).toBe('solo'); // single caller
 		expect(p.draw.total).toBe(5 + p.draw.rarity);
 	});
+
+	it('pays no rarity and nulls the band while rarity is paused (mode fixed)', () => {
+		// Same pool as above — the 10%-share draw earned rarity under
+		// logarithmic; under "fixed" the preview must not promise it.
+		const preds = [
+			...Array.from({ length: 8 }, (_, i) => pred(1, 0, `H${i}`)),
+			pred(1, 1, 'D0'),
+			pred(0, 1, 'A0')
+		];
+		const p = outcomePayouts(preds, { ...RULES, mode: 'fixed' });
+		for (const side of ['home', 'draw', 'away'] as const) {
+			expect(p[side].rarity).toBe(0);
+			expect(p[side].total).toBe(p[side].base);
+			expect(p[side].band).toBeNull();
+		}
+		// Counts/shares still flow — the split bar stays informative.
+		expect(p.home.count).toBe(8);
+		expect(p.home.pct).toBeGreaterThan(0);
+	});
 });
 
 describe('isUpset (C.3 heuristic)', () => {

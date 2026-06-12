@@ -72,8 +72,9 @@
 			{:else}
 				<p>
 					<b>+{exactTotal}</b> for the exact score, <b>+{resultPts}</b> for the correct
-					result — plus a <b>rarity bonus</b> on top when your correct pick was one few
-					others made.
+					result{#if rules.mode === 'logarithmic'}
+						— plus a <b>rarity bonus</b> on top when your correct pick was one few others
+						made{:else}. The rarity bonus is paused for now — see the rules page{/if}.
 				</p>
 			{/if}
 		</div>

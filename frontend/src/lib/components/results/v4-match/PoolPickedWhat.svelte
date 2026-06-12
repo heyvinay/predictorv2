@@ -90,7 +90,8 @@
 					? 'bg-primary/15 text-primary'
 					: 'bg-base-300/30 text-base-content/55'}"
 			>
-				{payouts[side].band.toUpperCase()} · {sideLabel(side)}
+				<!-- band is null while rarity is paused — badge shows the side only. -->
+				{payouts[side].band ? `${payouts[side].band?.toUpperCase()} · ` : ''}{sideLabel(side)}
 			</span>
 		</div>
 	{:else}
