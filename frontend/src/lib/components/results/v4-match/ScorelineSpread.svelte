@@ -59,6 +59,40 @@
 		<span class="text-[10px] text-base-content/55">bubble size ∝ # picks</span>
 	</div>
 
+	<!-- Legend sits above the grid so readers decode before they scan.
+	     "actual" / "your pick" render as the same square OUTLINES they
+	     are in the grid (cell rings), not dots — also disambiguates the
+	     gold your-pick marker from the amber home-win bubble. -->
+	<div
+		class="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10.5px] font-semibold text-base-content/70"
+	>
+		{#if mode === 'played' && actualCell}
+			<span class="inline-flex items-center gap-1.5">
+				<span class="h-2.5 w-2.5 rounded border-2 border-success/70"></span>
+				actual ({actualCell[0] === 3 ? '3+' : actualCell[0]}-{actualCell[1] === 3
+					? '3+'
+					: actualCell[1]})
+			</span>
+		{/if}
+		<span class="inline-flex items-center gap-1.5">
+			<span class="h-2.5 w-2.5 rounded border-2 border-primary"></span> your pick
+		</span>
+		<span class="inline-flex items-center gap-1.5">
+			<span class="h-2 w-2 rounded-full bg-amber-400"></span>
+			<TeamName name={fixture.home_team} /> win
+		</span>
+		<span class="inline-flex items-center gap-1.5">
+			<span class="h-2 w-2 rounded-full bg-slate-400/80"></span> Draw
+		</span>
+		<span class="inline-flex items-center gap-1.5">
+			<span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+			<TeamName name={fixture.away_team} /> win
+		</span>
+		<span class="ml-auto text-base-content/40">
+			{teamCode(fixture.home_team)} ↓ · {teamCode(fixture.away_team)} →
+		</span>
+	</div>
+
 	<!-- Responsive grid: 1fr columns scale to fill the card; cells stay
 	     square via aspect-square. A max-w cap stops the chart from
 	     ballooning on very wide containers. -->
@@ -103,31 +137,4 @@
 		</div>
 	</div>
 
-	<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10.5px] font-semibold text-base-content/70">
-		{#if mode === 'played' && actualCell}
-			<span class="inline-flex items-center gap-1.5">
-				<span class="h-2 w-2 rounded-full bg-success"></span>
-				actual ({actualCell[0] === 3 ? '3+' : actualCell[0]}-{actualCell[1] === 3
-					? '3+'
-					: actualCell[1]})
-			</span>
-		{/if}
-		<span class="inline-flex items-center gap-1.5">
-			<span class="h-2 w-2 rounded-full bg-amber-400"></span>
-			<TeamName name={fixture.home_team} /> win
-		</span>
-		<span class="inline-flex items-center gap-1.5">
-			<span class="h-2 w-2 rounded-full bg-slate-400/80"></span> Draw
-		</span>
-		<span class="inline-flex items-center gap-1.5">
-			<span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-			<TeamName name={fixture.away_team} /> win
-		</span>
-		<span class="inline-flex items-center gap-1.5">
-			<span class="h-2 w-2 rounded-full bg-primary"></span> your pick
-		</span>
-		<span class="ml-auto text-base-content/40">
-			{teamCode(fixture.home_team)} ↓ · {teamCode(fixture.away_team)} →
-		</span>
-	</div>
 </div>
