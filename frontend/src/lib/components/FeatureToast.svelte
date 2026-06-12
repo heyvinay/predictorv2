@@ -13,6 +13,15 @@
 	also self-suppresses on any page load where the WelcomeTourModal
 	is still pending — tour wins, toast shows on the next visit.
 -->
+<script lang="ts" context="module">
+	// Exported so FeedbackPrompt can chain behind the toast (it waits
+	// until the current announcement is dismissed before showing).
+	// ── EDITORIAL (1/2): bump the ID per release ────────────────────
+	export const FEATURE_TOAST_ENABLED = true;
+	export const FEATURE_ID = '2026-06-12-all-entries-csv';
+	export const FEATURE_DISMISS_KEY = `predictor:feature:${FEATURE_ID}:dismissed`;
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fly } from 'svelte/transition';
@@ -21,9 +30,7 @@
 	import Sparkles from 'lucide-svelte/icons/sparkles';
 	import { TOUR_ENABLED, TOUR_SEEN_KEY } from '$lib/components/WelcomeTourModal.svelte';
 
-	// ── EDITORIAL: edit these per release ───────────────────────────
-	const FEATURE_TOAST_ENABLED = true;
-	const FEATURE_ID = '2026-06-12-all-entries-csv';
+	// ── EDITORIAL (2/2): the copy ───────────────────────────────────
 	const TITLE = 'New: the full pool, one spreadsheet';
 	const BODY =
 		'Now that the deadline has passed, every entry is open. Download the ' +
@@ -33,7 +40,7 @@
 	const CTA_HREF = '/leaderboard';
 	// ────────────────────────────────────────────────────────────────
 
-	const KEY = `predictor:feature:${FEATURE_ID}:dismissed`;
+	const KEY = FEATURE_DISMISS_KEY;
 
 	// Hidden until onMount so a dismissed device never sees a flash.
 	let dismissed = true;

@@ -64,6 +64,9 @@ export type EventName =
 	| 'nav_clicked'
 	// V4 Dashboard (v2.165.0)
 	| 'dashboard_view'
+	// Feedback prompt (v2.174.0) — one-tap star rating + optional details
+	| 'feedback_rating'
+	| 'feedback_details'
 	// Reserved for future server-side fires (declared in advance so
 	// allow-list and dashboards stay aligned). Add backend
 	// analytics.capture() call sites for these as they get wired.
@@ -148,10 +151,22 @@ export function track(event: EventName, props?: EventProps, opts?: TrackOptions)
 
 	// Optional server-side capture for guaranteed delivery. Fire-and-forget;
 	// failures (network down, 400 on unknown event) are swallowed.
+	// The endpoint authenticates via Bearer token (the API has no cookie
+	// auth), so attach the stored JWT — without it every call 401s and
+	// the "ad-block-resistant" path silently captures nothing.
 	if (opts?.alsoServer) {
+		let token: string | null = null;
+		try {
+			token = localStorage.getItem('predictor_token');
+		} catch {
+			// storage unavailable — fall through with no auth header
+		}
 		void fetch('/api/telemetry/event', {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: {
+				'content-type': 'application/json',
+				...(token ? { authorization: `Bearer ${token}` } : {}),
+			},
 			body: JSON.stringify({ event, properties: props }),
 			credentials: 'include',
 		}).catch(() => {

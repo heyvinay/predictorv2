@@ -47,6 +47,9 @@ ALLOWED_EVENTS: set[str] = {
     # Navigation (v2.155.0)
     "page_viewed",
     "nav_clicked",
+    # Feedback prompt (v2.174.0)
+    "feedback_rating",
+    "feedback_details",
     # Reserved for future server-side wiring (entry lifecycle, auth, etc.)
     "entry_created",
     "entry_submitted",

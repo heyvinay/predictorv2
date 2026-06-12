@@ -21,6 +21,7 @@
 	import SiteNoticeBanner from '$lib/components/SiteNoticeBanner.svelte';
 	import WelcomeTourModal from '$lib/components/WelcomeTourModal.svelte';
 	import FeatureToast from '$lib/components/FeatureToast.svelte';
+	import FeedbackPrompt from '$lib/components/FeedbackPrompt.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
@@ -154,9 +155,11 @@
 	<!-- Support side panel (renders only when open) -->
 	<SupportPanel />
 
-	<!-- Global floating surfaces — both self-gate on auth/route/storage -->
+	<!-- Global floating surfaces — all self-gate on auth/route/storage,
+	     chained so only one shows per visit: tour → toast → feedback -->
 	<WelcomeTourModal />
 	<FeatureToast />
+	<FeedbackPrompt />
 
 	<!-- Navigation -->
 	{#if $isAuthenticated}
