@@ -19,6 +19,8 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import DeadlineCtaBanner from '$lib/components/DeadlineCtaBanner.svelte';
 	import SiteNoticeBanner from '$lib/components/SiteNoticeBanner.svelte';
+	import WelcomeTourModal from '$lib/components/WelcomeTourModal.svelte';
+	import FeatureToast from '$lib/components/FeatureToast.svelte';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
@@ -151,6 +153,10 @@
 <div class="min-h-screen bg-base-100 flex flex-col noise overflow-x-clip">
 	<!-- Support side panel (renders only when open) -->
 	<SupportPanel />
+
+	<!-- Global floating surfaces — both self-gate on auth/route/storage -->
+	<WelcomeTourModal />
+	<FeatureToast />
 
 	<!-- Navigation -->
 	{#if $isAuthenticated}
