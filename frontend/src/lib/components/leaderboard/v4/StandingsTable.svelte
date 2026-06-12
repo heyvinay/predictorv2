@@ -70,6 +70,19 @@
 
 	$: sortedRows = sortRows(rows, sort, multiOwners);
 
+	// Pin own entries at the top (matching the dashboard mini-leaderboard).
+	// Sort order is preserved within each group, so changing the sort still
+	// affects how the user's multi-entry block is ordered. De-duped: own
+	// entries appear ONCE, in the pinned block — never duplicated below.
+	// Global ranks survive (rendered from row.position), so the pinned
+	// entry's "#117" is its real position in the un-pinned standings.
+	$: pinnedRows = userId ? sortedRows.filter((r) => r.user_id === userId) : [];
+	$: otherRows = userId ? sortedRows.filter((r) => r.user_id !== userId) : sortedRows;
+	$: hasPinned = pinnedRows.length > 0;
+
+	const SECTION_BAND_CLASS =
+		'border-t border-base-300/40 bg-base-300/30 px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.16em] text-base-content/65 min-[880px]:px-4';
+
 	// Mobile (<880px): # · entry · (final) · total · chevron. Champ is
 	// desktop-only — its 96px starved the entry-name column on phones;
 	// the pick is still one tap away in the entry drawer.
@@ -159,19 +172,39 @@
 		<span role="columnheader" aria-label="Open entry details"></span>
 	</div>
 
-	{#each sortedRows as row (row.entry_id)}
+	{#if hasPinned}
+		<div class={SECTION_BAND_CLASS} role="rowgroup" aria-label="Your entries">
+			Your {pinnedRows.length === 1 ? 'entry' : 'entries'} · pinned
+		</div>
+		{#each pinnedRows as row (row.entry_id)}
+			<StandingRow
+				{row}
+				{stage}
+				isOwn={true}
+				{gridClass}
+				{multiOwners}
+				trajectory={trajectoriesByEntry.get(row.entry_id) ?? []}
+				{onOpen}
+			/>
+		{/each}
+		<div class={SECTION_BAND_CLASS} role="rowgroup" aria-label="All entries">All entries</div>
+	{/if}
+
+	{#each otherRows as row (row.entry_id)}
 		<StandingRow
 			{row}
 			{stage}
-			isOwn={row.user_id === userId}
+			isOwn={false}
 			{gridClass}
 			{multiOwners}
 			trajectory={trajectoriesByEntry.get(row.entry_id) ?? []}
 			{onOpen}
 		/>
 	{:else}
-		<div class="border-t border-base-300/40 px-4 py-8 text-center text-sm text-base-content/55">
-			No entries match — try another pool or clear the search
-		</div>
+		{#if !hasPinned}
+			<div class="border-t border-base-300/40 px-4 py-8 text-center text-sm text-base-content/55">
+				No entries match — try another pool or clear the search
+			</div>
+		{/if}
 	{/each}
 </div>
