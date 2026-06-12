@@ -2179,6 +2179,13 @@
       "type": "fix",
       "summary": "Polish round: the bottom navigation clears the iPhone home indicator, your locked bonus answers now look locked, long pool lists on match pages load in pages, animations respect reduced-motion settings, and the standings table reads properly with screen readers.",
       "commit": "pending"
+    },
+    {
+      "version": "2.173.2",
+      "date": "2026-06-12",
+      "type": "fix",
+      "summary": "The pool-split bar on match pages now uses bold, readable colours, and while the rarity bonus is paused the match pages no longer hint at rarity points that would not be paid.",
+      "commit": "pending"
     }
   ]
 }
