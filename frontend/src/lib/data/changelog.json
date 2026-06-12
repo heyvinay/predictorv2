@@ -2207,6 +2207,13 @@
       "type": "feature",
       "summary": "The rarity bonus is now live. With the entry pool confirmed, rarity has been applied retroactively to every finished match — leaderboard totals jumped up once across the pool. The rules page now shows the actual bands for the confirmed pool size, and the rarity column is back on every match's points breakdown.",
       "commit": "pending"
+    },
+    {
+      "version": "2.175.1",
+      "date": "2026-06-12",
+      "type": "fix",
+      "summary": "The rules-page rarity bonus worked example now divides by the actual number of scoring entries (which can be more than one per person) rather than the user count, so the published bands match what scoring really pays out.",
+      "commit": "pending"
     }
   ]
 }
