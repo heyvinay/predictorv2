@@ -14,7 +14,9 @@
 	import { supportOpen } from '$stores/supportPanel';
 
 	const SITE_NOTICE_ENABLED = true;
-	const NOTICE_ID = '2026-06-11-launch-week';
+	// Bumped 2026-06-12 (v2.175.0): rarity bonus came back online; everyone
+	// who'd dismissed the previous launch-week notice sees this one fresh.
+	const NOTICE_ID = '2026-06-12-rarity-on';
 	const KEY = `predictor:notice:${NOTICE_ID}:dismissed`;
 
 	// Hidden until onMount so a dismissed device never sees a flash;
@@ -38,17 +40,21 @@
 
 {#if show}
 	<div
-		class="flex items-start justify-center gap-2 border-b border-warning/40 bg-warning/15 px-3 py-2 sm:items-center"
+		class="flex items-start justify-center gap-2 border-b border-success/40 bg-success/15 px-3 py-2 sm:items-center"
 		role="status"
 	>
 		<p class="max-w-4xl text-center text-[12.5px] leading-snug text-base-content/85">
-			<span class="font-bold text-warning-text">Heads up:</span>
-			the rarity bonus switches on once all entries have been verified and fees collected
-			over the coming days. We're also bringing live scoring online so points update
-			automatically during matches — it may take a game or two to settle in. In the
-			meantime, have a look around, and if anything seems broken, drop us a note via
+			<span class="font-bold text-success">Rarity bonus is now in operation.</span>
+			With the entry pool confirmed, the rarity bonus is live and has been applied
+			retroactively to every finished match — totals on the leaderboard have updated.
+			See the <a
+				href="/rules"
+				class="font-semibold text-success underline decoration-success/50 underline-offset-2"
+				>rules page</a
+			>
+			for the bands. Spot anything that looks off? Drop us a note via
 			<button
-				class="font-semibold text-warning-text underline decoration-warning/50 underline-offset-2"
+				class="font-semibold text-success underline decoration-success/50 underline-offset-2"
 				on:click={() => supportOpen.set(true)}
 			>
 				Help &amp; Support</button

@@ -30,11 +30,13 @@
 	 *  tune the value. */
 	const RARITY_CAP = 10;
 
-	/** Worked-example sample size for the rarity-bonus table. Fixed at
-	 *  100 for the pre-tournament window so the table is stable and easy
-	 *  to read as percentages. Bump manually after the deadline once the
-	 *  real predictor pool is known. */
-	const rarityPredictorCount = 100;
+	/** Worked-example sample size for the rarity-bonus table. Pulled from
+	 *  the live /api/competition/info (`total_players`) once it loads, so
+	 *  the table reflects the actual confirmed pool. Falls back to 100
+	 *  before the API responds and pre-tournament so the table renders
+	 *  with sensible numbers on the first paint. */
+	const RARITY_PRED_FALLBACK = 100;
+	$: rarityPredictorCount = info?.total_players ?? RARITY_PRED_FALLBACK;
 
 	/** Per-category bonus point values, displayed against each bonus
 	 *  question's badge. Mirror this in config/worldcup2026.yml
@@ -212,23 +214,6 @@
 			</div>
 		</div>
 
-		<!-- TEMPORARY (v2.172.x, rarity paused): remove this callout in the
-		     same release that flips scoring.mode back to "logarithmic".
-		     See memory/CLAUDE.md note + config/worldcup2026.yml comment. -->
-		<div
-			class="mt-4 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/15 px-4 py-3"
-			role="status"
-		>
-			<span class="text-base leading-none">⏸</span>
-			<p class="text-sm leading-relaxed text-base-content/85">
-				<b class="text-warning-text">The rarity bonus is temporarily paused</b>
-				while all entries are verified and fees collected. Matches currently score base
-				points only. Once the pool is confirmed, the rarity bonus switches on and is
-				applied <b class="text-warning-text">retroactively to every completed game</b> —
-				no points are lost.
-			</p>
-		</div>
-
 		<!-- Rarity bonus worked example: novice intro → narrow table → nerd footnote. -->
 		<p class="text-sm text-base-content/80 mt-4 mb-3 leading-relaxed">
 			<b class="text-base-content">How the rarity bonus works.</b>
@@ -264,7 +249,7 @@
 			<b class="text-base-content/70">For the nerds.</b>
 			Derived from Shannon surprisal — the same logarithmic scoring rule used in forecasting tournaments. The bonus is
 			<code class="font-mono text-[11px] bg-base-300/40 px-1.5 py-0.5 rounded text-base-content/70">R = min(10, round(α · log₂(1 / 2f)))</code>
-			where <i>f</i> is the fraction of predictors who got it right (so <i>f</i> = 3 ⁄ 100 in the top band above), and α ≈ 2.56 is calibrated so a uniquely correct call out of ~30 predictors hits the +10 cap.
+			where <i>f</i> is the fraction of predictors who got it right (e.g. <i>f</i> = 1 ⁄ {rarityPredictorCount} for a uniquely-correct call against the confirmed {rarityPredictorCount}-entry pool), and α ≈ 2.56 is calibrated so a uniquely correct call out of ~30 predictors hits the +10 cap.
 		</p>
 	</section>
 

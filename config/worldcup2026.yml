@@ -42,13 +42,7 @@ scoring:
   #   R = 10  when f ≤ 3.82%    (capped)
   # See docs/scoring-system.md for derivation.
   #
-  # TEMPORARILY "fixed" (2026-06-11, v2.172.3): rarity is paused until all
-  # entries are verified and fees collected — eligible-pool churn during
-  # verification would re-price rarity on already-finished games. Flip back
-  # to "logarithmic" once the pool is final; the next leaderboard rebuild
-  # retro-applies rarity to every finished fixture from the confirmed
-  # denominators. Announced via the site notice banner (v2.171.0).
-  mode: "fixed"
+  mode: "logarithmic"
 
   match:
     # Points for correctly predicting match outcome (1-X-2)
