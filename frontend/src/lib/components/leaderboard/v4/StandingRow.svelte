@@ -47,7 +47,7 @@
 		{#if isOwn}<YouTag />{/if}
 	</span>
 
-	<span class="flex">
+	<span class="hidden min-[880px]:flex">
 		{#if row.champion_pick}
 			<FlagCode team={row.champion_pick} alive={row.champion_alive ?? true} dot size="md" />
 		{:else}

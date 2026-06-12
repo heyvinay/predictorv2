@@ -2,7 +2,7 @@
 	/** Standings card: sticky uppercase column header + compact rows.
 	 *  Final column exists only during the knockout stage — the grid
 	 *  template reflows entirely (no empty column, spec §Decisions).
-	 *  <880px hides Group/Knockout (Total stays).
+	 *  <880px hides Champ/Group/Knockout (Total stays).
 	 *
 	 *  Sortable columns (v2.168.0): Entry / Group / Knockout / Total.
 	 *  Default = total desc with alphabetical ties; clicking a header
@@ -65,14 +65,16 @@
 
 	$: sortedRows = sortRows(rows, sort, multiOwners);
 
-	// Mobile (<880px): # · entry · champ · (final) · total · chevron.
-	// Desktop adds Group + Knockout numeric columns AND a 64px Trend
-	// column (sparkline) sitting between Knockout and Total. The
+	// Mobile (<880px): # · entry · (final) · total · chevron. Champ is
+	// desktop-only — its 96px starved the entry-name column on phones;
+	// the pick is still one tap away in the entry drawer.
+	// Desktop adds Champ + Group + Knockout numeric columns AND a 64px
+	// Trend column (sparkline) sitting between Knockout and Total. The
 	// trailing 16px column is the click-affordance chevron.
 	const GRID_KO =
-		'grid-cols-[60px_minmax(0,1.4fr)_96px_52px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_64px_80px_16px]';
+		'grid-cols-[60px_minmax(0,1.4fr)_52px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_64px_80px_16px]';
 	const GRID_GROUP =
-		'grid-cols-[60px_minmax(0,1.4fr)_96px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_64px_80px_16px]';
+		'grid-cols-[60px_minmax(0,1.4fr)_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_64px_80px_16px]';
 
 	$: gridClass = stage === 'knockout' ? GRID_KO : GRID_GROUP;
 
@@ -92,7 +94,7 @@
 				: ''}"
 			on:click={() => toggleSort('entry')}>Entry {arrowFor('entry')}</button
 		>
-		<span class={HEAD_CLASS}>Champ</span>
+		<span class="{HEAD_CLASS} hidden min-[880px]:block">Champ</span>
 		{#if stage === 'knockout'}
 			<span class="{HEAD_CLASS} text-center" title="Finalist picks still alive">Final</span>
 		{/if}
