@@ -45,6 +45,8 @@
 				{#if liveRounds.has(r.id)}
 					<span
 						class="h-[7px] w-[7px] rounded-full bg-error animate-pulse-soft"
+						role="img"
+						aria-label="Round has a match in progress"
 						title="Match in progress"
 					></span>
 				{/if}

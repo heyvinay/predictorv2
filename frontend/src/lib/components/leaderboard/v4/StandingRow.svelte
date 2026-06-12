@@ -63,6 +63,10 @@
 	</span>
 
 	{#if stage === 'knockout'}
+		<!-- Each finalist pick gets a status glyph so the state isn't
+		     conveyed by colour alone (review P2): ✓ for alive, ✗ for out.
+		     The "·" placeholders for missing picks keep two slots so the
+		     column never reflows when an entry only picked one finalist. -->
 		<span
 			role="cell"
 			class="flex justify-center gap-1"
@@ -70,10 +74,15 @@
 		>
 			{#each [0, 1] as i}
 				<span
-					class="h-2 w-2 rounded-full {i < finAlive
-						? 'bg-success shadow-[0_0_6px_theme(colors.success/50%)]'
-						: 'bg-base-300/80'}"
-				></span>
+					class="grid h-3.5 w-3.5 place-items-center rounded-full text-[8px] font-extrabold leading-none {i <
+					finAlive
+						? 'bg-success text-success-content shadow-[0_0_6px_theme(colors.success/50%)]'
+						: i < finalists.length
+						? 'bg-base-300/80 text-base-content/55'
+						: 'bg-base-300/40 text-base-content/30'}"
+					aria-hidden="true"
+					>{i < finAlive ? '✓' : i < finalists.length ? '✗' : '·'}</span
+				>
 			{/each}
 		</span>
 	{/if}

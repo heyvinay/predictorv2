@@ -83,8 +83,11 @@
 
 	$: gridClass = stage === 'knockout' ? GRID_KO : GRID_GROUP;
 
+	// Sort buttons inherit this class; explicit focus-visible outline so
+	// keyboard users see what they're about to activate (the default
+	// DaisyUI button outline is suppressed by surrounding styles here).
 	const HEAD_CLASS =
-		'text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55';
+		'text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary focus-visible:rounded-sm';
 </script>
 
 <!-- ARIA table semantics on the CSS grid (review P1): screen readers get

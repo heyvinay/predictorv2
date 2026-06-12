@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { supportOpen } from '$stores/supportPanel';
 	import { user } from '$stores/auth';
 	import TallyEmbed from '$components/help/TallyEmbed.svelte';
@@ -12,8 +12,25 @@
 	// sent the message.
 	const SUPPORT_TALLY_FORM_ID = 'D4Mbo5';
 
+	let closeButtonEl: HTMLButtonElement | undefined;
+	let lastFocused: HTMLElement | null = null;
+
 	function close() {
 		supportOpen.set(false);
+	}
+
+	// On open: park initial focus on the close button (keyboard users land
+	// somewhere usable inside the dialog instead of out at the body), and
+	// remember the previously-focused element so we can restore on close.
+	// A full focus trap would fight the Tally iframe, so we keep it light.
+	$: if ($supportOpen) {
+		lastFocused = document.activeElement as HTMLElement | null;
+		void tick().then(() => closeButtonEl?.focus());
+	}
+	$: if (!$supportOpen && lastFocused) {
+		const el = lastFocused;
+		lastFocused = null;
+		void tick().then(() => el.focus?.());
 	}
 
 	onMount(() => {
@@ -46,6 +63,7 @@
 		<header class="flex items-center justify-between px-5 h-14 border-b border-base-300/50">
 			<h2 class="font-display text-lg tracking-wide">Support</h2>
 			<button
+				bind:this={closeButtonEl}
 				class="btn btn-ghost btn-sm btn-circle"
 				on:click={close}
 				aria-label="Close"

@@ -18,6 +18,28 @@
 
 	$: counts = poolCounts(rows);
 	$: best = bestOwnSummary(rows, userId);
+
+	// Arrow-key cycling within the radiogroup (review P2). Tab still
+	// moves out of the group; Home/End jump to ends. Left/Right wrap.
+	function onPoolKey(e: KeyboardEvent) {
+		const i = POOLS.indexOf(pool);
+		if (i < 0) return;
+		let next = i;
+		if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % POOLS.length;
+		else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+			next = (i - 1 + POOLS.length) % POOLS.length;
+		else if (e.key === 'Home') next = 0;
+		else if (e.key === 'End') next = POOLS.length - 1;
+		else return;
+		e.preventDefault();
+		onPool(POOLS[next]);
+		// Move keyboard focus to the newly-checked option so screen readers
+		// announce the change (standard roving-tabindex pattern).
+		const btn = (e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(
+			'button[role="radio"]'
+		)[next];
+		btn?.focus();
+	}
 </script>
 
 <div
@@ -48,12 +70,18 @@
 		</span>
 	{/if}
 
-	<div class="flex flex-wrap gap-1 sm:gap-1.5" role="radiogroup" aria-label="Pool filter">
+	<div
+		class="flex flex-wrap gap-1 sm:gap-1.5"
+		role="radiogroup"
+		aria-label="Pool filter"
+		on:keydown={onPoolKey}
+	>
 			{#each POOLS as p}
 				<button
 					role="radio"
 					aria-checked={pool === p}
-					class="inline-flex items-center gap-1 rounded-full border-[1.5px] px-2 py-0.5 font-display text-[11px] font-extrabold tracking-[0.03em] transition-colors sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs {pool ===
+					tabindex={pool === p ? 0 : -1}
+					class="inline-flex items-center gap-1 rounded-full border-[1.5px] px-2 py-0.5 font-display text-[11px] font-extrabold tracking-[0.03em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-xs {pool ===
 					p
 						? 'border-primary bg-primary/10 text-primary'
 						: 'border-base-300/80 bg-base-200 text-base-content/70 hover:border-base-300 hover:text-base-content'}"
