@@ -2172,6 +2172,13 @@
       "type": "feature",
       "summary": "A short welcome tour now greets you on your first visit since the tournament kicked off, and a new corner announcement points out the all-entries spreadsheet download on the Leaderboard.",
       "commit": "pending"
+    },
+    {
+      "version": "2.174.0",
+      "date": "2026-06-12",
+      "type": "feature",
+      "summary": "You can now rate The Predictor with one tap — a small corner prompt asks how you're finding it, with an optional note for anything we should improve.",
+      "commit": "pending"
     }
   ]
 }
