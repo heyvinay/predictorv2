@@ -32,6 +32,26 @@
 	$: yours = [...yoursBanked, ...yoursMissed];
 	$: othersBanked = banked.filter((p) => !p.you);
 	$: othersMissed = missed.filter((p) => !p.you);
+
+	// ── Pagination: ~183 entries as one DOM list janks phone scrolling.
+	// Render the first PAGE rows of the pool (your rows always show);
+	// "Show all" reveals the rest on demand. Reset when the fixture
+	// (and therefore the pool) changes under prev/next navigation.
+	const PAGE = 50;
+	let visible = PAGE;
+	let poolKey = '';
+	$: {
+		const k = `${banked.length}:${missed.length}:${banked[0]?.reference ?? ''}:${missed[0]?.reference ?? ''}`;
+		if (k !== poolKey) {
+			poolKey = k;
+			visible = PAGE;
+		}
+	}
+	$: shownBanked = othersBanked.slice(0, visible);
+	$: missedBudget = Math.max(0, visible - othersBanked.length);
+	$: shownMissed = othersMissed.slice(0, missedBudget);
+	$: hiddenCount =
+		othersBanked.length + othersMissed.length - shownBanked.length - shownMissed.length;
 </script>
 
 <div class="rounded-box border border-base-300/60 bg-base-200 p-4">
@@ -85,7 +105,7 @@
 			— {banked.length} of {totalPlayers} banked points —
 		</div>
 	{/if}
-	{#each othersBanked as p (p.reference)}
+	{#each shownBanked as p (p.reference)}
 		<div class="flex items-center gap-2.5 rounded-btn px-2 py-1.5">
 			<span class="w-5 text-center text-[11px] font-bold text-base-content/55">{p.rank ?? '—'}</span>
 			<span
@@ -101,11 +121,11 @@
 		</div>
 	{/each}
 
-	{#if othersMissed.length > 0}
+	{#if shownMissed.length > 0}
 		<div class="mt-2 py-1.5 text-center text-[10px] font-extrabold tracking-[0.1em] text-base-content/40">
 			— didn't score —
 		</div>
-		{#each othersMissed as p (p.reference)}
+		{#each shownMissed as p (p.reference)}
 			<div class="flex items-center gap-2.5 rounded-btn px-2 py-1.5 opacity-75">
 				<span class="w-5 text-center text-[11px] font-bold text-base-content/40">—</span>
 				<span
@@ -120,5 +140,14 @@
 				</span>
 			</div>
 		{/each}
+	{/if}
+
+	{#if hiddenCount > 0}
+		<button
+			class="btn btn-ghost btn-sm mt-2 w-full text-[11.5px] font-bold text-base-content/70"
+			on:click={() => (visible = othersBanked.length + othersMissed.length)}
+		>
+			Show all {totalPlayers} entries ({hiddenCount} more)
+		</button>
 	{/if}
 </div>

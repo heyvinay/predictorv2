@@ -33,21 +33,28 @@
 	$: finAlive = row.finalists_alive ?? 0;
 </script>
 
+<!-- role="row"/"cell" pair with StandingsTable's role="table" grid —
+     the element stays a real <button> (click/Enter open the drawer);
+     the role gives screen readers row/column navigation. -->
 <button
+	role="row"
 	class="group grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-1.5 text-left transition-colors hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {gridClass} {isOwn
 		? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 		: ''}"
 	title="View this entry's predictions"
 	on:click={() => onOpen(row)}
 >
-	<span><RankCell rank={row.position} move={row.daily_movement} /></span>
+	<span role="cell"><RankCell rank={row.position} move={row.daily_movement} /></span>
 
-	<span class="flex min-w-0 items-center gap-1.5 text-[13px] font-bold text-base-content">
+	<span
+		role="cell"
+		class="flex min-w-0 items-center gap-1.5 text-[13px] font-bold text-base-content"
+	>
 		<span class="truncate">{rowDisplayName(row, multiOwners)}</span>
 		{#if isOwn}<YouTag />{/if}
 	</span>
 
-	<span class="hidden min-[880px]:flex">
+	<span role="cell" class="hidden min-[880px]:flex">
 		{#if row.champion_pick}
 			<FlagCode team={row.champion_pick} alive={row.champion_alive ?? true} dot size="md" />
 		{:else}
@@ -57,6 +64,7 @@
 
 	{#if stage === 'knockout'}
 		<span
+			role="cell"
 			class="flex justify-center gap-1"
 			title="{finAlive} of {finalists.length || 2} finalist picks still alive"
 		>
@@ -71,29 +79,33 @@
 	{/if}
 
 	<span
+		role="cell"
 		class="hidden text-right font-display text-[13px] font-bold text-base-content/70 min-[880px]:block"
 		title={groupTitle}
 	>
 		{groupPts}{#if bonusG}<span class="ml-0.5 align-super text-[8.5px] text-primary">+B</span>{/if}
 	</span>
 	<span
+		role="cell"
 		class="hidden text-right font-display text-[13px] font-bold text-base-content/70 min-[880px]:block"
 		title={koTitle}
 	>
 		{koPts}{#if bonusK}<span class="ml-0.5 align-super text-[8.5px] text-primary">+B</span>{/if}
 	</span>
 
-	<span class="hidden justify-self-center min-[880px]:flex">
+	<span role="cell" class="hidden justify-self-center min-[880px]:flex">
 		<Sparkline points={trajectory} />
 	</span>
 
 	<span
+		role="cell"
 		class="text-right font-display text-[15px] font-extrabold {isOwn
 			? 'text-primary'
 			: 'text-base-content'}">{row.total_points}</span
 	>
 
 	<span
+		role="cell"
 		class="text-center text-sm font-bold text-base-content/25 transition-colors group-hover:text-primary"
 		aria-hidden="true">›</span
 	>

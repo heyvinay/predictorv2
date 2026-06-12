@@ -63,6 +63,11 @@
 		return sort.dir === 'asc' ? '▲' : '▼';
 	}
 
+	function ariaSortFor(key: LbSortKey, s: LbSort): 'ascending' | 'descending' | 'none' {
+		if (s.key !== key) return 'none';
+		return s.dir === 'asc' ? 'ascending' : 'descending';
+	}
+
 	$: sortedRows = sortRows(rows, sort, multiOwners);
 
 	// Mobile (<880px): # · entry · (final) · total · chevron. Champ is
@@ -82,24 +87,40 @@
 		'text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55';
 </script>
 
-<div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">
+<!-- ARIA table semantics on the CSS grid (review P1): screen readers get
+     row/column navigation without converting to <table> and risking the
+     responsive grid layout. Sortable headers carry aria-sort; the row
+     buttons below are role="row" (still real <button>s — Enter/click
+     open the drawer). -->
+<div
+	class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200"
+	role="table"
+	aria-label="Tournament standings"
+>
 	<div
 		class="sticky top-0 z-10 grid items-center gap-2 bg-base-300/40 px-3 py-2 backdrop-blur min-[880px]:gap-3 min-[880px]:px-4 {gridClass}"
+		role="row"
 	>
-		<span class={HEAD_CLASS}>#</span>
+		<span class={HEAD_CLASS} role="columnheader" aria-label="Rank">#</span>
 		<button
 			type="button"
+			role="columnheader"
+			aria-sort={ariaSortFor('entry', sort)}
 			class="{HEAD_CLASS} text-left transition-colors hover:text-primary {sort.key === 'entry'
 				? 'text-primary'
 				: ''}"
 			on:click={() => toggleSort('entry')}>Entry {arrowFor('entry')}</button
 		>
-		<span class="{HEAD_CLASS} hidden min-[880px]:block">Champ</span>
+		<span class="{HEAD_CLASS} hidden min-[880px]:block" role="columnheader">Champ</span>
 		{#if stage === 'knockout'}
-			<span class="{HEAD_CLASS} text-center" title="Finalist picks still alive">Final</span>
+			<span class="{HEAD_CLASS} text-center" role="columnheader" title="Finalist picks still alive"
+				>Final</span
+			>
 		{/if}
 		<button
 			type="button"
+			role="columnheader"
+			aria-sort={ariaSortFor('group', sort)}
 			class="{HEAD_CLASS} hidden text-right transition-colors hover:text-primary min-[880px]:block {sort.key ===
 			'group'
 				? 'text-primary'
@@ -109,6 +130,8 @@
 		>
 		<button
 			type="button"
+			role="columnheader"
+			aria-sort={ariaSortFor('knockout', sort)}
 			class="{HEAD_CLASS} hidden text-right transition-colors hover:text-primary min-[880px]:block {sort.key ===
 			'knockout'
 				? 'text-primary'
@@ -118,16 +141,19 @@
 		>
 		<span
 			class="{HEAD_CLASS} hidden text-center min-[880px]:block"
+			role="columnheader"
 			title="Points-over-time, last 14 days">Trend</span
 		>
 		<button
 			type="button"
+			role="columnheader"
+			aria-sort={ariaSortFor('total', sort)}
 			class="{HEAD_CLASS} text-right transition-colors hover:text-primary {sort.key === 'total'
 				? 'text-primary'
 				: ''}"
 			on:click={() => toggleSort('total')}>Total {arrowFor('total')}</button
 		>
-		<span></span>
+		<span role="columnheader" aria-label="Open entry details"></span>
 	</div>
 
 	{#each sortedRows as row (row.entry_id)}

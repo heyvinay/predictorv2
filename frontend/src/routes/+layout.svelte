@@ -476,7 +476,10 @@
 		</nav>
 
 		<!-- Mobile bottom navigation -->
-		<nav data-theme={chromeTheme} class="fixed bottom-0 left-0 right-0 z-50 min-[700px]:hidden bg-base-200/95 backdrop-blur-md border-t border-base-300/50 h-14 flex items-center justify-around">
+		<!-- min-h + safe-area padding (not fixed h-14): on notched iPhones the
+		     home-indicator inset pushes the tap targets up instead of being
+		     overlapped by the swipe bar. Same pattern as BottomActionBar. -->
+		<nav data-theme={chromeTheme} class="fixed bottom-0 left-0 right-0 z-50 min-[700px]:hidden bg-base-200/95 backdrop-blur-md border-t border-base-300/50 min-h-14 pb-[env(safe-area-inset-bottom)] flex items-center justify-around">
 			{#each navItems as item}
 				{@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
 				{@const badge = item.href === '/entries' ? $editableEntries.length : 0}
@@ -530,7 +533,7 @@
 	     clears the mobile tab bar. Both navs are auth-gated above, so we
 	     only reserve space for them when actually rendering them —
 	     otherwise guests get a phantom left column on `/` (the landing). -->
-	<main class="flex-1 {$isAuthenticated ? 'pb-16 min-[700px]:pb-0 min-[700px]:pl-48' : ''}">
+	<main class="flex-1 {$isAuthenticated ? 'pb-[calc(4rem+env(safe-area-inset-bottom))] min-[700px]:pb-0 min-[700px]:pl-48' : ''}">
 		<SiteNoticeBanner />
 		<DeadlineCtaBanner />
 		<slot />

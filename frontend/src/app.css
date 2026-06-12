@@ -986,3 +986,22 @@ input[type='number'] {
 		@apply bg-success/10 border-success/30 text-success;
 	}
 }
+
+/* ── Reduced motion (WCAG 2.3.3) ─────────────────────────────────────
+   Global guard for users with "reduce motion" set at the OS level:
+   collapses every CSS animation/transition to a single instant frame —
+   covers animate-pulse, animate-pulse-soft, the live-match pulse dots,
+   hover transitions, etc., without per-component opt-ins. JS-driven
+   springs (svelte-motion) are out of CSS reach and stay as-is; they're
+   used for small positional easing only. The 0.01ms (not 0) keeps
+   animationend/transitionend events firing for any logic awaiting them. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

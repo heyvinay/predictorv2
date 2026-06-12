@@ -2124,6 +2124,18 @@
 				<!-- Legacy "Save bracket" button removed — bracket edits now
 				     flow through the unified Save Draft in BottomActionBar. -->
 			{:else if activeSection === 'bonus'}
+				{#if phase1ReadOnly}
+					<!-- Locked cue — the selects below are disabled but otherwise
+					     look active; mirror FixtureCard's read-only signalling so
+					     nobody wonders why their taps do nothing. -->
+					<div
+						class="mt-4 flex items-center gap-2 rounded-btn border border-base-300/60 bg-base-300/20 px-3 py-2 text-[12.5px] text-base-content/70"
+						role="status"
+					>
+						<span class="text-[13px]">🔒</span>
+						Your bonus answers are locked — this is a read-only view of what you submitted.
+					</div>
+				{/if}
 				{#each Object.entries(bonusByCategory) as [cat, qs] (cat)}
 					{#if qs.length > 0}
 						{@const catDone = qs.filter((q) => bonusAnswer(q.id)).length}
@@ -2140,7 +2152,7 @@
 								     to give the requested two-tone contrast (canvas
 								     dim slate vs. card white, or canvas midnight vs.
 								     card navy). Border thickness signals state. -->
-								<div class="rounded-xl border-2 bg-base-200 p-4 transition-colors {bonusBorderClass(bq.id)} relative">
+								<div class="rounded-xl border-2 bg-base-200 p-4 transition-colors {bonusBorderClass(bq.id)} {phase1ReadOnly ? 'opacity-75' : ''} relative">
 									<div class="text-sm font-medium mb-2">{bq.label}</div>
 									{#if bq.input_type === 'team'}
 										<select class="select select-bordered select-sm w-full bg-base-100" value={answer} disabled={phase1ReadOnly} on:change={(e) => setBonusAnswer(bq.id, e.currentTarget.value)}>
@@ -2171,7 +2183,11 @@
 				{/each}
 
 				<div class="flex justify-end items-center gap-3 mt-4">
-					<span class="text-xs text-base-content/50">{answeredCount} of {bonusQuestions.length} answered · use Save Draft below to persist</span>
+					<span class="text-xs text-base-content/50"
+						>{answeredCount} of {bonusQuestions.length} answered{phase1ReadOnly
+							? ''
+							: ' · use Save Draft below to persist'}</span
+					>
 					<button class="btn btn-primary btn-sm hidden" on:click={handleSaveBonus} disabled={!hasUnsavedBonus || bonusSaveStatus === 'saving'}>
 						{bonusSaveStatus === 'saving' ? 'Saving…' : bonusSaveStatus === 'saved' ? '✓ Saved' : bonusSaveStatus === 'error' ? '× Error — retry' : 'Save bonus picks'}
 					</button>
