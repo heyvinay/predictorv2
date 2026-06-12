@@ -31,12 +31,13 @@
 	const RARITY_CAP = 10;
 
 	/** Worked-example sample size for the rarity-bonus table. Pulled from
-	 *  the live /api/competition/info (`total_players`) once it loads, so
-	 *  the table reflects the actual confirmed pool. Falls back to 100
-	 *  before the API responds and pre-tournament so the table renders
-	 *  with sensible numbers on the first paint. */
+	 *  the live /api/competition/info (`eligible_entries` — the actual
+	 *  scoring denominator, NOT `total_players` which counts users). One
+	 *  user can hold multiple entries, so the rarity bonus divides by the
+	 *  entry count, not the user count. Falls back to 100 before the API
+	 *  responds so the table renders with sensible numbers on first paint. */
 	const RARITY_PRED_FALLBACK = 100;
-	$: rarityPredictorCount = info?.total_players ?? RARITY_PRED_FALLBACK;
+	$: rarityPredictorCount = info?.eligible_entries ?? RARITY_PRED_FALLBACK;
 
 	/** Per-category bonus point values, displayed against each bonus
 	 *  question's badge. Mirror this in config/worldcup2026.yml

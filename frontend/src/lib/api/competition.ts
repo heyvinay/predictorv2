@@ -19,6 +19,10 @@ export interface CompetitionInfo {
 	phase2_bracket_deadline: string | null;
 	total_players: number;
 	paid_players: number;
+	/** Eligible-submitted entries — the scoring denominator (what rarity
+	 *  divides by, what the leaderboard ranks). One user can hold up to
+	 *  5 entries, so this is typically larger than total_players. */
+	eligible_entries: number;
 }
 
 /** Fetch public competition metadata (no auth required) — used by the /rules

@@ -11,6 +11,7 @@ from app.dependencies import CurrentUser, DbSession
 from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.models.user import User
+from app.services.entries import count_eligible_submitted_entries
 from app.services.locking import get_current_phase, is_phase2_bracket_locked
 from app.services.scoring import get_scoring_config
 
@@ -28,6 +29,11 @@ class CompetitionInfo(BaseModel):
     phase2_bracket_deadline: datetime | None
     total_players: int
     paid_players: int
+    # Scoring denominator — what rarity divides by, what the leaderboard
+    # ranks. Eligible-submitted entries (not users): one user can hold up
+    # to 5 entries, so this is typically larger than total_players. Same
+    # predicate the scoring engine uses (eligible_entry_ids_select).
+    eligible_entries: int
 
 
 @router.get("/info", response_model=CompetitionInfo)
@@ -48,6 +54,7 @@ async def get_competition_info(session: DbSession) -> CompetitionInfo:
             phase2_bracket_deadline=None,
             total_players=0,
             paid_players=0,
+            eligible_entries=0,
         )
 
     total = await session.scalar(
@@ -58,6 +65,9 @@ async def get_competition_info(session: DbSession) -> CompetitionInfo:
         .where(User.is_active == True)  # noqa: E712
         .where(User.paid == True)  # noqa: E712
     )
+    eligible_entries = await count_eligible_submitted_entries(
+        session, competition=competition
+    )
 
     return CompetitionInfo(
         name=competition.name,
@@ -67,6 +77,7 @@ async def get_competition_info(session: DbSession) -> CompetitionInfo:
         phase2_bracket_deadline=competition.phase2_bracket_deadline,
         total_players=total or 0,
         paid_players=paid or 0,
+        eligible_entries=int(eligible_entries),
     )
 
 
