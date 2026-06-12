@@ -72,9 +72,9 @@
 	// Trend column (sparkline) sitting between Knockout and Total. The
 	// trailing 16px column is the click-affordance chevron.
 	const GRID_KO =
-		'grid-cols-[60px_minmax(0,1.4fr)_52px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_64px_80px_16px]';
+		'grid-cols-[48px_minmax(0,1.4fr)_52px_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_56px_80px_90px_64px_80px_16px]';
 	const GRID_GROUP =
-		'grid-cols-[60px_minmax(0,1.4fr)_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_64px_80px_16px]';
+		'grid-cols-[48px_minmax(0,1.4fr)_70px_16px] min-[880px]:grid-cols-[70px_minmax(0,1.6fr)_104px_80px_90px_64px_80px_16px]';
 
 	$: gridClass = stage === 'knockout' ? GRID_KO : GRID_GROUP;
 
@@ -84,7 +84,7 @@
 
 <div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">
 	<div
-		class="sticky top-0 z-10 grid items-center gap-3 bg-base-300/40 px-4 py-2 backdrop-blur {gridClass}"
+		class="sticky top-0 z-10 grid items-center gap-2 bg-base-300/40 px-3 py-2 backdrop-blur min-[880px]:gap-3 min-[880px]:px-4 {gridClass}"
 	>
 		<span class={HEAD_CLASS}>#</span>
 		<button

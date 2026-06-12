@@ -34,7 +34,7 @@
 </script>
 
 <button
-	class="group grid w-full items-center gap-3 border-t border-base-300/40 px-4 py-1.5 text-left transition-colors hover:bg-base-content/5 {gridClass} {isOwn
+	class="group grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-1.5 text-left transition-colors hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {gridClass} {isOwn
 		? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 		: ''}"
 	title="View this entry's predictions"

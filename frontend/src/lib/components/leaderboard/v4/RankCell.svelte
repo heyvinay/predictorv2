@@ -15,7 +15,10 @@
 			: 'text-base-content/70';
 </script>
 
-<span class="inline-flex items-center gap-1.5">
+<!-- <880px the movement chip stacks under the rank so the cell fits a
+     narrow track and the entry name can hug the left edge; ≥880px the
+     pair sits side by side as before. -->
+<span class="inline-flex max-[879px]:flex-col max-[879px]:items-start min-[880px]:items-center min-[880px]:gap-1.5">
 	<span
 		class="min-w-[24px] rounded-[7px] px-0.5 py-0.5 text-center font-display text-sm font-extrabold {medal}"
 		>{rank}</span
