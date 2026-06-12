@@ -11,6 +11,7 @@
 	import { miniLbRows } from '$lib/utils/dashboardV4';
 	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import MoveChip from '$lib/components/leaderboard/v4/MoveChip.svelte';
+	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null;
@@ -33,7 +34,10 @@
 
 <section>
 	<div class="mb-2 flex items-baseline justify-between gap-3">
-		<h2 class="font-display text-lg font-bold tracking-wide text-base-content">Leaderboard</h2>
+		<h2 class="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-base-content">
+			Leaderboard
+			<ProvisionalPill />
+		</h2>
 		<a
 			href="/leaderboard"
 			class="whitespace-nowrap font-display text-[12px] font-extrabold text-primary transition-opacity hover:opacity-75"

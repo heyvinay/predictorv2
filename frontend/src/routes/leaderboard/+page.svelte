@@ -16,6 +16,10 @@
 	import { pageTitle } from '$stores/pageTitle';
 	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { startLivePoll } from '$lib/utils/livePoll';
+	import { relativeAgo } from '$lib/utils/relativeTime';
+	import { currentTime } from '$stores/phase';
+	import { teamCode } from '$lib/utils/teamCodes';
+	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import { downloadAllEntriesCsv } from '$api/export';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
@@ -78,6 +82,10 @@
 	let loadError = false;
 	let selected: LbEntryV4 | null = null;
 	let stopPoll: (() => void) | null = null;
+	/** True if the most recent background poll failed (the .catch path in
+	 *  the live poll below). Surfaces as an amber dot on the freshness
+	 *  strip — silent failures used to be invisible. Resets on success. */
+	let pollFailed = false;
 
 	async function load() {
 		loadError = false;
@@ -125,8 +133,13 @@
 		// while the tab is hidden and catches up on return).
 		stopPoll = startLivePoll(() => {
 			getLeaderboardV4()
-				.then((b) => (board = b))
-				.catch(() => {});
+				.then((b) => {
+					board = b;
+					pollFailed = false;
+				})
+				.catch(() => {
+					pollFailed = true;
+				});
 		});
 	}
 	onDestroy(() => stopPoll?.());
@@ -137,6 +150,32 @@
 	$: filteredRows = searchRows(filterByPool(rows, pool), search);
 	$: multiOwners = multiEntryUserIds(rows);
 	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
+
+	// ── Freshness cue ──
+	// "Updated Ns ago" ticks via the shared $currentTime store (already
+	// driving the navbar countdown — no extra interval). The "includes
+	// last result" line uses the most-recently-FINISHED fixture as a
+	// proxy for "what just changed": score-sync only expires the cache
+	// on FINISHED transitions (v2.173.0), so the latest FT is the
+	// meaningful trigger.
+	$: updatedAgo = board?.last_calculated
+		? relativeAgo(board.last_calculated, $currentTime.getTime())
+		: '';
+	$: lastFinished = (() => {
+		const finished = $fixtures.filter(
+			(f) => f.status === 'finished' && f.score && f.kickoff
+		);
+		if (finished.length === 0) return null;
+		// Sort by kickoff desc — final-whistle time isn't stored explicitly;
+		// kickoff order matches "most recently played" closely enough.
+		finished.sort(
+			(a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime()
+		);
+		const f = finished[0];
+		return f.score
+			? `${teamCode(f.home_team)} ${f.score.home_score}–${f.score.away_score} ${teamCode(f.away_team)}`
+			: null;
+	})();
 
 	// ── all-entries CSV download (transparency sheet, v2.168+) ──
 	// Backend re-checks the same gate (admin || post_deadline_live), so
@@ -201,11 +240,33 @@
 		     pills shrink and drop their sub-labels so all three fit in
 		     one row alongside the info line. ── -->
 		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-			<p class="text-[12px] text-base-content/70 sm:text-[13px]">
-				{board?.total_participants ?? rows.length} entries
-				{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
-				· predictions locked since kick-off
-			</p>
+			<div class="text-[12px] text-base-content/70 sm:text-[13px]">
+				<p>
+					{board?.total_participants ?? rows.length} entries
+					{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
+					· predictions locked since kick-off
+				</p>
+				{#if board?.last_calculated}
+					<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
+						<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>
+						{#if lastFinished}
+							<span class="text-base-content/40">·</span>
+							<span>last result: <b class="text-base-content/70">{lastFinished}</b></span>
+						{/if}
+						{#if pollFailed}
+							<span
+								class="ml-1 inline-flex items-center gap-1 text-warning-text"
+								role="status"
+								title="The most recent refresh failed — showing last known standings"
+							>
+								<span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>
+								refresh failed
+							</span>
+						{/if}
+						<span class="ml-1"><ProvisionalPill /></span>
+					</p>
+				{/if}
+			</div>
 			<div class="flex gap-1.5 sm:gap-2">
 				{#each VIEWS as v}
 					<button
@@ -248,8 +309,14 @@
 			</div>
 		</div>
 		{#if downloadCsvError}
-			<p class="mb-2 text-right text-[11px] text-error" role="alert">
+			<p
+				class="mb-2 flex flex-wrap items-center justify-end gap-2 text-right text-[11px] text-error"
+				role="alert"
+			>
 				Download failed — try again in a moment.
+				<button class="btn btn-ghost btn-xs text-error" on:click={downloadAllEntries}
+					>Retry</button
+				>
 			</p>
 		{/if}
 

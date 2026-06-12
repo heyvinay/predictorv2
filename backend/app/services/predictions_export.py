@@ -197,6 +197,16 @@ async def build_all_entries_export(
             "alphabetically — row position carries no meaning."
         ]
     )
+    # v2.174.0 — name the provisional status of any standings/points that
+    # might be derived from this sheet. The export itself carries picks,
+    # not points, but the leaderboard derives from it and people may
+    # forward this around as a printed receipt.
+    writer.writerow(
+        [
+            "Standings derived from this sheet are PROVISIONAL — finalized "
+            "by manual review after the tournament concludes."
+        ]
+    )
     writer.writerow([])
 
     # ── per-entry identity block ──

@@ -329,9 +329,45 @@
 		<p class="text-sm text-base-content/80 mt-4">The prize fund is typically split as follows: <b>65%</b> to the overall winner, <b>20%</b> to the group-stage winner, and the rest to a charity chosen by the organisers.</p>
 	</section>
 
-	<!-- 06 — Fine print -->
+	<!-- 06 — Provisional standings & finalization -->
+	<section id="finalization" class="stadium-card no-glow p-5 scroll-mt-20">
+		<h2 class="text-lg font-display tracking-wide mb-3">
+			06 · Provisional Standings
+			<span class="text-xs text-base-content/40">· how the leaderboard becomes official</span>
+		</h2>
+		<div class="space-y-3 text-sm text-base-content/80">
+			<p>
+				The leaderboard you see during the tournament is <b class="text-warning-text">provisional</b>.
+				Points are scored automatically as match results land — fast, but not infallible.
+				Three classes of error can show up briefly:
+			</p>
+			<ul class="ml-4 list-disc space-y-1.5 text-[13px] marker:text-base-content/40">
+				<li><b>Algorithm bugs we haven't caught.</b> This is software.</li>
+				<li>
+					<b>Wrong scores from the upstream feed.</b> Live data providers occasionally
+					flap a match's status or score; the admin tools can correct any individual
+					fixture and the standings recompute on the next refresh.
+				</li>
+				<li>
+					<b>Unforeseen edge cases.</b> Disputed goals, abandoned matches, late
+					replacements — anything the rules above haven't explicitly covered.
+				</li>
+			</ul>
+			<p>
+				<b class="text-base-content">Final standings — and any payouts — are confirmed by
+					manual review after all games conclude</b>, before anything is paid out. If you
+				spot something that looks wrong before then, reply to any of the tournament emails
+				or use the Help &amp; Support button — corrections cost us nothing once we know.
+			</p>
+			<p class="text-xs text-base-content/55">
+				The "Provisional" pill on the leaderboard always links back here.
+			</p>
+		</div>
+	</section>
+
+	<!-- 07 — Fine print -->
 	<section class="stadium-card no-glow p-5">
-		<h2 class="text-lg font-display tracking-wide mb-3">06 · The Fine Print <span class="text-xs text-base-content/40">· read once · then never again</span></h2>
+		<h2 class="text-lg font-display tracking-wide mb-3">07 · The Fine Print <span class="text-xs text-base-content/40">· read once · then never again</span></h2>
 		<div class="space-y-3 text-sm text-base-content/80">
 			<div><b class="text-base-content">One deadline · all entries lock together.</b> Every prediction — group-stage scores, knockout bracket, and bonus questions — must be in before the deadline shown in the hero. After that, nothing can change.</div>
 			<div><b class="text-base-content">Blind pool.</b> You can't see anyone else's picks until the deadline. Once everyone's locked in, the pool is open and rarity bonuses can be computed.</div>
