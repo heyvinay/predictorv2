@@ -20,7 +20,7 @@ from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score, ScoreSource
 from app.services.external_scores import ExternalScore, get_score_provider
-from app.services.leaderboard import invalidate_cache
+from app.services.leaderboard import expire_cache
 
 
 @dataclass
@@ -162,7 +162,12 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
     await session.commit()
 
     if result.synced > 0 or result.updated > 0:
-        invalidate_cache()
+        # Soft-expire (not invalidate): the boards keep serving instantly
+        # via stale-while-revalidate while the rebuild with the new score
+        # happens off the request path. Hard invalidation here used to
+        # force a seconds-long blocking rebuild onto a user request after
+        # every synced score — i.e. continuously during live matches.
+        expire_cache()
 
     return result
 

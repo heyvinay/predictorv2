@@ -16,7 +16,9 @@ the entry's phase records:
 """
 
 import asyncio
+import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
@@ -43,6 +45,8 @@ from app.services.scoring import (
 
 PhaseFilter = Literal["overall", "phase_1", "phase_2"] | None
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class CachedLeaderboard:
@@ -54,6 +58,9 @@ class CachedLeaderboard:
     phase: str | None
     # Previous positions keyed by entry_id for movement tracking
     previous_positions: dict[uuid.UUID, int] = field(default_factory=dict)
+    # Marked by expire_cache() (score sync) — a stale board is still
+    # servable via stale-while-revalidate, unlike a dropped one.
+    stale: bool = False
 
 
 # In-memory cache - keyed by phase.
@@ -67,6 +74,26 @@ _cache_ttl = timedelta(seconds=30)
 # Per-key locks for single-flight rebuilds (see calculate_leaderboard).
 _cache_locks: dict[str, asyncio.Lock] = {}
 
+# Strong references to in-flight background refresh tasks, keyed like
+# _cache. asyncio only weak-refs tasks, so without these a refresh could
+# be garbage-collected mid-run; presence of a live task also acts as the
+# "refresh already scheduled" guard.
+_refresh_tasks: dict[str, "asyncio.Task[None]"] = {}
+
+# Session factory for background refreshes. Overridable in tests (point
+# it at the test engine's factory); production lazily resolves the app's
+# global async_session_maker so this module keeps zero import-time
+# dependency on app.database.
+_background_session_factory: Callable[[], AsyncSession] | None = None
+
+
+def _make_background_session() -> AsyncSession:
+    if _background_session_factory is not None:
+        return _background_session_factory()
+    from app.database import async_session_maker
+
+    return async_session_maker()
+
 
 def _lock_for(cache_key: str) -> asyncio.Lock:
     lock = _cache_locks.get(cache_key)
@@ -74,6 +101,43 @@ def _lock_for(cache_key: str) -> asyncio.Lock:
         lock = asyncio.Lock()
         _cache_locks[cache_key] = lock
     return lock
+
+
+def _is_fresh(cached: CachedLeaderboard, now: datetime) -> bool:
+    return not cached.stale and (now - cached.last_calculated) < _cache_ttl
+
+
+def _schedule_background_refresh(phase: PhaseFilter, cache_key: str) -> None:
+    """Kick off (at most one) off-request rebuild for `cache_key`.
+
+    Part of the stale-while-revalidate path: the caller has already been
+    served the expired board, so the rebuild's seconds-long cost lands
+    here instead of on a user request.
+    """
+    existing = _refresh_tasks.get(cache_key)
+    if existing is not None and not existing.done():
+        return
+
+    async def _refresh() -> None:
+        async with _lock_for(cache_key):
+            now = utc_now()
+            cached = _cache.get(cache_key)
+            if cached is not None and _is_fresh(cached, now):
+                return  # rebuilt by someone else while we waited
+            async with _make_background_session() as session:
+                await _rebuild_leaderboard(session, phase, cache_key, now)
+
+    def _log_failure(task: "asyncio.Task[None]") -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logger.warning(
+                "background leaderboard refresh for %r failed: %s",
+                cache_key,
+                task.exception(),
+            )
+
+    task = asyncio.create_task(_refresh())
+    task.add_done_callback(_log_failure)
+    _refresh_tasks[cache_key] = task
 
 
 def _response_from_cache(cached: CachedLeaderboard) -> LeaderboardResponse:
@@ -149,16 +213,25 @@ async def calculate_leaderboard(
     # Fast path: return cached data if valid (no lock needed).
     if not force_refresh and cache_key in _cache:
         cached = _cache[cache_key]
-        if (now - cached.last_calculated) < _cache_ttl:
+        if _is_fresh(cached, now):
             return _response_from_cache(cached)
+        # Stale-while-revalidate: the rebuild takes seconds against the
+        # live pool (183 entries × full scoring), and with score-sync
+        # expiring the cache every minute during matches it used to land
+        # on a user request almost every page load — the dashboard's
+        # first paint blocked on it. Serve the expired board instantly
+        # and rebuild off-request; the next call gets the fresh one.
+        _schedule_background_refresh(phase, cache_key)
+        return _response_from_cache(cached)
 
-    # Single-flight: only one coroutine rebuilds per cache key; the rest
-    # wait here and then serve the fresh cache from the re-check below.
+    # Cold cache (or force_refresh): block on the rebuild — there is
+    # nothing stale to serve. Single-flight: only one coroutine rebuilds
+    # per cache key; the rest wait here and serve the re-checked cache.
     async with _lock_for(cache_key):
         now = utc_now()
         if not force_refresh and cache_key in _cache:
             cached = _cache[cache_key]
-            if (now - cached.last_calculated) < _cache_ttl:
+            if _is_fresh(cached, now):
                 return _response_from_cache(cached)
 
         return await _rebuild_leaderboard(session, phase, cache_key, now)
@@ -440,12 +513,27 @@ async def _rebuild_leaderboard(
 
 
 def invalidate_cache() -> None:
-    """Invalidate the leaderboard cache.
+    """Drop the leaderboard cache entirely.
 
-    Call this when scores are updated to force recalculation.
+    The next consumer BLOCKS on a full rebuild — read-your-write
+    semantics. Right for tests and the admin force-refresh endpoint;
+    for the score-sync loop prefer expire_cache(), which keeps serving
+    the last-known board while the rebuild happens off-request.
     """
     global _cache
     _cache = {}
+
+
+def expire_cache() -> None:
+    """Mark every cached board stale WITHOUT dropping it.
+
+    Used by the score-sync loop after a score lands: consumers keep
+    getting instant responses from the last-known board while the
+    stale-while-revalidate path rebuilds with the new score in the
+    background. Worst-case staleness is one rebuild + one poll cycle.
+    """
+    for cached in _cache.values():
+        cached.stale = True
 
 
 def set_cache_ttl(seconds: int) -> None:
