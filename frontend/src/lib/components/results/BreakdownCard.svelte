@@ -140,8 +140,7 @@
 				<img
 					src={getFlagUrl(fixture.home_team, 'sm')}
 					alt=""
-					class="w-7 sm:w-9 h-auto rounded-sm shadow-sm shrink-0"
-				/>
+					class="w-7 sm:w-9 h-auto rounded-sm shadow-sm shrink-0" style="aspect-ratio: 4 / 3" />
 			{/if}
 			<span class="font-semibold text-xs sm:text-sm truncate {homeWon ? 'text-base-content' : ''}">
 				<span class="hidden sm:inline">{displayTeamName(fixture.home_team)}</span>
@@ -198,8 +197,7 @@
 				<img
 					src={getFlagUrl(fixture.away_team, 'sm')}
 					alt=""
-					class="w-7 sm:w-9 h-auto rounded-sm shadow-sm shrink-0"
-				/>
+					class="w-7 sm:w-9 h-auto rounded-sm shadow-sm shrink-0" style="aspect-ratio: 4 / 3" />
 			{/if}
 		</div>
 	</div>

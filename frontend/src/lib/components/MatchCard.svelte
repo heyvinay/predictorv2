@@ -121,8 +121,7 @@
 					src={getFlagUrl(fixture.home_team, 'md')}
 					alt="{fixture.home_team} flag"
 					class="team-flag"
-					loading="lazy"
-				/>
+					loading="lazy" style="aspect-ratio: 4 / 3" />
 			{:else}
 				<div class="team-flag-placeholder"></div>
 			{/if}
@@ -167,8 +166,7 @@
 					src={getFlagUrl(fixture.away_team, 'md')}
 					alt="{fixture.away_team} flag"
 					class="team-flag"
-					loading="lazy"
-				/>
+					loading="lazy" style="aspect-ratio: 4 / 3" />
 			{:else}
 				<div class="team-flag-placeholder"></div>
 			{/if}

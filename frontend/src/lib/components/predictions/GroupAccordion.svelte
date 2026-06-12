@@ -125,8 +125,7 @@
 							src={getFlagUrl(team, 'sm')}
 							alt=""
 							class="w-5 h-auto rounded-sm flex-shrink-0"
-							title={team}
-						/>
+							title={team} style="aspect-ratio: 4 / 3" />
 					{/if}
 				{/each}
 			</div>

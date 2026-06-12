@@ -31,7 +31,7 @@
 				class="inline-flex items-center gap-1.5 rounded-full border border-error/30 bg-base-200 px-2.5 py-1 text-[12px] font-semibold"
 			>
 				{#if hasFlag(team)}
-					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" />
+					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span>{displayTeamName(team)}</span>
 			</span>

@@ -42,7 +42,7 @@
 				{seeded ? displayTeamName(fixture.home_team) : 'TBD'}
 			</span>
 			{#if seeded && hasFlag(fixture.home_team)}
-				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
+				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
 			{:else if !seeded}
 				<span
 					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
@@ -70,7 +70,7 @@
 		</div>
 		<div class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
 			{#if seeded && hasFlag(fixture.away_team)}
-				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
+				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
 			{:else if !seeded}
 				<span
 					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
@@ -99,7 +99,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {homeLoses ? 'opacity-60' : ''}">
 				{#if seeded && hasFlag(fixture.home_team)}
-					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
+					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.home_team)}
 					>{seeded ? teamCode(fixture.home_team) : 'TBD'}</span
@@ -112,7 +112,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
 				{#if seeded && hasFlag(fixture.away_team)}
-					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
+					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.away_team)}
 					>{seeded ? teamCode(fixture.away_team) : 'TBD'}</span

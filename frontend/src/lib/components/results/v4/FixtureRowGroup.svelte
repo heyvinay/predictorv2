@@ -35,7 +35,7 @@
 		<div class="flex items-center justify-end gap-2 {homeLoses ? 'opacity-60' : ''}">
 			<span class="truncate text-[13px] font-semibold">{displayTeamName(fixture.home_team)}</span>
 			{#if hasFlag(fixture.home_team)}
-				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
+				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
 			{/if}
 		</div>
 		<div class="text-center">
@@ -58,7 +58,7 @@
 		</div>
 		<div class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
 			{#if hasFlag(fixture.away_team)}
-				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" />
+				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
 			{/if}
 			<span class="truncate text-[13px] font-semibold">{displayTeamName(fixture.away_team)}</span>
 		</div>
@@ -79,7 +79,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {homeLoses ? 'opacity-60' : ''}">
 				{#if hasFlag(fixture.home_team)}
-					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
+					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.home_team)}
 					>{teamCode(fixture.home_team)}</span
@@ -92,7 +92,7 @@
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
 				{#if hasFlag(fixture.away_team)}
-					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" />
+					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.away_team)}
 					>{teamCode(fixture.away_team)}</span

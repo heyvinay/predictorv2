@@ -65,7 +65,7 @@
 			<div class="flex-1 min-w-0">
 				<div class="flex items-center gap-2">
 					{#if hasFlag(fixture.home_team)}
-						<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />
+						<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="w-5 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />
 					{/if}
 					<span class="font-semibold text-sm truncate">{displayTeamName(fixture.home_team)}</span>
 					{#if fixture.score}
@@ -75,7 +75,7 @@
 					{/if}
 					<span class="font-semibold text-sm truncate">{displayTeamName(fixture.away_team)}</span>
 					{#if hasFlag(fixture.away_team)}
-						<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="w-5 h-auto rounded-sm" />
+						<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="w-5 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />
 					{/if}
 				</div>
 				{#if prediction}

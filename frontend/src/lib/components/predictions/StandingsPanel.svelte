@@ -232,7 +232,7 @@
 													<td class="py-1">
 														<span class="flex items-center gap-1.5">
 															{#if hasFlag(team.team)}
-																<img src={getFlagUrl(team.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
+																<img src={getFlagUrl(team.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 															{/if}
 															<span class="truncate">{displayTeamName(team.team)}</span>
 														</span>
@@ -287,7 +287,7 @@
 												<td class="py-1">
 													<span class="flex items-center gap-1.5">
 														{#if hasFlag(t.team)}
-															<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" />
+															<img src={getFlagUrl(t.team, 'sm')} alt="" class="w-4 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 														{/if}
 														<span class="truncate">{displayTeamName(t.team)}</span>
 													</span>
@@ -366,8 +366,7 @@
 													<img
 														src={getFlagUrl(t.team, 'sm')}
 														alt=""
-														class="w-4 h-auto rounded-sm flex-shrink-0"
-													/>
+														class="w-4 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 												{/if}
 												<span class="truncate">{displayTeamName(t.team)}</span>
 											</span>
@@ -466,8 +465,7 @@
 												<img
 													src={getFlagUrl(team.team, 'sm')}
 													alt=""
-													class="w-4 h-auto rounded-sm flex-shrink-0"
-												/>
+													class="w-4 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 											{/if}
 											<span class="truncate">{displayTeamName(team.team)}</span>
 										</span>

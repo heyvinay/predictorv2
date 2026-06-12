@@ -39,8 +39,7 @@
 			<img
 				src={getFlagUrl(champion, 'sm')}
 				alt=""
-				class="rounded-sm shadow-sm flex-shrink-0 {compact ? 'w-5 h-3.5' : 'w-6 h-4'}"
-			/>
+				class="rounded-sm shadow-sm flex-shrink-0 {compact ? 'w-5 h-3.5' : 'w-6 h-4'}" style="aspect-ratio: 4 / 3" />
 		{/if}
 		<span class="font-display tracking-wide {compact ? 'text-base' : 'text-lg'}">
 			{champion.toUpperCase()}

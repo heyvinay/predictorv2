@@ -134,8 +134,7 @@
 				<img
 					src={getFlagUrl(row.team, 'md')}
 					alt=""
-					class="w-7 h-auto rounded-sm flex-shrink-0"
-				/>
+					class="w-7 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 			{:else}
 				<span class="w-7 h-5 rounded-sm bg-base-300/50 flex-shrink-0" aria-hidden="true"></span>
 			{/if}

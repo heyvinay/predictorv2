@@ -62,8 +62,7 @@
 										src={getFlagUrl(standing.team, 'sm')}
 										alt="{standing.team} flag"
 										class="w-5 h-auto rounded-sm shadow-sm flex-shrink-0"
-										loading="lazy"
-									/>
+										loading="lazy" style="aspect-ratio: 4 / 3" />
 								{:else}
 									<div class="w-5 h-3.5 bg-base-300 rounded-sm flex-shrink-0"></div>
 								{/if}

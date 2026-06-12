@@ -52,13 +52,13 @@
 					<td class="py-2.5 px-3">
 						<div class="flex items-center gap-1.5 text-sm">
 							{#if hasFlag(pred.home_team)}
-								<img src={getFlagUrl(pred.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" />
+								<img src={getFlagUrl(pred.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />
 							{/if}
 							<span class="font-medium truncate max-w-[80px]">{displayTeamName(pred.home_team)}</span>
 							<span class="text-base-content/30">vs</span>
 							<span class="font-medium truncate max-w-[80px]">{displayTeamName(pred.away_team)}</span>
 							{#if hasFlag(pred.away_team)}
-								<img src={getFlagUrl(pred.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" />
+								<img src={getFlagUrl(pred.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />
 							{/if}
 						</div>
 					</td>
@@ -100,13 +100,13 @@
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-1.5 text-sm min-w-0">
 					{#if hasFlag(pred.home_team)}
-						<img src={getFlagUrl(pred.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
+						<img src={getFlagUrl(pred.home_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" style="aspect-ratio: 4 / 3" />
 					{/if}
 					<span class="font-medium truncate">{displayTeamName(pred.home_team)}</span>
 					<span class="text-base-content/30 shrink-0">v</span>
 					<span class="font-medium truncate">{displayTeamName(pred.away_team)}</span>
 					{#if hasFlag(pred.away_team)}
-						<img src={getFlagUrl(pred.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
+						<img src={getFlagUrl(pred.away_team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" style="aspect-ratio: 4 / 3" />
 					{/if}
 				</div>
 			</div>

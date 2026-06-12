@@ -14,8 +14,7 @@
 		src={getFlagUrl(team, 'sm')}
 		alt=""
 		loading="lazy"
-		class="h-4 w-[22px] flex-none rounded-sm object-cover ring-1 ring-black/30"
-	/>
+		class="h-4 w-[22px] flex-none rounded-sm object-cover ring-1 ring-black/30" style="aspect-ratio: 4 / 3" />
 {:else}
 	<span
 		class="grid h-4 w-[22px] flex-none place-items-center rounded-sm border-[1.5px] border-dashed border-base-300 text-[10px] leading-none text-base-content/30"

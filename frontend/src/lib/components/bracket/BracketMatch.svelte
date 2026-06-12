@@ -152,7 +152,7 @@
 	>
 		<span class="bullet" aria-hidden="true">{team1Selected ? '•' : ''}</span>
 		{#if team1 && hasFlag(team1)}
-			<img src={getFlagUrl(team1, 'sm')} alt="" class="flag" loading="lazy" />
+			<img src={getFlagUrl(team1, 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio: 4 / 3" />
 		{:else}
 			<span class="flag flag-placeholder" aria-hidden="true"></span>
 		{/if}
@@ -174,7 +174,7 @@
 	>
 		<span class="bullet" aria-hidden="true">{team2Selected ? '•' : ''}</span>
 		{#if team2 && hasFlag(team2)}
-			<img src={getFlagUrl(team2, 'sm')} alt="" class="flag" loading="lazy" />
+			<img src={getFlagUrl(team2, 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio: 4 / 3" />
 		{:else}
 			<span class="flag flag-placeholder" aria-hidden="true"></span>
 		{/if}

@@ -1981,8 +1981,7 @@
 											src={getFlagUrl(t.team, 'sm')}
 											alt=""
 											class="w-5 h-auto rounded-sm flex-shrink-0"
-											title={t.team}
-										/>
+											title={t.team} style="aspect-ratio: 4 / 3" />
 									{/if}
 								{/each}
 							</div>
@@ -2073,8 +2072,7 @@
 																<img
 																	src={getFlagUrl(t.team, 'sm')}
 																	alt=""
-																	class="w-4 h-auto rounded-sm flex-shrink-0"
-																/>
+																	class="w-4 h-auto rounded-sm flex-shrink-0" style="aspect-ratio: 4 / 3" />
 															{/if}
 															<span class="truncate">{displayTeamName(t.team)}</span>
 														</span>
@@ -2264,7 +2262,7 @@
 							<div class="text-xs text-base-content/40 mb-2">{fmtCard(f.kickoff)}</div>
 							<div class="flex items-center justify-between gap-2">
 								<div class="flex items-center gap-2 flex-1 min-w-0" title={f.home_team}>
-									{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
+									{#if hasFlag(f.home_team)}<img src={getFlagUrl(f.home_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />{/if}
 									<span class="team-name">{teamCode(f.home_team)}</span>
 								</div>
 								<div class="flex items-center gap-1 shrink-0">
@@ -2274,7 +2272,7 @@
 								</div>
 								<div class="flex items-center gap-2 flex-1 min-w-0 justify-end" title={f.away_team}>
 									<span class="team-name">{teamCode(f.away_team)}</span>
-									{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" />{/if}
+									{#if hasFlag(f.away_team)}<img src={getFlagUrl(f.away_team, 'sm')} alt="" class="w-6 h-auto rounded-sm" style="aspect-ratio: 4 / 3" />{/if}
 								</div>
 							</div>
 							<div class="flex items-center gap-2 mt-2 text-xs">

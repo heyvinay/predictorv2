@@ -252,7 +252,7 @@
 													{#each teams as team}
 														<span class="inline-flex items-center gap-1.5 w-full px-2.5 py-1.5 rounded-lg text-xs font-medium bg-base-300/50 border border-base-content/10 text-base-content/80">
 															{#if hasFlag(team)}
-																<img src={getFlagUrl(team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" />
+																<img src={getFlagUrl(team, 'sm')} alt="" class="w-4 h-auto rounded-sm shrink-0" style="aspect-ratio: 4 / 3" />
 															{/if}
 															<span class="truncate">{team}</span>
 														</span>

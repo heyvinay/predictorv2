@@ -36,7 +36,7 @@
 				class="inline-flex items-center gap-1.5 rounded-full border border-success/40 bg-base-200 px-2.5 py-1 text-[12px] font-semibold"
 			>
 				{#if hasFlag(team)}
-					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" />
+					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span>{displayTeamName(team)}</span>
 				<span class="rounded-badge bg-success/20 px-1.5 text-[10px] font-bold text-success"
@@ -49,7 +49,7 @@
 				class="inline-flex items-center gap-1.5 rounded-full border border-base-300/60 bg-base-200 px-2.5 py-1 text-[12px] font-semibold opacity-70"
 			>
 				{#if hasFlag(team)}
-					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" />
+					<img src={getFlagUrl(team, 'sm')} alt="" class="h-auto w-4 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span>{displayTeamName(team)}</span>
 				<span class="rounded-badge bg-base-300/40 px-1.5 text-[10px] font-bold text-base-content/55"

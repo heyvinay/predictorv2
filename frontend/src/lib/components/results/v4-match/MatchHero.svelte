@@ -54,8 +54,7 @@
 				<img
 					src={getFlagUrl(fixture.home_team, 'sm')}
 					alt=""
-					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
-				/>
+					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]" style="aspect-ratio: 4 / 3" />
 			{/if}
 			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[13px]">
 				<TeamName name={fixture.home_team} />
@@ -90,8 +89,7 @@
 				<img
 					src={getFlagUrl(fixture.away_team, 'sm')}
 					alt=""
-					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]"
-				/>
+					class="h-[26px] w-[40px] rounded-md object-cover shadow-card max-sm:h-[22px] max-sm:w-[32px]" style="aspect-ratio: 4 / 3" />
 			{/if}
 			<div class="text-center font-display text-[12px] font-extrabold leading-tight max-sm:text-[13px]">
 				<TeamName name={fixture.away_team} />

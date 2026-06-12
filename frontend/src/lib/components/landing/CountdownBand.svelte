@@ -9,18 +9,20 @@
 	  critical  — < 1h      → red + pulsing, "Minutes left" + larger CTA
 	  locked    — past 0    → mint, "Locked — the tournament begins"
 
-	`setInterval(1000)` updates every second. The `countdown_phase`
-	analytics event fires once per tier transition so we can measure
-	how visitors behave at different urgency levels.
+	Subscribes to the shared `$currentTime` store (already ticking once a
+	second to drive the navbar pill + DeadlineCtaBanner) — no per-component
+	interval. The `countdown_phase` analytics event fires once per tier
+	transition so we can measure how visitors behave at different urgency
+	levels.
 
 	Falls back to "Locks in soon" when `phase1Deadline` is null (e.g.
 	competition not yet configured / API down).
 -->
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
 	import { track } from '$lib/analytics';
 	import ArrowRight from 'lucide-svelte/icons/arrow-right';
 	import { derivePhase, countdownCopy, type CountdownPhase } from '$lib/utils/countdownPhase';
+	import { currentTime } from '$stores/phase';
 
 	export let phase1Deadline: string | null = null;
 	/** Where this countdown is rendered — passed to the auth CTA for
@@ -34,22 +36,13 @@
 
 	type Phase = CountdownPhase;
 
-	let now = Date.now();
-	let timer: ReturnType<typeof setInterval> | null = null;
 	let lastPhase: Phase = 'unknown';
 
-	onMount(() => {
-		timer = setInterval(() => {
-			now = Date.now();
-		}, 1000);
-	});
-
-	onDestroy(() => {
-		if (timer) clearInterval(timer);
-	});
-
 	$: deadlineMs = phase1Deadline ? new Date(phase1Deadline).getTime() : null;
-	$: secondsRemaining = deadlineMs === null ? null : Math.max(0, Math.floor((deadlineMs - now) / 1000));
+	$: secondsRemaining =
+		deadlineMs === null
+			? null
+			: Math.max(0, Math.floor((deadlineMs - $currentTime.getTime()) / 1000));
 	$: phase = derivePhase(secondsRemaining);
 	$: parts = secondsRemaining === null ? null : breakdown(secondsRemaining);
 	$: config = PHASE_CONFIG[phase];
