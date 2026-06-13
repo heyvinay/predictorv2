@@ -64,6 +64,14 @@ export type EventName =
 	| 'nav_clicked'
 	// V4 Dashboard (v2.165.0)
 	| 'dashboard_view'
+	// v2.176.2 — feature-usage signals for the Site Pulse panel.
+	// match_detail_opened fires when a user clicks a fixture row to
+	// open /results/{id}; carries fixture_id so PostHog UI can break
+	// it down by match. leaderboard_view_changed fires when the
+	// /leaderboard view tab is switched; carries view = table/race/
+	// insights so PostHog UI can break it down by view choice.
+	| 'match_detail_opened'
+	| 'leaderboard_view_changed'
 	// Reserved for future server-side fires (declared in advance so
 	// allow-list and dashboards stay aligned). Add backend
 	// analytics.capture() call sites for these as they get wired.

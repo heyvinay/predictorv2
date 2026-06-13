@@ -4,6 +4,7 @@
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { track } from '$lib/analytics';
 	import PointsCellGroup from './PointsCellGroup.svelte';
 
 	export let fixture: Fixture;
@@ -23,6 +24,7 @@
 
 <a
 	href={`/results/${fixture.id}`}
+	on:click={() => track('match_detail_opened', { fixture_id: fixture.id, source: 'results_group_row' })}
 	class="block border-t border-base-300/45 transition-colors first:border-t-0 hover:bg-primary/5
 		{striped && !isLive ? 'bg-base-300/15' : ''}
 		{isLive ? 'border-l-4 border-l-error bg-error/5' : ''}"

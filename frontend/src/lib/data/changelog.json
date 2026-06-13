@@ -2235,6 +2235,13 @@
       "type": "improvement",
       "summary": "Site Pulse \"Top events\" now shows actual user behaviours (Smart Fill applied, Sign-in submitted, News card clicked, etc.) instead of ambient telemetry like web-vitals and generic nav clicks. Event names also render as human-readable labels.",
       "commit": "pending"
+    },
+    {
+      "version": "2.176.2",
+      "date": "2026-06-13",
+      "type": "improvement",
+      "summary": "Track two new feature-usage signals — every click on a match card to open match detail, and every switch between the Leaderboard's Standings / The Race / Insights tabs. Both will surface in the admin Site Pulse \"Top events\" widget as data accumulates.",
+      "commit": "pending"
     }
   ]
 }

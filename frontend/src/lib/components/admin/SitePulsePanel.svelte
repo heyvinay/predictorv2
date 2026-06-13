@@ -102,7 +102,10 @@
 		entry_unlocked: 'Entry unlocked',
 		prediction_saved: 'Prediction saved',
 		// V4 surfaces
-		dashboard_view: 'Dashboard viewed'
+		dashboard_view: 'Dashboard viewed',
+		// v2.176.2 — feature-usage signals
+		match_detail_opened: 'Match detail opened',
+		leaderboard_view_changed: 'Leaderboard view switched'
 	};
 
 	function eventLabel(raw: string): string {

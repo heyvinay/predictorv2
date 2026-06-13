@@ -22,6 +22,7 @@
 	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import { downloadAllEntriesCsv } from '$api/export';
+	import { track } from '$lib/analytics';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
@@ -62,6 +63,9 @@
 		if (p === 'All' || p === 'Atlas' || p === 'JMFA' || p === 'Guests') pool = p;
 	}
 	function setView(v: LbView) {
+		// Skip the telemetry when the user clicks the already-active tab —
+		// adds noise without information.
+		if (v !== view) track('leaderboard_view_changed', { view: v, from: view });
 		view = v;
 		if (browser) localStorage.setItem(VIEW_KEY, v);
 	}
