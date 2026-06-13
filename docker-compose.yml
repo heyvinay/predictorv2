@@ -39,6 +39,12 @@ services:
       - TOURNAMENT_CONFIG_PATH=/app/config/worldcup2026.yml
       - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
+      # Read-side PostHog (v2.176.0): Personal API key + project id for
+      # HogQL queries powering the Site Pulse panel and per-user
+      # engagement card. Empty → posthog_read._config() returns None and
+      # every helper silent-fails to an empty result.
+      - POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY:-}
+      - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID:-}
       # The Odds API key for Smart Fill — Betting Odds method (plan §9).
       # Same env var name as the frontend services historically used; now
       # consumed server-side because the cache is shared at /app/data/odds_cache.json.
