@@ -252,6 +252,44 @@ async def query_audit_events(
     return rows, int(total or 0)
 
 
+async def get_recent_logins(
+    session: AsyncSession,
+    limit: int = 20,
+) -> list[tuple[UUID, str | None, datetime]]:
+    """Most recent successful logins across the WHOLE pool.
+
+    Returns ``[(user_id, name, login_at)]`` ordered newest first. Used
+    by the Site Pulse panel — answers "who's been around lately?" with
+    no per-user drilldown required. v2.176.0.
+
+    Joins to User so the panel doesn't need a second hop. ``name`` is
+    nullable (a user can have logged in before completing onboarding,
+    though it's rare); callers should fall back to email-prefix or "—".
+
+    ``aware_utc()`` defends against aiosqlite tzinfo strip in tests.
+    """
+    from app.models.user import User as UserModel  # local: avoid cycles
+
+    stmt = (
+        select(
+            AuditEvent.actor_user_id,
+            UserModel.name,
+            AuditEvent.created_at,
+        )
+        .join(UserModel, UserModel.id == AuditEvent.actor_user_id)
+        .where(AuditEvent.event_type == "auth.login_succeeded")
+        .where(AuditEvent.actor_user_id.is_not(None))
+        .order_by(AuditEvent.created_at.desc())
+        .limit(int(limit))
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        (uid, name, aware_utc(ts))
+        for uid, name, ts in rows
+        if uid is not None
+    ]
+
+
 async def last_login_for_users(
     session: AsyncSession,
     user_ids: list[UUID],

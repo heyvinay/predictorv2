@@ -38,12 +38,14 @@ from app.schemas.admin import (
     BroadcastTestResult,
     EngagementSummary,
     FixtureMini,
+    SitePulse,
     UserAdminPage,
     UserCohort,
     UserDetailRead,
 )
 from app.services import entries as entries_service
 from app.services import posthog_read
+from app.services import pulse as pulse_service
 from app.services.audit import query_audit_events, record_audit_event
 from app.services.bonus import (
     compute_bonus_answers_for_competition,
@@ -1241,6 +1243,30 @@ async def get_admin_entry_predictions(
         bracket=bracket,
         bonus_answers=bonus_answers,
     )
+
+
+# ============================================================================
+# v2.176.0 — Site Pulse endpoint
+# ============================================================================
+# At-a-glance engagement panel for the /admin Overview tab. Reads
+# PostHog (silent-fail) + audit_events (DB). Admin-only.
+
+
+@router.get("/pulse", response_model=SitePulse)
+async def get_pulse(
+    session: DbSession,
+    _admin: AdminUser,
+) -> SitePulse:
+    """Site Pulse — 4 widgets in one shot.
+
+    PostHog-backed widgets (DAU sparkline, Top pages, Top events)
+    silent-fail to empty lists when PostHog is unreachable. The
+    audit-backed widget (Recent logins) always loads.
+
+    No caching at this layer — the PostHog helpers cache internally
+    at 5-minute TTL, so repeated admin reloads are cheap.
+    """
+    return await pulse_service.get_site_pulse(session)
 
 
 # ============================================================================

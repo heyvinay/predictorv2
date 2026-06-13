@@ -345,3 +345,56 @@ class BroadcastSendResult(BaseModel):
     sent: int
     failed: int
     sample_emails: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Site Pulse (v2.176.0) — at-a-glance engagement panel for /admin
+# ---------------------------------------------------------------------------
+class DauPoint(BaseModel):
+    """One bar of the 14-day DAU sparkline."""
+
+    date: str  # ISO YYYY-MM-DD
+    count: int
+
+
+class PageTrend(BaseModel):
+    """One row in the Top 5 pages widget with rolling 7-day delta.
+
+    Frontend derives the delta indicator (↑/↓/→/new/gone) from the
+    two counts — keeps the rendering logic visible alongside the
+    rest of the panel.
+    """
+
+    path: str
+    current_7d: int
+    prior_7d: int
+
+
+class EventTrend(BaseModel):
+    """One row in the Top 5 events widget with rolling 7-day delta."""
+
+    event_name: str
+    current_7d: int
+    prior_7d: int
+
+
+class RecentLogin(BaseModel):
+    """One row in the Last 20 logins widget."""
+
+    user_id: uuid.UUID
+    name: str
+    login_at: datetime
+
+
+class SitePulse(BaseModel):
+    """Aggregate response for `GET /admin/pulse` — four widgets in one shot.
+
+    PostHog widgets can be empty independently of the audit widget —
+    a PostHog outage shows `[]` for pages/events/sparkline while
+    `recent_logins` still loads.
+    """
+
+    dau_sparkline: list[DauPoint]
+    top_pages: list[PageTrend]
+    top_events: list[EventTrend]
+    recent_logins: list[RecentLogin]
