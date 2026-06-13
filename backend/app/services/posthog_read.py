@@ -275,12 +275,20 @@ async def get_engagement_summary(
     if _config() is None:
         return None
 
+    # HogQL note (v2.176.3): PostHog stores `$session_duration` as a
+    # String property; `avg()` rejects String columns with HTTP 400 —
+    # "Illegal type String of argument for aggregate function avg".
+    # Wrapping with `toFloat()` parses each value and returns NULL on
+    # failure, which `avg()` excludes from the mean. Without this
+    # coercion the entire summary query fails and the per-user
+    # engagement card silently shows the "PostHog not configured"
+    # placeholder, masking the real cause.
     summary_query = (
         f"SELECT "
         f"max(timestamp) AS last_seen, "
         f"argMax(properties.$current_url, timestamp) AS last_url, "
         f"count(DISTINCT properties.$session_id) AS session_count, "
-        f"avg(properties.$session_duration) AS avg_session_seconds "
+        f"avg(toFloat(properties.$session_duration)) AS avg_session_seconds "
         f"FROM events "
         f"WHERE event = '$pageview' "
         f"AND distinct_id = '{user_id}' "

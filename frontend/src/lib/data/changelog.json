@@ -2242,6 +2242,13 @@
       "type": "improvement",
       "summary": "Track two new feature-usage signals — every click on a match card to open match detail, and every switch between the Leaderboard's Standings / The Race / Insights tabs. Both will surface in the admin Site Pulse \"Top events\" widget as data accumulates.",
       "commit": "pending"
+    },
+    {
+      "version": "2.176.3",
+      "date": "2026-06-14",
+      "type": "fix",
+      "summary": "Per-user Engagement card on /admin/users/[id] now populates with PostHog data — it was silently falling back to the \"PostHog not configured\" placeholder because of a latent type-coercion bug in the summary HogQL query, exposed when we wired PostHog read access in v2.176.x.",
+      "commit": "pending"
     }
   ]
 }
