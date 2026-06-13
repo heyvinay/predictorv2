@@ -1,5 +1,6 @@
 """FastAPI dependencies for auth and database."""
 
+import logging
 from datetime import timedelta
 from typing import Annotated
 
@@ -15,6 +16,8 @@ from app.database import get_session
 from app.models._datetime import aware_utc, utc_now
 from app.models.user import User
 from app.schemas.auth import TokenPayload
+
+logger = logging.getLogger(__name__)
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -83,13 +86,32 @@ async def get_current_user(
     # Throttled last_seen_at write — feeds the engagement signal for
     # broadcast cohorts (Pool Ghost / Lapsing) and the Site Pulse panel.
     # Skipped on >99% of requests in steady state.
+    #
+    # SAFETY: this is engagement tracking, NOT critical auth. ANY failure
+    # (commit error, transient DB blip, concurrent transaction conflict)
+    # MUST NOT propagate — the user's request would 500 for a tracking
+    # write that's purely for analytics. Wrap in try/except, log at
+    # WARNING, and continue serving the request.
+    #
     # aware_utc() is defensive — aiosqlite strips tzinfo on read, which
     # would make the comparison silently misclassify in tests.
-    now = utc_now()
-    last_seen = aware_utc(user.last_seen_at)
-    if last_seen is None or (now - last_seen).total_seconds() > LAST_SEEN_THROTTLE_S:
-        user.last_seen_at = now
-        await session.commit()
+    try:
+        now = utc_now()
+        last_seen = aware_utc(user.last_seen_at)
+        if last_seen is None or (now - last_seen).total_seconds() > LAST_SEEN_THROTTLE_S:
+            user.last_seen_at = now
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001 — explicit silent degradation
+        # Roll back the session so the failed write doesn't poison the
+        # rest of the request handler's transaction.
+        try:
+            await session.rollback()
+        except Exception:  # noqa: BLE001 — best-effort cleanup
+            pass
+        logger.warning(
+            "last_seen_at update failed (non-fatal, request continues): %s",
+            exc,
+        )
 
     return user
 
