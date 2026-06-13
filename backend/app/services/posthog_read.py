@@ -495,6 +495,15 @@ async def get_top_events_7d(limit: int = 5) -> list[EventTrendRaw]:
     if cached is not None:
         return cached
 
+    # Exclusion list = ambient telemetry that drowns out real behaviour.
+    # See docs/superpowers/specs/2026-06-13-site-pulse-panel-design.md
+    # for the rationale. The goal of this widget is "what are people
+    # DOING?" — performance signals (web_vitals), pageview duplicates
+    # (page_viewed), generic nav (nav_clicked, destination lives in
+    # properties), and PostHog-internal events all belong elsewhere.
+    # $rageclick is a real signal but dominates this widget when
+    # included; it gets surfaced separately in a future iteration if
+    # needed.
     query = (
         "SELECT event, "
         "countIf(timestamp >= now() - INTERVAL 7 DAY) AS current_7d, "
@@ -502,8 +511,12 @@ async def get_top_events_7d(limit: int = 5) -> list[EventTrendRaw]:
         "        AND timestamp <  now() - INTERVAL 7 DAY) AS prior_7d "
         "FROM events "
         "WHERE timestamp >= now() - INTERVAL 14 DAY "
-        "AND event NOT IN ('$pageview', '$autocapture', '$identify', "
-        "                  '$pageleave', '$feature_flag_called') "
+        "AND event NOT IN ("
+        "  '$pageview', '$autocapture', '$identify', "
+        "  '$pageleave', '$feature_flag_called', "
+        "  '$web_vitals', '$rageclick', '$exception', '$dead_click', "
+        "  'page_viewed', 'nav_clicked'"
+        ") "
         f"GROUP BY event ORDER BY current_7d DESC LIMIT {int(limit)}"
     )
     rows = await _hogql(query)

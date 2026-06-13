@@ -2228,6 +2228,13 @@
       "type": "feature",
       "summary": "Two new admin nudge cohorts — \"Wake up Pool Ghosts\" emails everyone who hasn't been on the site since kickoff, and \"Pull back lapsing players\" catches anyone who's slipped to 3-7 days dormant. Plus a new \"Site Pulse\" panel at the top of /admin showing daily active users, top pages and events with week-over-week trend, and the last 20 logins.",
       "commit": "pending"
+    },
+    {
+      "version": "2.176.1",
+      "date": "2026-06-13",
+      "type": "improvement",
+      "summary": "Site Pulse \"Top events\" now shows actual user behaviours (Smart Fill applied, Sign-in submitted, News card clicked, etc.) instead of ambient telemetry like web-vitals and generic nav clicks. Event names also render as human-readable labels.",
+      "commit": "pending"
     }
   ]
 }

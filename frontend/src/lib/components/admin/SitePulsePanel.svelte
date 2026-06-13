@@ -73,6 +73,42 @@
 			: { kind: 'down', label: `↓ ${delta}`, color: 'text-warning-text' };
 	}
 
+	// ── Event-name friendly labels (Top Events widget) ─────────────────
+	// Maps cryptic event names (smartfill_applied) to human-readable
+	// labels (Smart Fill applied). Unknown events fall back to the raw
+	// name so newly-added events still render even before this map is
+	// updated.
+	const EVENT_LABELS: Record<string, string> = {
+		// Landing-page funnel
+		landing_view: 'Landing page view',
+		section_viewed: 'Landing section viewed',
+		cta_clicked: 'CTA button clicked',
+		news_card_clicked: 'News card clicked',
+		rules_link_clicked: 'Rules link clicked',
+		countdown_phase: 'Countdown phase shift',
+		// Sign-in flow
+		signin_email_focused: 'Sign-in email focused',
+		signin_email_submitted: 'Sign-in email submitted',
+		signin_google_clicked: 'Google sign-in clicked',
+		signin_abandoned: 'Sign-in abandoned',
+		user_signed_in: 'Signed in',
+		user_onboarded: 'Completed onboarding',
+		// Smart Fill
+		smartfill_opened: 'Smart Fill opened',
+		smartfill_applied: 'Smart Fill applied',
+		// Entry lifecycle
+		entry_created: 'Entry created',
+		entry_submitted: 'Entry submitted',
+		entry_unlocked: 'Entry unlocked',
+		prediction_saved: 'Prediction saved',
+		// V4 surfaces
+		dashboard_view: 'Dashboard viewed'
+	};
+
+	function eventLabel(raw: string): string {
+		return EVENT_LABELS[raw] ?? raw;
+	}
+
 	// ── Relative time formatter for the Recent Logins widget ───────────
 	function relativeTime(iso: string): string {
 		const ts = new Date(iso).getTime();
@@ -175,7 +211,7 @@
 							{#each pulse.top_events as e (e.event_name)}
 								{@const trend = trendIndicator(e.current_7d, e.prior_7d)}
 								<li class="flex items-center justify-between gap-3 text-sm">
-									<span class="font-mono text-xs truncate flex-1" title={e.event_name}>{e.event_name}</span>
+									<span class="truncate flex-1" title={e.event_name}>{eventLabel(e.event_name)}</span>
 									<span class="font-display font-bold text-sm tabular-nums">{e.current_7d}</span>
 									<span class="font-mono text-[11px] {trend.color} w-16 text-right">{trend.label}</span>
 								</li>
