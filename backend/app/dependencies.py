@@ -10,9 +10,9 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.config import get_settings
+from app.config import LAST_SEEN_THROTTLE_S, get_settings
 from app.database import get_session
-from app.models._datetime import utc_now
+from app.models._datetime import aware_utc, utc_now
 from app.models.user import User
 from app.schemas.auth import TokenPayload
 
@@ -79,6 +79,17 @@ async def get_current_user(
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
+
+    # Throttled last_seen_at write — feeds the engagement signal for
+    # broadcast cohorts (Pool Ghost / Lapsing) and the Site Pulse panel.
+    # Skipped on >99% of requests in steady state.
+    # aware_utc() is defensive — aiosqlite strips tzinfo on read, which
+    # would make the comparison silently misclassify in tests.
+    now = utc_now()
+    last_seen = aware_utc(user.last_seen_at)
+    if last_seen is None or (now - last_seen).total_seconds() > LAST_SEEN_THROTTLE_S:
+        user.last_seen_at = now
+        await session.commit()
 
     return user
 

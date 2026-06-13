@@ -1,6 +1,7 @@
 """Application configuration and settings."""
 
 import json
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,26 @@ from typing import Any
 import yaml
 from pydantic import PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# ---------------------------------------------------------------------------
+# Tournament + engagement-cohort constants (v2.176.0)
+# ---------------------------------------------------------------------------
+# Tournament kickoff anchor — World Cup 2026. 21:00 Malta CEST = 19:00 UTC.
+# Used by the broadcast-cohort engagement signal to identify Pool Ghost
+# (users with no engagement since this timestamp) and to bound Lapsing-
+# window comparisons.
+TOURNAMENT_START: datetime = datetime(2026, 6, 11, 19, 0, 0, tzinfo=timezone.utc)
+
+# Lapsing-cohort window — rolling, in days.
+LAPSING_FRESH_DAYS: int = 3   # ≤ this many days since last activity → not lapsing
+LAPSING_STALE_DAYS: int = 7   # > this many days → graduates to Pool Ghost
+
+# Throttle for the User.last_seen_at write in get_current_user. The dep
+# only fires the UPDATE if the column is older than this. At ~100 users
+# with 5-minute throttling the write rate is ~10-100/day — invisible
+# against the existing background load.
+LAST_SEEN_THROTTLE_S: int = 5 * 60
 
 
 class Settings(BaseSettings):

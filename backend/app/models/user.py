@@ -70,6 +70,13 @@ class User(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=utc_now, sa_column=utc_datetime_column())
     updated_at: datetime = Field(default_factory=utc_now, sa_column=utc_datetime_column())
+    # Engagement signal — updated by the get_current_user dependency on
+    # each authenticated request, throttled to once per LAST_SEEN_THROTTLE_S
+    # (config). Nullable for never-seen users; backfill migration seeds it
+    # from MAX(audit_events.created_at) ∪ User.created_at. v2.176.0.
+    last_seen_at: datetime | None = Field(
+        default=None, sa_column=utc_datetime_column(nullable=True)
+    )
 
     # Relationships
     competition: Optional["Competition"] = Relationship(back_populates="users")
