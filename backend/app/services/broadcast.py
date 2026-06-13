@@ -59,7 +59,15 @@ from app.models._datetime import utc_now
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.prediction import PredictionPhase
 from app.models.user import User
-from app.services import posthog_read
+
+# NOTE: posthog_read is imported lazily inside _build_engagement_input
+# to break a circular dependency:
+#   schemas/admin.py imports BroadcastSegment from this module
+#   posthog_read.py imports EngagementSummary from schemas/admin.py
+# A top-level `from app.services import posthog_read` here would close
+# the loop and crash the backend at startup with a partial-init
+# ImportError. The lazy import inside the one async function that needs
+# it sidesteps the cycle entirely.
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +137,9 @@ async def _build_engagement_input() -> EngagementInput:
     # subtract LAPSING_STALE_DAYS + a small safety margin, and clamp
     # so we never query before TOURNAMENT_START - 14 days (which is
     # enough headroom for the "since kickoff" Pool Ghost rule too).
+    # Lazy import — see module-top NOTE for the circular-import reason.
+    from app.services import posthog_read
+
     lookback = utc_now() - timedelta(days=LAPSING_STALE_DAYS + 7)
     cutoff = min(lookback, TOURNAMENT_START - timedelta(days=1))
     try:
