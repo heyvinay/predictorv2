@@ -274,12 +274,14 @@ class AdminEntryPredictions(BaseModel):
 # Broadcast emails (v2.160.0)
 # ---------------------------------------------------------------------------
 class BroadcastAudienceCounts(BaseModel):
-    """Live count for each of the three segments — feeds the badges on
-    the broadcast card."""
+    """Live count for each of the five segments — feeds the badges on
+    the broadcast card. v2.176.0: pool_ghost and lapsing added."""
 
     submitters: int
     no_entry: int
     draft_holders: int
+    pool_ghost: int       # NEW v2.176.0
+    lapsing: int          # NEW v2.176.0
 
 
 class BroadcastTestRequest(BaseModel):

@@ -31,13 +31,40 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
 
 from app.config import get_settings
+from app.models._datetime import aware_utc
 from app.schemas.admin import EngagementSummary, RecentSeen
+
+
+# Site Pulse / engagement-signal data shapes (v2.176.0). These are
+# returned by the helpers added at the bottom of this module — kept as
+# dataclasses (not Pydantic) because they live entirely inside the
+# service layer; the API layer converts to Pydantic at the boundary.
+@dataclass(frozen=True)
+class DauPointRaw:
+    date: str
+    count: int
+
+
+@dataclass(frozen=True)
+class PageTrendRaw:
+    path: str
+    current_7d: int
+    prior_7d: int
+
+
+@dataclass(frozen=True)
+class EventTrendRaw:
+    event_name: str
+    current_7d: int
+    prior_7d: int
 
 logger = logging.getLogger(__name__)
 
@@ -319,3 +346,180 @@ async def get_engagement_summary(
     )
     _cache_set(cache_key, result)
     return result
+
+
+# ---------------------------------------------------------------------------
+# v2.176.0 — broadcast-cohort engagement signal + Site Pulse helpers
+# ---------------------------------------------------------------------------
+# All four helpers below follow the same silent-failure contract: any
+# failure (PostHog disabled, network error, malformed response, partial
+# rows) returns an empty result (``{}`` / ``[]``) so the caller can
+# degrade gracefully. They MUST NOT raise into the request path.
+async def get_last_pageview_for_users_since(
+    cutoff: datetime,
+) -> dict[UUID, datetime]:
+    """Return MAX($pageview.timestamp) per distinct_id since cutoff.
+
+    Used by the broadcast Pool Ghost / Lapsing cohorts as the
+    fallback engagement signal (B in the A+B hybrid — primary is
+    User.last_seen_at). Empty dict on any failure: PostHog disabled,
+    network error, malformed JSON, etc. Caller MUST tolerate empty
+    result and degrade to column-only (predicate factory pattern).
+    """
+    if _config() is None:
+        return {}
+
+    cache_key = f"pageview_since:{cutoff.isoformat()}"
+    cached = _cache_get(cache_key, BATCH_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        f"SELECT distinct_id, max(timestamp) AS last_seen "
+        f"FROM events "
+        f"WHERE event = '$pageview' "
+        f"AND timestamp >= '{cutoff.isoformat()}' "
+        f"GROUP BY distinct_id"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return {}
+
+    out: dict[UUID, datetime] = {}
+    for row in rows:
+        try:
+            uid = UUID(str(row[0]))
+            ts = aware_utc(row[1])
+            if ts is not None:
+                out[uid] = ts
+        except (ValueError, IndexError, TypeError) as exc:
+            logger.warning("Skipping malformed PostHog row %r: %s", row, exc)
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_dau_sparkline_14d() -> list[DauPointRaw]:
+    """14 daily DAU counts, oldest → newest. Zero-filled.
+
+    Used by the Site Pulse panel. Returns ``[]`` on any failure so the
+    panel renders a placeholder instead of an error.
+    """
+    if _config() is None:
+        return []
+
+    cache_key = "dau_sparkline_14d"
+    cached = _cache_get(cache_key, BATCH_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        "SELECT toDate(timestamp) AS day, "
+        "count(DISTINCT distinct_id) AS dau "
+        "FROM events "
+        "WHERE event = '$pageview' "
+        "AND timestamp >= now() - INTERVAL 14 DAY "
+        "GROUP BY day ORDER BY day"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[DauPointRaw] = []
+    for row in rows:
+        try:
+            out.append(DauPointRaw(date=str(row[0]), count=int(row[1] or 0)))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_top_pages_7d(limit: int = 5) -> list[PageTrendRaw]:
+    """Top pages by 7-day pageview count + prior 7d for week-over-week trend.
+
+    Used by the Site Pulse panel. Returns ``[]`` on any failure.
+    """
+    if _config() is None:
+        return []
+
+    cache_key = f"top_pages_7d:{limit}"
+    cached = _cache_get(cache_key, BATCH_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        "SELECT properties.$pathname AS path, "
+        "countIf(timestamp >= now() - INTERVAL 7 DAY) AS current_7d, "
+        "countIf(timestamp >= now() - INTERVAL 14 DAY "
+        "        AND timestamp <  now() - INTERVAL 7 DAY) AS prior_7d "
+        "FROM events "
+        "WHERE event = '$pageview' "
+        "AND timestamp >= now() - INTERVAL 14 DAY "
+        f"GROUP BY path ORDER BY current_7d DESC LIMIT {int(limit)}"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[PageTrendRaw] = []
+    for row in rows:
+        try:
+            path = str(row[0]) if row[0] is not None else "(unknown)"
+            out.append(PageTrendRaw(
+                path=path,
+                current_7d=int(row[1] or 0),
+                prior_7d=int(row[2] or 0),
+            ))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_top_events_7d(limit: int = 5) -> list[EventTrendRaw]:
+    """Top custom events by 7-day count + prior 7d for week-over-week trend.
+
+    Excludes PostHog's internal events ($pageview, $autocapture, $identify)
+    so the list shows only the events the app explicitly captures via
+    the analytics wrapper. Returns ``[]`` on any failure.
+    """
+    if _config() is None:
+        return []
+
+    cache_key = f"top_events_7d:{limit}"
+    cached = _cache_get(cache_key, BATCH_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        "SELECT event, "
+        "countIf(timestamp >= now() - INTERVAL 7 DAY) AS current_7d, "
+        "countIf(timestamp >= now() - INTERVAL 14 DAY "
+        "        AND timestamp <  now() - INTERVAL 7 DAY) AS prior_7d "
+        "FROM events "
+        "WHERE timestamp >= now() - INTERVAL 14 DAY "
+        "AND event NOT IN ('$pageview', '$autocapture', '$identify', "
+        "                  '$pageleave', '$feature_flag_called') "
+        f"GROUP BY event ORDER BY current_7d DESC LIMIT {int(limit)}"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[EventTrendRaw] = []
+    for row in rows:
+        try:
+            out.append(EventTrendRaw(
+                event_name=str(row[0]) if row[0] is not None else "(unknown)",
+                current_7d=int(row[1] or 0),
+                prior_7d=int(row[2] or 0),
+            ))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out

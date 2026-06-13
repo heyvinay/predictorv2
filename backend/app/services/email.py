@@ -1077,6 +1077,81 @@ def _broadcast_content_for_segment(
             cta_label="Submit my picks",
         )
 
+    if segment == BroadcastSegment.POOL_GHOST:
+        # v2.176.0 — re-engagement nudge for users who submitted an
+        # eligible entry pre-deadline but haven't returned to the site
+        # since the tournament kicked off. Friendly, not accusatory:
+        # the cohort definition has a small false-positive rate (a
+        # holidaying user with persistent session) and the copy keeps
+        # that recoverable.
+        return _BroadcastContent(
+            subject="Atlas World Cup 2026 Pools | Your picks are still alive",
+            headline="Your World Cup picks are still alive.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, the tournament kicked off and your entry "
+                "is in the pool — but we haven't seen you back on the site "
+                "since the deadline.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Group-stage matches are playing out daily and the leaderboard "
+                "is already shifting. Come take a look at how your picks are "
+                "doing.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "Already been back recently? You can safely ignore this — "
+                "this nudge sometimes catches users with browser blockers.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, the tournament kicked off and your entry\n"
+                "is in the pool — but we haven't seen you back on the site\n"
+                "since the deadline.\n"
+                "\n"
+                "Group-stage matches are playing out daily and the leaderboard\n"
+                "is already shifting. Come take a look at how your picks are\n"
+                "doing.\n"
+                "\n"
+                "Already been back recently? You can safely ignore this —\n"
+                "this nudge sometimes catches users with browser blockers.\n"
+            ),
+            cta_label="See how I'm doing",
+        )
+
+    if segment == BroadcastSegment.LAPSING:
+        # v2.176.0 — soft mid-tournament nudge for users who were
+        # engaged early but haven't visited in 3-7 days. The copy
+        # doesn't personalise the rank (the broadcast loop fires one
+        # email per recipient with the same body) — leaderboard
+        # personalisation is a future enhancement.
+        return _BroadcastContent(
+            subject="Atlas World Cup 2026 Pools | Don't lose your edge",
+            headline="Don't lose your edge — matchday is coming up.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, you haven't been around for a few days "
+                "and the tournament is heating up.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The leaderboard has been moving — come check where you "
+                "stand and see how your picks are playing out.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "Stay sharp.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, you haven't been around for a few days\n"
+                "and the tournament is heating up.\n"
+                "\n"
+                "The leaderboard has been moving — come check where you\n"
+                "stand and see how your picks are playing out.\n"
+                "\n"
+                "Stay sharp.\n"
+            ),
+            cta_label="See the latest results",
+        )
+
     raise ValueError(f"Unknown segment: {segment!r}")
 
 

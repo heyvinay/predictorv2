@@ -1273,6 +1273,20 @@ async def _active_competition(session) -> Competition | None:
     ).scalar_one_or_none()
 
 
+def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
+    """CTA destination for each broadcast segment.
+
+    Pre-deadline segments (SUBMITTERS / NO_ENTRY / DRAFT_HOLDERS) go to
+    /entries — they need to land on the wizard to add / submit picks.
+    POOL_GHOST and LAPSING are post-deadline re-engagement — they go to
+    /results so the recipient lands directly on the scoreboard. v2.176.0.
+    """
+    base = frontend_url.rstrip("/")
+    if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
+        return f"{base}/results"
+    return f"{base}/entries"
+
+
 @router.get("/broadcasts/audience", response_model=BroadcastAudienceCounts)
 async def get_broadcast_audience(
     session: DbSession,
@@ -1289,6 +1303,8 @@ async def get_broadcast_audience(
         submitters=counts[BroadcastSegment.SUBMITTERS],
         no_entry=counts[BroadcastSegment.NO_ENTRY],
         draft_holders=counts[BroadcastSegment.DRAFT_HOLDERS],
+        pool_ghost=counts[BroadcastSegment.POOL_GHOST],
+        lapsing=counts[BroadcastSegment.LAPSING],
     )
 
 
@@ -1311,7 +1327,7 @@ async def send_broadcast_test(
     """
     to_email = payload.to_email or admin.email
     settings = get_settings()
-    deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
+    deep_link_url = _deep_link_for_segment(settings.frontend_url, payload.segment)
 
     comp = await _active_competition(session)
     deadline_dt = comp.phase1_deadline if comp else None
@@ -1368,7 +1384,7 @@ async def send_broadcast(
 
     # Real send — iterate with pacing.
     settings = get_settings()
-    deep_link_url = f"{settings.frontend_url.rstrip('/')}/entries"
+    deep_link_url = _deep_link_for_segment(settings.frontend_url, payload.segment)
 
     comp = await _active_competition(session)
     deadline_dt = comp.phase1_deadline if comp else None
