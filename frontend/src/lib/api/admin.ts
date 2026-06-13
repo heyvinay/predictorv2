@@ -563,14 +563,22 @@ export interface AdminEntryFiltersV2 extends AdminEntryFilters {
 // Broadcast emails (v2.160.0)
 // ---------------------------------------------------------------------------
 
-/** Mirrors the backend `BroadcastSegment` enum. */
-export type BroadcastSegment = 'submitters' | 'no_entry' | 'draft_holders';
+/** Mirrors the backend `BroadcastSegment` enum.
+ *  v2.176.0 — added `pool_ghost` and `lapsing` cohorts. */
+export type BroadcastSegment =
+	| 'submitters'
+	| 'no_entry'
+	| 'draft_holders'
+	| 'pool_ghost'
+	| 'lapsing';
 
 /** Live counts feed the badges on the broadcast card. */
 export interface BroadcastAudienceCounts {
 	submitters: number;
 	no_entry: number;
 	draft_holders: number;
+	pool_ghost: number;     // NEW v2.176.0
+	lapsing: number;        // NEW v2.176.0
 }
 
 /** Result of a single-recipient test send. */
@@ -617,6 +625,50 @@ export async function sendBroadcast(
 		segment,
 		dry_run: dryRun
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Site Pulse (v2.176.0) — /admin Overview "Site Pulse" panel
+// ---------------------------------------------------------------------------
+
+/** One bar of the 14-day DAU sparkline. `date` is ISO YYYY-MM-DD. */
+export interface DauPoint {
+	date: string;
+	count: number;
+}
+
+/** One Top-5 pages row. Frontend derives the trend indicator from the
+ *  two counts. */
+export interface PageTrend {
+	path: string;
+	current_7d: number;
+	prior_7d: number;
+}
+
+/** One Top-5 events row. */
+export interface EventTrend {
+	event_name: string;
+	current_7d: number;
+	prior_7d: number;
+}
+
+/** One Recent-Logins row. */
+export interface RecentLogin {
+	user_id: string;
+	name: string;
+	login_at: string;       // ISO timestamp
+}
+
+/** Aggregate /admin/pulse response — four widgets in one shot. */
+export interface SitePulse {
+	dau_sparkline: DauPoint[];
+	top_pages: PageTrend[];
+	top_events: EventTrend[];
+	recent_logins: RecentLogin[];
+}
+
+export async function getSitePulse(): Promise<SitePulse> {
+	return api.get<SitePulse>('/admin/pulse');
 }
 
 // --- Entry completeness check (E.1, v2.163.0) ---

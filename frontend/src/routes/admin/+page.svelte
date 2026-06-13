@@ -50,6 +50,7 @@
 		type BroadcastSendResult
 	} from '$lib/api/admin';
 	import type { EntrySettings } from '$lib/types/entry';
+	import SitePulsePanel from '$lib/components/admin/SitePulsePanel.svelte';
 
 	// ─── Stats / competition state ─────────────────────────────────────────
 	let stats: AdminStats | null = null;
@@ -242,10 +243,27 @@
 			title: 'Push draft holders to submit',
 			description:
 				"Players with at least one draft entry but no submitted entries. Reminds them drafts don't count toward scoring."
+		},
+		// v2.176.0 — re-engagement cohorts during the live tournament.
+		pool_ghost: {
+			title: 'Wake up Pool Ghosts',
+			description:
+				"Players who submitted an entry but haven't been on the site since the tournament started. Friendly nudge to come check results. Audience refreshes on page load."
+		},
+		lapsing: {
+			title: 'Pull back lapsing players',
+			description:
+				"Players who were active early but haven't visited in the last 3-7 days. Soft 'matchday is coming up' nudge with leaderboard CTA."
 		}
 	};
 
-	const SEGMENT_ORDER: Segment[] = ['submitters', 'no_entry', 'draft_holders'];
+	const SEGMENT_ORDER: Segment[] = [
+		'submitters',
+		'no_entry',
+		'draft_holders',
+		'pool_ghost',
+		'lapsing'
+	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;
 	let countsLoading = false;
@@ -464,6 +482,12 @@
 				<button class="btn btn-sm btn-ghost" on:click={loadData}>Retry</button>
 			</div>
 		{:else}
+			<!-- Site Pulse panel (v2.176.0) — at-a-glance engagement.
+			     Mounted FIRST: 4 widgets (DAU sparkline, top pages w/ trend,
+			     top events w/ trend, recent logins). PostHog widgets silent-
+			     fail if PostHog is down. -->
+			<SitePulsePanel />
+
 			<!-- Stats: Users · Entries · Prize money (v2.160.0).
 			     Fixtures + Live moved off the Overview — Fixtures live on
 			     /admin/sync; live match counts haven't proven useful on
@@ -808,7 +832,7 @@
 				<h2 class="text-lg font-display tracking-wide mb-3">
 					Broadcast Emails
 					<span class="text-xs text-base-content/40">
-						· three audience segments · Resend
+						· five audience segments · Resend
 					</span>
 				</h2>
 				{#if countsError}
