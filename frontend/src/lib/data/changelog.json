@@ -2249,6 +2249,13 @@
       "type": "fix",
       "summary": "Per-user Engagement card on /admin/users/[id] now populates with PostHog data — it was silently falling back to the \"PostHog not configured\" placeholder because of a latent type-coercion bug in the summary HogQL query, exposed when we wired PostHog read access in v2.176.x.",
       "commit": "pending"
+    },
+    {
+      "version": "2.176.4",
+      "date": "2026-06-15",
+      "type": "fix",
+      "summary": "Security hardening — the backend now refuses to boot in production if the JWT signing secret is missing, too short, or a placeholder. The signing key is the entire trust anchor for sign-in and admin access, so a weak value silently let any token be forged; failing closed at startup makes that impossible.",
+      "commit": "pending"
     }
   ]
 }
