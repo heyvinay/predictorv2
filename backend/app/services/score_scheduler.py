@@ -21,7 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import get_settings
 from app.services.entries import flip_drafts_past_deadline
+from app.services.locking import get_active_competition
 from app.services.score_sync import has_active_or_imminent_match, sync_scores_once
+from app.services.sheets_sync import is_configured as sheets_sync_configured
+from app.services.sheets_sync import sync_to_sheets
 from app.services.snapshots import take_daily_snapshots
 
 
@@ -84,6 +87,29 @@ async def _run_one_tick(session_factory: async_sessionmaker[AsyncSession]) -> No
                 result.synced,
                 result.updated,
             )
+            # A score moved → refresh the published Google Sheet so the
+            # online standings track within one tick. include_predictions
+            # backfills the (frozen) picks tab on the first push of the
+            # process. No-op when sheets sync isn't configured.
+            await _sync_sheets(session)
+
+
+async def _sync_sheets(session: AsyncSession) -> None:
+    """Best-effort Google Sheets push, gated on configuration.
+
+    Wrapped here (not inline) so a sheets failure or a missing active
+    competition can never disturb the score-sync path. sync_to_sheets is
+    itself non-raising; this guard is belt-and-braces for the lookup.
+    """
+    if not sheets_sync_configured():
+        return
+    try:
+        competition = await get_active_competition(session)
+        if competition is None:
+            return
+        await sync_to_sheets(session, competition, include_predictions=True)
+    except Exception:  # noqa: BLE001
+        logger.exception("score_scheduler: sheets sync tick failed")
 
 
 async def run_scheduler_loop(
@@ -96,6 +122,17 @@ async def run_scheduler_loop(
     stop_event = stop_event or asyncio.Event()
 
     logger.info("score_scheduler started (interval=%.1fs)", interval_seconds)
+
+    # Populate the published Google Sheet once at startup so it's current
+    # even outside a match window (the per-tick refresh only fires when a
+    # score moves). Best-effort, never blocks the loop from starting.
+    if sheets_sync_configured():
+        async with session_factory() as session:
+            try:
+                await _sync_sheets(session)
+            except Exception:  # noqa: BLE001
+                logger.exception("score_scheduler: initial sheets sync failed")
+
     try:
         while not stop_event.is_set():
             try:

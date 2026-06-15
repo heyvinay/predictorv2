@@ -16,7 +16,13 @@ integrations: **Football-Data.org** for live match scores
 (`backend/app/services/external/football_data.py`) and **The Odds API** for
 live betting odds (`backend/app/services/odds_cache.py`), the latter
 consumed by the Betting Odds Smart Fill method. Both are unauthenticated
-read-only endpoints from the backend's perspective.
+read-only endpoints from the backend's perspective. A third, **optional**
+integration (v2.177.0) writes *out* to **Google Sheets** via a service
+account (`backend/app/services/sheets_sync.py`) — mirrors the all-entries
+predictions matrix + live standings into a shared read-only sheet,
+pushed from the score scheduler. Dormant unless `GOOGLE_SHEET_ID` +
+`GOOGLE_SERVICE_ACCOUNT_JSON` are set; spec at
+`docs/superpowers/specs/2026-06-15-google-sheets-sync-design.md`.
 
 **Frontend:** SvelteKit + TypeScript, Tailwind + DaisyUI (themes
 `premium-night` default / `hybrid` alternative), `svelte-motion`,

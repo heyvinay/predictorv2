@@ -84,10 +84,16 @@ def _person_name(entry: PredictionEntry) -> str:
     return u.name or u.email.split("@", 1)[0]
 
 
-async def build_all_entries_export(
+async def build_all_entries_rows(
     session: AsyncSession, competition: Competition
-) -> str:
-    """Build the full CSV text (BOM-prefixed) for the active competition.
+) -> list[list[str]]:
+    """Build the full export as a list of rows (one cell per element).
+
+    This is the single source of truth for the all-entries picks layout.
+    ``build_all_entries_export`` serializes these rows to CSV; the Google
+    Sheets sync (``app.services.sheets_sync``) writes the same rows into a
+    worksheet — so the downloadable CSV and the published sheet can never
+    drift apart.
 
     Eligible entries only — SUBMITTED, not disabled, not withdrawn — the
     same predicate scoring pays (``eligible_entry_ids_select``). All
@@ -183,15 +189,14 @@ async def build_all_entries_export(
 
     pad = [""] * LABEL_COLS
 
-    buf = io.StringIO()
-    writer = csv.writer(buf, lineterminator="\n")
+    rows: list[list[str]] = []
 
     # ── preamble — a printed/forwarded copy stays self-describing ──
-    writer.writerow([f"{competition.name} — all entries & predictions"])
-    writer.writerow(["Generated (UTC)", _fmt_dt(utc_now())])
-    writer.writerow(["Deadline (UTC)", _fmt_dt(competition.phase1_deadline)])
-    writer.writerow(["Entries", str(len(entries))])
-    writer.writerow(
+    rows.append([f"{competition.name} — all entries & predictions"])
+    rows.append(["Generated (UTC)", _fmt_dt(utc_now())])
+    rows.append(["Deadline (UTC)", _fmt_dt(competition.phase1_deadline)])
+    rows.append(["Entries", str(len(entries))])
+    rows.append(
         [
             "Knockout rows list each entry's predicted advancing teams "
             "alphabetically — row position carries no meaning."
@@ -201,32 +206,28 @@ async def build_all_entries_export(
     # might be derived from this sheet. The export itself carries picks,
     # not points, but the leaderboard derives from it and people may
     # forward this around as a printed receipt.
-    writer.writerow(
+    rows.append(
         [
             "Standings derived from this sheet are PROVISIONAL — finalized "
             "by manual review after the tournament concludes."
         ]
     )
-    writer.writerow([])
+    rows.append([])
 
     # ── per-entry identity block ──
-    writer.writerow(pad[:-1] + ["Ref"] + [e.reference for e in entries])
-    writer.writerow(pad[:-1] + ["Name"] + [_safe(_person_name(e)) for e in entries])
-    writer.writerow(
-        pad[:-1] + ["Entry"] + [_safe(e.display_name or "") for e in entries]
+    rows.append(pad[:-1] + ["Ref"] + [e.reference for e in entries])
+    rows.append(pad[:-1] + ["Name"] + [_safe(_person_name(e)) for e in entries])
+    rows.append(pad[:-1] + ["Entry"] + [_safe(e.display_name or "") for e in entries])
+    rows.append(
+        pad[:-1] + ["Submitted (UTC)"] + [_fmt_dt(submitted_at(e)) for e in entries]
     )
-    writer.writerow(
-        pad[:-1]
-        + ["Submitted (UTC)"]
-        + [_fmt_dt(submitted_at(e)) for e in entries]
-    )
-    writer.writerow([])
+    rows.append([])
 
     # ── group stage ──
-    writer.writerow(["GROUP STAGE — predicted scores"])
-    writer.writerow(["Date (UTC)", "Group", "Home", "Away"])
+    rows.append(["GROUP STAGE — predicted scores"])
+    rows.append(["Date (UTC)", "Group", "Home", "Away"])
     for f in group_fixtures:
-        writer.writerow(
+        rows.append(
             [
                 _fmt_dt(f.kickoff),
                 f.group or "",
@@ -238,27 +239,44 @@ async def build_all_entries_export(
 
     # ── knockout stages ──
     for stage_key, banner, row_label, quota in KNOCKOUT_SECTIONS:
-        writer.writerow([])
-        writer.writerow([banner])
+        rows.append([])
+        rows.append([banner])
         per_entry = [bracket[e.id].get(stage_key, []) for e in entries]
         # Never drop data: grow past the quota if an entry holds extras.
         n_rows = max([quota] + [len(p) for p in per_entry])
         for i in range(n_rows):
             label = row_label if quota == 1 else f"{row_label} {i + 1}"
-            writer.writerow(
+            rows.append(
                 ["", "", label, ""]
                 + [p[i] if i < len(p) else "" for p in per_entry]
             )
 
     # ── bonus questions ──
     if questions:
-        writer.writerow([])
-        writer.writerow(["BONUS QUESTIONS"])
+        rows.append([])
+        rows.append(["BONUS QUESTIONS"])
         for q in questions:
-            writer.writerow(
+            rows.append(
                 ["", "", q.label, ""]
                 + [_safe(bonus.get((e.id, q.id), "")) for e in entries]
             )
+
+    return rows
+
+
+async def build_all_entries_export(
+    session: AsyncSession, competition: Competition
+) -> str:
+    """Build the full CSV text (BOM-prefixed) for the active competition.
+
+    Thin serializer over ``build_all_entries_rows`` — see that function
+    for the data-loading contract and layout invariants.
+    """
+    rows = await build_all_entries_rows(session, competition)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerows(rows)
 
     # BOM so Excel-on-Windows decodes UTF-8 on double-click (Türkiye,
     # Côte d'Ivoire). Harmless everywhere else.

@@ -2249,6 +2249,13 @@
       "type": "fix",
       "summary": "Per-user Engagement card on /admin/users/[id] now populates with PostHog data — it was silently falling back to the \"PostHog not configured\" placeholder because of a latent type-coercion bug in the summary HogQL query, exposed when we wired PostHog read access in v2.176.x.",
       "commit": "pending"
+    },
+    {
+      "version": "2.177.0",
+      "date": "2026-06-15",
+      "type": "feature",
+      "summary": "Predictions and the live standings can now be mirrored into a shared, read-only Google Sheet — the same data as the all-entries download, with points refreshed automatically after every game. Stays dormant until the Google credentials are configured.",
+      "commit": "pending"
     }
   ]
 }

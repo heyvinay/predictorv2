@@ -86,6 +86,24 @@ class Settings(BaseSettings):
     # Tournament config
     tournament_config_path: str = "config/worldcup2026.yml"
 
+    # Google Sheets sync (v2.177.0 — read-online published sheet).
+    # When both are set the background scheduler mirrors the all-entries
+    # predictions matrix and the live standings into a Google Sheet; the
+    # sheet is shared view-only with the pool while the service account is
+    # the sole writer. Leave either empty → app.services.sheets_sync is a
+    # logged no-op (graceful degradation, same shape as odds_api_key).
+    #
+    # google_sheet_id: the ID from the sheet URL
+    #   (https://docs.google.com/spreadsheets/d/<THIS>/edit).
+    # google_service_account_json: EITHER an absolute path to the service
+    #   account's key file, OR the raw JSON of that key inline (useful for
+    #   single-line env injection). The service account's client_email must
+    #   be granted Editor access to the target sheet.
+    google_sheet_id: str = ""
+    google_service_account_json: str = ""
+    # Kill switch — flip to false to suspend pushes without unsetting creds.
+    sheets_sync_enabled: bool = True
+
     # PostHog analytics — write side (existing).
     posthog_api_key: str = ""
     posthog_host: str = "https://eu.i.posthog.com"
