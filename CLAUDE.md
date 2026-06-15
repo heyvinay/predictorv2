@@ -39,6 +39,26 @@ bind-mounted edit never reaches the running nginx process. The
 force-recreate is a no-op when nginx.conf hasn't changed, so it is
 safe to make permanent in the deploy line if you prefer.
 
+**`JWT_SECRET_KEY` is fail-closed in production (v2.176.4+).** When
+`DEBUG=false`, the Settings validator at
+`backend/app/config.py:_enforce_secret_strength` rejects blank,
+short (<32 chars), or known-placeholder signing keys — the backend
+container refuses to boot rather than start with a forgeable key.
+A fresh env (dev clone, new VPS, staging) MUST set `JWT_SECRET_KEY`
+to a 32+ char random value (or set `DEBUG=true`) before the backend
+will start. Generate one with
+`python3 -c "import secrets; print(secrets.token_urlsafe(48))"`.
+Test coverage in `backend/tests/test_config_secret.py`. Rotating
+the prod secret signs everyone out — pool members just re-request a
+magic link. Before any deploy that adds a fail-closed startup
+check (this validator, future migrations, new required env vars),
+dry-run a throwaway container against the new code on the VPS:
+`docker compose --profile prod run --rm --no-deps backend python -c
+'from app.config import get_settings; get_settings()'`. The live
+container keeps serving traffic during the dry-run; if the
+throwaway crashes, fix `.env` without ever restarting the live
+backend.
+
 ## Layout
 
 ```
