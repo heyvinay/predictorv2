@@ -4,9 +4,12 @@ import os
 import pytest
 from unittest.mock import patch
 
-# Set test environment variables before importing app modules
+# Set test environment variables before importing app modules.
+# DEBUG=true keeps the production-only JWT-secret strength validator
+# (config.Settings._enforce_secret_strength) from rejecting the short test key.
 os.environ["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+os.environ["DEBUG"] = "true"
 
 
 @pytest.fixture

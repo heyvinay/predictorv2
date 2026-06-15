@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=postgresql://predictor:${DATABASE_PASSWORD:-predictor}@db:5432/predictor
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-dev-key-change-in-prod}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?set a strong JWT_SECRET_KEY in .env — see backend/.env.example}
       - DEBUG=${DEBUG:-false}
       - CORS_ORIGINS_STR=${CORS_ORIGINS_STR:-http://localhost:5173,http://localhost:3000}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
