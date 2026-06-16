@@ -37,6 +37,11 @@ env/
 *.swo
 *~
 
+# Secrets (service-account keys, credentials, anything that must never be committed)
+.secrets/
+*.serviceaccount.json
+*-sa.json
+
 # Node
 node_modules/
 npm-debug.log*
