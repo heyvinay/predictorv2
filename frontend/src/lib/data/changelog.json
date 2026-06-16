@@ -2254,7 +2254,7 @@
       "version": "2.177.0",
       "date": "2026-06-15",
       "type": "feature",
-      "summary": "Predictions and the live standings can now be mirrored into a shared, read-only Google Sheet — the same data as the all-entries download, with points refreshed automatically after every game. Stays dormant until the Google credentials are configured.",
+      "summary": "Predictions, live standings, and per-pick results can now be mirrored into a shared, read-only Google Sheet — three tabs (Predictions, Standings, Results), all derived from the same data as the all-entries download and refreshed automatically after every game. Stays dormant until the Google credentials are configured.",
       "commit": "pending"
     }
   ]

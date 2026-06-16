@@ -238,6 +238,37 @@ async def test_sync_writes_standings_and_predictions_once(
 
 
 @pytest.mark.asyncio
+async def test_sync_writes_results_tab_refreshed_every_tick(
+    db_session: AsyncSession, monkeypatch
+):
+    """Results refreshes on every tick (unlike Predictions which is once-per-process)
+    because cells flip as fixtures finish and points pay out.
+    """
+    monkeypatch.setattr(sheets_sync, "get_settings", lambda: _FakeSettings())
+    fake = _FakeSpreadsheet()
+    monkeypatch.setattr(sheets_sync, "_open_spreadsheet", lambda: fake)
+
+    comp = await _make_competition(db_session)
+    await _make_eligible_entry(db_session, comp, 1)
+
+    ok = await sheets_sync.sync_to_sheets(db_session, comp)
+    assert ok is True
+    assert sheets_sync.RESULTS_TAB in fake.tabs
+    first = fake.tabs[sheets_sync.RESULTS_TAB].values
+    assert first is not None
+    assert first[0][0].startswith("World Cup 2026")
+    # Same uniform width as the other tabs.
+    widths = {len(r) for r in first}
+    assert len(widths) == 1
+
+    # Reset and push again — Results re-renders even without include_predictions.
+    fake.tabs[sheets_sync.RESULTS_TAB].values = None
+    ok2 = await sheets_sync.sync_to_sheets(db_session, comp)
+    assert ok2 is True
+    assert fake.tabs[sheets_sync.RESULTS_TAB].values is not None
+
+
+@pytest.mark.asyncio
 async def test_force_predictions_rewrites_even_after_first_push(
     db_session: AsyncSession, monkeypatch
 ):
