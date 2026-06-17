@@ -80,11 +80,12 @@ def _rgb(r: int, g: int, b: int) -> dict[str, float]:
 
 
 # Frozen-row count for the combined Predictions tab: preamble (rows 0-6) +
-# blank (row 7 — actually identity starts at 7) + identity block + blank +
-# super-header + column-header = 14 rows total before group-stage banner.
-# Hard-coded because the builder's preamble is fixed in length; if its shape
-# ever changes, update both sides together.
-_PREDICTIONS_FROZEN_ROWS = 14
+# identity block (rows 7-10) + blank (row 11) + super-header (row 12) = 13
+# rows total before the GROUP STAGE banner. Dropped from 14 → 13 when the
+# column header row (Date|Group|Home|Away|Actual|Pick|Pts|...) was removed
+# per pool-owner feedback. If the builder's preamble shape changes, update
+# both sides together.
+_PREDICTIONS_FROZEN_ROWS = 13
 
 logger = logging.getLogger(__name__)
 
@@ -257,19 +258,14 @@ def _apply_predictions_formatting(
                 "fields": "userEnteredFormat.textFormat",
             }
         },
-        # Super-header row (entry names, row 12)
+        # Super-header row (entry names, row 12) — last frozen row.
+        # The column header row that used to live at row 13 was removed
+        # per pool-owner feedback; the GROUP STAGE banner now follows
+        # directly at row 13 with its own banner styling.
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 12, "endRowIndex": 13},
                 "cell": {"userEnteredFormat": super_header_format},
-                "fields": "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
-            }
-        },
-        # Column header row (Date | Group | ... | Pick | Pts | ..., row 13)
-        {
-            "repeatCell": {
-                "range": {"sheetId": sheet_id, "startRowIndex": 13, "endRowIndex": 14},
-                "cell": {"userEnteredFormat": column_header_format},
                 "fields": "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
             }
         },
@@ -352,9 +348,12 @@ def _apply_predictions_formatting(
             }
         )
 
-    # Horizontal section dividers — full width across labels + all entries.
+    # Horizontal section divider — below the identity block (row 10).
+    # The former column-header divider (was at row 13) was dropped along
+    # with the column-header row itself; the GROUP STAGE banner's own
+    # tan background now visually marks the transition into data.
     total_cols = label_cols + n_entries * 2
-    for divider_row in (10, 13):  # end of identity, end of column header
+    for divider_row in (10,):
         requests.append(
             {
                 "updateBorders": {
@@ -575,14 +574,16 @@ def _apply_standings_formatting(spreadsheet: Any, ws: Any) -> None:
                 "fields": "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
             }
         },
-        # Center-align metric columns (col E onwards = "Group Points" and
-        # everything to its right) on the data rows.
+        # Center-align metric columns (col C onwards = "No of Exact Scores"
+        # and everything to its right) on the data rows. The combined
+        # Name-Entry column (col B) keeps its default left-align so long
+        # names breathe naturally.
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 5,        # data rows start below header
-                    "startColumnIndex": 4,     # col E
+                    "startColumnIndex": 2,     # col C (first metric column)
                 },
                 "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
                 "fields": "userEnteredFormat.horizontalAlignment",
@@ -721,23 +722,30 @@ async def _last_scoring_fixture_by_entry(
     return out
 
 
+_DEFAULT_ENTRY_NAME_RE = __import__("re").compile(r"^Entry \d+$")
+
+
+def _name_entry_label(user_name: str, entry_name: str) -> str:
+    """Combined display for the Standings tab's B column.
+
+    Returns just the user's name when the entry has the default auto-
+    generated label "Entry N" (which most owners never rename), otherwise
+    ``"Name — Entry"``. Mirrors `rowDisplayName` on the V4 leaderboard.
+    """
+    if not entry_name or _DEFAULT_ENTRY_NAME_RE.match(entry_name):
+        return user_name
+    return f"{user_name} — {entry_name}"
+
+
 async def build_standings_rows(
     session: AsyncSession, competition: Competition
 ) -> list[list[str]]:
-    """Live standings as a row matrix: rank, entry, points splits, last
-    scoring fixture.
+    """Live standings as a row matrix: rank, name-entry, points splits.
 
     PHASE_1 leaderboard (the single active phase, per the Phases
     invariant). Sorted as the leaderboard serves it (already ranked).
     """
     board = await calculate_leaderboard(session, phase="phase_1")
-
-    # Per-entry last scoring fixture (group-stage only for now).
-    last_scoring = await _last_scoring_fixture_by_entry(
-        session,
-        competition,
-        [e.entry_id for e in board.entries],
-    )
 
     rows: list[list[str]] = []
     rows.append([f"{competition.name} — live standings"])
@@ -749,20 +757,13 @@ async def build_standings_rows(
         ]
     )
     rows.append([])
-    # Column order matches the pool-owner spec:
-    #   No of Exact Scores → Group Points (correct outcome × 5 + exact × 10,
-    #   no rarity) → Rarity Bonus Points → Grp Stage Bonus Questions →
-    #   Total Grp Stage Points (sum of the four scoring components) →
-    #   Knockout Pnts → Knockout Bonus Points → Grand Total.
-    # Math reconciles with e.total_points via PointBreakdown:
-    #   total_grp = match_outcome_points + exact_score_points
-    #             + hybrid_bonus_points + bonus_group_points
-    #   total_points = total_grp + bracket_total + bonus_knockout_points
+    # 10-column layout: Rank, combined Name-Entry, then the 8 metric columns.
+    # Default auto-generated entry names ("Entry N") are suppressed in the
+    # Name-Entry cell so owners with one entry just show their name.
     rows.append(
         [
             "Rank",
-            "Entry",
-            "Name",
+            "Name - Entry",
             "No of Exact Scores",
             "Group Points",
             "Rarity Bonus Points",
@@ -771,7 +772,6 @@ async def build_standings_rows(
             "Knockout Pnts",
             "Knockout Bonus Points",
             "Grand Total",
-            "Last Scoring Fixture",
         ]
     )
     for e in board.entries:
@@ -785,12 +785,10 @@ async def build_standings_rows(
         knockout = bd.phase1.bracket_total
         bonus_knockout = e.bonus_knockout_points
         grand_total = e.total_points
-        last_fixture = last_scoring.get(e.entry_id, "—")
         rows.append(
             [
                 str(e.position),
-                e.entry_name,
-                e.user_name,
+                _name_entry_label(e.user_name, e.entry_name),
                 str(e.exact_scores),
                 str(group_points),
                 str(rarity_bonus),
@@ -799,7 +797,6 @@ async def build_standings_rows(
                 str(knockout),
                 str(bonus_knockout),
                 str(grand_total),
-                last_fixture,
             ]
         )
     return rows

@@ -190,8 +190,7 @@ async def test_build_standings_rows_shape(db_session: AsyncSession):
     header = next(r for r in rows if r and r[0] == "Rank")
     assert header == [
         "Rank",
-        "Entry",
-        "Name",
+        "Name - Entry",
         "No of Exact Scores",
         "Group Points",
         "Rarity Bonus Points",
@@ -200,13 +199,14 @@ async def test_build_standings_rows_shape(db_session: AsyncSession):
         "Knockout Pnts",
         "Knockout Bonus Points",
         "Grand Total",
-        "Last Scoring Fixture",
     ]
-    # One ranked data row for the single eligible entry.
+    # One ranked data row for the single eligible entry. The test fixture
+    # names its entry "Entry 1" which `_DEFAULT_ENTRY_NAME_RE` suppresses,
+    # so col B shows just the user name.
     data = rows[rows.index(header) + 1:]
     assert len(data) == 1
     assert data[0][0] == "1"  # rank
-    assert data[0][1] == "Entry 1"
+    assert data[0][1] == "User 1"  # name only — auto-generated entry name dropped
 
 
 # ─── sync_to_sheets orchestration ──────────────────────────────────────

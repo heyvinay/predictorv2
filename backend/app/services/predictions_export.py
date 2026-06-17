@@ -575,17 +575,17 @@ async def build_combined_picks_points_rows(
     rows.append([])
 
     # ── entry-name super-header (first cell of each pair carries the name) ──
+    # The column header row (Date | Group | Home | Away | Actual | Pick |
+    # Pts | …) used to live here at row 13 but was removed per pool-owner
+    # feedback — the data rows are self-describing and the super-header
+    # above + the GROUP STAGE banner below carry enough structure on
+    # their own. If you re-add it, bump _PREDICTIONS_FROZEN_ROWS in
+    # sheets_sync.py from 13 back to 14.
     super_header = label_pad[:]
     for e in entries:
         super_header.append(_safe(e.display_name or e.reference))
         super_header.append("")
     rows.append(super_header)
-
-    # ── column header row ──
-    headers = ["Date (Malta)", "Group", "Home", "Away", "Actual"]
-    for _ in entries:
-        headers.extend(["Pick", "Pts"])
-    rows.append(headers)
 
     # ── group stage ──
     rows.append(["GROUP STAGE — picks & points"])
