@@ -37,30 +37,19 @@ from app.config import get_settings
 from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.services.leaderboard import calculate_leaderboard
-from app.services.predictions_export import (
-    build_all_entries_points_rows,
-    build_all_entries_rows,
-)
+from app.services.predictions_export import build_combined_picks_points_rows
 
 logger = logging.getLogger(__name__)
 
 # Worksheet (tab) titles inside the target spreadsheet.
+# Predictions is a combined picks+points matrix (one column pair per entry,
+# Pick + Pts), refreshed on every score tick — cells flip as fixtures finish
+# and points pay out. Standings is the live leaderboard, same cadence.
 PREDICTIONS_TAB = "Predictions"
 STANDINGS_TAB = "Standings"
-# Results = points-awarded mirror of the Predictions matrix. Refreshes on
-# every score tick (game-finished → points pay out → cells flip), so it
-# lives next to Standings in the update cadence rather than the once-per-
-# process Predictions guard.
-RESULTS_TAB = "Results"
 
 # Read/write scope. We never read user Drive content — just this sheet.
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-# Per-process guard: predictions are frozen after the deadline, so we push
-# them once rather than on every score tick. Reset only on process restart
-# (or by passing force_predictions=True).
-_predictions_pushed = False
-
 
 def is_configured() -> bool:
     """True only when the sync is enabled AND both creds are present."""
@@ -192,56 +181,40 @@ async def build_standings_rows(
 async def sync_to_sheets(
     session: AsyncSession,
     competition: Competition,
-    *,
-    include_predictions: bool = False,
-    force_predictions: bool = False,
+    **_legacy_kwargs,
 ) -> bool:
-    """Push standings (always) and, when due, the predictions matrix.
+    """Push the Standings + combined Predictions tabs every tick.
 
-    Best-effort: returns True on a successful push, False when skipped
-    (not configured) or on any failure. Never raises — safe to call from
-    the score-scheduler tick.
+    Best-effort: returns True on a successful push, False when skipped (not
+    configured) or on any failure. Never raises — safe to call from the
+    score-scheduler tick.
 
-    Predictions are written when ``force_predictions`` is set, or when
-    ``include_predictions`` is requested and they haven't been pushed yet
-    this process (they're frozen after the deadline).
+    Both tabs refresh on every call: Standings (live leaderboard) and
+    Predictions (per-entry picks side-by-side with live points cells).
+    Legacy keyword arguments (``include_predictions``, ``force_predictions``)
+    are accepted and ignored for backwards compatibility with older call
+    sites — predictions are now part of every push.
     """
-    global _predictions_pushed
-
     if not is_configured():
         return False
 
     try:
         standings_rows = await build_standings_rows(session, competition)
-        # Results refresh every tick (alongside Standings) — cells flip as
-        # fixtures finish and points pay out. No guard.
-        results_rows = await build_all_entries_points_rows(session, competition)
-
-        want_predictions = force_predictions or (
-            include_predictions and not _predictions_pushed
-        )
-        predictions_rows = (
-            await build_all_entries_rows(session, competition)
-            if want_predictions
-            else None
+        predictions_rows = await build_combined_picks_points_rows(
+            session, competition
         )
 
         def _push() -> None:
             spreadsheet = _open_spreadsheet()
             _write_worksheet(spreadsheet, STANDINGS_TAB, standings_rows)
-            _write_worksheet(spreadsheet, RESULTS_TAB, results_rows)
-            if predictions_rows is not None:
-                _write_worksheet(spreadsheet, PREDICTIONS_TAB, predictions_rows)
+            _write_worksheet(spreadsheet, PREDICTIONS_TAB, predictions_rows)
 
         await asyncio.to_thread(_push)
 
-        if predictions_rows is not None:
-            _predictions_pushed = True
         logger.info(
-            "sheets_sync: pushed standings (%d rows) + results (%d rows)%s",
+            "sheets_sync: pushed standings (%d rows) + predictions (%d rows)",
             len(standings_rows),
-            len(results_rows),
-            " + predictions" if predictions_rows is not None else "",
+            len(predictions_rows),
         )
         return True
     except Exception:  # noqa: BLE001 — sync must never break callers

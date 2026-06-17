@@ -273,20 +273,20 @@ async def build_all_entries_rows(
     return rows
 
 
-# Knockout banners for the points (Results) view — mirrors KNOCKOUT_SECTIONS
-# row-for-row so the Results worksheet aligns with Predictions cell-for-cell.
-_KO_POINTS_BANNERS: dict[str, str] = {
-    "round_of_32": "ROUND OF 32 — points awarded",
-    "round_of_16": "ROUND OF 16 — points awarded",
-    "quarter_final": "QUARTER-FINALS — points awarded",
-    "semi_final": "SEMI-FINALS — points awarded",
-    "final": "FINAL — points awarded",
-    "winner": "CHAMPION — points awarded",
+# Knockout banners for the combined picks+points view. Mirrors KNOCKOUT_SECTIONS
+# but uses "picks & points" wording since each row's cells carry both.
+_KO_COMBINED_BANNERS: dict[str, str] = {
+    "round_of_32": "ROUND OF 32 — picks & points",
+    "round_of_16": "ROUND OF 16 — picks & points",
+    "quarter_final": "QUARTER-FINALS — picks & points",
+    "semi_final": "SEMI-FINALS — picks & points",
+    "final": "FINAL — picks & points",
+    "winner": "CHAMPION — picks & points",
 }
 
-# Stage ordering for advancement comparison (mirrors scoring.calculate_
-# advancement_points). A team in stage X earns points only if its actual
-# highest stage ≥ X.
+# Stage ordering for advancement comparison (mirrors
+# scoring.calculate_advancement_points). A team in stage X earns points only
+# if its actual highest stage ≥ X.
 _STAGE_ORDER: list[str] = [
     "group",
     "round_of_32",
@@ -296,34 +296,32 @@ _STAGE_ORDER: list[str] = [
     "final",
     "winner",
 ]
+_STAGE_RANK: dict[str, int] = {s: i for i, s in enumerate(_STAGE_ORDER)}
+
+# Label columns in the combined sheet: Date | Group | Home | Away | Actual.
+COMBINED_LABEL_COLS = 5
 
 
-async def build_all_entries_points_rows(
+async def build_combined_picks_points_rows(
     session: AsyncSession, competition: Competition
 ) -> list[list[str]]:
-    """Per-cell **points awarded** for every (entry, pick) — mirror of the
-    Predictions matrix.
+    """One wide matrix combining every entry's picks AND their points.
 
-    Same row labels, same column order (one per eligible entry, sorted by
-    entry_number), same knockout/bonus layout as ``build_all_entries_rows``
-    so the Predictions and Results worksheets read side-by-side cell-for-cell.
+    Layout: five label columns — Date / Group / Home / Away / Actual — then
+    TWO columns per eligible entry: ``Pick`` (the prediction text) and
+    ``Pts`` (the points scoring currently pays for that pick). The Actual
+    column holds the real result of the fixture (group), the qualified
+    team(s) listed alphabetically per row (knockout), or the recorded
+    correct answer(s) (bonus).
 
-    Cells hold:
-    - **Group fixture** → points (incl. rarity bonus for mode=logarithmic)
-      that scoring currently pays for that pick, via ``compute_match_points``.
-    - **Knockout row** → ``advancement[stage]`` if the entry's predicted team
-      reached at least that stage; ``"0"`` if the team reached an earlier stage;
-      blank if the team hasn't been seeded into any stage yet (the row's
-      predicted team is empty for that entry).
-    - **Bonus question** → ``question.points`` if the entry's answer matches
-      any recorded correct answer; ``"0"`` on miss; blank when the correct
-      answer hasn't been recorded yet (question is unsettled).
-    - **Blank** anywhere a pick wasn't made, a fixture isn't FINISHED, or
-      an answer wasn't recorded.
+    Group-stage Pts cells use ``base+rarity`` when scoring mode is
+    logarithmic and the rarity bonus is non-zero (e.g. ``5+2``, ``15+2``).
+    Otherwise just the integer (``5``, ``15``, ``0``). Blank cells = the
+    underlying result hasn't been recorded yet — visually distinct from
+    a scored zero.
 
-    Reuses the same pure scoring helpers the leaderboard uses
-    (``compute_match_points``, ``get_actual_advancement``, ``answer_in``) so
-    per-cell sums reconcile with leaderboard totals.
+    Eligible entries only — SUBMITTED, not withdrawn, not disabled — via
+    ``eligible_entry_ids_select`` (same predicate scoring pays).
     """
     entries_result = await session.execute(
         select(PredictionEntry)
@@ -350,7 +348,6 @@ async def build_all_entries_points_rows(
     )
     group_fixtures = list(fixtures_result.scalars().all())
 
-    # (entry_id, fixture_id) -> (home, away) prediction
     predictions: dict[tuple[uuid.UUID, uuid.UUID], tuple[int, int]] = {}
     if entry_ids:
         mp_rows = await session.execute(
@@ -403,11 +400,7 @@ async def build_all_entries_points_rows(
         for eid, qid, answer in bp_rows:
             bonus[(eid, qid)] = answer or ""
 
-    # ── extra loads: the actual results to score against ──
-    # Group-stage fixtures only — match-result points are only paid on
-    # group fixtures in this competition. `final_*` are @property aliases
-    # (ET-aware), not Columns, so select the raw home/away_score and trust
-    # there's no extra time in group play.
+    # ── results to score against ──
     actual_scores: dict[uuid.UUID, tuple[int, int]] = {}
     sc_rows = await session.execute(
         select(Score.fixture_id, Score.home_score, Score.away_score)
@@ -441,7 +434,21 @@ async def build_all_entries_points_rows(
     rarity_cap = match_config.get("rarity_cap", match_config.get("hybrid_cap", 10))
     adv_config = scoring_config.get("advancement", {})
 
-    def _match_pts(eid: uuid.UUID, fid: uuid.UUID) -> str:
+    # Per-stage alphabetical lists of teams that actually reached that stage.
+    actual_teams_at_stage: dict[str, list[str]] = {}
+    for stage_key, *_ in KNOCKOUT_SECTIONS:
+        stage_idx = _STAGE_RANK.get(stage_key, -1)
+        actual_teams_at_stage[stage_key] = sorted(
+            t
+            for t, top in actual_advancement.items()
+            if _STAGE_RANK.get(top, -1) >= stage_idx
+        )
+
+    def _group_pick(eid: uuid.UUID, fid: uuid.UUID) -> str:
+        pred = predictions.get((eid, fid))
+        return f"{pred[0]}-{pred[1]}" if pred else ""
+
+    def _group_pts(eid: uuid.UUID, fid: uuid.UUID) -> str:
         actual = actual_scores.get(fid)
         if actual is None:
             return ""
@@ -457,7 +464,7 @@ async def build_all_entries_points_rows(
         else:
             actual_outcome = "X"
         correct_predictors = counts.get(actual_outcome, 0)
-        points, _, _ = compute_match_points(
+        total, correct_o, exact = compute_match_points(
             mode=mode,
             predicted_home=pred[0],
             predicted_away=pred[1],
@@ -469,26 +476,20 @@ async def build_all_entries_points_rows(
             exact_points=exact_points,
             cap=rarity_cap,
         )
-        return str(int(points))
+        base = (outcome_points if correct_o else 0) + (exact_points if exact else 0)
+        rarity = int(total) - base
+        if rarity > 0:
+            return f"{base}+{rarity}"
+        return str(int(total))
 
     def _adv_pts(team: str, predicted_stage: str) -> str:
-        # Blank row-cell — entry didn't predict a team for this alphabetical slot.
         if not team:
             return ""
         actual_stage = actual_advancement.get(team)
         if not actual_stage:
-            # Team hasn't been seeded into ANY knockout stage yet — points
-            # for this row are still unresolved (return blank, not 0, to
-            # keep "unresolved" visually distinct from "wrong pick").
             return ""
-        pred_idx = (
-            _STAGE_ORDER.index(predicted_stage)
-            if predicted_stage in _STAGE_ORDER
-            else -1
-        )
-        actual_idx = (
-            _STAGE_ORDER.index(actual_stage) if actual_stage in _STAGE_ORDER else -1
-        )
+        pred_idx = _STAGE_RANK.get(predicted_stage, -1)
+        actual_idx = _STAGE_RANK.get(actual_stage, -1)
         if actual_idx >= pred_idx >= 0:
             return str(int(adv_config.get(predicted_stage, 0)))
         return "0"
@@ -496,7 +497,7 @@ async def build_all_entries_points_rows(
     def _bonus_pts(eid: uuid.UUID, qid: str, question_points: int) -> str:
         corrects = correct_by_qid.get(qid)
         if not corrects:
-            return ""  # unsettled
+            return ""
         answer = bonus.get((eid, qid))
         if not answer:
             return "0"
@@ -508,85 +509,108 @@ async def build_all_entries_points_rows(
                 return phase_row.submitted_at
         return None
 
-    pad = [""] * LABEL_COLS
-
+    label_pad = [""] * COMBINED_LABEL_COLS
     rows: list[list[str]] = []
 
     # ── preamble ──
-    rows.append([f"{competition.name} — all entries & points awarded"])
+    rows.append([f"{competition.name} — all entries: picks & points"])
     rows.append(["Generated (UTC)", _fmt_dt(utc_now())])
     rows.append(["Deadline (UTC)", _fmt_dt(competition.phase1_deadline)])
     rows.append(["Entries", str(len(entries))])
     rows.append(
         [
-            "Each cell holds the points scoring currently pays for that "
-            "entry's pick. Blank = the underlying result hasn't been "
-            "recorded yet (fixture unplayed, knockout team unseeded, or "
-            "bonus question unsettled)."
-        ]
-    )
-    rows.append(
-        [
-            "Cell-for-cell mirror of the Predictions tab — open both side "
-            "by side to compare picks against points."
+            "Each entry has two columns: PICK (the prediction) and PTS "
+            "(points scoring currently pays). Group-stage Pts use "
+            "base+rarity (e.g. 5+2 = correct outcome + 2 rarity, "
+            "15+2 = correct + exact + 2 rarity). Blank cells = the "
+            "underlying result hasn't been recorded yet."
         ]
     )
     rows.append(
         [
             "Provisional — finalized by manual review after the tournament "
-            "concludes."
+            "concludes. Eligible entries only (SUBMITTED, not withdrawn or "
+            "disabled)."
         ]
     )
     rows.append([])
 
-    # ── per-entry identity block (identical to predictions sheet) ──
-    rows.append(pad[:-1] + ["Ref"] + [e.reference for e in entries])
-    rows.append(pad[:-1] + ["Name"] + [_safe(_person_name(e)) for e in entries])
-    rows.append(pad[:-1] + ["Entry"] + [_safe(e.display_name or "") for e in entries])
-    rows.append(
-        pad[:-1] + ["Submitted (UTC)"] + [_fmt_dt(submitted_at(e)) for e in entries]
-    )
+    # ── per-entry identity block ──
+    def _identity_row(label: str, value_fn) -> list[str]:
+        out = label_pad[:-1] + [label]
+        for e in entries:
+            out.append(value_fn(e))
+            out.append("")
+        return out
+
+    rows.append(_identity_row("Ref", lambda e: e.reference))
+    rows.append(_identity_row("Name", lambda e: _safe(_person_name(e))))
+    rows.append(_identity_row("Entry", lambda e: _safe(e.display_name or "")))
+    rows.append(_identity_row("Submitted (UTC)", lambda e: _fmt_dt(submitted_at(e))))
     rows.append([])
 
+    # ── entry-name super-header (first cell of each pair carries the name) ──
+    super_header = label_pad[:]
+    for e in entries:
+        super_header.append(_safe(e.display_name or e.reference))
+        super_header.append("")
+    rows.append(super_header)
+
+    # ── column header row ──
+    headers = ["Date (UTC)", "Group", "Home", "Away", "Actual"]
+    for _ in entries:
+        headers.extend(["Pick", "Pts"])
+    rows.append(headers)
+
     # ── group stage ──
-    rows.append(["GROUP STAGE — points awarded"])
-    rows.append(["Date (UTC)", "Group", "Home", "Away"])
+    rows.append(["GROUP STAGE — picks & points"])
     for f in group_fixtures:
-        rows.append(
-            [
-                _fmt_dt(f.kickoff),
-                f.group or "",
-                f.home_team,
-                f.away_team,
-            ]
-            + [_match_pts(e.id, f.id) for e in entries]
-        )
+        actual = actual_scores.get(f.id)
+        actual_cell = f"{actual[0]}-{actual[1]}" if actual is not None else ""
+        cells = [
+            _fmt_dt(f.kickoff),
+            f.group or "",
+            f.home_team,
+            f.away_team,
+            actual_cell,
+        ]
+        for e in entries:
+            cells.append(_group_pick(e.id, f.id))
+            cells.append(_group_pts(e.id, f.id))
+        rows.append(cells)
 
     # ── knockout stages ──
     for stage_key, _banner, row_label, quota in KNOCKOUT_SECTIONS:
         rows.append([])
-        rows.append([_KO_POINTS_BANNERS[stage_key]])
+        rows.append([_KO_COMBINED_BANNERS[stage_key]])
         per_entry = [bracket[e.id].get(stage_key, []) for e in entries]
-        n_rows = max([quota] + [len(p) for p in per_entry])
+        actual_at_stage = actual_teams_at_stage.get(stage_key, [])
+        n_rows = max(
+            [quota, len(actual_at_stage)] + [len(p) for p in per_entry]
+        )
         for i in range(n_rows):
             label = row_label if quota == 1 else f"{row_label} {i + 1}"
-            rows.append(
-                ["", "", label, ""]
-                + [
-                    _adv_pts(p[i] if i < len(p) else "", stage_key)
-                    for p in per_entry
-                ]
-            )
+            actual_cell = actual_at_stage[i] if i < len(actual_at_stage) else ""
+            cells = ["", "", label, "", actual_cell]
+            for idx in range(len(entries)):
+                team = per_entry[idx][i] if i < len(per_entry[idx]) else ""
+                cells.append(team)
+                cells.append(_adv_pts(team, stage_key))
+            rows.append(cells)
 
     # ── bonus questions ──
     if questions:
         rows.append([])
-        rows.append(["BONUS QUESTIONS — points awarded"])
+        rows.append(["BONUS QUESTIONS — picks & points"])
         for q in questions:
-            rows.append(
-                ["", "", q.label, ""]
-                + [_bonus_pts(e.id, q.id, q.points) for e in entries]
-            )
+            corrects = correct_by_qid.get(q.id, [])
+            actual_cell = " / ".join(_safe(c) for c in corrects) if corrects else ""
+            cells = ["", "", q.label, "", actual_cell]
+            for e in entries:
+                ans = bonus.get((e.id, q.id), "")
+                cells.append(_safe(ans))
+                cells.append(_bonus_pts(e.id, q.id, q.points))
+            rows.append(cells)
 
     return rows
 

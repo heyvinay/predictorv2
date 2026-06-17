@@ -82,14 +82,6 @@ async def db_session() -> AsyncSession:
         yield s
 
 
-@pytest.fixture(autouse=True)
-def _reset_module_state():
-    """Each test starts with predictions un-pushed."""
-    sheets_sync._predictions_pushed = False
-    yield
-    sheets_sync._predictions_pushed = False
-
-
 async def _make_competition(session: AsyncSession) -> Competition:
     comp = Competition(
         name="World Cup 2026",
@@ -208,41 +200,12 @@ async def test_sync_skips_when_not_configured(db_session: AsyncSession, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_sync_writes_standings_and_predictions_once(
+async def test_sync_writes_both_tabs_every_tick(
     db_session: AsyncSession, monkeypatch
 ):
-    monkeypatch.setattr(sheets_sync, "get_settings", lambda: _FakeSettings())
-    fake = _FakeSpreadsheet()
-    monkeypatch.setattr(sheets_sync, "_open_spreadsheet", lambda: fake)
-
-    comp = await _make_competition(db_session)
-    await _make_eligible_entry(db_session, comp, 1)
-
-    # First push with include_predictions → both tabs written.
-    ok = await sheets_sync.sync_to_sheets(db_session, comp, include_predictions=True)
-    assert ok is True
-    assert sheets_sync.STANDINGS_TAB in fake.tabs
-    assert sheets_sync.PREDICTIONS_TAB in fake.tabs
-    standings = fake.tabs[sheets_sync.STANDINGS_TAB].values
-    assert standings is not None
-    # Every row is padded to a uniform width (rectangle).
-    widths = {len(r) for r in standings}
-    assert len(widths) == 1
-
-    # Second push: predictions already done → standings refresh only.
-    fake.tabs[sheets_sync.PREDICTIONS_TAB].values = None
-    ok2 = await sheets_sync.sync_to_sheets(db_session, comp, include_predictions=True)
-    assert ok2 is True
-    assert fake.tabs[sheets_sync.PREDICTIONS_TAB].values is None  # not re-pushed
-    assert fake.tabs[sheets_sync.STANDINGS_TAB].values is not None  # refreshed
-
-
-@pytest.mark.asyncio
-async def test_sync_writes_results_tab_refreshed_every_tick(
-    db_session: AsyncSession, monkeypatch
-):
-    """Results refreshes on every tick (unlike Predictions which is once-per-process)
-    because cells flip as fixtures finish and points pay out.
+    """Standings + Predictions both refresh on every push — Predictions
+    now carries live point cells alongside picks, so the once-per-process
+    cache from v2.177.0 is no longer applicable.
     """
     monkeypatch.setattr(sheets_sync, "get_settings", lambda: _FakeSettings())
     fake = _FakeSpreadsheet()
@@ -253,25 +216,30 @@ async def test_sync_writes_results_tab_refreshed_every_tick(
 
     ok = await sheets_sync.sync_to_sheets(db_session, comp)
     assert ok is True
-    assert sheets_sync.RESULTS_TAB in fake.tabs
-    first = fake.tabs[sheets_sync.RESULTS_TAB].values
-    assert first is not None
-    assert first[0][0].startswith("World Cup 2026")
-    # Same uniform width as the other tabs.
-    widths = {len(r) for r in first}
-    assert len(widths) == 1
+    assert sheets_sync.STANDINGS_TAB in fake.tabs
+    assert sheets_sync.PREDICTIONS_TAB in fake.tabs
+    standings_first = fake.tabs[sheets_sync.STANDINGS_TAB].values
+    predictions_first = fake.tabs[sheets_sync.PREDICTIONS_TAB].values
+    assert standings_first is not None and predictions_first is not None
+    # Both rectangles have uniform row widths.
+    assert len({len(r) for r in standings_first}) == 1
+    assert len({len(r) for r in predictions_first}) == 1
 
-    # Reset and push again — Results re-renders even without include_predictions.
-    fake.tabs[sheets_sync.RESULTS_TAB].values = None
+    # Reset both values and push again — both must re-render.
+    fake.tabs[sheets_sync.STANDINGS_TAB].values = None
+    fake.tabs[sheets_sync.PREDICTIONS_TAB].values = None
     ok2 = await sheets_sync.sync_to_sheets(db_session, comp)
     assert ok2 is True
-    assert fake.tabs[sheets_sync.RESULTS_TAB].values is not None
+    assert fake.tabs[sheets_sync.STANDINGS_TAB].values is not None
+    assert fake.tabs[sheets_sync.PREDICTIONS_TAB].values is not None
 
 
 @pytest.mark.asyncio
-async def test_force_predictions_rewrites_even_after_first_push(
+async def test_sync_accepts_and_ignores_legacy_kwargs(
     db_session: AsyncSession, monkeypatch
 ):
+    """Old callers may still pass include_predictions / force_predictions;
+    sync_to_sheets accepts and ignores them (backwards compatibility)."""
     monkeypatch.setattr(sheets_sync, "get_settings", lambda: _FakeSettings())
     fake = _FakeSpreadsheet()
     monkeypatch.setattr(sheets_sync, "_open_spreadsheet", lambda: fake)
@@ -279,10 +247,11 @@ async def test_force_predictions_rewrites_even_after_first_push(
     comp = await _make_competition(db_session)
     await _make_eligible_entry(db_session, comp, 1)
 
-    await sheets_sync.sync_to_sheets(db_session, comp, include_predictions=True)
-    fake.tabs[sheets_sync.PREDICTIONS_TAB].values = None
-    await sheets_sync.sync_to_sheets(db_session, comp, force_predictions=True)
-    assert fake.tabs[sheets_sync.PREDICTIONS_TAB].values is not None
+    ok = await sheets_sync.sync_to_sheets(
+        db_session, comp, include_predictions=True, force_predictions=True
+    )
+    assert ok is True
+    assert sheets_sync.PREDICTIONS_TAB in fake.tabs
 
 
 @pytest.mark.asyncio
