@@ -278,6 +278,7 @@
 						href={publishedSheetUrl}
 						target="_blank"
 						rel="noopener noreferrer"
+						on:click={() => track('view_all_entries_clicked')}
 					>
 						<svg
 							class="h-3.5 w-3.5"

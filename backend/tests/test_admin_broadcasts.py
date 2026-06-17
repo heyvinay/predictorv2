@@ -212,6 +212,70 @@ class TestAudienceQueries:
         emails = {r.email for r in rows}
         assert emails == {"submitter@example.com", "both@example.com"}
 
+    async def test_group_r1_recap_mirrors_submitters_audience(
+        self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
+    ):
+        # v2.178.0 — GROUP_R1_RECAP shares the SUBMITTERS predicate so
+        # both broadcasts always agree on who counts as a participant.
+        # If this assertion ever flips, the round-recap email would
+        # silently miss (or duplicate to) the wrong audience — guard it.
+        submitters = {
+            r.email
+            for r in await query_audience(db_session, BroadcastSegment.SUBMITTERS)
+        }
+        recap = {
+            r.email
+            for r in await query_audience(
+                db_session, BroadcastSegment.GROUP_R1_RECAP
+            )
+        }
+        assert recap == submitters
+
+    async def test_group_r1_recap_content_renders(
+        self, db_session: AsyncSession
+    ):
+        # v2.178.0 — direct render-smoke. Catches any f-string typo or
+        # missing constant in the new branch BEFORE it ships to ~167
+        # mailboxes. The body must mention the headline copy, both link
+        # destinations (with UTM on the standings link), the prize-pot
+        # numbers, and the "routes straight to us" support tagline.
+        from app.services.email import _broadcast_content_for_segment
+
+        content = _broadcast_content_for_segment(
+            BroadcastSegment.GROUP_R1_RECAP,
+            player_name="Test User",
+            deadline_display="11 Jun 2026, 17:00 UTC",
+        )
+        assert "Round 1 wraps tomorrow" in content.headline
+        assert "Round 1 wraps tomorrow" in content.subject
+        for html_must in [
+            "Hi Test User",
+            "utm_campaign=group_r1_recap",
+            "spreadsheets/d/1-UZTOYQh0jIUuMw7VarsXdj8a3gPC3whVwii61ZS75Y",
+            "&euro;595",
+            "&euro;183",
+            "&euro;150",
+            "&euro;500",
+            "&euro;650",
+            "Atlas Insurance",
+            "routes straight to us",
+        ]:
+            assert html_must in content.body_html, f"missing in HTML: {html_must}"
+        for text_must in [
+            "Hi Test User",
+            "utm_campaign=group_r1_recap",
+            "€595",
+            "€183",
+            "€150",
+            "€500",
+            "€650",
+            "routes straight to us",
+        ]:
+            assert text_must in content.body_text, f"missing in text: {text_must}"
+        # Plain text MUST NOT leak the raw spreadsheet URL — recipients
+        # are routed to the in-app button instead.
+        assert "docs.google.com/spreadsheets" not in content.body_text
+
     async def test_no_entry_excludes_inactive_and_onboarding_incomplete(
         self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
     ):

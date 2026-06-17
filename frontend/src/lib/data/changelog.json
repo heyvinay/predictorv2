@@ -2263,6 +2263,13 @@
       "type": "feature",
       "summary": "Predictions and live standings now mirror into a shared, read-only Google Sheet — three tabs (Standings, Predictions, History) refreshed automatically after every game. Predictions combines each entry's picks side-by-side with the points they're earning, color-banded for at-a-glance reading; History plots every entry's rank trajectory across the tournament. Timestamps render in Malta time; entries grouped by owner so multiple entries appear together. Stays dormant until the Google credentials are configured.",
       "commit": "pending"
+    },
+    {
+      "version": "2.178.0",
+      "date": "2026-06-17",
+      "type": "feature",
+      "summary": "New 'Group Stage Round 1 recap' broadcast template — admin one-click send that thanks every entrant, links to the live standings and the shared Google Sheet, and spells out the €595 / €183 / €150 prize breakdown plus the Atlas €500 Soup Kitchen top-up. The 'View All Entries' button on /leaderboard now records click-tracking events so we can see how often the sheet gets opened from inside the app.",
+      "commit": "pending"
     }
   ]
 }

@@ -1118,6 +1118,128 @@ def _broadcast_content_for_segment(
             cta_label="See how I'm doing",
         )
 
+    if segment == BroadcastSegment.GROUP_R1_RECAP:
+        # v2.178.0 — one-off round-recap nudge sent the morning Round 1
+        # concludes. Same audience as SUBMITTERS (everyone with a
+        # submitted entry); copy thanks them, points at the live
+        # standings + the read-only Google Sheet, and spells out the
+        # prize breakdown. Plain-text deliberately omits the raw
+        # spreadsheet URL — recipients are routed to the in-app
+        # "View All Entries" button instead (which carries the link
+        # behind a clickable button).
+        return _BroadcastContent(
+            subject=(
+                "World Cup 2026 | Round 1 wraps tomorrow — your "
+                "standings are live"
+            ),
+            headline="Round 1 wraps tomorrow — standings are live.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, thanks for being part of the Atlas "
+                "World Cup 2026 pool &mdash; the first round of "
+                "group-stage fixtures wraps up tomorrow morning, and "
+                "scoring is live.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Follow your standings &rarr;</strong> "
+                '<a href="https://wc26.heyvinay.com/?utm_source=email'
+                '&amp;utm_campaign=group_r1_recap" style="color:'
+                f'{_GOLD};text-decoration:underline;">wc26.heyvinay.com'
+                "</a><br>Scores and standings update immediately after "
+                "each match. The leaderboard refreshes live, every "
+                "Match Detail page explains its rarity bonus (why some "
+                "picks earn extra), and the insights cards surface "
+                "trends across the pool.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>See everyone&rsquo;s picks &rarr;</strong> "
+                '<a href="https://docs.google.com/spreadsheets/d/'
+                '1-UZTOYQh0jIUuMw7VarsXdj8a3gPC3whVwii61ZS75Y/preview" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "View the full entries sheet</a><br>"
+                "A read-only mirror of every entry, every pick, every "
+                "score &mdash; updated after each fixture. You can "
+                "also reach it from the <em>View All Entries</em> "
+                "button at the top of the Leaderboard page.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Prize breakdown</strong><br>"
+                "Together we collected over <strong>&euro;900</strong>. "
+                "Here&rsquo;s how the pot splits:</p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>&#127942; <strong>Overall "
+                "Winner</strong> (after the Finals) &mdash; "
+                "&euro;595</li>\n"
+                "                <li>&#127941; <strong>Group Stage "
+                "Winner</strong> &mdash; &euro;183</li>\n"
+                "                <li>&#10084;&#65039; <strong>Soup "
+                "Kitchen donation</strong> &mdash; &euro;150</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "A huge thank-you to <strong>Atlas Insurance</strong>, "
+                "who have generously <strong>topped up the Soup "
+                "Kitchen donation with an additional &euro;500</strong> "
+                "&mdash; bringing the total charitable contribution to "
+                "<strong>&euro;650</strong>.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "Hit a problem or have a question? Use the "
+                "<strong>Help &amp; Support</strong> panel on any page "
+                "&mdash; it routes straight to us.</p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">Good luck for Round 2.</p>\n'
+            ),
+            body_text=(
+                f"Hi {safe_name}, thanks for being part of the Atlas "
+                "World Cup 2026 pool —\n"
+                "the first round of group-stage fixtures wraps up "
+                "tomorrow morning,\n"
+                "and scoring is live.\n"
+                "\n"
+                "FOLLOW YOUR STANDINGS\n"
+                "https://wc26.heyvinay.com/"
+                "?utm_source=email&utm_campaign=group_r1_recap\n"
+                "\n"
+                "Scores and standings update immediately after each "
+                "match. The\n"
+                "leaderboard refreshes live, every Match Detail page "
+                "explains its\n"
+                "rarity bonus, and the insights cards surface trends "
+                "across the pool.\n"
+                "\n"
+                "SEE EVERYONE'S PICKS\n"
+                "Open the Leaderboard page and click the "
+                '"View All Entries" button at\n'
+                "the top — it opens a read-only sheet that mirrors "
+                "every entry, every\n"
+                "pick, every score, updated after each fixture.\n"
+                "\n"
+                "PRIZE BREAKDOWN\n"
+                "Together we collected over €900. Here's how the pot "
+                "splits:\n"
+                "\n"
+                "  🥇 Overall Winner (after the Finals) — €595\n"
+                "  🏅 Group Stage Winner                — €183\n"
+                "  ❤️ Soup Kitchen donation             — €150\n"
+                "\n"
+                "A huge thank-you to Atlas Insurance, who have "
+                "generously topped up\n"
+                "the Soup Kitchen donation with an additional €500 — "
+                "bringing the\n"
+                "total charitable contribution to €650.\n"
+                "\n"
+                "Hit a problem or have a question? Use the Help & "
+                "Support panel on\n"
+                "any page — it routes straight to us.\n"
+                "\n"
+                "Good luck for Round 2.\n"
+            ),
+            cta_label="Open my standings",
+        )
+
     if segment == BroadcastSegment.LAPSING:
         # v2.176.0 — soft mid-tournament nudge for users who were
         # engaged early but haven't visited in 3-7 days. The copy

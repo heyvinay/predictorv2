@@ -80,6 +80,13 @@ class BroadcastSegment(str, Enum):
     DRAFT_HOLDERS = "draft_holders"
     POOL_GHOST = "pool_ghost"        # NEW v2.176.0
     LAPSING = "lapsing"              # NEW v2.176.0
+    # NEW v2.178.0 — one-off round-recap broadcast. Audience reuses the
+    # SUBMITTERS predicate (everyone with ≥1 SUBMITTED entry phase), but
+    # the email body is a tournament-progress recap rather than a
+    # "thanks; add another?" pre-deadline nudge. The CTA points at the
+    # leaderboard (post-deadline destination), UTM-tagged so PostHog can
+    # attribute click-throughs.
+    GROUP_R1_RECAP = "group_r1_recap"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -311,6 +318,13 @@ def _segment_predicate(
     ``_build_engagement_input()`` once per request and pass it in.
     """
     if segment == BroadcastSegment.SUBMITTERS:
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.GROUP_R1_RECAP:
+        # v2.178.0 — same audience as SUBMITTERS (≥1 SUBMITTED entry
+        # phase). Distinct segment value purely so the email template
+        # branches on a recap-specific body. Sharing the predicate
+        # guarantees both broadcasts always agree on who counts as a
+        # participant.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

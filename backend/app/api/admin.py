@@ -1306,8 +1306,15 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
     /entries — they need to land on the wizard to add / submit picks.
     POOL_GHOST and LAPSING are post-deadline re-engagement — they go to
     /results so the recipient lands directly on the scoreboard. v2.176.0.
+    GROUP_R1_RECAP (v2.178.0) lands on /leaderboard with UTM tagging so
+    PostHog $pageview can attribute the click-through.
     """
     base = frontend_url.rstrip("/")
+    if segment == BroadcastSegment.GROUP_R1_RECAP:
+        return (
+            f"{base}/leaderboard"
+            "?utm_source=email&utm_campaign=group_r1_recap"
+        )
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"

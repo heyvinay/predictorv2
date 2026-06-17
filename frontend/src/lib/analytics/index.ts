@@ -72,6 +72,10 @@ export type EventName =
 	// insights so PostHog UI can break it down by view choice.
 	| 'match_detail_opened'
 	| 'leaderboard_view_changed'
+	// v2.178.0 — sheet button click on /leaderboard. Pairs with the
+	// UTM-tagged email link to give email→app and email→sheet
+	// attribution. No backend mirroring (frontend-fired only).
+	| 'view_all_entries_clicked'
 	// Reserved for future server-side fires (declared in advance so
 	// allow-list and dashboards stay aligned). Add backend
 	// analytics.capture() call sites for these as they get wired.

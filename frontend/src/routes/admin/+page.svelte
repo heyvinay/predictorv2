@@ -254,6 +254,14 @@
 			title: 'Pull back lapsing players',
 			description:
 				"Players who were active early but haven't visited in the last 3-7 days. Soft 'matchday is coming up' nudge with leaderboard CTA."
+		},
+		// v2.178.0 — one-off recap nudge sent when Round 1 of the group
+		// stage wraps. Same audience as Thank Submitters, but the body
+		// is a tournament-progress recap (standings, sheet, prize pot).
+		group_r1_recap: {
+			title: 'Group Stage Round 1 recap',
+			description:
+				"One-off round-recap email. Same audience as Thank Submitters (everyone with a submitted entry), but the body summarises live standings, the public Google Sheet, and the prize breakdown. CTA lands on /leaderboard with UTM tagging so PostHog can attribute click-throughs."
 		}
 	};
 
@@ -262,7 +270,8 @@
 		'no_entry',
 		'draft_holders',
 		'pool_ghost',
-		'lapsing'
+		'lapsing',
+		'group_r1_recap'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;
