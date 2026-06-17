@@ -250,12 +250,13 @@ def _apply_predictions_formatting(
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
+                    "index": 1,  # second tab after Standings
                     "gridProperties": {
                         "frozenRowCount": _PREDICTIONS_FROZEN_ROWS,
                         "frozenColumnCount": label_cols,
                     },
                 },
-                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
             }
         },
         # Title row
@@ -515,9 +516,10 @@ def _apply_rarity_formatting(spreadsheet: Any, ws: Any) -> None:
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
+                    "index": 2,  # third tab — after Predictions, before History
                     "gridProperties": {"frozenRowCount": 6, "frozenColumnCount": 0},
                 },
-                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
             }
         },
         # Title row
@@ -685,11 +687,12 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
+                    "index": 3,  # rightmost tab — after Rarity
                     # 2 frozen cols now: Rank + Name-Entry (was 3 when Entry
                     # and Name lived in their own columns).
                     "gridProperties": {"frozenRowCount": 5, "frozenColumnCount": 2},
                 },
-                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
             }
         },
         # Title row
@@ -734,6 +737,7 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
 def _apply_standings_formatting(spreadsheet: Any, ws: Any) -> None:
     """Lightweight formatting for the Standings tab: bold title + header,
     freeze the top 5 rows so the column header sticks while scrolling.
+    Also pins the tab to position 0 (leftmost).
     """
     sheet_id = ws.id
     requests = [
@@ -741,9 +745,10 @@ def _apply_standings_formatting(spreadsheet: Any, ws: Any) -> None:
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
+                    "index": 0,  # leftmost tab
                     "gridProperties": {"frozenRowCount": 5, "frozenColumnCount": 0},
                 },
-                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
             }
         },
         # Title (row 0)
@@ -1031,12 +1036,18 @@ async def sync_to_sheets(
 
         def _push() -> None:
             spreadsheet = _open_spreadsheet()
+            # Write in the desired left-to-right tab order. Newly-created
+            # worksheets are appended to the end by Sheets, so this puts
+            # them in the right slot on a fresh spreadsheet. The explicit
+            # `index` fields in the formatting requests below re-anchor
+            # the order on every push for already-existing tabs (in case
+            # someone manually dragged them).
             standings_ws = _write_worksheet(spreadsheet, STANDINGS_TAB, standings_rows)
             predictions_ws = _write_worksheet(
                 spreadsheet, PREDICTIONS_TAB, predictions_rows
             )
-            history_ws = _write_worksheet(spreadsheet, HISTORY_TAB, history_rows)
             rarity_ws = _write_worksheet(spreadsheet, RARITY_TAB, rarity_rows)
+            history_ws = _write_worksheet(spreadsheet, HISTORY_TAB, history_rows)
             _apply_standings_formatting(spreadsheet, standings_ws)
             _apply_predictions_formatting(
                 spreadsheet,
@@ -1045,8 +1056,8 @@ async def sync_to_sheets(
                 n_entries=n_entries,
                 label_cols=COMBINED_LABEL_COLS,
             )
-            _apply_history_formatting(spreadsheet, history_ws)
             _apply_rarity_formatting(spreadsheet, rarity_ws)
+            _apply_history_formatting(spreadsheet, history_ws)
             _drop_obsolete_tabs(spreadsheet)
 
         await asyncio.to_thread(_push)
