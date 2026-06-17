@@ -23,6 +23,13 @@ import io
 import uuid
 from collections import defaultdict
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+# Sheet timestamps are rendered in Malta time per the pool owner's
+# preference. Storage stays UTC (per the datetime invariant in CLAUDE.md);
+# this is purely a display layer. ZoneInfo handles CET ↔ CEST DST
+# transitions automatically — World Cup 2026 sits entirely in CEST.
+_DISPLAY_TZ = ZoneInfo("Europe/Malta")
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -79,10 +86,14 @@ def _safe(value: str | None) -> str:
 
 
 def _fmt_dt(dt: datetime | None) -> str:
-    """Compact UTC timestamp for humans; blank when missing."""
+    """Compact Malta-time timestamp for humans; blank when missing.
+
+    Storage stays UTC (per the datetime invariant); this only changes
+    the rendered string. ``astimezone`` handles DST transitions.
+    """
     if dt is None:
         return ""
-    return aware_utc(dt).strftime("%Y-%m-%d %H:%M")
+    return aware_utc(dt).astimezone(_DISPLAY_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 def _person_name(entry: PredictionEntry) -> str:
@@ -202,8 +213,8 @@ async def build_all_entries_rows(
 
     # ── preamble — a printed/forwarded copy stays self-describing ──
     rows.append([f"{competition.name} — all entries & predictions"])
-    rows.append(["Generated (UTC)", _fmt_dt(utc_now())])
-    rows.append(["Deadline (UTC)", _fmt_dt(competition.phase1_deadline)])
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(["Deadline (Malta)", _fmt_dt(competition.phase1_deadline)])
     rows.append(["Entries", str(len(entries))])
     rows.append(
         [
@@ -228,13 +239,13 @@ async def build_all_entries_rows(
     rows.append(pad[:-1] + ["Name"] + [_safe(_person_name(e)) for e in entries])
     rows.append(pad[:-1] + ["Entry"] + [_safe(e.display_name or "") for e in entries])
     rows.append(
-        pad[:-1] + ["Submitted (UTC)"] + [_fmt_dt(submitted_at(e)) for e in entries]
+        pad[:-1] + ["Submitted (Malta)"] + [_fmt_dt(submitted_at(e)) for e in entries]
     )
     rows.append([])
 
     # ── group stage ──
     rows.append(["GROUP STAGE — predicted scores"])
-    rows.append(["Date (UTC)", "Group", "Home", "Away"])
+    rows.append(["Date (Malta)", "Group", "Home", "Away"])
     for f in group_fixtures:
         rows.append(
             [
@@ -333,9 +344,14 @@ async def build_combined_picks_points_rows(
             PredictionEntry.competition_id == competition.id,
             PredictionEntry.id.in_(eligible_entry_ids_select()),
         )
-        .order_by(PredictionEntry.entry_number)
     )
     entries = list(entries_result.scalars().all())
+    # Order column pairs by user name (case-insensitive) so a person with
+    # multiple entries sees them adjacent in the sheet. entry_number is the
+    # secondary key — keeps each person's entries in their own creation
+    # order. Bracket / predictions / bonus dicts are entry_id-keyed, so the
+    # rest of this function is order-agnostic.
+    entries.sort(key=lambda e: (_person_name(e).lower(), e.entry_number))
     entry_ids = [e.id for e in entries]
 
     fixtures_result = await session.execute(
@@ -435,13 +451,23 @@ async def build_combined_picks_points_rows(
     adv_config = scoring_config.get("advancement", {})
 
     # Per-stage alphabetical lists of teams that actually reached that stage.
+    # The known set of real team names comes from the group-stage fixtures
+    # (each of the 48 teams appears at least once as home or away). Filtering
+    # out anything not in this set drops the placeholder strings that
+    # `get_actual_advancement` carries for unplayed KO fixtures (e.g.
+    # "Winner Group A", "Runner-up Match 49"). Without this filter the R32
+    # "Actual" column would balloon to 32+16+8+4+2 = 62 rows because R16,
+    # QF, SF, Final placeholders all sit at a rank ≥ R32.
+    real_team_names = {f.home_team for f in group_fixtures} | {
+        f.away_team for f in group_fixtures
+    }
     actual_teams_at_stage: dict[str, list[str]] = {}
     for stage_key, *_ in KNOCKOUT_SECTIONS:
         stage_idx = _STAGE_RANK.get(stage_key, -1)
         actual_teams_at_stage[stage_key] = sorted(
             t
             for t, top in actual_advancement.items()
-            if _STAGE_RANK.get(top, -1) >= stage_idx
+            if _STAGE_RANK.get(top, -1) >= stage_idx and t in real_team_names
         )
 
     def _group_pick(eid: uuid.UUID, fid: uuid.UUID) -> str:
@@ -464,7 +490,7 @@ async def build_combined_picks_points_rows(
         else:
             actual_outcome = "X"
         correct_predictors = counts.get(actual_outcome, 0)
-        total, correct_o, exact = compute_match_points(
+        total, _correct_o, _exact = compute_match_points(
             mode=mode,
             predicted_home=pred[0],
             predicted_away=pred[1],
@@ -476,10 +502,9 @@ async def build_combined_picks_points_rows(
             exact_points=exact_points,
             cap=rarity_cap,
         )
-        base = (outcome_points if correct_o else 0) + (exact_points if exact else 0)
-        rarity = int(total) - base
-        if rarity > 0:
-            return f"{base}+{rarity}"
+        # Integer total — rarity bonus is folded into the figure. Inline
+        # "5+2" notation was dropped so conditional formatting on the Pts
+        # columns can bucket cells into numeric bands (0/1-9/10-19/20+).
         return str(int(total))
 
     def _adv_pts(team: str, predicted_stage: str) -> str:
@@ -514,16 +539,16 @@ async def build_combined_picks_points_rows(
 
     # ── preamble ──
     rows.append([f"{competition.name} — all entries: picks & points"])
-    rows.append(["Generated (UTC)", _fmt_dt(utc_now())])
-    rows.append(["Deadline (UTC)", _fmt_dt(competition.phase1_deadline)])
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(["Deadline (Malta)", _fmt_dt(competition.phase1_deadline)])
     rows.append(["Entries", str(len(entries))])
     rows.append(
         [
             "Each entry has two columns: PICK (the prediction) and PTS "
-            "(points scoring currently pays). Group-stage Pts use "
-            "base+rarity (e.g. 5+2 = correct outcome + 2 rarity, "
-            "15+2 = correct + exact + 2 rarity). Blank cells = the "
-            "underlying result hasn't been recorded yet."
+            "(total points scoring currently pays, rarity bonus folded "
+            "in). Pts cells are colour-coded: red = 0, yellow = 1–9, "
+            "green = 10–19, blue = 20+. Blank cells = the underlying "
+            "result hasn't been recorded yet."
         ]
     )
     rows.append(
@@ -546,7 +571,7 @@ async def build_combined_picks_points_rows(
     rows.append(_identity_row("Ref", lambda e: e.reference))
     rows.append(_identity_row("Name", lambda e: _safe(_person_name(e))))
     rows.append(_identity_row("Entry", lambda e: _safe(e.display_name or "")))
-    rows.append(_identity_row("Submitted (UTC)", lambda e: _fmt_dt(submitted_at(e))))
+    rows.append(_identity_row("Submitted (Malta)", lambda e: _fmt_dt(submitted_at(e))))
     rows.append([])
 
     # ── entry-name super-header (first cell of each pair carries the name) ──
@@ -557,7 +582,7 @@ async def build_combined_picks_points_rows(
     rows.append(super_header)
 
     # ── column header row ──
-    headers = ["Date (UTC)", "Group", "Home", "Away", "Actual"]
+    headers = ["Date (Malta)", "Group", "Home", "Away", "Actual"]
     for _ in entries:
         headers.extend(["Pick", "Pts"])
     rows.append(headers)
@@ -611,6 +636,82 @@ async def build_combined_picks_points_rows(
                 cells.append(_safe(ans))
                 cells.append(_bonus_pts(e.id, q.id, q.points))
             rows.append(cells)
+
+    return rows
+
+
+async def build_snapshot_history_rows(
+    session: AsyncSession, competition: Competition, days: int = 60
+) -> list[list[str]]:
+    """Wide-matrix rank-over-time history for the published Google sheet.
+
+    Layout: three label columns (Rank, Entry, Name) followed by one column
+    per calendar day on which AT LEAST ONE eligible entry has a recorded
+    snapshot. Cells hold the entry's position on that day (1 = leader),
+    or "—" when the daily snapshot for that entry didn't run / didn't exist
+    yet.
+
+    Eligible-entry filter comes from the live leaderboard (which already
+    excludes withdrawn / disabled / drafts) so the row set matches the
+    Standings tab exactly. Rows ordered by *current* rank so the leader is
+    at row 1 and the bottom of the pool at row N.
+
+    ``days`` defaults to 60 — comfortably covers the World Cup 2026 window
+    (June 11 → mid-July).
+    """
+    # Lazy imports — keep this module's hot path lean. snapshots.py is
+    # only needed here and pulling it in at module-load adds a few extra
+    # SQLModel reflection steps the CSV-export path doesn't need.
+    from app.services.leaderboard import calculate_leaderboard  # noqa: PLC0415
+    from app.services.snapshots import get_all_snapshots  # noqa: PLC0415
+
+    board = await calculate_leaderboard(session, phase="phase_1")
+    entry_ids = [e.entry_id for e in board.entries]
+
+    snapshots_by_entry = await get_all_snapshots(session, entry_ids, days=days)
+
+    # Union of every snapshot date across entries, sorted DESCENDING —
+    # today on the left, oldest on the right, so readers see "what just
+    # happened" first when scanning across.
+    all_dates: set = set()
+    for snaps in snapshots_by_entry.values():
+        for s in snaps:
+            all_dates.add(s.captured_date)
+    dates_sorted = sorted(all_dates, reverse=True)
+
+    # (entry_id, date) -> position
+    pos_by_entry_date: dict = {}
+    for entry_id, snaps in snapshots_by_entry.items():
+        for s in snaps:
+            pos_by_entry_date[(entry_id, s.captured_date)] = s.position
+
+    rows: list[list[str]] = []
+    rows.append(
+        [
+            f"{competition.name} — rank history "
+            f"({len(dates_sorted)} day{'s' if len(dates_sorted) != 1 else ''})"
+        ]
+    )
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(
+        [
+            "Cells = each entry's rank on that day. Lower is better. "
+            "'—' means no snapshot was recorded for that (entry, day) — "
+            "either the entry didn't exist yet or the daily snapshot didn't run."
+        ]
+    )
+    rows.append([])
+
+    # Column header row (frozen).
+    header = ["Rank", "Entry", "Name"] + [d.strftime("%Y-%m-%d") for d in dates_sorted]
+    rows.append(header)
+
+    for e in board.entries:
+        row: list[str] = [str(e.position), _safe(e.entry_name), _safe(e.user_name)]
+        for d in dates_sorted:
+            pos = pos_by_entry_date.get((e.entry_id, d))
+            row.append(str(pos) if pos is not None else "—")
+        rows.append(row)
 
     return rows
 

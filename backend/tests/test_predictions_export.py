@@ -226,7 +226,9 @@ async def test_export_structure_and_content(db_session: AsyncSession):
     assert _row_with_label(rows, 3, "Ref")[4] == "WC26-000001"
     assert _row_with_label(rows, 3, "Name")[4] == "Alice"
     assert _row_with_label(rows, 3, "Entry")[4] == "The Kings"
-    assert _row_with_label(rows, 3, "Submitted (UTC)")[4] == "2026-06-10 12:00"
+    # Timestamps now render in Malta time (CEST in June = UTC+2).
+    # 2026-06-10 12:00 UTC → 14:00 Malta time.
+    assert _row_with_label(rows, 3, "Submitted (Malta)")[4] == "2026-06-10 14:00"
 
     # Group fixture row: date, group, teams, then the score.
     fx_row = next(r for r in rows if len(r) > 2 and r[2] == "Mexico")

@@ -39,8 +39,9 @@ class _FakeSettings:
 
 
 class _FakeWorksheet:
-    def __init__(self, title: str):
+    def __init__(self, title: str, sheet_id: int = 0):
         self.title = title
+        self.id = sheet_id  # numeric sheetId — formatting needs this
         self.values: list[list[str]] | None = None
         self.cleared = False
 
@@ -50,13 +51,18 @@ class _FakeWorksheet:
     def resize(self, rows: int, cols: int):
         self._size = (rows, cols)
 
-    def update(self, values, a1=None):
+    def update(self, values, a1=None, **_kwargs):
+        # **_kwargs absorbs value_input_option and any future gspread args
         self.values = values
 
 
 class _FakeSpreadsheet:
     def __init__(self):
         self.tabs: dict[str, _FakeWorksheet] = {}
+        self._next_id: int = 0
+        # Capture batch_update calls so tests can assert formatting requests.
+        self.batch_requests: list[dict] = []
+        self.deleted: list[str] = []
 
     def worksheet(self, title: str) -> _FakeWorksheet:
         if title not in self.tabs:
@@ -64,9 +70,21 @@ class _FakeSpreadsheet:
         return self.tabs[title]
 
     def add_worksheet(self, title: str, rows: int, cols: int) -> _FakeWorksheet:
-        ws = _FakeWorksheet(title)
+        ws = _FakeWorksheet(title, sheet_id=self._next_id)
+        self._next_id += 1
         self.tabs[title] = ws
         return ws
+
+    def batch_update(self, body):
+        self.batch_requests.append(body)
+
+    def del_worksheet(self, ws):
+        for title, candidate in list(self.tabs.items()):
+            if candidate is ws:
+                del self.tabs[title]
+                self.deleted.append(title)
+                return
+        raise RuntimeError("WorksheetNotFound")
 
 
 # ─── Fixtures ──────────────────────────────────────────────────────────
@@ -174,11 +192,15 @@ async def test_build_standings_rows_shape(db_session: AsyncSession):
         "Rank",
         "Entry",
         "Name",
-        "Total",
-        "Group",
-        "Knockout",
-        "Bonus",
-        "Exact scores",
+        "No of Exact Scores",
+        "Group Points",
+        "Rarity Bonus Points",
+        "Grp Stage Bonus Questions",
+        "Total Grp Stage Points",
+        "Knockout Pnts",
+        "Knockout Bonus Points",
+        "Grand Total",
+        "Last Scoring Fixture",
     ]
     # One ranked data row for the single eligible entry.
     data = rows[rows.index(header) + 1:]
