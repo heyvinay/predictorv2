@@ -570,7 +570,108 @@ def _apply_rarity_formatting(spreadsheet: Any, ws: Any) -> None:
                 "fields": "userEnteredFormat.horizontalAlignment",
             }
         },
+        # Rarity Bonus column (col I, 0-indexed = 8): display positive
+        # integers with a "+" prefix while keeping the cell value numeric
+        # so conditional formatting can bucket it into colour bands.
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 6,
+                    "startColumnIndex": 8,
+                    "endColumnIndex": 9,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "numberFormat": {"type": "NUMBER", "pattern": "+0;-0;0"},
+                        "textFormat": {"bold": True},
+                        "horizontalAlignment": "CENTER",
+                    }
+                },
+                "fields": "userEnteredFormat(numberFormat,textFormat,horizontalAlignment)",
+            }
+        },
     ]
+
+    # ── conditional formatting on the Rarity Bonus column ──
+    # Bands anchored on the cap (10) — same palette as the Predictions tab's
+    # Pts bands for visual consistency:
+    #   0 = red (consensus / no rarity), 1-3 = yellow (small bonus),
+    #   4-6 = green (moderate), 7-10 = blue (high — "surprising result")
+    rarity_range = {
+        "sheetId": sheet_id,
+        "startRowIndex": 6,
+        "startColumnIndex": 8,
+        "endColumnIndex": 9,
+    }
+
+    # Strip prior rules so re-runs don't accumulate. Same idempotent
+    # pattern as _apply_predictions_formatting.
+    existing_rule_count = 0
+    try:
+        metadata = spreadsheet.fetch_sheet_metadata()
+        for sheet_data in metadata.get("sheets", []):
+            if sheet_data.get("properties", {}).get("sheetId") == sheet_id:
+                existing_rule_count = len(
+                    sheet_data.get("conditionalFormats", [])
+                )
+                break
+    except Exception:  # noqa: BLE001
+        existing_rule_count = 0
+    for _ in range(existing_rule_count):
+        requests.append(
+            {"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}}
+        )
+
+    band_rules = [
+        (
+            {"type": "NUMBER_EQ", "values": [{"userEnteredValue": "0"}]},
+            _rgb(248, 215, 218),  # light red
+        ),
+        (
+            {
+                "type": "NUMBER_BETWEEN",
+                "values": [
+                    {"userEnteredValue": "1"},
+                    {"userEnteredValue": "3"},
+                ],
+            },
+            _rgb(255, 243, 205),  # light yellow
+        ),
+        (
+            {
+                "type": "NUMBER_BETWEEN",
+                "values": [
+                    {"userEnteredValue": "4"},
+                    {"userEnteredValue": "6"},
+                ],
+            },
+            _rgb(212, 237, 218),  # light green
+        ),
+        (
+            {
+                "type": "NUMBER_GREATER_THAN_EQ",
+                "values": [{"userEnteredValue": "7"}],
+            },
+            _rgb(209, 236, 241),  # light blue
+        ),
+    ]
+    for idx, (condition, bg) in enumerate(band_rules):
+        requests.append(
+            {
+                "addConditionalFormatRule": {
+                    "rule": {
+                        "ranges": [rarity_range],
+                        "booleanRule": {
+                            "condition": condition,
+                            "format": {"backgroundColor": bg},
+                        },
+                    },
+                    "index": idx,
+                }
+            }
+        )
+
     spreadsheet.batch_update({"requests": requests})
 
 

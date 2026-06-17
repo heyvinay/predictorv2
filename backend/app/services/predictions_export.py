@@ -719,8 +719,12 @@ async def build_rarity_explainer_rows(
             (fixture, score, total_predictors, correct_predictors, rarity, outcome_label, actual_outcome, actual_home, actual_away)
         )
 
-    # Sort: rarity descending (most surprising first), then most-recent date.
-    explained.sort(key=lambda t: (-t[4], -(t[0].kickoff.timestamp())))
+    # Sort: kickoff ascending (matches the Predictions tab's group-stage
+    # row order — `Fixture.kickoff, Fixture.group, Fixture.id`), so a
+    # reader scanning both tabs sees the same fixture sequence.
+    explained.sort(
+        key=lambda t: (t[0].kickoff, t[0].group or "", str(t[0].id))
+    )
 
     rows: list[list[str]] = []
     rows.append([f"{competition.name} — rarity bonus breakdown"])
@@ -735,8 +739,9 @@ async def build_rarity_explainer_rows(
     )
     rows.append(
         [
-            "Sorted by rarity bonus, descending — the most surprising results "
-            "of the tournament sit at the top."
+            "Listed in kickoff order — same sequence as the Predictions tab. "
+            "Rarity Bonus column is colour-banded: red = 0, yellow = 1-3, "
+            "green = 4-6, blue = 7+."
         ]
     )
     rows.append([])
@@ -803,7 +808,7 @@ async def build_rarity_explainer_rows(
                 outcome_label,
                 f"{correct} / {total}",
                 f"{f_pct:.1f}%" if total else "—",
-                f"+{rarity}" if rarity > 0 else "0",
+                str(rarity),  # integer; Sheets number format adds the "+" prefix
                 why,
             ]
         )
