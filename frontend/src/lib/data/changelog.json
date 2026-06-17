@@ -2251,10 +2251,17 @@
       "commit": "pending"
     },
     {
+      "version": "2.176.4",
+      "date": "2026-06-15",
+      "type": "fix",
+      "summary": "Security hardening — the backend now refuses to boot in production if the JWT signing secret is missing, too short, or a placeholder. The signing key is the entire trust anchor for sign-in and admin access, so a weak value silently let any token be forged; failing closed at startup makes that impossible.",
+      "commit": "pending"
+    },
+    {
       "version": "2.177.0",
       "date": "2026-06-15",
       "type": "feature",
-      "summary": "Predictions, live standings, and per-pick results can now be mirrored into a shared, read-only Google Sheet — three tabs (Predictions, Standings, Results), all derived from the same data as the all-entries download and refreshed automatically after every game. Stays dormant until the Google credentials are configured.",
+      "summary": "Predictions and live standings now mirror into a shared, read-only Google Sheet — three tabs (Standings, Predictions, History) refreshed automatically after every game. Predictions combines each entry's picks side-by-side with the points they're earning, color-banded for at-a-glance reading; History plots every entry's rank trajectory across the tournament. Timestamps render in Malta time; entries grouped by owner so multiple entries appear together. Stays dormant until the Google credentials are configured.",
       "commit": "pending"
     }
   ]
