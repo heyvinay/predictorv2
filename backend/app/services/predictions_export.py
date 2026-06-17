@@ -640,6 +640,177 @@ async def build_combined_picks_points_rows(
     return rows
 
 
+async def build_rarity_explainer_rows(
+    session: AsyncSession, competition: Competition
+) -> list[list[str]]:
+    """Per-fixture rarity-bonus breakdown for the published sheet.
+
+    One row per FINISHED group-stage fixture, sorted by rarity bonus
+    descending (most surprising results at the top, ties broken by most-
+    recent date). Each row carries the raw counts + a plain-English
+    explanation so a reader can see why a specific fixture paid +6 vs +0
+    rarity without doing the Shannon math themselves.
+
+    Knockout fixtures and bonus questions don't use rarity (advancement
+    pays flat per the YAML, bonus answers are question-specific), so
+    they're excluded.
+    """
+    scoring_config = get_scoring_config()
+    mode = scoring_config.get("mode", "logarithmic")
+    match_config = scoring_config.get("match", {})
+    outcome_points = match_config.get("correct_outcome", 5)
+    exact_points = match_config.get("exact_score", 10)
+    rarity_cap = match_config.get("rarity_cap", match_config.get("hybrid_cap", 10))
+
+    # Load FINISHED group fixtures + scores.
+    finished_result = await session.execute(
+        select(Fixture, Score)
+        .join(Score, Score.fixture_id == Fixture.id)
+        .where(
+            Fixture.competition_id == competition.id,
+            Fixture.stage == "group",
+            Fixture.status == MatchStatus.FINISHED,
+        )
+    )
+    finished = list(finished_result.all())
+
+    outcome_counts_by_fixture = await get_all_outcome_counts(session)
+
+    # Build (fixture, score, total, correct, rarity, actual_outcome) tuples.
+    explained: list[tuple] = []
+    for fixture, score in finished:
+        actual_home = score.final_home_score
+        actual_away = score.final_away_score
+        if actual_home > actual_away:
+            actual_outcome = "1"
+            outcome_label = f"{fixture.home_team} win"
+        elif actual_home < actual_away:
+            actual_outcome = "2"
+            outcome_label = f"{fixture.away_team} win"
+        else:
+            actual_outcome = "X"
+            outcome_label = "Draw"
+
+        counts = outcome_counts_by_fixture.get(
+            fixture.id, {"1": 0, "X": 0, "2": 0}
+        )
+        total_predictors = sum(counts.values())
+        correct_predictors = counts.get(actual_outcome, 0)
+
+        # Compute rarity by asking the scoring engine for points on a
+        # perfect prediction (outcome+exact match) and subtracting the
+        # base — gives the pure rarity component the engine would award.
+        total_pts, _, _ = compute_match_points(
+            mode=mode,
+            predicted_home=actual_home,
+            predicted_away=actual_away,
+            actual_home=actual_home,
+            actual_away=actual_away,
+            total_predictors=total_predictors,
+            correct_predictors=correct_predictors,
+            outcome_points=outcome_points,
+            exact_points=exact_points,
+            cap=rarity_cap,
+        )
+        rarity = int(total_pts) - outcome_points - exact_points
+        rarity = max(0, rarity)  # defensive — fixed-mode returns 0 here anyway
+
+        explained.append(
+            (fixture, score, total_predictors, correct_predictors, rarity, outcome_label, actual_outcome, actual_home, actual_away)
+        )
+
+    # Sort: rarity descending (most surprising first), then most-recent date.
+    explained.sort(key=lambda t: (-t[4], -(t[0].kickoff.timestamp())))
+
+    rows: list[list[str]] = []
+    rows.append([f"{competition.name} — rarity bonus breakdown"])
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(
+        [
+            f"Rarity rewards predicting an outcome few others did. Added on top "
+            f"of the {outcome_points}-point base for a correct outcome. Caps at "
+            f"+{rarity_cap} when ~3.3% (≈1/30) of eligible entries pick it. "
+            "Consensus picks (>50%) earn no rarity bonus."
+        ]
+    )
+    rows.append(
+        [
+            "Sorted by rarity bonus, descending — the most surprising results "
+            "of the tournament sit at the top."
+        ]
+    )
+    rows.append([])
+
+    rows.append(
+        [
+            "Date (Malta)",
+            "Group",
+            "Home",
+            "Away",
+            "Result",
+            "Outcome",
+            "Correct / Total",
+            "Pool %",
+            "Rarity Bonus",
+            "Why",
+        ]
+    )
+
+    if not explained:
+        rows.append(
+            [
+                "",
+                "",
+                "",
+                "",
+                "No FINISHED group-stage fixtures yet — rarity is calculated "
+                "after each match completes.",
+            ]
+        )
+        return rows
+
+    for (
+        fixture,
+        _score,
+        total,
+        correct,
+        rarity,
+        outcome_label,
+        _outcome_key,
+        home_score,
+        away_score,
+    ) in explained:
+        f_pct = (correct / total * 100) if total else 0
+        if total == 0:
+            why = "No eligible entries predicted this fixture."
+        elif rarity == 0:
+            why = (
+                f"Consensus pick — {correct} of {total} entries ({f_pct:.0f}%) "
+                "had the correct outcome → no rarity bonus."
+            )
+        else:
+            why = (
+                f"{correct} of {total} entries ({f_pct:.1f}%) picked correctly "
+                f"→ +{rarity} rarity bonus on top of the {outcome_points} base."
+            )
+        rows.append(
+            [
+                _fmt_dt(fixture.kickoff),
+                fixture.group or "",
+                fixture.home_team,
+                fixture.away_team,
+                f"{home_score}-{away_score}",
+                outcome_label,
+                f"{correct} / {total}",
+                f"{f_pct:.1f}%" if total else "—",
+                f"+{rarity}" if rarity > 0 else "0",
+                why,
+            ]
+        )
+
+    return rows
+
+
 async def build_snapshot_history_rows(
     session: AsyncSession, competition: Competition, days: int = 60
 ) -> list[list[str]]:

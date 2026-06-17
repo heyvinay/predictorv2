@@ -49,6 +49,7 @@ from app.services.leaderboard import calculate_leaderboard
 from app.services.predictions_export import (
     COMBINED_LABEL_COLS,
     build_combined_picks_points_rows,
+    build_rarity_explainer_rows,
     build_snapshot_history_rows,
 )
 from app.services.scoring import (
@@ -99,6 +100,10 @@ STANDINGS_TAB = "Standings"
 # from the existing daily LeaderboardSnapshot table — the same data the
 # V4 Race chart on /leaderboard reads.
 HISTORY_TAB = "History"
+# Rarity = per-fixture explanation of why each finished group fixture paid
+# the rarity bonus it did. Self-contained reading view sorted by bonus
+# descending — "most surprising results of the tournament" at the top.
+RARITY_TAB = "Rarity"
 
 # Read/write scope. We never read user Drive content — just this sheet.
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -499,6 +504,76 @@ def _apply_predictions_formatting(
     spreadsheet.batch_update({"requests": requests})
 
 
+def _apply_rarity_formatting(spreadsheet: Any, ws: Any) -> None:
+    """Freeze the preamble + header rows; bold the column header; center-
+    align the Group / Outcome / Correct / Pool% / Rarity columns; let the
+    Date and Home/Away/Why columns left-align by default for readability.
+    """
+    sheet_id = ws.id
+    requests = [
+        {
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": sheet_id,
+                    "gridProperties": {"frozenRowCount": 6, "frozenColumnCount": 0},
+                },
+                "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
+            }
+        },
+        # Title row
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1},
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "fontSize": 13}}},
+                "fields": "userEnteredFormat.textFormat",
+            }
+        },
+        # Column header row (row 5 — "Date | Group | Home | Away | Result | …")
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 5, "endRowIndex": 6},
+                "cell": {
+                    "userEnteredFormat": {
+                        "textFormat": {"bold": True},
+                        "backgroundColor": _rgb(210, 220, 235),
+                        "horizontalAlignment": "CENTER",
+                    }
+                },
+                "fields": "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
+            }
+        },
+        # Center-align the numeric/short-token columns on data rows: Group
+        # (col B), Result (E), Outcome (F), Correct/Total (G), Pool % (H),
+        # Rarity Bonus (I). Skip Date (A), Home (C), Away (D), Why (J) so
+        # text reads naturally.
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 6,
+                    "startColumnIndex": 1,  # col B (Group)
+                    "endColumnIndex": 2,
+                },
+                "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                "fields": "userEnteredFormat.horizontalAlignment",
+            }
+        },
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 6,
+                    "startColumnIndex": 4,  # col E (Result) through col I (Rarity)
+                    "endColumnIndex": 9,
+                },
+                "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                "fields": "userEnteredFormat.horizontalAlignment",
+            }
+        },
+    ]
+    spreadsheet.batch_update({"requests": requests})
+
+
 def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
     """Freeze the rank/entry/name columns + the preamble & header rows so
     the date matrix scrolls under stable anchors. Bold the column header.
@@ -846,6 +921,7 @@ async def sync_to_sheets(
             session, competition
         )
         history_rows = await build_snapshot_history_rows(session, competition)
+        rarity_rows = await build_rarity_explainer_rows(session, competition)
 
         # Width of the predictions matrix → label cols + 2 per entry.
         # Compute here so the closure below doesn't need extra state.
@@ -859,6 +935,7 @@ async def sync_to_sheets(
                 spreadsheet, PREDICTIONS_TAB, predictions_rows
             )
             history_ws = _write_worksheet(spreadsheet, HISTORY_TAB, history_rows)
+            rarity_ws = _write_worksheet(spreadsheet, RARITY_TAB, rarity_rows)
             _apply_standings_formatting(spreadsheet, standings_ws)
             _apply_predictions_formatting(
                 spreadsheet,
@@ -868,15 +945,17 @@ async def sync_to_sheets(
                 label_cols=COMBINED_LABEL_COLS,
             )
             _apply_history_formatting(spreadsheet, history_ws)
+            _apply_rarity_formatting(spreadsheet, rarity_ws)
             _drop_obsolete_tabs(spreadsheet)
 
         await asyncio.to_thread(_push)
 
         logger.info(
-            "sheets_sync: pushed standings (%d rows) + predictions (%d rows) + history (%d rows)",
+            "sheets_sync: pushed standings (%d) + predictions (%d) + history (%d) + rarity (%d)",
             len(standings_rows),
             len(predictions_rows),
             len(history_rows),
+            len(rarity_rows),
         )
         return True
     except Exception:  # noqa: BLE001 — sync must never break callers
