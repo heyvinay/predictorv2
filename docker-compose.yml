@@ -35,6 +35,10 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/auth/google/callback}
+      # Google Sheets sync (v2.177.0). All empty → sheets_sync is a logged no-op.
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID:-}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON:-}
+      - SHEETS_SYNC_ENABLED=${SHEETS_SYNC_ENABLED:-true}
       - FOOTBALL_DATA_TOKEN=${FOOTBALL_DATA_TOKEN:-}
       - TOURNAMENT_CONFIG_PATH=/app/config/worldcup2026.yml
       - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
