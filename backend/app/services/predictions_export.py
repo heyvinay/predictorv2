@@ -840,11 +840,14 @@ async def build_rules_rows(
     rows.append([])
 
     rows.append(["MATCH PREDICTIONS  (group stage only)"])
+    # NOTE: leading "+" needs the formula-guard apostrophe via _safe() — with
+    # USER_ENTERED mode Sheets otherwise tries to parse "+5 pts" as an
+    # arithmetic expression and renders #ERROR!.
     rows.append(
-        ["Correct outcome (1 / X / 2)", f"+{match_cfg.get('correct_outcome', 5)} pts"]
+        ["Correct outcome (1 / X / 2)", _safe(f"+{match_cfg.get('correct_outcome', 5)} pts")]
     )
     rows.append(
-        ["Exact score (in addition to outcome)", f"+{match_cfg.get('exact_score', 10)} pts"]
+        ["Exact score (in addition to outcome)", _safe(f"+{match_cfg.get('exact_score', 10)} pts")]
     )
     if mode == "logarithmic":
         cap = match_cfg.get("rarity_cap", match_cfg.get("hybrid_cap", 10))
@@ -873,7 +876,7 @@ async def build_rules_rows(
     ]
     for key, label in stage_labels:
         pts = adv_cfg.get(key, 0)
-        rows.append([label, f"+{int(pts)} pts"])
+        rows.append([label, _safe(f"+{int(pts)} pts")])
     rows.append(
         [
             "  Timing",
@@ -888,7 +891,7 @@ async def build_rules_rows(
     rows.append(["BONUS QUESTIONS"])
     if questions:
         for q in questions:
-            rows.append([q.label, f"+{int(q.points)} pts"])
+            rows.append([q.label, _safe(f"+{int(q.points)} pts")])
         rows.append(
             [
                 "  How bonuses settle",
