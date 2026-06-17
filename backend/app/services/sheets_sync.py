@@ -50,7 +50,9 @@ from app.services.predictions_export import (
     COMBINED_LABEL_COLS,
     build_combined_picks_points_rows,
     build_rarity_explainer_rows,
+    build_rules_rows,
     build_snapshot_history_rows,
+    build_tournament_summary_rows,
 )
 from app.services.scoring import (
     compute_match_points,
@@ -104,6 +106,13 @@ HISTORY_TAB = "History"
 # the rarity bonus it did. Self-contained reading view sorted by bonus
 # descending — "most surprising results of the tournament" at the top.
 RARITY_TAB = "Rarity"
+# Summary = dashboard of tournament-wide stats: pool composition, fixture
+# progress, scoring distribution, category leaders, next-up match.
+SUMMARY_TAB = "Summary"
+# Rules = scoring-rules reference rendered from config + bonus questions.
+# Static-ish (only changes if YAML changes); still pushed every tick so
+# it stays current with the tournament config.
+RULES_TAB = "Rules"
 
 # Read/write scope. We never read user Drive content — just this sheet.
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -505,6 +514,88 @@ def _apply_predictions_formatting(
     spreadsheet.batch_update({"requests": requests})
 
 
+def _apply_summary_formatting(spreadsheet: Any, ws: Any) -> None:
+    """Freeze the title + intro rows; bold section header rows.
+
+    Section headers are detected by content: rows whose first cell is all
+    uppercase and >= 3 chars (e.g. "POOL COMPOSITION", "LEADERS").
+    """
+    sheet_id = ws.id
+    requests: list[dict[str, Any]] = [
+        {
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": sheet_id,
+                    "index": 3,  # after Rarity, before Rules
+                    "gridProperties": {"frozenRowCount": 4, "frozenColumnCount": 1},
+                },
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
+            }
+        },
+        # Title row
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1},
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "fontSize": 14}}},
+                "fields": "userEnteredFormat.textFormat",
+            }
+        },
+        # Column A bold (it's all labels)
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 4,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 1,
+                },
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True}}},
+                "fields": "userEnteredFormat.textFormat",
+            }
+        },
+    ]
+    spreadsheet.batch_update({"requests": requests})
+
+
+def _apply_rules_formatting(spreadsheet: Any, ws: Any) -> None:
+    """Bold the title + first column (labels). Freeze the intro rows."""
+    sheet_id = ws.id
+    requests = [
+        {
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": sheet_id,
+                    "index": 4,  # after Summary, before History
+                    "gridProperties": {"frozenRowCount": 4, "frozenColumnCount": 1},
+                },
+                "fields": "index,gridProperties(frozenRowCount,frozenColumnCount)",
+            }
+        },
+        # Title row
+        {
+            "repeatCell": {
+                "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1},
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True, "fontSize": 14}}},
+                "fields": "userEnteredFormat.textFormat",
+            }
+        },
+        # Column A bold across data rows
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 4,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 1,
+                },
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True}}},
+                "fields": "userEnteredFormat.textFormat",
+            }
+        },
+    ]
+    spreadsheet.batch_update({"requests": requests})
+
+
 def _apply_rarity_formatting(spreadsheet: Any, ws: Any) -> None:
     """Freeze the preamble + header rows; bold the column header; center-
     align the Group / Outcome / Correct / Pool% / Rarity columns; let the
@@ -687,7 +778,7 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
-                    "index": 3,  # rightmost tab — after Rarity
+                    "index": 5,  # rightmost tab — after Summary + Rules
                     # 2 frozen cols now: Rank + Name-Entry (was 3 when Entry
                     # and Name lived in their own columns).
                     "gridProperties": {"frozenRowCount": 5, "frozenColumnCount": 2},
@@ -1026,8 +1117,10 @@ async def sync_to_sheets(
         predictions_rows = await build_combined_picks_points_rows(
             session, competition
         )
-        history_rows = await build_snapshot_history_rows(session, competition)
         rarity_rows = await build_rarity_explainer_rows(session, competition)
+        summary_rows = await build_tournament_summary_rows(session, competition)
+        rules_rows = await build_rules_rows(session, competition)
+        history_rows = await build_snapshot_history_rows(session, competition)
 
         # Width of the predictions matrix → label cols + 2 per entry.
         # Compute here so the closure below doesn't need extra state.
@@ -1036,17 +1129,14 @@ async def sync_to_sheets(
 
         def _push() -> None:
             spreadsheet = _open_spreadsheet()
-            # Write in the desired left-to-right tab order. Newly-created
-            # worksheets are appended to the end by Sheets, so this puts
-            # them in the right slot on a fresh spreadsheet. The explicit
-            # `index` fields in the formatting requests below re-anchor
-            # the order on every push for already-existing tabs (in case
-            # someone manually dragged them).
+            # Write in the desired left-to-right tab order.
             standings_ws = _write_worksheet(spreadsheet, STANDINGS_TAB, standings_rows)
             predictions_ws = _write_worksheet(
                 spreadsheet, PREDICTIONS_TAB, predictions_rows
             )
             rarity_ws = _write_worksheet(spreadsheet, RARITY_TAB, rarity_rows)
+            summary_ws = _write_worksheet(spreadsheet, SUMMARY_TAB, summary_rows)
+            rules_ws = _write_worksheet(spreadsheet, RULES_TAB, rules_rows)
             history_ws = _write_worksheet(spreadsheet, HISTORY_TAB, history_rows)
             _apply_standings_formatting(spreadsheet, standings_ws)
             _apply_predictions_formatting(
@@ -1057,17 +1147,21 @@ async def sync_to_sheets(
                 label_cols=COMBINED_LABEL_COLS,
             )
             _apply_rarity_formatting(spreadsheet, rarity_ws)
+            _apply_summary_formatting(spreadsheet, summary_ws)
+            _apply_rules_formatting(spreadsheet, rules_ws)
             _apply_history_formatting(spreadsheet, history_ws)
             _drop_obsolete_tabs(spreadsheet)
 
         await asyncio.to_thread(_push)
 
         logger.info(
-            "sheets_sync: pushed standings (%d) + predictions (%d) + history (%d) + rarity (%d)",
+            "sheets_sync: pushed standings (%d) + predictions (%d) + rarity (%d) + summary (%d) + rules (%d) + history (%d)",
             len(standings_rows),
             len(predictions_rows),
-            len(history_rows),
             len(rarity_rows),
+            len(summary_rows),
+            len(rules_rows),
+            len(history_rows),
         )
         return True
     except Exception:  # noqa: BLE001 — sync must never break callers

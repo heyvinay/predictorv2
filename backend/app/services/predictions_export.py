@@ -640,6 +640,287 @@ async def build_combined_picks_points_rows(
     return rows
 
 
+async def build_tournament_summary_rows(
+    session: AsyncSession, competition: Competition
+) -> list[list[str]]:
+    """Compact dashboard of tournament-wide stats for the published sheet.
+
+    Sections: pool composition (by employer), tournament progress (fixtures
+    played by stage + next-up match), pool scoring snapshot (avg / median /
+    range / totals), and category leaders (most exact scores, most rarity
+    bonus earned, most popular champion pick). All data is derived from
+    the leaderboard cache + a single fixtures query — no per-entry round-
+    trips, so this is cheap to refresh on every sync tick.
+    """
+    from collections import Counter  # noqa: PLC0415
+    from app.services.leaderboard import calculate_leaderboard  # noqa: PLC0415
+
+    board = await calculate_leaderboard(session, phase="phase_1")
+
+    fixtures_result = await session.execute(
+        select(Fixture)
+        .where(Fixture.competition_id == competition.id)
+        .order_by(Fixture.kickoff)
+    )
+    fixtures = list(fixtures_result.scalars().all())
+
+    finished_count = sum(1 for f in fixtures if f.status == MatchStatus.FINISHED)
+    group_total = sum(1 for f in fixtures if f.stage == "group")
+    group_finished = sum(
+        1 for f in fixtures
+        if f.stage == "group" and f.status == MatchStatus.FINISHED
+    )
+    ko_stages = {
+        "round_of_32", "round_of_16", "quarter_final",
+        "semi_final", "final",
+    }
+    ko_total = sum(1 for f in fixtures if f.stage in ko_stages)
+    ko_finished = sum(
+        1 for f in fixtures
+        if f.stage in ko_stages and f.status == MatchStatus.FINISHED
+    )
+
+    next_match = next(
+        (f for f in fixtures if f.status != MatchStatus.FINISHED),
+        None,
+    )
+
+    employer_counts: Counter = Counter()
+    for e in board.entries:
+        emp_raw = (e.employer or "guests").lower()
+        emp = {"atlas": "Atlas", "jmfa": "JMFA"}.get(emp_raw, "Guests")
+        employer_counts[emp] += 1
+
+    points_sorted = sorted([e.total_points for e in board.entries], reverse=True)
+    if points_sorted:
+        avg_pts = sum(points_sorted) / len(points_sorted)
+        median_pts = points_sorted[len(points_sorted) // 2]
+        max_pts = points_sorted[0]
+        min_pts = points_sorted[-1]
+        total_pts_pool = sum(points_sorted)
+    else:
+        avg_pts = median_pts = max_pts = min_pts = total_pts_pool = 0
+
+    total_exacts = sum(e.exact_scores for e in board.entries)
+    total_rarity = sum(
+        e.breakdown.phase1.hybrid_bonus_points for e in board.entries
+    )
+
+    champion_counter: Counter = Counter()
+    for e in board.entries:
+        if e.champion_pick:
+            champion_counter[e.champion_pick] += 1
+
+    top_exact = (
+        max(board.entries, key=lambda e: e.exact_scores)
+        if board.entries
+        else None
+    )
+    top_rarity = (
+        max(board.entries, key=lambda e: e.breakdown.phase1.hybrid_bonus_points)
+        if board.entries
+        else None
+    )
+    top_champion = champion_counter.most_common(1)
+
+    def _entry_display(e) -> str:
+        return f"{_person_name(e) if False else e.user_name} ({e.entry_name})"
+
+    rows: list[list[str]] = []
+    rows.append([f"{competition.name} — Tournament Summary"])
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(
+        [
+            "A snapshot of where the tournament + the pool stands right now. "
+            "Refreshed every score tick alongside the other tabs."
+        ]
+    )
+    rows.append([])
+
+    rows.append(["POOL COMPOSITION"])
+    rows.append(["Eligible entries", str(len(board.entries))])
+    for emp, count in sorted(employer_counts.items(), key=lambda x: -x[1]):
+        pct = (count / len(board.entries) * 100) if board.entries else 0
+        rows.append([f"  {emp}", f"{count} ({pct:.0f}%)"])
+    rows.append([])
+
+    rows.append(["TOURNAMENT PROGRESS"])
+    rows.append(
+        ["Total fixtures played", f"{finished_count} of {len(fixtures)}"]
+    )
+    rows.append(
+        ["  Group stage", f"{group_finished} of {group_total} matches"]
+    )
+    rows.append(["  Knockout", f"{ko_finished} of {ko_total} matches"])
+    if next_match:
+        stage_label = (
+            "Group" if next_match.stage == "group"
+            else next_match.stage.replace("_", " ").title()
+        )
+        rows.append(
+            [
+                "Next match",
+                f"{_fmt_dt(next_match.kickoff)} · {stage_label}"
+                f"{' ' + (next_match.group or '') if next_match.group else ''}"
+                f" — {next_match.home_team} vs {next_match.away_team}",
+            ]
+        )
+    rows.append([])
+
+    if board.entries:
+        rows.append(["POOL SCORING"])
+        leader = board.entries[0]
+        rows.append(
+            ["Highest score", f"{max_pts} — {leader.user_name} ({leader.entry_name})"]
+        )
+        rows.append(["Lowest score", str(min_pts)])
+        rows.append(["Average score", f"{avg_pts:.1f}"])
+        rows.append(["Median score", str(median_pts)])
+        rows.append(["Total points in pool", f"{total_pts_pool:,}"])
+        rows.append(["Total exact scores", str(total_exacts)])
+        rows.append(["Total rarity points earned", str(total_rarity)])
+        rows.append([])
+
+        rows.append(["LEADERS"])
+        if top_exact and top_exact.exact_scores > 0:
+            rows.append(
+                [
+                    "Most exact scores",
+                    f"{top_exact.exact_scores} — {top_exact.user_name} "
+                    f"({top_exact.entry_name})",
+                ]
+            )
+        if top_rarity and top_rarity.breakdown.phase1.hybrid_bonus_points > 0:
+            rows.append(
+                [
+                    "Most rarity points",
+                    f"{top_rarity.breakdown.phase1.hybrid_bonus_points} — "
+                    f"{top_rarity.user_name} ({top_rarity.entry_name})",
+                ]
+            )
+        if top_champion:
+            team, count = top_champion[0]
+            pct = (count / len(board.entries) * 100) if board.entries else 0
+            rows.append(
+                [
+                    "Most popular Champion pick",
+                    f"{team} — {count} entries ({pct:.0f}%)",
+                ]
+            )
+        rows.append([])
+
+    return rows
+
+
+async def build_rules_rows(
+    session: AsyncSession, competition: Competition  # noqa: ARG001 — session kept for parity
+) -> list[list[str]]:
+    """Static scoring-rules reference rendered from config + bonus questions.
+
+    Pure read of `get_scoring_config()` and `get_bonus_questions()` — same
+    sources the scoring engine uses, so this tab can never drift from
+    what's actually awarded.
+    """
+    config = get_scoring_config()
+    mode = config.get("mode", "logarithmic")
+    match_cfg = config.get("match", {})
+    adv_cfg = config.get("advancement", {})
+    questions = get_bonus_questions()
+
+    rows: list[list[str]] = []
+    rows.append([f"{competition.name} — Scoring Rules"])
+    rows.append(["Generated (Malta)", _fmt_dt(utc_now())])
+    rows.append(
+        [
+            "Scoring values mirrored from config/worldcup2026.yml — same "
+            "source the scoring engine reads, so this tab can never drift "
+            "from what's actually awarded."
+        ]
+    )
+    rows.append([])
+
+    rows.append(["MATCH PREDICTIONS  (group stage only)"])
+    rows.append(
+        ["Correct outcome (1 / X / 2)", f"+{match_cfg.get('correct_outcome', 5)} pts"]
+    )
+    rows.append(
+        ["Exact score (in addition to outcome)", f"+{match_cfg.get('exact_score', 10)} pts"]
+    )
+    if mode == "logarithmic":
+        cap = match_cfg.get("rarity_cap", match_cfg.get("hybrid_cap", 10))
+        rows.append(
+            ["Rarity bonus (logarithmic, on a correct outcome)", f"up to +{cap} pts"]
+        )
+        rows.append(
+            [
+                "  How the rarity bonus works",
+                "Larger bonus when fewer entries got the outcome right. "
+                f"Cap reached at ~3.3% (≈1/30 of eligible entries). "
+                "Consensus picks (>50%) earn no rarity bonus. See the "
+                "Rarity tab for the per-fixture breakdown.",
+            ]
+        )
+    rows.append([])
+
+    rows.append(["KNOCKOUT ADVANCEMENT  (per team predicted to reach)"])
+    stage_labels = [
+        ("round_of_32", "Round of 32"),
+        ("round_of_16", "Round of 16"),
+        ("quarter_final", "Quarter Finals"),
+        ("semi_final", "Semi Finals"),
+        ("final", "Final"),
+        ("winner", "Champion"),
+    ]
+    for key, label in stage_labels:
+        pts = adv_cfg.get(key, 0)
+        rows.append([label, f"+{int(pts)} pts"])
+    rows.append(
+        [
+            "  Timing",
+            "Knockout points pay the moment a team is seeded into a "
+            "stage-X fixture (lineup-based — no need to wait for the "
+            "match to be played). Champion credit fires once the final "
+            "is FINISHED and scored.",
+        ]
+    )
+    rows.append([])
+
+    rows.append(["BONUS QUESTIONS"])
+    if questions:
+        for q in questions:
+            rows.append([q.label, f"+{int(q.points)} pts"])
+        rows.append(
+            [
+                "  How bonuses settle",
+                "Full points if the entry's answer matches any of the "
+                "recorded correct answers (ties allowed). Group-stage "
+                "questions settle after all group matches play; "
+                "knockout-stage questions settle after the tournament.",
+            ]
+        )
+    rows.append([])
+
+    rows.append(["ELIGIBILITY"])
+    rows.append(
+        [
+            "Who counts",
+            "Eligible entries are those that were SUBMITTED before the "
+            "deadline and are neither withdrawn nor disabled. The same "
+            "filter is used by the leaderboard and by the rarity-bonus "
+            "denominator.",
+        ]
+    )
+    rows.append(
+        [
+            "Provisional",
+            "All standings shown anywhere in this sheet are provisional "
+            "and finalised by manual review after the tournament concludes.",
+        ]
+    )
+
+    return rows
+
+
 async def build_rarity_explainer_rows(
     session: AsyncSession, competition: Competition
 ) -> list[list[str]]:
