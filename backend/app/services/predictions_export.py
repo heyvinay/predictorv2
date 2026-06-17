@@ -673,10 +673,20 @@ async def build_snapshot_history_rows(
     # Union of every snapshot date across entries, sorted DESCENDING —
     # today on the left, oldest on the right, so readers see "what just
     # happened" first when scanning across.
+    # Filter out pre-deadline dates: the rank trajectory only becomes
+    # meaningful once the pool is locked and matches start scoring;
+    # earlier snapshots are all tied/seeded and just add clutter (former
+    # cols K-S in the history tab).
+    earliest_date = (
+        aware_utc(competition.phase1_deadline).date()
+        if competition.phase1_deadline
+        else None
+    )
     all_dates: set = set()
     for snaps in snapshots_by_entry.values():
         for s in snaps:
-            all_dates.add(s.captured_date)
+            if earliest_date is None or s.captured_date >= earliest_date:
+                all_dates.add(s.captured_date)
     dates_sorted = sorted(all_dates, reverse=True)
 
     # (entry_id, date) -> position

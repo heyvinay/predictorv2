@@ -117,15 +117,15 @@ def get_published_sheet_url() -> str | None:
     """Public Google Sheets URL for the published all-entries view, or None
     when sheets_sync isn't configured.
 
-    The sheet is shared "Anyone with the link → Viewer", so this URL is
-    safe to surface in the API response — anyone could already discover
-    it by clicking the published link. Used by the V4 leaderboard's
-    "View All Entries" button to deep-link viewers into the live sheet.
+    Uses ``/preview`` (read-only display mode, no editor chrome) rather
+    than ``/edit`` so viewers land in a clean view immediately. Tab
+    switching between Standings / Predictions / History still works in
+    preview mode.
     """
     settings = get_settings()
     if not (settings.sheets_sync_enabled and settings.google_sheet_id):
         return None
-    return f"https://docs.google.com/spreadsheets/d/{settings.google_sheet_id}/edit"
+    return f"https://docs.google.com/spreadsheets/d/{settings.google_sheet_id}/preview"
 
 
 def _load_credentials_info() -> dict[str, Any]:
