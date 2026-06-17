@@ -41,6 +41,12 @@ export interface LbResponseV4 {
 	last_calculated: string;
 	total_participants: number;
 	phase: string | null;
+	/**
+	 * Public URL of the shared Google Sheet (all-entries picks/points/history).
+	 * Null when sheets_sync isn't configured server-side. The leaderboard
+	 * page uses this to conditionally render the "View All Entries" button.
+	 */
+	published_sheet_url: string | null;
 }
 
 /** Points DNA — where an entry's points come from. Sums to breakdown.total. */

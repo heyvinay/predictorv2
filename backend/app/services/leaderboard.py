@@ -141,11 +141,16 @@ def _schedule_background_refresh(phase: PhaseFilter, cache_key: str) -> None:
 
 
 def _response_from_cache(cached: CachedLeaderboard) -> LeaderboardResponse:
+    # Local import keeps app.services.sheets_sync (and its lazy gspread
+    # dependency surface) off the leaderboard's hot-path imports.
+    from app.services.sheets_sync import get_published_sheet_url  # noqa: PLC0415
+
     return LeaderboardResponse(
         entries=cached.entries,
         last_calculated=cached.last_calculated,
         total_participants=cached.total_participants,
         phase=cached.phase,
+        published_sheet_url=get_published_sheet_url(),
     )
 
 
@@ -504,11 +509,14 @@ async def _rebuild_leaderboard(
         previous_positions={e.entry_id: e.position for e in entries},
     )
 
+    from app.services.sheets_sync import get_published_sheet_url  # noqa: PLC0415
+
     return LeaderboardResponse(
         entries=entries,
         last_calculated=now,
         total_participants=total_participants,
         phase=phase,
+        published_sheet_url=get_published_sheet_url(),
     )
 
 

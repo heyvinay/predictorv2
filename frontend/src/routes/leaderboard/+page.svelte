@@ -21,7 +21,6 @@
 	import { teamCode } from '$lib/utils/teamCodes';
 	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
-	import { downloadAllEntriesCsv } from '$api/export';
 	import { track } from '$lib/analytics';
 	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
@@ -181,22 +180,10 @@
 			: null;
 	})();
 
-	// ── all-entries CSV download (transparency sheet, v2.168+) ──
-	// Backend re-checks the same gate (admin || post_deadline_live), so
-	// this button is convenience chrome, not the access control.
-	let downloadingCsv = false;
-	let downloadCsvError = false;
-	async function downloadAllEntries() {
-		if (downloadingCsv) return;
-		downloadingCsv = true;
-		downloadCsvError = false;
-		try {
-			await downloadAllEntriesCsv();
-		} catch {
-			downloadCsvError = true;
-		}
-		downloadingCsv = false;
-	}
+	// ── published Google Sheet URL (v2.177.x) ──
+	// Backend sets this on the leaderboard response when sheets_sync is
+	// configured. The button below renders only when it's present.
+	$: publishedSheetUrl = board?.published_sheet_url ?? null;
 
 	function formatKickoff(iso: string | null): string {
 		if (!iso) return '';
@@ -284,15 +271,14 @@
 						{#if v.sub}<span class="hidden text-[10px] font-bold opacity-55 sm:inline">{v.sub}</span>{/if}
 					</button>
 				{/each}
-				<button
-					class="inline-flex items-center gap-1.5 rounded-btn border-[1.5px] border-transparent bg-base-200 px-2.5 py-1 font-display text-[11px] font-bold tracking-[0.04em] text-base-content/70 transition-all hover:text-base-content disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-2 sm:text-xs"
-					title="Download every entry's predictions as one CSV — the shared transparency sheet"
-					disabled={downloadingCsv}
-					on:click={downloadAllEntries}
-				>
-					{#if downloadingCsv}
-						<span class="loading loading-spinner loading-xs"></span>
-					{:else}
+				{#if publishedSheetUrl}
+					<a
+						class="inline-flex items-center gap-1.5 rounded-btn border-[1.5px] border-transparent bg-base-200 px-2.5 py-1 font-display text-[11px] font-bold tracking-[0.04em] text-base-content/70 transition-all hover:text-base-content sm:gap-2 sm:px-4 sm:py-2 sm:text-xs"
+						title="Open the shared Google Sheet of every entry's picks, points, and rank history in a new tab"
+						href={publishedSheetUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
 						<svg
 							class="h-3.5 w-3.5"
 							viewBox="0 0 24 24"
@@ -303,27 +289,15 @@
 							stroke-linejoin="round"
 							aria-hidden="true"
 						>
-							<path d="M3 15v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3" />
-							<path d="M12 3v12" />
-							<path d="m7 11 5 5 5-5" />
+							<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+							<polyline points="15 3 21 3 21 9" />
+							<line x1="10" y1="14" x2="21" y2="3" />
 						</svg>
-					{/if}
-					<span><span class="hidden sm:inline">All entries </span>CSV</span>
-				</button>
+						<span>View All Entries</span>
+					</a>
+				{/if}
 			</div>
 		</div>
-		{#if downloadCsvError}
-			<p
-				class="mb-2 flex flex-wrap items-center justify-end gap-2 text-right text-[11px] text-error"
-				role="alert"
-			>
-				Download failed — try again in a moment.
-				<button class="btn btn-ghost btn-xs text-error" on:click={downloadAllEntries}
-					>Retry</button
-				>
-			</p>
-		{/if}
-
 		<YourEntriesStrip {rows} userId={$user?.id} {pool} onPool={setPool} bind:search />
 
 		{#if loading}

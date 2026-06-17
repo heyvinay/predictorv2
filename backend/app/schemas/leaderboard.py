@@ -212,3 +212,8 @@ class LeaderboardResponse(BaseModel):
     last_calculated: datetime
     total_participants: int
     phase: str | None = None  # Which phase this leaderboard is for (None = overall)
+    # Public URL of the shared Google Sheet (all-entries picks + points +
+    # rank history). None when sheets_sync isn't configured — the
+    # frontend uses this to conditionally render the "View All Entries"
+    # button on the V4 leaderboard toolbar.
+    published_sheet_url: str | None = None
