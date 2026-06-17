@@ -509,7 +509,9 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
             "updateSheetProperties": {
                 "properties": {
                     "sheetId": sheet_id,
-                    "gridProperties": {"frozenRowCount": 5, "frozenColumnCount": 3},
+                    # 2 frozen cols now: Rank + Name-Entry (was 3 when Entry
+                    # and Name lived in their own columns).
+                    "gridProperties": {"frozenRowCount": 5, "frozenColumnCount": 2},
                 },
                 "fields": "gridProperties(frozenRowCount,frozenColumnCount)",
             }
@@ -522,7 +524,7 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
                 "fields": "userEnteredFormat.textFormat",
             }
         },
-        # Column header row (row 4 — "Rank | Entry | Name | <date> | …")
+        # Column header row (row 4 — "Rank | Name - Entry | <date> | …")
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 4, "endRowIndex": 5},
@@ -536,13 +538,14 @@ def _apply_history_formatting(spreadsheet: Any, ws: Any) -> None:
                 "fields": "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
             }
         },
-        # Date columns: center the rank numbers
+        # Date columns: center the rank numbers. First date column is now
+        # at index 2 (was 3) since Entry/Name collapsed into one.
         {
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
                     "startRowIndex": 5,
-                    "startColumnIndex": 3,  # first date column
+                    "startColumnIndex": 2,  # first date column
                 },
                 "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
                 "fields": "userEnteredFormat.horizontalAlignment",

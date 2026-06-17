@@ -663,6 +663,7 @@ async def build_snapshot_history_rows(
     # only needed here and pulling it in at module-load adds a few extra
     # SQLModel reflection steps the CSV-export path doesn't need.
     from app.services.leaderboard import calculate_leaderboard  # noqa: PLC0415
+    from app.services.sheets_sync import _name_entry_label  # noqa: PLC0415
     from app.services.snapshots import get_all_snapshots  # noqa: PLC0415
 
     board = await calculate_leaderboard(session, phase="phase_1")
@@ -712,12 +713,17 @@ async def build_snapshot_history_rows(
     )
     rows.append([])
 
-    # Column header row (frozen).
-    header = ["Rank", "Entry", "Name"] + [d.strftime("%Y-%m-%d") for d in dates_sorted]
+    # Column header row (frozen). Mirrors the Standings tab's "Name - Entry"
+    # combined column — default auto-generated entry names ("Entry N") are
+    # suppressed so single-entry owners show as just their name.
+    header = ["Rank", "Name - Entry"] + [d.strftime("%Y-%m-%d") for d in dates_sorted]
     rows.append(header)
 
     for e in board.entries:
-        row: list[str] = [str(e.position), _safe(e.entry_name), _safe(e.user_name)]
+        row: list[str] = [
+            str(e.position),
+            _safe(_name_entry_label(e.user_name, e.entry_name)),
+        ]
         for d in dates_sorted:
             pos = pos_by_entry_date.get((e.entry_id, d))
             row.append(str(pos) if pos is not None else "—")
