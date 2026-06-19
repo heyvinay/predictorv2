@@ -501,6 +501,55 @@ swap. After every prod deploy, grep the output for
 `Conflict. The container name` and run the targeted backend recreate if
 present. Memory: `feedback_docker_compose_rename_conflict.md`.
 
+### Broadcast email feature (v2.160.0, extended v2.176.0, v2.178.0)
+
+**Admin "Broadcast Emails" card** at `/admin` fans out one email per
+audience row via Resend, paced ~50ms per send. **Templates are
+hardcoded per segment in `backend/app/services/email.py:
+_broadcast_content_for_segment()`** — the admin UI is NOT a freeform
+composer. Adding a new one-off announcement = add a new
+`BroadcastSegment` enum value + a branch in the content function +
+labels in `frontend/src/routes/admin/+page.svelte:SEGMENT_LABELS` +
+the union in `frontend/src/lib/api/admin.ts:BroadcastSegment`.
+
+**Audience cohorts** (all deduped by user — `query_audience` returns
+one row per User via `EXISTS` subquery, so multi-entry holders get
+exactly one email):
+
+- `SUBMITTERS` (v2.160.0) — has ≥1 SUBMITTED entry phase. Pre-deadline
+  "thanks for entering" nudge. CTA → `/entries`.
+- `NO_ENTRY` (v2.160.0) — zero PredictionEntry rows. Last reminder to
+  sign up. CTA → `/entries`.
+- `DRAFT_HOLDERS` (v2.160.0) — has DRAFT but no SUBMITTED. CTA →
+  `/entries`.
+- `POOL_GHOST` (v2.176.0) — submitted-eligible AND no engagement since
+  `TOURNAMENT_START`. CTA → `/results`.
+- `LAPSING` (v2.176.0) — submitted-eligible AND last engagement
+  3-7 days ago. CTA → `/results`.
+- `GROUP_R1_RECAP` (v2.178.0) — one-off round-recap email. **Same
+  audience query as SUBMITTERS** (shared `_has_submitted_phase_predicate`).
+  Body is a tournament-progress recap (live standings + Google Sheet +
+  €595/€183/€150 prize breakdown + Atlas €500 Soup Kitchen top-up).
+  CTA → `/leaderboard?utm_source=email&utm_campaign=group_r1_recap`.
+  Plain-text deliberately omits the raw spreadsheet URL; recipients are
+  routed to the in-app "View All Entries" button instead.
+
+**Engagement-signal architecture for POOL_GHOST / LAPSING is HYBRID:**
+`User.last_seen_at` column (primary, throttled per-request in
+`get_current_user`) + PostHog `$pageview` fallback (best-effort, silent
+degradation). See `backend/app/services/broadcast.py` module docstring
+for the full rule.
+
+**UTM tagging convention (introduced v2.178.0):** broadcast CTAs that
+route into the app carry `?utm_source=email&utm_campaign=<segment>`.
+PostHog `capture_pageview: true` records `$current_url` so filter by
+`$current_url contains utm_campaign=group_r1_recap` to count
+click-throughs. Sheet button clicks specifically fire the
+`view_all_entries_clicked` event from
+`frontend/src/routes/leaderboard/+page.svelte`. The email-direct →
+docs.google.com path is **deliberately unattributable** (sheet on a
+third-party domain).
+
 ### Datetime rule (system-wide)
 
 **Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
@@ -720,6 +769,14 @@ Adding a new event: append the name to the `EventName` union in
 `backend/app/api/telemetry.py` (only required if any caller passes
 `alsoServer: true` or if a backend service fires it via
 `analytics.capture()`).
+
+**Notable custom events** (browser-fired unless noted):
+- `match_detail_opened` / `leaderboard_view_changed` (v2.176.2) — Site
+  Pulse feature-usage signals.
+- `view_all_entries_clicked` (v2.178.0) — click on the **View All
+  Entries** button on `/leaderboard` (opens the public Google Sheet).
+  Pairs with UTM-tagged broadcast links to give email→app and
+  email→sheet attribution. Frontend-only; no backend allow-list entry.
 
 ### Privacy posture
 
