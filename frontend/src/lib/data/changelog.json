@@ -2270,6 +2270,13 @@
       "type": "feature",
       "summary": "New 'Group Stage Round 1 recap' broadcast template — admin one-click send that thanks every entrant, links to the live standings and the shared Google Sheet, and spells out the €595 / €183 / €150 prize breakdown plus the Atlas €500 Soup Kitchen top-up. The 'View All Entries' button on /leaderboard now records click-tracking events so we can see how often the sheet gets opened from inside the app.",
       "commit": "pending"
+    },
+    {
+      "version": "2.178.1",
+      "date": "2026-06-20",
+      "type": "improvement",
+      "summary": "Leaderboard standings now show your entries both pinned at the top AND in their natural rank position, so you can see how you stack against your immediate neighbours. The entry-detail drawer reorders matchday picks by latest played first, and hides the knockout bracket section until any team is actually seeded. Rules page now documents the Adidas Trionda match ball — awarded at end of tournament to the runner-up, with the group-stage cash winner ineligible — and clarifies that cash prizes are split equally when entries tie on points.",
+      "commit": "pending"
     }
   ]
 }
