@@ -313,7 +313,8 @@
 				<p class="text-xs text-base-content/40 mt-1">Updated after the deadline</p>
 			</div>
 		</div>
-		<p class="text-sm text-base-content/80 mt-4">The prize fund is typically split as follows: <b>65%</b> to the overall winner, <b>20%</b> to the group-stage winner, and the rest to a charity chosen by the organisers.</p>
+		<p class="text-sm text-base-content/80 mt-4">The prize fund is typically split as follows: <b>65%</b> to the overall winner, <b>20%</b> to the group-stage winner, and the rest to a charity chosen by the organisers. <b>Ties are shared.</b> If two or more entries are tied for the lead at the end of the group stage, the group-stage cash is split equally between them; the same applies at the end of the tournament for the overall cash prize.</p>
+		<p class="text-sm text-base-content/80 mt-3"><b>Side prize — official Adidas Trionda match ball.</b> Awarded at the end of the tournament to the <b>runner-up</b> on total points. <b>Any entry that won or shared the group-stage cash is not eligible</b> — if such an entry is also the runner-up, the ball moves to the next eligible entry below. If multiple eligible entries are tied at that rank, the ball goes to the one with more <b>group-stage points</b>; if still tied, the winner is drawn by lots.</p>
 	</section>
 
 	<!-- 06 — Provisional standings & finalization -->
