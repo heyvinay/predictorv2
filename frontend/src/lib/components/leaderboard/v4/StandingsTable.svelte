@@ -70,14 +70,16 @@
 
 	$: sortedRows = sortRows(rows, sort, multiOwners);
 
-	// Pin own entries at the top (matching the dashboard mini-leaderboard).
-	// Sort order is preserved within each group, so changing the sort still
-	// affects how the user's multi-entry block is ordered. De-duped: own
-	// entries appear ONCE, in the pinned block — never duplicated below.
-	// Global ranks survive (rendered from row.position), so the pinned
-	// entry's "#117" is its real position in the un-pinned standings.
+	// Pin own entries at the top (matching the dashboard mini-leaderboard)
+	// AND keep them in their natural rank position in the full list, so
+	// users can see immediate neighbours at a glance. The pinned section
+	// uses isOwn={true} for the gold ring + chip; the in-place rows render
+	// with isOwn={false} — the "Your entries · pinned" header band above
+	// is the explicit cue, no per-row marker needed. Global ranks survive
+	// (rendered from row.position), so the pinned entry's "#117" matches
+	// its real position in the un-pinned standings below.
 	$: pinnedRows = userId ? sortedRows.filter((r) => r.user_id === userId) : [];
-	$: otherRows = userId ? sortedRows.filter((r) => r.user_id !== userId) : sortedRows;
+	$: otherRows = sortedRows;
 	$: hasPinned = pinnedRows.length > 0;
 
 	const SECTION_BAND_CLASS =

@@ -127,6 +127,12 @@
 
 	$: eliminated = eliminatedTeams($fixtures);
 	$: seeded = seededByStage($fixtures);
+	// True once any team has been seeded into ANY knockout fixture. During
+	// pure group stage every chip in the knockout section is 'pend' — the
+	// whole section is a wall of placeholders that hides the scored group
+	// picks below. We hide it until R32 seeds, then it reappears in its
+	// original position above Group picks.
+	$: knockoutStarted = Array.from(seeded.values()).some((s) => s.size > 0);
 
 	// Bracket rounds, most recent first — ALL scored knockout rounds
 	// (R32 +20 and R16 +30 pay points too, so they must be visible).
@@ -160,10 +166,19 @@
 		return { ...r, teams, hits, alive, pts: hits * per };
 	});
 
-	// Group picks bucketed by matchday, latest first; fixtures latest-first.
+	// Group picks bucketed by matchday and ordered by recency of FINISHED
+	// fixtures (most-recently-played matchday first). Within each matchday
+	// fixtures still sort kickoff-desc. Buckets with no FINISHED fixtures
+	// sink to the bottom; if everything is still pending the original
+	// MD3→MD1 order is preserved by the day-desc tiebreaker.
 	$: matchdays = deriveGroupMatchdays($fixtures);
-	type DayBucket = { day: 1 | 2 | 3; picks: MatchPredictionWithPoints[]; pts: number };
-	$: dayBuckets = ([3, 2, 1] as const)
+	type DayBucket = {
+		day: 1 | 2 | 3;
+		picks: MatchPredictionWithPoints[];
+		pts: number;
+		recency: number;
+	};
+	$: dayBuckets = ([1, 2, 3] as const)
 		.map((day): DayBucket => {
 			const picks = matches
 				.filter((m) => (matchdays.get(m.fixture_id) ?? 1) === day)
@@ -171,9 +186,19 @@
 					(a, b) => new Date(b.kickoff ?? 0).getTime() - new Date(a.kickoff ?? 0).getTime()
 				);
 			const pts = picks.reduce((s, p) => s + (p.points?.total ?? 0), 0);
-			return { day, picks, pts };
+			// Recency = latest kickoff among picks whose fixture has a score
+			// (live or finished). Zero if no scored fixtures in this bucket.
+			const recency = picks.reduce((max, p) => {
+				const f = fx(p.fixture_id);
+				if (f?.score) {
+					return Math.max(max, new Date(p.kickoff ?? 0).getTime());
+				}
+				return max;
+			}, 0);
+			return { day, picks, pts, recency };
 		})
-		.filter((b) => b.picks.length > 0);
+		.filter((b) => b.picks.length > 0)
+		.sort((a, b) => b.recency - a.recency || b.day - a.day);
 
 	function fx(id: string): Fixture | undefined {
 		return $fixtureById.get(id);
@@ -305,7 +330,8 @@
 			</div>
 		{/if}
 
-		<!-- knockout bracket — latest round first -->
+		<!-- knockout bracket — latest round first; hidden until R32 seeds -->
+		{#if knockoutStarted}
 		<section class="mt-4">
 			<div class="mb-2 flex items-baseline justify-between gap-2.5">
 				<h3 class="flex-none whitespace-nowrap font-hero text-[17px] tracking-[0.05em]">
@@ -349,6 +375,7 @@
 				</div>
 			{/each}
 		</section>
+		{/if}
 
 		<!-- group picks — latest matchday first -->
 		<section class="mt-4">
