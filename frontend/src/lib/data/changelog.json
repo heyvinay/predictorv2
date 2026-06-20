@@ -2277,6 +2277,13 @@
       "type": "improvement",
       "summary": "Leaderboard standings now show your entries both pinned at the top AND in their natural rank position, so you can see how you stack against your immediate neighbours. The entry-detail drawer reorders matchday picks by latest played first, and hides the knockout bracket section until any team is actually seeded. Rules page now documents the Adidas Trionda match ball — awarded at end of tournament to the runner-up, with the group-stage cash winner ineligible — and clarifies that cash prizes are split equally when entries tie on points.",
       "commit": "pending"
+    },
+    {
+      "version": "2.178.2",
+      "date": "2026-06-20",
+      "type": "improvement",
+      "summary": "Rules page now shows the actual prize amounts for this tournament — €595 to the Overall Winner, €183 to the Group Stage Winner, and €137 from the pool to the Soup Kitchen — plus a thank-you callout for Atlas Insurance, whose top-up brings the total charitable contribution to €650.",
+      "commit": "pending"
     }
   ]
 }
