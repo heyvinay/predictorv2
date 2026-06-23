@@ -18,7 +18,12 @@
 	});
 
 	const W = 1080;
-	const H = 150;
+	// Taller viewBox so the histogram bars actually fill the side-column
+	// card. Earlier we tried stretching the CARD via flex-1 — the chart
+	// then sat marooned in empty space. Stretching the chart itself
+	// (viewBox 1080×400) makes the bars grow to ~3× their previous height
+	// and the card height tracks the chart naturally.
+	const H = 400;
 	const PAD_X = 20;
 
 	$: chartGeom = data ? buildChartGeom(data) : null;
@@ -28,8 +33,8 @@
 		const usable = W - PAD_X * 2;
 		const binWidth = usable / totalBins;
 		const maxCount = Math.max(1, ...d.bins.map(b => b.count));
-		const baseY = H - 30;
-		const topY = 35;
+		const baseY = H - 40;
+		const topY = 60;
 		const bars = d.bins.map(b => {
 			const x = PAD_X + (b.points_delta + d.window_size) * binWidth + binWidth * 0.1;
 			const h = ((b.count / maxCount) * (baseY - topY));
@@ -50,14 +55,7 @@
 </script>
 
 {#if !loading && data && chartGeom}
-	<!--
-		flex-1 + flex flex-col makes the card stretch to fill the remaining
-		height of the dashboard side column, so its bottom aligns with the
-		main column's tallest card (Latest Results). The chart sits at the
-		top at its natural aspect ratio; the trailing flex-1 spacer absorbs
-		the extra space below — without it the chart itself would stretch.
-	-->
-	<section class="flex flex-1 flex-col rounded-box border border-base-300 bg-base-200 p-4">
+	<section class="rounded-box border border-base-300 bg-base-200 p-4">
 		<header class="mb-3 flex items-center gap-2">
 			<h3 class="m-0 text-xs font-bold uppercase tracking-wide text-primary">Pool Distribution</h3>
 		</header>
@@ -85,8 +83,5 @@
 			<text x={W / 2} y={H - 10} text-anchor="middle" font-size="11" font-weight="700" class="fill-base-content/40">YOU</text>
 			<text x={W - PAD_X} y={H - 10} text-anchor="end" font-size="11" class="fill-base-content/40">+{data.window_size}pt</text>
 		</svg>
-		<!-- spacer absorbs remaining height so the chart sits at the top
-		     of the card rather than centring vertically -->
-		<div class="flex-1"></div>
 	</section>
 {/if}
