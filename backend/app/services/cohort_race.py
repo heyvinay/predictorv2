@@ -26,7 +26,7 @@ from app.services.scoring import eligible_entry_ids_select
 
 MIN_COHORT_SIZE = 3
 
-CohortKey = Literal["atlas", "jmfa", "guests"]
+CohortKey = Literal["atlas", "jmfa", "guests", "all"]
 
 
 def _classify(employer: str | None) -> CohortKey:
@@ -102,13 +102,18 @@ async def compute_cohort_trail(
     )
     rows = (await session.execute(stmt)).all()
 
-    # bucket: cohort → date → list of positions (lower = better)
+    # bucket: cohort → date → list of positions (lower = better).
+    # 'all' is the pool-wide baseline — every eligible entry, regardless of
+    # employer. Displayed first; never min-size-suppressed (the whole pool
+    # is by definition the pool).
     bucket: dict[CohortKey, dict[date, list[int]]] = {
+        "all": {},
         "atlas": {},
         "jmfa": {},
         "guests": {},
     }
     entry_ids_per_cohort: dict[CohortKey, set[str]] = {
+        "all": set(),
         "atlas": set(),
         "jmfa": set(),
         "guests": set(),
@@ -118,12 +123,17 @@ async def compute_cohort_trail(
         cohort = _classify(employer)
         entry_ids_per_cohort[cohort].add(str(entry_id))
         bucket[cohort].setdefault(captured_date, []).append(position)
+        # Every row also contributes to the pool-wide 'all' baseline.
+        entry_ids_per_cohort["all"].add(str(entry_id))
+        bucket["all"].setdefault(captured_date, []).append(position)
 
     cohorts: list[CohortItem] = []
-    for cohort_key in ("atlas", "jmfa", "guests"):
+    # 'all' rendered first so it reads as the baseline in the chart legend.
+    for cohort_key in ("all", "atlas", "jmfa", "guests"):
         by_date = bucket[cohort_key]
         entry_count = len(entry_ids_per_cohort[cohort_key])
-        if entry_count < MIN_COHORT_SIZE:
+        # 'all' is exempt from the min-size threshold.
+        if cohort_key != "all" and entry_count < MIN_COHORT_SIZE:
             continue
         points = [
             CohortPoint(

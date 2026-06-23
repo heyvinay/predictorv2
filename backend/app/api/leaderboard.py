@@ -477,7 +477,7 @@ class CohortTrailPoint(BaseModel):
     median_rank: float
 
 
-CohortKind = Literal["atlas", "jmfa", "guests"]
+CohortKind = Literal["atlas", "jmfa", "guests", "all"]
 
 
 class CohortTrailItem(BaseModel):
