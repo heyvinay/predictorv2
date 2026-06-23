@@ -209,3 +209,56 @@ export interface MatchMarkersResponse {
 	markers: MatchMarker[];
 	generated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard widget types (2026-06-22 spec)
+// ---------------------------------------------------------------------------
+
+export interface DailyMvp {
+	captured_date: string;
+	subject_entry_id: string;
+	user_name: string;
+	entry_name: string;
+	day_points: number;
+	rank_delta: number;
+}
+
+export interface DailyMvpsResponse {
+	mvps: DailyMvp[];
+	generated_at: string;
+}
+
+export interface TrailPoint {
+	captured_date: string;
+	your_points: number;
+	pool_avg_points: number;
+}
+
+export interface EntryTrail {
+	entry_id: string;
+	entry_name: string;
+	current_rank: number;
+	current_gap: number;
+	points: TrailPoint[];
+}
+
+export interface PersonalTrailResponse {
+	entries: EntryTrail[];
+	generated_at: string;
+}
+
+export interface DistBin {
+	points_delta: number;
+	count: number;
+}
+
+export interface PoolDistributionResponse {
+	user_points: number;
+	window_size: number;
+	bins: DistBin[];
+	next_rank_points_away: number | null;
+	next_rank_position: number | null;
+	near_count: number;
+	caption: string;
+	generated_at: string;
+}
