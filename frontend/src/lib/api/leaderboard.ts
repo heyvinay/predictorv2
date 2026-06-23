@@ -13,7 +13,11 @@ import type { LeaderboardResponse, PointBreakdown } from '$types';
 import type {
 	AllTrajectoriesResponse,
 	BonusPredictionRead,
-	LbResponseV4
+	ChampionSurvivalResponse,
+	CohortTrailResponse,
+	LbResponseV4,
+	MatchMarkersResponse,
+	RaceStoriesResponse
 } from '$lib/types/leaderboard';
 import type { ScoringRules } from '$lib/types/results';
 
@@ -116,4 +120,22 @@ export async function getSteepestClimbers(
  *  point value in user-facing copy from this (no hardcoded numbers). */
 export async function getScoringRules(): Promise<ScoringRules> {
 	return api.get<ScoringRules>('/leaderboard/scoring-rules');
+}
+
+// ---- Race-tab story endpoints (v4 redesign) -----------------------------
+
+export async function getRaceStories(): Promise<RaceStoriesResponse> {
+	return api.get<RaceStoriesResponse>('/leaderboard/race-stories');
+}
+
+export async function getChampionSurvival(): Promise<ChampionSurvivalResponse> {
+	return api.get<ChampionSurvivalResponse>('/leaderboard/champion-survival');
+}
+
+export async function getCohortTrail(days = 30): Promise<CohortTrailResponse> {
+	return api.get<CohortTrailResponse>(`/leaderboard/cohort-trail?days=${days}`);
+}
+
+export async function getMatchMarkers(days = 14): Promise<MatchMarkersResponse> {
+	return api.get<MatchMarkersResponse>(`/leaderboard/match-markers?days=${days}`);
 }
