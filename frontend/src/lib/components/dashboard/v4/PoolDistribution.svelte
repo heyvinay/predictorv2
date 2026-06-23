@@ -50,7 +50,14 @@
 </script>
 
 {#if !loading && data && chartGeom}
-	<section class="rounded-box border border-base-300 bg-base-200 p-4">
+	<!--
+		flex-1 + flex flex-col makes the card stretch to fill the remaining
+		height of the dashboard side column, so its bottom aligns with the
+		main column's tallest card (Latest Results). The chart sits at the
+		top at its natural aspect ratio; the trailing flex-1 spacer absorbs
+		the extra space below — without it the chart itself would stretch.
+	-->
+	<section class="flex flex-1 flex-col rounded-box border border-base-300 bg-base-200 p-4">
 		<header class="mb-3 flex items-center gap-2">
 			<h3 class="m-0 text-xs font-bold uppercase tracking-wide text-primary">Pool Distribution</h3>
 		</header>
@@ -78,5 +85,8 @@
 			<text x={W / 2} y={H - 10} text-anchor="middle" font-size="11" font-weight="700" class="fill-base-content/40">YOU</text>
 			<text x={W - PAD_X} y={H - 10} text-anchor="end" font-size="11" class="fill-base-content/40">+{data.window_size}pt</text>
 		</svg>
+		<!-- spacer absorbs remaining height so the chart sits at the top
+		     of the card rather than centring vertically -->
+		<div class="flex-1"></div>
 	</section>
 {/if}
