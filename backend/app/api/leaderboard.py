@@ -7,17 +7,20 @@ default; pass `?entry_id=<uuid>` to target a specific one.
 """
 
 import uuid
-from datetime import date
-from typing import Any
+from datetime import date, datetime
+from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser
+from app.database import get_session
+from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser, get_current_user
 from app.models.entry import PredictionEntry
 from app.models.user import User
+from app.models._datetime import utc_now
 from app.schemas.leaderboard import LeaderboardResponse, PointBreakdown
 from app.services.entries import (
     EntryAccessDeniedError,
@@ -429,3 +432,125 @@ async def get_climbers(
         entries = [e for e in entries if e.user_id == user.id]
 
     return SteepestClimbersResponse(days=days, entries=entries)
+
+
+# --------------------------------------------------------------------------
+# Race-tab redesign schemas (2026-06-22 spec)
+# --------------------------------------------------------------------------
+
+RaceStoryKind = Literal["biggest_climb", "steepest_fall", "closest_race", "hottest_streak"]
+
+
+class SparklinePoint(BaseModel):
+    captured_date: date
+    rank: int
+
+
+class RaceStoryOut(BaseModel):
+    kind: RaceStoryKind
+    title: str
+    caption: str
+    subject_entry_id: str
+    compare_entry_id: str | None = None
+    sparkline: list[SparklinePoint]
+    compare_sparkline: list[SparklinePoint] | None = None
+
+
+class RaceStoriesResponse(BaseModel):
+    stories: list[RaceStoryOut]
+    generated_at: datetime
+
+
+class ChampionTeamCount(BaseModel):
+    team_code: str
+    team_name: str
+    count: int
+    alive: bool
+
+
+class ChampionSurvivalResponse(BaseModel):
+    alive_count: int
+    total_count: int
+    teams: list[ChampionTeamCount]
+    generated_at: datetime
+
+
+class CohortTrailPoint(BaseModel):
+    captured_date: date
+    median_rank: float
+
+
+CohortKind = Literal["atlas", "jmfa", "guests"]
+
+
+class CohortTrailItem(BaseModel):
+    cohort: CohortKind
+    entry_count: int
+    points: list[CohortTrailPoint]
+    current_median_rank: float
+
+
+class CohortAnnotation(BaseModel):
+    cohort: CohortKind
+    captured_date: date
+    caption: str
+
+
+class CohortTrailResponse(BaseModel):
+    cohorts: list[CohortTrailItem]
+    annotations: list[CohortAnnotation]
+    generated_at: datetime
+
+
+class MatchMarker(BaseModel):
+    fixture_id: int
+    kickoff: datetime
+    home_team_code: str
+    away_team_code: str
+    home_score: int
+    away_score: int
+    is_upset: bool
+    impact_score: float
+
+
+class MatchMarkersResponse(BaseModel):
+    markers: list[MatchMarker]
+    generated_at: datetime
+
+
+@router.get("/race-stories", response_model=RaceStoriesResponse)
+async def race_stories(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> RaceStoriesResponse:
+    """Returns the 0-4 qualifying race-story cards. See spec §Story-cards grid."""
+    return RaceStoriesResponse(stories=[], generated_at=utc_now())
+
+
+@router.get("/champion-survival", response_model=ChampionSurvivalResponse)
+async def champion_survival(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> ChampionSurvivalResponse:
+    """Returns how much of the pool's champion pick is still alive."""
+    return ChampionSurvivalResponse(alive_count=0, total_count=0, teams=[], generated_at=utc_now())
+
+
+@router.get("/cohort-trail", response_model=CohortTrailResponse)
+async def cohort_trail(
+    days: int = 30,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> CohortTrailResponse:
+    """Returns the median rank trail per cohort over the last `days` days."""
+    return CohortTrailResponse(cohorts=[], annotations=[], generated_at=utc_now())
+
+
+@router.get("/match-markers", response_model=MatchMarkersResponse)
+async def match_markers(
+    days: int = 14,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> MatchMarkersResponse:
+    """Returns the 0-3 most-impactful KO match results for chart annotation."""
+    return MatchMarkersResponse(markers=[], generated_at=utc_now())
