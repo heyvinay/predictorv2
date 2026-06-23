@@ -493,14 +493,17 @@ export function composeRankDelta(delta: number): string {
 	return '—';
 }
 
-/** Personal Trail multi-entry helper — show first 2 entries by default,
- *  with a "+N more" link to expand. */
+/** Personal Trail multi-entry helper — show first N entries by default
+ *  (N defaults to 2 for back-compat with the existing test suite), with a
+ *  "+N more" link to expand. The name is kept stale-but-stable rather than
+ *  churning every call site. */
 export function firstTwoPlusExpand<T>(
 	items: T[],
-	expanded: boolean
+	expanded: boolean,
+	n: number = 2
 ): { visible: T[]; remaining: number } {
-	if (expanded || items.length <= 2) {
+	if (expanded || items.length <= n) {
 		return { visible: items, remaining: 0 };
 	}
-	return { visible: items.slice(0, 2), remaining: items.length - 2 };
+	return { visible: items.slice(0, n), remaining: items.length - n };
 }

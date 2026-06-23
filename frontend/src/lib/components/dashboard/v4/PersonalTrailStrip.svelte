@@ -19,7 +19,7 @@
 		}
 	});
 
-	$: split = firstTwoPlusExpand(entries, expanded);
+	$: split = firstTwoPlusExpand(entries, expanded, 5);
 
 	function pathFor(points: EntryTrail['points'], getter: (p: EntryTrail['points'][number]) => number, w = 800, h = 90): string {
 		if (points.length === 0) return '';
