@@ -1,14 +1,15 @@
 """Race-story derivations for the /leaderboard race-tab story cards.
 
-Each of the four candidate stories has an independent qualification rule.
-Display order is fixed (biggest_climb -> steepest_fall -> closest_race ->
-hottest_streak). A non-qualifying card is omitted; the frontend grid
-collapses to render only the qualifying ones.
+The first three candidates (biggest_climb, steepest_fall, hottest_streak)
+are independent — any/all may fire. The 4th slot is filled by the first
+candidate from a fallback chain (phoenix > slow_burn > steady_hand) that
+qualifies, so the slot is almost never empty.
 
 All datetimes returned are aware-UTC. Eligible entries only.
 """
 from __future__ import annotations
 
+import statistics
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Literal
@@ -21,19 +22,38 @@ from app.services.locking import is_phase1_locked
 from app.services.scoring import eligible_entry_ids_select
 
 
-# How far back to look for climb/fall/streak qualifications.
+# How far back to look for the various qualifications.
 WINDOW_DAYS_CLIMB_FALL = 3
 WINDOW_DAYS_STREAK = 5  # min streak length
-WINDOW_DAYS_CLOSEST = 7
 
 # Thresholds.
 MIN_CLIMB_DELTA = 15
 MIN_FALL_DELTA = 15
 TOP_50_CAP = 50  # climber must currently be in top 50
 TOP_25_START_CAP = 25  # faller must have been in top 25 at window start
-CLOSEST_GAP_POINTS = 5
 
-StoryKind = Literal["biggest_climb", "steepest_fall", "closest_race", "hottest_streak"]
+# Phoenix: must have fallen at least this many ranks at some point AND
+# now be within RECOVERY of where they started.
+PHOENIX_MIN_DROP = 15
+PHOENIX_RECOVERY_BAND = 5
+
+# Slow burn: must have gained at least this many ranks over the window
+# AND never had a single-day drop worse than this.
+SLOW_BURN_MIN_GAIN = 10
+SLOW_BURN_MAX_BAD_DAY = 3
+
+# Steady hand: must currently be at or better than this rank, with the
+# smallest population-stdev across the visible window.
+STEADY_HAND_CURRENT_CAP = 15
+
+StoryKind = Literal[
+    "biggest_climb",
+    "steepest_fall",
+    "hottest_streak",
+    "phoenix",
+    "slow_burn",
+    "steady_hand",
+]
 
 
 @dataclass
@@ -66,9 +86,7 @@ async def select_race_stories(session: AsyncSession) -> list[RaceStory]:
         return []
 
     stories: list[RaceStory] = []
-    # closest_race candidate was removed — its 7-day sparkline couldn't
-    # honestly visualise a "lead traded N times" caption when leader +
-    # runner both clip to rank 1-2; the chart belied the narrative.
+    # First three slots: independent qualifiers — any/all fire.
     for candidate in (
         _try_biggest_climb,
         _try_steepest_fall,
@@ -77,6 +95,15 @@ async def select_race_stories(session: AsyncSession) -> list[RaceStory]:
         story = candidate(trail)
         if story is not None:
             stories.append(story)
+    # Fourth slot: fallback chain — phoenix is the most dramatic but
+    # the rarest. Slow_burn fills the patient-climber niche. Steady_hand
+    # is the always-something default: somebody always has the lowest
+    # stdev within the top-15 cap.
+    for fallback in (_try_phoenix, _try_slow_burn, _try_steady_hand):
+        story = fallback(trail)
+        if story is not None:
+            stories.append(story)
+            break
     return stories
 
 
@@ -267,5 +294,108 @@ def _try_hottest_streak(trails: list[EntryTrail]) -> RaceStory | None:
         subject_entry_id=t.entry_id,
         compare_entry_id=None,
         sparkline=t.points[-7:],
+        compare_sparkline=None,
+    )
+
+
+def _try_phoenix(trails: list[EntryTrail]) -> RaceStory | None:
+    """Comeback story: dropped >= PHOENIX_MIN_DROP at some point in the
+    visible window AND has since recovered to within PHOENIX_RECOVERY_BAND
+    of their starting rank. Pick the deepest fall — the most dramatic
+    recovery wins. The U-shape sparkline visually carries the narrative."""
+    best: tuple[int, EntryTrail] | None = None  # (drop_depth, trail)
+    for t in trails:
+        if len(t.points) < 5:
+            continue
+        ranks = [p.rank for p in t.points]
+        start_rank = ranks[0]
+        current_rank = ranks[-1]
+        worst_rank = max(ranks)  # higher number = worse rank
+        drop_depth = worst_rank - start_rank
+        recovery_gap = abs(current_rank - start_rank)
+        if drop_depth < PHOENIX_MIN_DROP:
+            continue
+        if recovery_gap > PHOENIX_RECOVERY_BAND:
+            continue
+        if best is None or drop_depth > best[0]:
+            best = (drop_depth, t)
+    if best is None:
+        return None
+    drop_depth, t = best
+    climbed_back = max(p.rank for p in t.points) - t.current_rank
+    return RaceStory(
+        kind="phoenix",
+        title=f"{_label(t)} — comeback",
+        caption=f"Fell {drop_depth}, climbed {climbed_back} back since.",
+        subject_entry_id=t.entry_id,
+        compare_entry_id=None,
+        sparkline=t.points,
+        compare_sparkline=None,
+    )
+
+
+def _try_slow_burn(trails: list[EntryTrail]) -> RaceStory | None:
+    """Patient climber: rank improved by >= SLOW_BURN_MIN_GAIN over the
+    window AND no single-day drop worse than SLOW_BURN_MAX_BAD_DAY.
+    Pick the biggest gain. Gentle uphill sparkline."""
+    best: tuple[int, EntryTrail] | None = None  # (gain, trail)
+    for t in trails:
+        if len(t.points) < 5:
+            continue
+        ranks = [p.rank for p in t.points]
+        gain = ranks[0] - ranks[-1]  # positive = improved (lower rank number)
+        if gain < SLOW_BURN_MIN_GAIN:
+            continue
+        had_bad_day = False
+        for i in range(1, len(ranks)):
+            day_change = ranks[i] - ranks[i - 1]  # positive = rank got worse
+            if day_change > SLOW_BURN_MAX_BAD_DAY:
+                had_bad_day = True
+                break
+        if had_bad_day:
+            continue
+        if best is None or gain > best[0]:
+            best = (gain, t)
+    if best is None:
+        return None
+    gain, t = best
+    days_span = len(t.points) - 1
+    return RaceStory(
+        kind="slow_burn",
+        title=f"{_label(t)} — climbing steadily",
+        caption=f"Up {gain} places over {days_span} days without a single bad day.",
+        subject_entry_id=t.entry_id,
+        compare_entry_id=None,
+        sparkline=t.points,
+        compare_sparkline=None,
+    )
+
+
+def _try_steady_hand(trails: list[EntryTrail]) -> RaceStory | None:
+    """Currently inside STEADY_HAND_CURRENT_CAP and the smallest
+    population-stdev across the window. The flat sparkline IS the story —
+    consistency, not drama."""
+    candidates: list[tuple[float, EntryTrail]] = []
+    for t in trails:
+        if t.current_rank > STEADY_HAND_CURRENT_CAP:
+            continue
+        if len(t.points) < 5:
+            continue
+        ranks = [p.rank for p in t.points]
+        candidates.append((statistics.pstdev(ranks), t))
+    if not candidates:
+        return None
+    # Smallest stdev wins; ties broken by best current rank.
+    candidates.sort(key=lambda x: (x[0], x[1].current_rank))
+    _stdev, t = candidates[0]
+    worst_rank = max(p.rank for p in t.points)
+    days_span = len(t.points) - 1
+    return RaceStory(
+        kind="steady_hand",
+        title=f"{_label(t)} — steady hand",
+        caption=f"Hasn't ranked worse than #{worst_rank} in {days_span} days.",
+        subject_entry_id=t.entry_id,
+        compare_entry_id=None,
+        sparkline=t.points,
         compare_sparkline=None,
     )

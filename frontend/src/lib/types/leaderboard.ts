@@ -131,8 +131,10 @@ export interface RaceSliceDescriptor {
 export type RaceStoryKind =
 	| 'biggest_climb'
 	| 'steepest_fall'
-	| 'closest_race'
-	| 'hottest_streak';
+	| 'hottest_streak'
+	| 'phoenix'
+	| 'slow_burn'
+	| 'steady_hand';
 
 export interface SparklinePoint {
 	captured_date: string;

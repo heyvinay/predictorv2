@@ -435,7 +435,14 @@ async def get_climbers(
 # Race-tab redesign schemas (2026-06-22 spec)
 # --------------------------------------------------------------------------
 
-RaceStoryKind = Literal["biggest_climb", "steepest_fall", "closest_race", "hottest_streak"]
+RaceStoryKind = Literal[
+    "biggest_climb",
+    "steepest_fall",
+    "hottest_streak",
+    "phoenix",
+    "slow_burn",
+    "steady_hand",
+]
 
 
 class SparklinePoint(BaseModel):

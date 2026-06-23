@@ -8,15 +8,19 @@
 	const EYEBROWS: Record<RaceStory['kind'], string> = {
 		biggest_climb: '▲ Biggest climber',
 		steepest_fall: '▼ Steepest fall',
-		closest_race: '⚔ Closest race',
 		hottest_streak: '🔥 Hottest streak',
+		phoenix: '🦅 Phoenix',
+		slow_burn: '🌱 Slow burn',
+		steady_hand: '🐢 Steady hand'
 	};
 
 	const COLORS: Record<RaceStory['kind'], string> = {
 		biggest_climb: 'text-success',
 		steepest_fall: 'text-error',
-		closest_race: 'text-primary',
 		hottest_streak: 'text-primary',
+		phoenix: 'text-success',
+		slow_burn: 'text-success',
+		steady_hand: 'text-primary'
 	};
 
 	$: minR = Math.min(...story.sparkline.map(p => p.rank));

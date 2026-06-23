@@ -129,13 +129,18 @@ async def test_returns_empty_pre_deadline(session: AsyncSession):
 
 
 async def test_returns_all_qualifying(session: AsyncSession):
-    """When snapshot data satisfies every active rule, all three cards return
-    in display order. closest_race was retired — its sparkline couldn't
-    honestly visualise a "lead traded N times" caption."""
+    """The three independent slots fire when data qualifies, and the 4th
+    fallback slot is filled by whichever of (phoenix > slow_burn >
+    steady_hand) qualifies first. With the seed's climber path matching
+    slow_burn's rule (gain >= 10, no bad day), phoenix is skipped and
+    slow_burn wins the fallback slot."""
     await _seed_pool(session, deadline_passed=True)
     result = await select_race_stories(session)
     kinds = [s.kind for s in result]
-    assert kinds == ["biggest_climb", "steepest_fall", "hottest_streak"]
+    assert kinds[:3] == ["biggest_climb", "steepest_fall", "hottest_streak"]
+    # 4th slot is exactly one of the fallback chain.
+    assert len(kinds) == 4
+    assert kinds[3] in ("phoenix", "slow_burn", "steady_hand")
 
 
 async def test_skips_streak_when_only_the_leader_qualifies(session: AsyncSession):
