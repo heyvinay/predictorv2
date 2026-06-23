@@ -14,7 +14,6 @@ import type {
 	AllTrajectoriesResponse,
 	BonusPredictionRead,
 	ChampionSurvivalResponse,
-	CohortTrailResponse,
 	DailyMvpsResponse,
 	LbResponseV4,
 	MatchMarkersResponse,
@@ -133,10 +132,6 @@ export async function getRaceStories(): Promise<RaceStoriesResponse> {
 
 export async function getChampionSurvival(): Promise<ChampionSurvivalResponse> {
 	return api.get<ChampionSurvivalResponse>('/leaderboard/champion-survival');
-}
-
-export async function getCohortTrail(days = 30): Promise<CohortTrailResponse> {
-	return api.get<CohortTrailResponse>(`/leaderboard/cohort-trail?days=${days}`);
 }
 
 export async function getMatchMarkers(days = 14): Promise<MatchMarkersResponse> {

@@ -34,7 +34,6 @@
 		LbView,
 		RaceViewMode,
 		MatchMarker,
-		CohortKey,
 		EntryTrajectory
 	} from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
@@ -51,7 +50,6 @@
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import RaceStoryGrid from '$lib/components/leaderboard/v4/RaceStoryGrid.svelte';
 	import RaceViewPills from '$lib/components/leaderboard/v4/RaceViewPills.svelte';
-	import CohortRaceChart from '$lib/components/leaderboard/v4/CohortRaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
 	// v2.166.0: the deadline passing no longer auto-opens the page —
@@ -189,32 +187,10 @@
 	let raceMode: RaceViewMode = 'around_me';
 	let matchMarkers: MatchMarker[] = [];
 
-	// Build cohort map from leaderboard rows.
-	$: cohortMap = (() => {
-		const m = new Map<string, CohortKey>();
-		for (const row of rows) {
-			const k: CohortKey =
-				row.employer === 'atlas' ? 'atlas' : row.employer === 'jmfa' ? 'jmfa' : 'guests';
-			m.set(row.user_id, k);
-		}
-		return m;
-	})();
-
-	$: cohortCounts = (() => {
-		// `cohortMap` is keyed by per-user classification, which only emits
-		// 'atlas'/'jmfa'/'guests' (never 'all' — that's an aggregate label
-		// added by the chart for the pool-wide median line). Narrow here.
-		const c: { atlas: number; jmfa: number; guests: number } = { atlas: 0, jmfa: 0, guests: 0 };
-		for (const v of cohortMap.values()) {
-			if (v === 'atlas' || v === 'jmfa' || v === 'guests') c[v]++;
-		}
-		return c;
-	})();
-
 	$: hasUserEntries = !!$user && rows.some((r) => r.user_id === $user!.id);
 
-	// If signed-in user has no entries, fall back from around_me to top10
-	$: if (!hasUserEntries && raceMode === 'around_me') raceMode = 'top10';
+	// If signed-in user has no entries, fall back from around_me to top15
+	$: if (!hasUserEntries && raceMode === 'around_me') raceMode = 'top15';
 
 	// Synthesize a thin EntryTrajectory[] for slice computation. RaceChart
 	// still owns the full trajectories; this is just the slice's entry-id
@@ -229,7 +205,7 @@
 
 	$: raceSlice =
 		synthTrajectories.length > 0
-			? selectRaceSlice(synthTrajectories, raceMode, $user?.id ?? null, cohortMap)
+			? selectRaceSlice(synthTrajectories, raceMode, $user?.id ?? null)
 			: null;
 
 	function openCompare(subjectId: string, compareId: string | null) {
@@ -444,7 +420,7 @@
 		{:else if view === 'race'}
 			<RaceStoryGrid on:open={(e) => openCompare(e.detail.entry_id, e.detail.compare_id)} />
 
-			<RaceViewPills bind:mode={raceMode} {hasUserEntries} {cohortCounts} />
+			<RaceViewPills bind:mode={raceMode} {hasUserEntries} />
 
 			<RaceChart
 				{rows}
@@ -453,15 +429,6 @@
 				slice={raceSlice}
 				{matchMarkers}
 				showMinimap
-			/>
-
-			<CohortRaceChart
-				on:cohortClick={(e) => {
-					// 'all' isn't a RaceViewMode (the race chart slices are
-					// around-me/top10/top25/atlas/jmfa/guests). Fall back to
-					// the broadest slice, top25, for an "all-ish" view.
-					raceMode = e.detail.cohort === 'all' ? 'top25' : e.detail.cohort;
-				}}
 			/>
 		{:else if view === 'insights'}
 			<InsightsGrid

@@ -115,7 +115,7 @@ export interface BonusFold {
 // Race-tab redesign types (2026-06-22 spec)
 // ---------------------------------------------------------------------------
 
-export type RaceViewMode = 'around_me' | 'top10' | 'top25' | 'atlas' | 'jmfa' | 'guests';
+export type RaceViewMode = 'around_me' | 'top15';
 
 export interface MinimapMarker {
 	rank: number;
@@ -165,32 +165,6 @@ export interface ChampionSurvivalResponse {
 	alive_count: number;
 	total_count: number;
 	teams: ChampionTeamCount[];
-	generated_at: string;
-}
-
-export type CohortKey = 'all' | 'atlas' | 'jmfa' | 'guests';
-
-export interface CohortTrailPoint {
-	captured_date: string;
-	median_rank: number;
-}
-
-export interface CohortTrailItem {
-	cohort: CohortKey;
-	entry_count: number;
-	points: CohortTrailPoint[];
-	current_median_rank: number;
-}
-
-export interface CohortAnnotation {
-	cohort: CohortKey;
-	captured_date: string;
-	caption: string;
-}
-
-export interface CohortTrailResponse {
-	cohorts: CohortTrailItem[];
-	annotations: CohortAnnotation[];
 	generated_at: string;
 }
 

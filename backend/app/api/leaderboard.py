@@ -472,33 +472,6 @@ class ChampionSurvivalResponse(BaseModel):
     generated_at: datetime
 
 
-class CohortTrailPoint(BaseModel):
-    captured_date: date
-    median_rank: float
-
-
-CohortKind = Literal["atlas", "jmfa", "guests", "all"]
-
-
-class CohortTrailItem(BaseModel):
-    cohort: CohortKind
-    entry_count: int
-    points: list[CohortTrailPoint]
-    current_median_rank: float
-
-
-class CohortAnnotation(BaseModel):
-    cohort: CohortKind
-    captured_date: date
-    caption: str
-
-
-class CohortTrailResponse(BaseModel):
-    cohorts: list[CohortTrailItem]
-    annotations: list[CohortAnnotation]
-    generated_at: datetime
-
-
 class MatchMarker(BaseModel):
     fixture_id: str
     kickoff: datetime
@@ -586,36 +559,6 @@ async def champion_survival(
         total_count=total_count,
         teams=teams[:8],  # top 8 per spec
         generated_at=utc_now(),
-    )
-
-
-@router.get("/cohort-trail", response_model=CohortTrailResponse)
-async def cohort_trail(
-    session: DbSession,
-    user: CurrentUser,
-    days: int = Query(30, ge=7, le=90),
-) -> CohortTrailResponse:
-    """Returns the median rank trail per cohort over the last `days` days."""
-    from app.services.cohort_race import compute_cohort_trail
-    result = await compute_cohort_trail(session, days=days)
-    return CohortTrailResponse(
-        cohorts=[
-            CohortTrailItem(
-                cohort=c.cohort,
-                entry_count=c.entry_count,
-                points=[
-                    CohortTrailPoint(captured_date=p.captured_date, median_rank=p.median_rank)
-                    for p in c.points
-                ],
-                current_median_rank=c.current_median_rank,
-            )
-            for c in result.cohorts
-        ],
-        annotations=[
-            CohortAnnotation(cohort=a.cohort, captured_date=a.captured_date, caption=a.caption)
-            for a in result.annotations
-        ],
-        generated_at=result.generated_at,
     )
 
 

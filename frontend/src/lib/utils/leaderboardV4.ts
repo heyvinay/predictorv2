@@ -10,7 +10,6 @@ import type { ScoringRules } from '$lib/types/results';
 import type {
 	BonusFold,
 	BonusPredictionRead,
-	CohortKey,
 	DnaSplit,
 	EntryTrajectory,
 	LbEntryV4,
@@ -407,18 +406,17 @@ const NEIGHBOURHOOD_RADIUS = 3;
 export function selectRaceSlice(
 	trajectories: EntryTrajectory[],
 	mode: RaceViewMode,
-	userId: string | null,
-	cohortMap: Map<string, CohortKey>
+	userId: string | null
 ): RaceSliceDescriptor {
 	const all = trajectories
 		.slice()
 		.sort((a, b) => (a.points.at(-1)?.position ?? 0) - (b.points.at(-1)?.position ?? 0));
 	const userEntries = userId ? all.filter((t) => t.user_id === userId) : [];
 
-	// around_me falls back to top10 if user has no entries (signed-out OR zero entries)
+	// around_me falls back to top15 if user has no entries (signed-out OR zero entries)
 	let effective = mode;
 	if (mode === 'around_me' && userEntries.length === 0) {
-		effective = 'top10';
+		effective = 'top15';
 	}
 
 	let included: EntryTrajectory[];
@@ -444,23 +442,9 @@ export function selectRaceSlice(
 			included = slice;
 			break;
 		}
-		case 'top10':
-		case 'top25': {
-			const n = effective === 'top10' ? 10 : 25;
-			const top = all.slice(0, n);
+		case 'top15': {
+			const top = all.slice(0, 15);
 			const merged = [...top];
-			for (const ue of userEntries) {
-				if (!merged.some((s) => s.entry_id === ue.entry_id)) merged.push(ue);
-			}
-			included = merged;
-			break;
-		}
-		case 'atlas':
-		case 'jmfa':
-		case 'guests': {
-			const cohort: CohortKey = effective;
-			const filtered = all.filter((t) => cohortMap.get(t.user_id) === cohort);
-			const merged = [...filtered];
 			for (const ue of userEntries) {
 				if (!merged.some((s) => s.entry_id === ue.entry_id)) merged.push(ue);
 			}

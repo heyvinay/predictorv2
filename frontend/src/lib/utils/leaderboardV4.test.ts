@@ -563,65 +563,51 @@ function mkTraj(
 }
 
 describe('selectRaceSlice', () => {
-	const cohortMap = new Map<string, 'atlas' | 'jmfa' | 'guests'>(
-		Array.from({ length: 50 }, (_, i) => [
-			`u-E${i + 1}`,
-			i < 20 ? 'atlas' : i < 35 ? 'jmfa' : 'guests',
-		] as const),
-	);
-	// mkTraj uses user_id = entry_id by default, so we override:
-	const poolWithCohorts: EntryTrajectory[] = Array.from({ length: 50 }, (_, i) =>
+	const pool: EntryTrajectory[] = Array.from({ length: 50 }, (_, i) =>
 		mkTraj(`E${i + 1}`, i + 1, `u-E${i + 1}`),
 	);
 
 	it('around_me — user at #27, 7-line slice plus leader ghost', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-E27', cohortMap);
+		const result = selectRaceSlice(pool, 'around_me', 'u-E27');
 		const ranks = result.included.map((t) => t.points[0].position).sort((a, b) => a - b);
-		// 1 leader + 24..30 (7 lines)
 		expect(ranks).toEqual([1, 24, 25, 26, 27, 28, 29, 30]);
 	});
 
 	it('around_me — user at #1, no leader ghost duplicate', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-E1', cohortMap);
+		const result = selectRaceSlice(pool, 'around_me', 'u-E1');
 		const ranks = result.included.map((t) => t.points[0].position).sort((a, b) => a - b);
 		expect(ranks).toEqual([1, 2, 3, 4, 5, 6, 7]);
 	});
 
-	it('top10 — user in top 10, 10 entries', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'top10', 'u-E5', cohortMap);
-		expect(result.included).toHaveLength(10);
+	it('top15 — user in top 15, 15 entries', () => {
+		const result = selectRaceSlice(pool, 'top15', 'u-E5');
+		expect(result.included).toHaveLength(15);
 	});
 
-	it('top10 — user outside top 10, user added (11 entries)', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'top10', 'u-E27', cohortMap);
-		expect(result.included).toHaveLength(11);
+	it('top15 — user outside top 15, user added (16 entries)', () => {
+		const result = selectRaceSlice(pool, 'top15', 'u-E27');
+		expect(result.included).toHaveLength(16);
 		expect(result.included.some((t) => t.entry_id === 'E27')).toBe(true);
 	});
 
-	it('atlas — only atlas cohort + user (if outside)', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'atlas', 'u-E40', cohortMap);
-		// Atlas is first 20 + user E40
-		expect(result.included).toHaveLength(21);
+	it('null userId (signed-out) — around_me falls back to top15', () => {
+		const result = selectRaceSlice(pool, 'around_me', null);
+		expect(result.included).toHaveLength(15);
 	});
 
-	it('null userId (signed-out) — around_me falls back to top10', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', null, cohortMap);
-		expect(result.included).toHaveLength(10);
-	});
-
-	it('signed-in user with zero entries — around_me falls back to top10', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-NOT-IN-POOL', cohortMap);
-		expect(result.included).toHaveLength(10);
+	it('signed-in user with zero entries — around_me falls back to top15', () => {
+		const result = selectRaceSlice(pool, 'around_me', 'u-NOT-IN-POOL');
+		expect(result.included).toHaveLength(15);
 	});
 
 	it('multi-entry minimap marker present', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-E27', cohortMap);
+		const result = selectRaceSlice(pool, 'around_me', 'u-E27');
 		expect(result.minimapMarkers.find((m) => m.kind === 'you')?.rank).toBe(27);
 	});
 
 	it('rankRange brackets the slice', () => {
-		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-E27', cohortMap);
-		expect(result.rankRange[0]).toBeLessThanOrEqual(1); // leader ghost
+		const result = selectRaceSlice(pool, 'around_me', 'u-E27');
+		expect(result.rankRange[0]).toBeLessThanOrEqual(1);
 		expect(result.rankRange[1]).toBeGreaterThanOrEqual(30);
 	});
 });

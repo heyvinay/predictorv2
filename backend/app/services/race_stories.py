@@ -66,10 +66,12 @@ async def select_race_stories(session: AsyncSession) -> list[RaceStory]:
         return []
 
     stories: list[RaceStory] = []
+    # closest_race candidate was removed — its 7-day sparkline couldn't
+    # honestly visualise a "lead traded N times" caption when leader +
+    # runner both clip to rank 1-2; the chart belied the narrative.
     for candidate in (
         _try_biggest_climb,
         _try_steepest_fall,
-        _try_closest_race,
         _try_hottest_streak,
     ):
         story = candidate(trail)

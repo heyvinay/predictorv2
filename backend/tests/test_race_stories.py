@@ -128,12 +128,14 @@ async def test_returns_empty_pre_deadline(session: AsyncSession):
     assert result == []
 
 
-async def test_returns_all_four_when_all_qualify(session: AsyncSession):
-    """When the snapshot data satisfies all four rules, all four cards return."""
+async def test_returns_all_qualifying(session: AsyncSession):
+    """When snapshot data satisfies every active rule, all three cards return
+    in display order. closest_race was retired — its sparkline couldn't
+    honestly visualise a "lead traded N times" caption."""
     await _seed_pool(session, deadline_passed=True)
     result = await select_race_stories(session)
     kinds = [s.kind for s in result]
-    assert kinds == ["biggest_climb", "steepest_fall", "closest_race", "hottest_streak"]
+    assert kinds == ["biggest_climb", "steepest_fall", "hottest_streak"]
 
 
 async def test_skips_streak_when_only_the_leader_qualifies(session: AsyncSession):
