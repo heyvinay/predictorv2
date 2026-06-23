@@ -42,6 +42,10 @@
 	/** Users with >1 entries — same display-name rule as the table. */
 	export let multiOwners: Set<string>;
 	export let onClose: () => void;
+	/** When set, render a side-by-side compare variant instead of the single-entry view. */
+	export let compareRow: LbEntryV4 | null = null;
+	/** When set, render the cohort list variant — "who picked this team as winner". */
+	export let cohort: { team_code: string; team_name: string; entry_ids: string[] } | null = null;
 
 	let panel: HTMLElement;
 	let loading = true;
@@ -234,6 +238,37 @@
 	class="fixed bottom-0 right-0 top-0 z-[80] w-[min(480px,94vw)] overflow-y-auto overscroll-contain border-l border-base-300/70 bg-base-200 px-5 pb-6 pt-4 shadow-[-24px_0_60px_rgba(0,0,0,0.45)] outline-none"
 	transition:fly={{ x: 40, duration: 250, opacity: 0 }}
 >
+	{#if cohort}
+		<!-- v1 cohort placeholder -->
+		<header class="p-4 border-b border-base-300">
+			<button type="button" class="text-xs text-base-content/55 mb-2" on:click={onClose}>← Close</button>
+			<h3 class="text-lg font-bold m-0">Entries that picked {cohort.team_name}</h3>
+			<p class="text-sm text-base-content/55 mt-1 mb-0">
+				{cohort.entry_ids.length === 0
+					? 'List of entries coming soon.'
+					: `${cohort.entry_ids.length} ${cohort.entry_ids.length === 1 ? 'entry' : 'entries'} — sorted by current rank.`}
+			</p>
+		</header>
+		{#if cohort.entry_ids.length > 0}
+			<ul class="p-4 space-y-1.5">
+				{#each cohort.entry_ids as eid (eid)}
+					<li class="text-sm border-b border-base-300/40 py-1.5">Entry {eid}</li>
+				{/each}
+			</ul>
+		{/if}
+	{:else if compareRow}
+		<!-- v1 compare placeholder -->
+		<header class="p-4 border-b border-base-300">
+			<button type="button" class="text-xs text-base-content/55 mb-2" on:click={onClose}>← Close</button>
+			<h3 class="text-lg font-bold m-0">Compare</h3>
+			<p class="text-sm text-base-content/55 mt-1 mb-0">
+				{rowDisplayName(row, multiOwners)} vs {rowDisplayName(compareRow, multiOwners)}
+			</p>
+		</header>
+		<div class="p-4 text-sm text-base-content/55">
+			Side-by-side compare arriving in a follow-up release. For now, close this drawer and open each entry separately.
+		</div>
+	{:else}
 	<!-- header -->
 	<div class="flex items-center gap-3">
 		<span
@@ -482,5 +517,6 @@
 		<div class="mt-4 border-t border-base-300/45 pt-3 text-[10.5px] leading-relaxed text-base-content/55">
 			Open pool — every entry's predictions are visible. All picks locked before kick-off.
 		</div>
+	{/if}
 	{/if}
 </aside>
