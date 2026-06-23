@@ -64,7 +64,7 @@
 			{/if}
 			<div class="text-[10px] text-base-content/55">
 				{#if isLive}
-					<span class="font-bold text-error">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
+					<span class="font-bold text-success">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
 				{:else}
 					{dateLabel}
 				{/if}
@@ -129,7 +129,7 @@
 		>
 			<span class="flex items-center gap-1 text-[12px] text-base-content/55">
 				{#if isLive}
-					<span class="font-bold text-error">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
+					<span class="font-bold text-success">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
 					<span>·</span>
 				{/if}
 				{#if !seeded || isThirdPlace}
