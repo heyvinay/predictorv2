@@ -500,7 +500,7 @@ class CohortTrailResponse(BaseModel):
 
 
 class MatchMarker(BaseModel):
-    fixture_id: int
+    fixture_id: str
     kickoff: datetime
     home_team_code: str
     away_team_code: str
@@ -626,4 +626,21 @@ async def match_markers(
     days: int = Query(14, ge=1, le=60),
 ) -> MatchMarkersResponse:
     """Returns the 0-3 most-impactful KO match results for chart annotation."""
-    return MatchMarkersResponse(markers=[], generated_at=utc_now())
+    from app.services.race_impact import compute_match_markers  # lazy import: avoid circular
+    result = await compute_match_markers(session, days=days)
+    return MatchMarkersResponse(
+        markers=[
+            MatchMarker(
+                fixture_id=m.fixture_id,
+                kickoff=m.kickoff,
+                home_team_code=m.home_team_code,
+                away_team_code=m.away_team_code,
+                home_score=m.home_score,
+                away_score=m.away_score,
+                is_upset=m.is_upset,
+                impact_score=m.impact_score,
+            )
+            for m in result.markers
+        ],
+        generated_at=result.generated_at,
+    )
