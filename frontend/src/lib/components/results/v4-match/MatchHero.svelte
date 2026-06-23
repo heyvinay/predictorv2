@@ -63,17 +63,25 @@
 
 		<div class="flex flex-col items-center gap-0.5 px-2">
 			{#if mode === 'played'}
+				{#if isLive}
+					<span
+						class="inline-block rounded bg-success px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-white"
+					>
+						LIVE {fixture.minute ? `${fixture.minute}'` : ''}
+					</span>
+				{:else}
+					<div class="text-[8.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55">
+						FULL TIME
+					</div>
+				{/if}
 				<div
-					class="text-[8.5px] font-extrabold uppercase tracking-[0.12em] {isLive
-						? 'text-error'
-						: 'text-base-content/55'}"
+					class="font-display text-[22px] leading-none max-sm:text-[18px] {isLive
+						? 'inline-block rounded-md bg-success px-2 py-0.5 text-white'
+						: ''}"
 				>
-					{isLive ? `LIVE ${fixture.minute ? `${fixture.minute}'` : ''}` : 'FULL TIME'}
-				</div>
-				<div class="font-display text-[22px] leading-none max-sm:text-[18px]">
-					<b class={homeWin ? '' : 'opacity-50'}>{score?.home_score ?? '–'}</b>
-					<span class="px-1 text-base-content/40">–</span>
-					<b class={awayWin ? '' : 'opacity-50'}>{score?.away_score ?? '–'}</b>
+					<b class={isLive ? '' : homeWin ? '' : 'opacity-50'}>{score?.home_score ?? '–'}</b>
+					<span class="px-1 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
+					<b class={isLive ? '' : awayWin ? '' : 'opacity-50'}>{score?.away_score ?? '–'}</b>
 				</div>
 			{:else}
 				<div class="font-display text-[18px] leading-none text-base-content/70 max-sm:text-[16px]">VS</div>
