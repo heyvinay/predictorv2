@@ -151,7 +151,16 @@
 		.sort((a, b) => a.finalRank - b.finalRank);
 
 	// Right-edge labels get sequential slots so tied ranks don't overlap.
-	$: labelSlots = new Map(lines.map((l, i) => [l.id, PAD_T + i * ((H - PAD_T - PAD_B) / Math.max(n - 1, 1))]));
+	// Divide by rendered-line count (NOT full-pool n) so the slot
+	// spacing matches the actual visible lines — otherwise on a sliced
+	// chart (Top 15 = ~16 lines) the labels squash into a tiny band at
+	// the top of the chart and overlap each other.
+	$: labelSlots = new Map(
+		lines.map((l, i) => [
+			l.id,
+			PAD_T + i * ((H - PAD_T - PAD_B) / Math.max(lines.length - 1, 1))
+		])
+	);
 
 	// Sparse x-axis tick labels (at most ~8 across the daily timeline).
 	$: tickEvery = Math.max(1, Math.ceil(dates.length / 8));
