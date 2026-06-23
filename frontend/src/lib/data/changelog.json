@@ -2284,6 +2284,13 @@
       "type": "improvement",
       "summary": "Rules page now shows the actual prize amounts for this tournament — €595 to the Overall Winner, €183 to the Group Stage Winner, and €137 from the pool to the Soup Kitchen — plus a thank-you callout for Atlas Insurance, whose top-up brings the total charitable contribution to €650.",
       "commit": "pending"
+    },
+    {
+      "version": "2.179.0",
+      "date": "2026-06-23",
+      "type": "feature",
+      "summary": "The Race tab on /leaderboard is redesigned. Story cards surface the day's biggest climbers, falls, closest races and hottest streaks. A Champion Survival gauge shows how much of the pool still has a live winner pick. The chart now focuses on entries around your rank by default — with match-result markers pinned along the date axis — and a new cohort race plots Atlas vs JMFA vs Guests over time. The dashboard also gains three new widgets below the existing grid: Daily MVP highlights the top scorer for each of the last five days, Personal Trail charts your points against the pool average over thirty days, and Pool Distribution shows where you sit in a histogram of nearby points totals.",
+      "commit": "pending"
     }
   ]
 }
