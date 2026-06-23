@@ -54,6 +54,9 @@
 	import ResultsTable from './ResultsTable.svelte';
 	import MiniLeaderboard from './MiniLeaderboard.svelte';
 	import MoversCard from './MoversCard.svelte';
+	import DailyMvpStrip from './DailyMvpStrip.svelte';
+	import PersonalTrailStrip from './PersonalTrailStrip.svelte';
+	import PoolDistribution from './PoolDistribution.svelte';
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -109,6 +112,12 @@
 		setActiveEntry(entryId);
 		resetPredictions();
 		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
+	}
+
+	function openLeaderboardEntry(entryId: string) {
+		// Dashboard widgets dispatch entry-clicks here; the leaderboard page
+		// handles deep-linking via its own ?entry= param logic.
+		location.href = `/leaderboard?entry=${entryId}`;
 	}
 
 	// ── 60s refresh: live scores + movement (visibility-aware — pauses
@@ -226,6 +235,14 @@
 				/>
 				<MoversCard rows={lbRows} />
 			</div>
+		</div>
+
+		<!-- ============ Dashboard widgets region (2026-06-22) ============ -->
+		<div class="my-5 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-60"></div>
+		<div class="flex flex-col gap-4">
+			<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
+			<PersonalTrailStrip />
+			<PoolDistribution />
 		</div>
 	{/if}
 </div>
