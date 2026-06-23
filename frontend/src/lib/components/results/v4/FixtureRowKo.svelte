@@ -32,7 +32,7 @@
 	on:click={() => track('match_detail_opened', { fixture_id: fixture.id, source: 'results_ko_row' })}
 	class="block border-t border-base-300/45 transition-colors first:border-t-0 hover:bg-primary/5
 		{striped && !isLive ? 'bg-base-300/15' : ''}
-		{isLive ? 'border-l-4 border-l-error bg-error/5' : ''}"
+		{isLive ? 'border-l-4 border-l-success bg-success/5' : ''}"
 	aria-label={`Open match detail for ${displayTeamName(fixture.home_team)} vs ${displayTeamName(fixture.away_team)}`}
 >
 	<!-- Desktop grid -->
@@ -54,7 +54,7 @@
 		</div>
 		<div class="text-center">
 			{#if score}
-				<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
+				<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
 					<b class={homeLoses ? 'opacity-60' : ''}>{score.home_score}</b>
 					<span class="px-0.5 text-base-content/40">–</span>
 					<b class={awayLoses ? 'opacity-60' : ''}>{score.away_score}</b>
@@ -107,7 +107,7 @@
 					>{seeded ? teamCode(fixture.home_team) : 'TBD'}</span
 				>
 			</span>
-			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
+			<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
 				{#if score}{score.home_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
@@ -120,7 +120,7 @@
 					>{seeded ? teamCode(fixture.away_team) : 'TBD'}</span
 				>
 			</span>
-			<span class="font-display text-[15px] {isLive ? 'text-error' : ''}">
+			<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
 				{#if score}{score.away_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>

@@ -441,7 +441,7 @@
 									<b class="min-w-[30px] text-center font-display text-[11.5px] font-extrabold"
 										>{f?.score?.home_score ?? 0}-{f?.score?.away_score ?? 0}</b
 									>
-									<span class="text-[9px] font-extrabold text-error animate-pulse-soft"
+									<span class="text-[9px] font-extrabold text-success animate-pulse-soft"
 										>{f?.minute ?? ''}′</span
 									>
 								{:else if f?.score}

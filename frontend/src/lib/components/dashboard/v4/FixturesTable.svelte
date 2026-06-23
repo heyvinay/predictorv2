@@ -67,8 +67,11 @@
 				<span class="text-right">
 					{#if isLive(f)}
 						<span
-							class="inline-flex items-center gap-1 rounded-badge border border-error/40 bg-error/10 px-1.5 py-0.5 text-[10px] font-extrabold text-error"
+							class="inline-flex items-center gap-1 rounded-badge border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-extrabold text-success"
 						>
+							<!-- Pulsing dot stays red (error) — it's the universal
+							     "live action happening right now" visual signal even
+							     when its surround is green. -->
 							<span class="h-1.5 w-1.5 rounded-full bg-error animate-pulse"></span>
 							{f.minute != null ? `${f.minute}'` : 'LIVE'}
 						</span>
