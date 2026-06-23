@@ -12,13 +12,19 @@
 	import { getAllTrajectories } from '$api/leaderboard';
 	import type { Fixture } from '$types';
 	import type { EntryTrajectory, LbEntryV4 } from '$lib/types/leaderboard';
+	import type { RaceSliceDescriptor, MatchMarker as ChartMatchMarker } from '$lib/types/leaderboard';
 	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
+	import RaceMinimap from './RaceMinimap.svelte';
+	import MatchMarkerLayer from './MatchMarkerLayer.svelte';
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null | undefined;
 	/** Fixture list — anchors the x-axis to tournament time, not seed-data
 	 *  snapshot dates. Start = first kickoff's UTC date, end = today. */
 	export let fixtures: Fixture[] = [];
+	export let slice: RaceSliceDescriptor | null = null;
+	export let matchMarkers: ChartMatchMarker[] = [];
+	export let showMinimap: boolean = false;
 
 	let loading = true;
 	let loadError = false;
@@ -86,12 +92,14 @@
 	$: dates =
 		startDate && endDate && startDate <= endDate ? dailyRange(startDate, endDate) : [];
 
-	$: n = Math.max(totalParticipants, trajectories.length, 2);
-	$: H = Math.max(360, PAD_T + PAD_B + n * 16);
+	$: rankBounds = slice?.rankRange ?? [1, Math.max(totalParticipants, trajectories.length, 2)];
+	$: rankSpan = Math.max(1, rankBounds[1] - rankBounds[0]);
+	$: n = Math.max(totalParticipants, trajectories.length, 2);  // still needed for label slot count
+	$: H = Math.max(360, PAD_T + PAD_B + (rendered.length || n) * 16);
 	$: dateIndex = new Map(dates.map((d, i) => [d, i]));
 	$: xOf = (d: string) =>
 		PAD_L + ((dateIndex.get(d) ?? 0) * (W - PAD_L - PAD_R)) / Math.max(dates.length - 1, 1);
-	$: yOf = (rank: number) => PAD_T + ((rank - 1) * (H - PAD_T - PAD_B)) / Math.max(n - 1, 1);
+	$: yOf = (rank: number) => PAD_T + ((rank - rankBounds[0]) * (H - PAD_T - PAD_B)) / rankSpan;
 
 	function dateLabel(d: string): string {
 		return new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, {
@@ -113,7 +121,8 @@
 	};
 	// Same display-name rule as the standings table (consistency).
 	$: multiOwners = multiEntryUserIds(trajectories);
-	$: lines = trajectories
+	$: rendered = slice?.included ?? trajectories;
+	$: lines = rendered
 		.map((t): Line | null => {
 			// Drop snapshot points outside the tournament window — pre-kickoff
 			// seed data shouldn't pull the axis backwards.
@@ -149,8 +158,13 @@
 		(_, i) => i === 0 || i === dates.length - 1 || i % tickEvery === 0
 	);
 
-	// Sparse rank axis.
-	$: rankTicks = [1, ...[5, 10, 15, 20, 25, 30, 40, 50, 75, 100].filter((r) => r <= n)];
+	// Sparse rank axis — anchor at slice min/max with a few in between.
+	$: rankTicks = (() => {
+		const [lo, hi] = rankBounds;
+		if (hi - lo <= 8) return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+		const candidates = [lo, hi, ...[5, 10, 15, 20, 25, 30, 40, 50, 75, 100]];
+		return Array.from(new Set(candidates.filter((r) => r >= lo && r <= hi))).sort((a, b) => a - b);
+	})();
 
 	$: hovered = hoverId ? lines.find((l) => l.id === hoverId) ?? null : null;
 	$: tipPath = hovered
@@ -349,8 +363,25 @@
 						/>
 					{/each}
 				{/if}
+
+				{#if matchMarkers.length > 0}
+					<MatchMarkerLayer
+						markers={matchMarkers}
+						xScale={xOf}
+						yTop={PAD_T}
+						yBottom={H - PAD_B}
+					/>
+				{/if}
 			</svg>
 		</div>
+
+		{#if showMinimap && slice}
+			<RaceMinimap
+				markers={slice.minimapMarkers}
+				rankRange={slice.rankRange}
+				totalParticipants={totalParticipants}
+			/>
+		{/if}
 
 		{#if hovered}
 			<div
