@@ -53,10 +53,10 @@
 	import FixturesTable from './FixturesTable.svelte';
 	import ResultsTable from './ResultsTable.svelte';
 	import MiniLeaderboard from './MiniLeaderboard.svelte';
-	import MoversCard from './MoversCard.svelte';
 	import DailyMvpStrip from './DailyMvpStrip.svelte';
 	import PersonalTrailStrip from './PersonalTrailStrip.svelte';
 	import PoolDistribution from './PoolDistribution.svelte';
+	import ChampionSurvival from '$lib/components/leaderboard/v4/ChampionSurvival.svelte';
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -233,7 +233,8 @@
 					activeEntryId={$activeEntryId}
 					{totalEntries}
 				/>
-				<MoversCard rows={lbRows} />
+				<ChampionSurvival />
+				<PoolDistribution />
 			</div>
 		</div>
 
@@ -242,7 +243,6 @@
 		<div class="flex flex-col gap-4">
 			<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
 			<PersonalTrailStrip />
-			<PoolDistribution />
 		</div>
 	{/if}
 </div>
