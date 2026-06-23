@@ -196,7 +196,7 @@
 		<StandingRow
 			{row}
 			{stage}
-			isOwn={false}
+			isOwn={userId != null && row.user_id === userId}
 			{gridClass}
 			{multiOwners}
 			trajectory={trajectoriesByEntry.get(row.entry_id) ?? []}
