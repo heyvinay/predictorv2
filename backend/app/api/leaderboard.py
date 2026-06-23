@@ -548,7 +548,45 @@ async def champion_survival(
     user: CurrentUser,
 ) -> ChampionSurvivalResponse:
     """Returns how much of the pool's champion pick is still alive."""
-    return ChampionSurvivalResponse(alive_count=0, total_count=0, teams=[], generated_at=utc_now())
+    from sqlalchemy import func
+    from app.models.prediction import PredictionPhase, TeamPrediction
+    from app.services.leaderboard import get_eliminated_teams
+    from app.services.scoring import eligible_entry_ids_select
+    from app.services.team_name import display_team_name
+
+    if not await is_phase1_locked(session):
+        return ChampionSurvivalResponse(alive_count=0, total_count=0, teams=[], generated_at=utc_now())
+
+    eliminated: set[str] = await get_eliminated_teams(session)
+
+    rows = (
+        await session.execute(
+            select(TeamPrediction.team, func.count().label("cnt"))
+            .where(TeamPrediction.stage == "winner")
+            .where(TeamPrediction.phase == PredictionPhase.PHASE_1)
+            .where(TeamPrediction.entry_id.in_(eligible_entry_ids_select()))
+            .group_by(TeamPrediction.team)
+            .order_by(func.count().desc(), TeamPrediction.team.asc())
+        )
+    ).all()
+
+    teams: list[ChampionTeamCount] = [
+        ChampionTeamCount(
+            team_code=team,
+            team_name=display_team_name(team),
+            count=cnt,
+            alive=(team not in eliminated),
+        )
+        for team, cnt in rows
+    ]
+    alive_count = sum(t.count for t in teams if t.alive)
+    total_count = sum(t.count for t in teams)
+    return ChampionSurvivalResponse(
+        alive_count=alive_count,
+        total_count=total_count,
+        teams=teams[:8],  # top 8 per spec
+        generated_at=utc_now(),
+    )
 
 
 @router.get("/cohort-trail", response_model=CohortTrailResponse)
