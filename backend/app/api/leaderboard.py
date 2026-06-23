@@ -644,3 +644,92 @@ async def match_markers(
         ],
         generated_at=result.generated_at,
     )
+
+
+# --------------------------------------------------------------------------
+# Dashboard-widgets schemas (2026-06-22 spec)
+# --------------------------------------------------------------------------
+
+class DailyMvp(BaseModel):
+    captured_date: date
+    subject_entry_id: str
+    user_name: str
+    entry_name: str
+    day_points: int
+    rank_delta: int  # positive = climbed, negative = dropped
+
+
+class DailyMvpsResponse(BaseModel):
+    mvps: list[DailyMvp]
+    generated_at: datetime
+
+
+class TrailPoint(BaseModel):
+    captured_date: date
+    your_points: int
+    pool_avg_points: float
+
+
+class EntryTrail(BaseModel):
+    entry_id: str
+    entry_name: str
+    current_rank: int
+    current_gap: float
+    points: list[TrailPoint]
+
+
+class PersonalTrailResponse(BaseModel):
+    entries: list[EntryTrail]
+    generated_at: datetime
+
+
+class DistBin(BaseModel):
+    points_delta: int
+    count: int
+
+
+class PoolDistributionResponse(BaseModel):
+    user_points: int
+    window_size: int
+    bins: list[DistBin]
+    next_rank_points_away: int | None
+    next_rank_position: int | None
+    near_count: int
+    caption: str
+    generated_at: datetime
+
+
+@router.get("/daily-mvps", response_model=DailyMvpsResponse)
+async def daily_mvps(
+    session: DbSession,
+    user: CurrentUser,
+) -> DailyMvpsResponse:
+    """Returns up to 5 daily MVPs (top scorer per day, most-recent-first)."""
+    return DailyMvpsResponse(mvps=[], generated_at=utc_now())
+
+
+@router.get("/personal-trail", response_model=PersonalTrailResponse)
+async def personal_trail(
+    session: DbSession,
+    user: CurrentUser,
+) -> PersonalTrailResponse:
+    """Returns the requesting user's entries' point trails vs the pool average."""
+    return PersonalTrailResponse(entries=[], generated_at=utc_now())
+
+
+@router.get("/pool-distribution", response_model=PoolDistributionResponse)
+async def pool_distribution(
+    session: DbSession,
+    user: CurrentUser,
+) -> PoolDistributionResponse:
+    """Returns the histogram of entries around the requesting user's points total."""
+    return PoolDistributionResponse(
+        user_points=0,
+        window_size=5,
+        bins=[],
+        next_rank_points_away=None,
+        next_rank_position=None,
+        near_count=0,
+        caption="",
+        generated_at=utc_now(),
+    )
