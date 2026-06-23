@@ -17,7 +17,15 @@
 			class="absolute h-full bg-primary/15 border-x border-primary/40 rounded"
 			style="left:{sliceStart}%; width:{sliceEnd - sliceStart}%"
 		></div>
-		{#each markers as m (m.rank + '-' + m.kind)}
+		<!--
+			Key on array index, not (rank + kind). When a user holds multiple
+			entries tied at the same rank, every tied entry becomes a
+			{rank, kind: 'you'} marker — keying on rank+kind collides
+			(`3-you` × 2 → Svelte throws and aborts hydration, breaking the
+			whole page's click handlers). Markers are render-only with no
+			animation, so positional keying is correct here.
+		-->
+		{#each markers as m, i (i)}
 			<div
 				class="absolute w-1.5 h-1.5 rounded-full top-1/2 -translate-y-1/2"
 				class:bg-primary={m.kind === 'you'}
