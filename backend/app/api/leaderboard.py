@@ -521,7 +521,25 @@ async def race_stories(
     user: CurrentUser,
 ) -> RaceStoriesResponse:
     """Returns the 0-4 qualifying race-story cards. See spec §Story-cards grid."""
-    return RaceStoriesResponse(stories=[], generated_at=utc_now())
+    from app.services.race_stories import select_race_stories  # lazy import: avoid circular
+    raw = await select_race_stories(session)
+    stories = [
+        RaceStoryOut(
+            kind=s.kind,
+            title=s.title,
+            caption=s.caption,
+            subject_entry_id=s.subject_entry_id,
+            compare_entry_id=s.compare_entry_id,
+            sparkline=[SparklinePoint(captured_date=p.captured_date, rank=p.rank) for p in s.sparkline],
+            compare_sparkline=(
+                [SparklinePoint(captured_date=p.captured_date, rank=p.rank) for p in s.compare_sparkline]
+                if s.compare_sparkline
+                else None
+            ),
+        )
+        for s in raw
+    ]
+    return RaceStoriesResponse(stories=stories, generated_at=utc_now())
 
 
 @router.get("/champion-survival", response_model=ChampionSurvivalResponse)
