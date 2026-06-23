@@ -110,3 +110,102 @@ export interface BonusFold {
 	hits: number;
 	answered: number;
 }
+
+// ---------------------------------------------------------------------------
+// Race-tab redesign types (2026-06-22 spec)
+// ---------------------------------------------------------------------------
+
+export type RaceViewMode = 'around_me' | 'top10' | 'top25' | 'atlas' | 'jmfa' | 'guests';
+
+export interface MinimapMarker {
+	rank: number;
+	kind: 'you' | 'leader';
+}
+
+export interface RaceSliceDescriptor {
+	included: EntryTrajectory[];
+	minimapMarkers: MinimapMarker[];
+	rankRange: [number, number];
+}
+
+export type RaceStoryKind =
+	| 'biggest_climb'
+	| 'steepest_fall'
+	| 'closest_race'
+	| 'hottest_streak';
+
+export interface SparklinePoint {
+	captured_date: string;
+	rank: number;
+}
+
+export interface RaceStory {
+	kind: RaceStoryKind;
+	title: string;
+	caption: string;
+	subject_entry_id: string;
+	compare_entry_id: string | null;
+	sparkline: SparklinePoint[];
+	compare_sparkline: SparklinePoint[] | null;
+}
+
+export interface RaceStoriesResponse {
+	stories: RaceStory[];
+	generated_at: string;
+}
+
+export interface ChampionTeamCount {
+	team_code: string;
+	team_name: string;
+	count: number;
+	alive: boolean;
+}
+
+export interface ChampionSurvivalResponse {
+	alive_count: number;
+	total_count: number;
+	teams: ChampionTeamCount[];
+	generated_at: string;
+}
+
+export type CohortKey = 'atlas' | 'jmfa' | 'guests';
+
+export interface CohortTrailPoint {
+	captured_date: string;
+	median_rank: number;
+}
+
+export interface CohortTrailItem {
+	cohort: CohortKey;
+	entry_count: number;
+	points: CohortTrailPoint[];
+	current_median_rank: number;
+}
+
+export interface CohortAnnotation {
+	cohort: CohortKey;
+	captured_date: string;
+	caption: string;
+}
+
+export interface CohortTrailResponse {
+	cohorts: CohortTrailItem[];
+	annotations: CohortAnnotation[];
+	generated_at: string;
+}
+
+export interface MatchMarker {
+	fixture_id: number;
+	kickoff: string;
+	home_team_code: string;
+	away_team_code: string;
+	home_score: number;
+	away_score: number;
+	is_upset: boolean;
+	impact_score: number;
+}
+
+export interface MatchMarkersResponse {
+	markers: MatchMarker[];
+	generated_at: string;
+}
