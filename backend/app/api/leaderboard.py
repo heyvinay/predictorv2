@@ -596,7 +596,27 @@ async def cohort_trail(
     days: int = Query(30, ge=7, le=90),
 ) -> CohortTrailResponse:
     """Returns the median rank trail per cohort over the last `days` days."""
-    return CohortTrailResponse(cohorts=[], annotations=[], generated_at=utc_now())
+    from app.services.cohort_race import compute_cohort_trail
+    result = await compute_cohort_trail(session, days=days)
+    return CohortTrailResponse(
+        cohorts=[
+            CohortTrailItem(
+                cohort=c.cohort,
+                entry_count=c.entry_count,
+                points=[
+                    CohortTrailPoint(captured_date=p.captured_date, median_rank=p.median_rank)
+                    for p in c.points
+                ],
+                current_median_rank=c.current_median_rank,
+            )
+            for c in result.cohorts
+        ],
+        annotations=[
+            CohortAnnotation(cohort=a.cohort, captured_date=a.captured_date, caption=a.caption)
+            for a in result.annotations
+        ],
+        generated_at=result.generated_at,
+    )
 
 
 @router.get("/match-markers", response_model=MatchMarkersResponse)
