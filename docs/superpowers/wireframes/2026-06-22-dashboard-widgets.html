@@ -1,0 +1,477 @@
+<title>Dashboard widgets — Daily MVP, Personal Trail, Pool Distribution</title>
+<style>
+  :root {
+    --bg-100: #0B1329;
+    --bg-200: #1C2541;
+    --bg-300: #2A3552;
+    --ink: #E2E8F0;
+    --ink-dim: rgba(226, 232, 240, 0.55);
+    --ink-faint: rgba(226, 232, 240, 0.30);
+    --ink-ghost: rgba(226, 232, 240, 0.12);
+    --gold: #D4AF37;
+    --gold-soft: rgba(212, 175, 55, 0.15);
+    --gold-mid: rgba(212, 175, 55, 0.4);
+    --mint: #059669;
+    --mint-soft: rgba(5, 150, 105, 0.18);
+    --amber: #D97706;
+    --red: #B91C1C;
+    --red-soft: rgba(185, 28, 28, 0.15);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-100);
+    color: var(--ink);
+    line-height: 1.5;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+  .display { font-weight: 800; letter-spacing: -0.02em; font-family: 'Manrope', 'Inter', sans-serif; }
+  h1 { font-size: 32px; margin: 0 0 6px; }
+  .lede { color: var(--ink-dim); margin: 0 0 28px; max-width: 720px; }
+  h2 { font-size: 21px; margin: 36px 0 6px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h3 { font-size: 14px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--ink-dim); margin: 0 0 14px; font-size: 13px; }
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-new { background: var(--gold-soft); color: var(--gold); border: 1px solid var(--gold-mid); }
+  .badge-existing { background: rgba(255,255,255,0.04); color: var(--ink-dim); border: 1px solid var(--bg-300); }
+
+  /* ====== Dashboard mock ====== */
+  .dash {
+    background: var(--bg-100);
+    border: 1px solid var(--bg-300);
+    border-radius: 14px;
+    padding: 16px 16px 22px;
+    margin-bottom: 26px;
+  }
+  .dash-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--ink-dim);
+  }
+  .dash-header b { color: var(--ink); }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 720px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .placeholder-card {
+    background: var(--bg-200);
+    border: 1px dashed var(--bg-300);
+    border-radius: 12px;
+    padding: 18px;
+    color: var(--ink-faint);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  /* widget cards */
+  .widget {
+    background: var(--bg-200);
+    border: 1px solid var(--bg-300);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .widget-new {
+    border-color: var(--gold-mid);
+    background: linear-gradient(180deg, rgba(212,175,55,0.04) 0%, var(--bg-200) 80%);
+  }
+  .widget-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .widget-title {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--gold);
+  }
+  .widget-sub {
+    font-size: 11px; color: var(--ink-faint);
+  }
+
+  /* Daily MVP strip — floating chips, no scroll. Flex-grow so they fill
+     the row evenly on desktop; wrap to multiple rows on narrow viewports. */
+  .mvp-strip {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .mvp-chip {
+    flex: 1 1 200px;
+    min-width: 180px;
+    background: var(--bg-100);
+    border: 1px solid var(--bg-300);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .mvp-chip-today { border-color: var(--gold-mid); background: var(--gold-soft); }
+  .mvp-date { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .mvp-name { font-weight: 700; margin: 4px 0; font-size: 14px; }
+  .mvp-stats { font-size: 12px; color: var(--ink-dim); display: flex; gap: 12px; }
+  .mvp-stats .pts { color: var(--mint); font-weight: 700; }
+  .mvp-stats .delta { color: var(--gold); font-weight: 700; }
+  .mvp-stats .delta-down { color: #fca5a5; }
+
+  /* Personal Trail strip */
+  .trail-strip {
+    background: var(--bg-200);
+    border: 1px solid var(--bg-300);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 1fr 2.5fr 0.8fr;
+    gap: 18px;
+    align-items: center;
+  }
+  @media (max-width: 600px) {
+    .trail-strip { grid-template-columns: 1fr; gap: 8px; }
+  }
+  .trail-label { font-size: 12px; color: var(--ink-dim); }
+  .trail-label b { color: var(--ink); font-size: 14px; }
+  .trail-stat {
+    text-align: right;
+    font-size: 22px; font-weight: 800; font-family: 'Manrope', sans-serif;
+  }
+  .trail-stat-label {
+    font-size: 11px; color: var(--ink-faint);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    text-align: right;
+  }
+
+  .nav { color: var(--ink-faint); font-size: 13px; margin-bottom: 24px; }
+  .nav a { color: var(--ink-dim); text-decoration: none; margin-right: 16px; }
+  .nav a:hover { color: var(--gold); }
+
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-dim); }
+  .legend-line { display: inline-block; width: 16px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+  .meta { color: var(--ink-faint); font-size: 12px; margin-top: 10px; line-height: 1.55; }
+</style>
+
+<div class="wrap">
+  <h1 class="display">Dashboard widgets — three additions</h1>
+  <p class="lede">Three new widgets for <code>/</code> (the V4 Dashboard at <code>routes/+page.svelte</code>):
+    <b>Daily MVP strip</b>, <b>Personal Trail strip</b>, and <b>Pool Distribution histogram</b>.
+    <b style="color: var(--gold);">All three appear as a full-width section below the existing two-column grid</b> — spanning the full container, stacked vertically.
+    Nothing in the existing grid moves; both columns keep all their current widgets in the same order.
+    All three respect blind-pool: hidden pre-deadline.</p>
+
+  <div class="nav">
+    <a href="#composition">▾ Composition</a>
+    <a href="#mvp">▾ Daily MVP strip</a>
+    <a href="#trail">▾ Personal Trail strip</a>
+    <a href="#dist">▾ Pool Distribution</a>
+    <a href="#decisions">▾ Open decisions</a>
+  </div>
+
+  <!-- ============ COMPOSITION ============ -->
+  <h2 id="composition" class="display">Composition in context</h2>
+  <p class="sub">The existing two-column grid is completely untouched — everything stays where it was. The three new widgets appear as a <b>full-width region below the grid</b>, stretching across both columns. Each widget is its own full-width card.</p>
+
+  <div class="dash">
+    <div class="dash-header">
+      <div><b>40 of 104 matches played</b> · 183 entries · updated 14s ago</div>
+      <div>countdown · navbar bits</div>
+    </div>
+
+    <!-- Existing two-column grid — entirely unchanged -->
+    <div class="grid-2" style="margin-bottom: 18px;">
+      <div class="stack">
+        <div class="placeholder-card">AnnouncementHero / LockedInHero (existing — unchanged)</div>
+        <div class="placeholder-card" style="padding: 30px;">FixturesTable · Matchday (existing — unchanged)</div>
+        <div class="placeholder-card" style="padding: 30px;">FixturesTable · Upcoming (existing — unchanged)</div>
+        <div class="placeholder-card" style="padding: 30px;">ResultsTable (existing — unchanged)</div>
+      </div>
+      <div class="stack">
+        <div class="placeholder-card">MiniLeaderboard (existing — unchanged)</div>
+        <div class="placeholder-card" style="padding: 30px;">MoversCard (existing — unchanged)</div>
+      </div>
+    </div>
+
+    <!-- Visual marker between existing grid and new region -->
+    <div style="height: 1px; background: linear-gradient(to right, transparent, var(--gold-mid), transparent); margin-bottom: 18px; opacity: 0.6;"></div>
+
+    <!-- NEW: full-width region below the grid -->
+    <div class="stack" style="gap: 14px;">
+
+      <!-- NEW WIDGET ① — Daily MVP, full-width, 5 floating chips -->
+      <div class="widget widget-new">
+        <div class="widget-header">
+          <span class="badge badge-new">①</span>
+          <span class="widget-title">Daily MVP — last 5 days</span>
+        </div>
+        <div class="mvp-strip">
+
+          <div class="mvp-chip mvp-chip-today">
+            <div class="mvp-date">Today · Jun 22</div>
+            <div class="mvp-name">Lionel Zammit</div>
+            <div class="mvp-stats">
+              <span><span class="pts">+18</span> pts</span>
+              <span><span class="delta">▲ 12</span> ranks</span>
+            </div>
+          </div>
+
+          <div class="mvp-chip">
+            <div class="mvp-date">Jun 21</div>
+            <div class="mvp-name">Brian Aglius</div>
+            <div class="mvp-stats">
+              <span><span class="pts">+16</span> pts</span>
+              <span><span class="delta">▲ 4</span> ranks</span>
+            </div>
+          </div>
+
+          <div class="mvp-chip">
+            <div class="mvp-date">Jun 20</div>
+            <div class="mvp-name">Jeffrey Formosa</div>
+            <div class="mvp-stats">
+              <span><span class="pts">+14</span> pts</span>
+              <span><span class="delta">▲ 8</span> ranks</span>
+            </div>
+          </div>
+
+          <div class="mvp-chip">
+            <div class="mvp-date">Jun 19</div>
+            <div class="mvp-name">Kevin Vella</div>
+            <div class="mvp-stats">
+              <span><span class="pts">+13</span> pts</span>
+              <span><span class="delta delta-down">▼ 2</span> ranks</span>
+            </div>
+          </div>
+
+          <div class="mvp-chip">
+            <div class="mvp-date">Jun 18</div>
+            <div class="mvp-name">Christian Balzan</div>
+            <div class="mvp-stats">
+              <span><span class="pts">+15</span> pts</span>
+              <span><span class="delta">▲ 6</span> ranks</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- NEW WIDGET ② — Personal Trail (full-width, three-column inner layout) -->
+      <div class="widget widget-new">
+        <div class="widget-header">
+          <span class="badge badge-new">②</span>
+          <span class="widget-title">Your Trail — points vs pool average</span>
+          <span class="widget-sub">signed-in only</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 2.5fr 0.8fr; gap: 18px; align-items: center;">
+          <div>
+            <div style="font-weight: 700; font-size: 14px;">Vinay 3rd Entry</div>
+            <div style="font-size: 12px; color: var(--ink-faint); margin-top: 2px;">#27 of 183 · last 30 days</div>
+            <div class="legend" style="margin-top: 8px;">
+              <span><span class="legend-line" style="background: var(--gold);"></span>You</span>
+              <span><span class="legend-line" style="background: var(--ink-faint);"></span>Pool avg</span>
+            </div>
+          </div>
+          <div>
+            <svg viewBox="0 0 800 90" style="width:100%; display:block;">
+              <polyline points="0,68 100,64 200,58 300,52 400,46 500,40 600,34 700,29 800,25"
+                        stroke="var(--ink-faint)" stroke-width="2.5" fill="none"/>
+              <polyline points="0,68 100,62 200,54 300,46 400,34 500,26 600,18 700,12 800,8"
+                        stroke="var(--gold)" stroke-width="3.5" fill="none"/>
+              <circle cx="800" cy="8" r="5" fill="var(--gold)" stroke="var(--bg-200)" stroke-width="1.5"/>
+              <circle cx="800" cy="25" r="4" fill="var(--ink-faint)"/>
+            </svg>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 28px; font-weight: 800; font-family: 'Manrope', sans-serif; color: var(--mint); line-height: 1;">+47</div>
+            <div style="font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px;">vs pool avg</div>
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: var(--ink-faint); font-style: italic;">
+          For users with 2+ entries: show the first two strips stacked; "+N more" link to expand.
+        </div>
+      </div>
+
+      <!-- NEW WIDGET ③ — Pool Distribution histogram, full-width -->
+      <div class="widget widget-new">
+        <div class="widget-header">
+          <span class="badge badge-new">③</span>
+          <span class="widget-title">Pool Distribution</span>
+          <span class="widget-sub">around your points total</span>
+        </div>
+        <div style="margin-bottom: 8px; font-size: 13px; color: var(--ink-dim);">
+          <b style="color: var(--ink);">7 entries</b> within 4 points of you. The next rank is <b style="color: var(--ink);">2 points away</b>.
+        </div>
+        <svg viewBox="0 0 1080 150" style="width:100%; display:block;">
+          <line x1="20" y1="120" x2="1060" y2="120" stroke="var(--bg-300)" stroke-width="1"/>
+
+          <!-- 13 bins across full width, centered on YOU -->
+          <!-- bins: −5, −4, −3, −2, −1, 0(YOU), +1, +2, +3, +4, +5  + outliers, 13 total -->
+          <g fill="var(--ink-ghost)">
+            <rect x="30"  y="110" width="60" height="10"/>
+            <rect x="100" y="100" width="60" height="20"/>
+            <rect x="170" y="88"  width="60" height="32"/>
+            <rect x="240" y="76"  width="60" height="44"/>
+            <rect x="310" y="64"  width="60" height="56"/>
+          </g>
+          <g fill="var(--gold-mid)">
+            <rect x="380" y="52"  width="60" height="68"/>
+            <rect x="450" y="42"  width="60" height="78"/>
+          </g>
+          <!-- YOU -->
+          <rect x="520" y="35" width="60" height="85" fill="var(--gold)"/>
+          <g fill="var(--gold-mid)">
+            <rect x="590" y="48"  width="60" height="72"/>
+            <rect x="660" y="62"  width="60" height="58"/>
+          </g>
+          <g fill="var(--ink-ghost)">
+            <rect x="730" y="74"  width="60" height="46"/>
+            <rect x="800" y="88"  width="60" height="32"/>
+            <rect x="870" y="100" width="60" height="20"/>
+            <rect x="940" y="108" width="60" height="12"/>
+            <rect x="1010" y="113" width="40" height="7"/>
+          </g>
+
+          <!-- YOU marker -->
+          <line x1="550" y1="14" x2="550" y2="33" stroke="var(--gold)" stroke-width="1.5"/>
+          <text x="550" y="11" text-anchor="middle" fill="var(--gold)" font-size="11" font-weight="700">YOU</text>
+
+          <!-- next-rank marker -->
+          <line x1="620" y1="22" x2="620" y2="46" stroke="var(--mint)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <text x="620" y="18" text-anchor="middle" fill="var(--mint)" font-size="11" font-weight="600">#26</text>
+
+          <!-- x-axis labels -->
+          <text x="30"  y="140" fill="var(--ink-faint)" font-size="11">−5pt</text>
+          <text x="280" y="140" fill="var(--ink-faint)" font-size="11">−2pt</text>
+          <text x="550" y="140" fill="var(--ink-faint)" font-size="11" font-weight="700" text-anchor="middle">YOU</text>
+          <text x="820" y="140" fill="var(--ink-faint)" font-size="11">+2pt</text>
+          <text x="1030" y="140" fill="var(--ink-faint)" font-size="11">+5pt</text>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ MVP DETAIL ============ -->
+  <h2 id="mvp" class="display">① Daily MVP strip <span class="badge badge-new">New</span></h2>
+  <p class="sub">A row of "top scorer per day" cards, most-recent-first. <b>Fixed at the last 5 days — no scroll bar.</b> Chips flex to share row width on desktop; wrap to multiple rows on narrow viewports. Today's chip is gold-tinted for emphasis.</p>
+  <div class="widget" style="background: var(--bg-200);">
+    <h3>What's on each chip</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Date</b> ("Today · Jun 22" for the most recent, "Jun 21" / etc for older)</li>
+      <li><b style="color: var(--ink);">Person — Entry</b> (uses the same <code>rowDisplayName</code> rule from <code>leaderboardV4.ts</code> — only shows entry name when the person has multiple entries)</li>
+      <li><b style="color: var(--ink);">Points scored that day</b> in mint (always positive — the MVP scored more than anyone)</li>
+      <li><b style="color: var(--ink);">Rank delta</b> with gold ▲ for up, faded red ▼ for down (rank can fall on a high-scoring day if others scored more)</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Rules &amp; edge cases</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Tie-break:</b> equal day-points → lower current rank wins. Ties show one MVP only (not two).</li>
+      <li><b style="color: var(--ink);">Zero-points day:</b> chip is omitted entirely (no "Nobody scored" placeholder).</li>
+      <li><b style="color: var(--ink);">Pre-deadline:</b> whole strip is hidden (blind-pool gate).</li>
+      <li><b style="color: var(--ink);">Click a chip:</b> opens <code>EntryDrawer</code> for the MVP, scrolled to that day's row.</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Backend</h3>
+    <p style="font-size: 13px; color: var(--ink-dim); margin: 6px 0 0;">
+      <code>GET /api/leaderboard/daily-mvps</code> → returns up to 5 entries
+      <code>{ captured_date, subject_entry_id, user_name, entry_name, day_points, rank_delta }</code>.
+      Derived from <code>LeaderboardSnapshot</code> day-over-day diffs. Cached 60s. Fixed window — no query param.
+    </p>
+  </div>
+
+  <!-- ============ TRAIL DETAIL ============ -->
+  <h2 id="trail" class="display">② Personal Trail strip <span class="badge badge-new">New</span></h2>
+  <p class="sub">A horizontal sparkline comparing your cumulative points to the pool average over the tournament. Signed-in users only.</p>
+  <div class="widget" style="background: var(--bg-200);">
+    <h3>Three layout regions (left → right)</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Identity column:</b> entry name + current rank + legend ("You" gold / "Pool avg" grey)</li>
+      <li><b style="color: var(--ink);">Sparkline:</b> two cumulative-points lines over the tournament. End dots show today's values.</li>
+      <li><b style="color: var(--ink);">Headline stat:</b> "+47 pts" in mint (or red if behind) labelled "vs pool avg"</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Multi-entry users</h3>
+    <p style="font-size: 13px; color: var(--ink-dim); margin: 6px 0 14px;">
+      Show ONE strip per entry, stacked vertically with a 4px gap. Users with 3+ entries see the first 2 by default with a "+1 more" link to expand. Avoids a wall of charts for the multi-entry edge case (some users have 4+).
+    </p>
+    <h3>Edge cases</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Signed-out / zero entries:</b> hidden.</li>
+      <li><b style="color: var(--ink);">Day 1:</b> two single-point dots side by side. Adds a faint "It's early." caption.</li>
+      <li><b style="color: var(--ink);">Pre-deadline:</b> hidden (can't compute pool average yet).</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Backend</h3>
+    <p style="font-size: 13px; color: var(--ink-dim); margin: 6px 0 0;">
+      <code>GET /api/leaderboard/personal-trail</code> → returns the requesting user's entries' trails:
+      <code>{ entry_id, points: [{captured_date, your_points, pool_avg_points}], current_gap }</code>.
+      Pool average is the mean across eligible entries per day (matches the "scoring pool" definition from CLAUDE.md).
+    </p>
+  </div>
+
+  <!-- ============ DISTRIBUTION DETAIL ============ -->
+  <h2 id="dist" class="display">③ Pool Distribution histogram <span class="badge badge-new">New</span></h2>
+  <p class="sub">A small histogram showing how the leaderboard clusters around your current points total. Helps you gauge how reachable the next rank is.</p>
+  <div class="widget" style="background: var(--bg-200);">
+    <h3>What's on the chart</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">X-axis:</b> points-from-your-total, range ±5 by default. Bins are 1pt wide.</li>
+      <li><b style="color: var(--ink);">Y-axis:</b> count of entries at that point total.</li>
+      <li><b style="color: var(--ink);">Your bar:</b> bright gold, centred.</li>
+      <li><b style="color: var(--ink);">Neighbours (±2pt):</b> gold-mid tint.</li>
+      <li><b style="color: var(--ink);">Outside ±2:</b> grey.</li>
+      <li><b style="color: var(--ink);">Next-rank marker:</b> dashed mint line at the points value where the next-higher rank starts.</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Caption above the chart</h3>
+    <p style="font-size: 13px; color: var(--ink-dim); margin: 6px 0 14px;">
+      "<b style="color: var(--ink);">X entries</b> within <b style="color: var(--ink);">N points</b> of you. The next rank is <b style="color: var(--ink);">M points away</b>." Dynamic — copy adapts to "you are tied with K entries" / "you're alone at this score" / etc.
+    </p>
+    <h3>Edge cases</h3>
+    <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Signed-out / zero entries:</b> hidden.</li>
+      <li><b style="color: var(--ink);">Pre-deadline:</b> hidden.</li>
+      <li><b style="color: var(--ink);">User at #1:</b> caption changes to "Nobody within X points of you above" + "Closest pursuer N points behind."</li>
+      <li><b style="color: var(--ink);">Sparse pool (≤ 2 entries within ±5):</b> widen the window to ±10 automatically.</li>
+    </ul>
+    <h3 style="margin-top: 14px;">Backend</h3>
+    <p style="font-size: 13px; color: var(--ink-dim); margin: 6px 0 0;">
+      <code>GET /api/leaderboard/pool-distribution</code> → returns the histogram around the requesting user.
+      <code>{ user_points, window_size, bins: [{points_delta, count}], next_rank_points_away, near_count }</code>.
+      Pure aggregate from the existing leaderboard rows; ~50ms even cold.
+    </p>
+  </div>
+
+  <!-- ============ DECISION LOG + REMAINING ============ -->
+  <h2 id="decisions" class="display">Decisions</h2>
+  <div class="widget" style="background: var(--bg-200); border-color: var(--mint-soft);">
+    <h3 style="color: var(--mint); margin-bottom: 8px;">Locked</h3>
+    <ul style="margin: 0 0 12px; padding-left: 20px; line-height: 1.7; font-size: 14px; color: var(--ink-dim);">
+      <li><b style="color: var(--ink);">Placement:</b> all three widgets in a NEW <b>full-width region below the existing two-column grid</b>, spanning both columns. Both the LEFT (Main) and RIGHT (Side) columns are entirely untouched — every existing widget keeps its current position.</li>
+      <li style="margin-top: 4px;"><b style="color: var(--ink);">Width:</b> full container width (~1180px desktop). MVP strip shows ~6 chips at once on desktop, scrolls for more. Personal Trail uses the original three-column horizontal layout (identity / sparkline / stat). Pool Distribution gets 13 wide bins.</li>
+      <li style="margin-top: 4px;"><b style="color: var(--ink);">Stacking order within the new region:</b> Daily MVP → Personal Trail → Pool Distribution. Editorial first (pool-wide), then personal (your own performance), then positional (how reachable nearby ranks are). Reads as a narrative from broad to specific.</li>
+      <li style="margin-top: 4px;"><b style="color: var(--ink);">Ship together:</b> yes — they share backend infrastructure (same snapshots table, same blind-pool gate, same caching).</li>
+    </ul>
+  </div>
+
+  <div class="widget" style="background: var(--bg-200); margin-top: 12px;">
+    <h3 style="margin-bottom: 8px;">Remaining</h3>
+    <ol style="margin: 0; padding-left: 20px; line-height: 1.8; font-size: 14px; color: var(--ink-dim);">
+      <li>
+        <b style="color: var(--ink);">Bundle with leaderboard race redesign, or separate PR?</b>
+        Recommendation: <b>separate PR after race redesign merges</b>. Different surface, different reviewability, cleaner rollback story.
+      </li>
+      <li style="margin-top: 6px;">
+        <b style="color: var(--ink);">Multi-entry handling in Personal Trail</b>:
+        "show first 2, link to expand" vs "show all stacked." Recommended: <b>first 2 + expand</b> — keeps the column manageable for users with 4+ entries.
+      </li>
+    </ol>
+  </div>
+
+  <p style="margin-top: 22px; color: var(--ink-dim); font-size: 13px;">
+    Once decisions land, the next step is a small spec at
+    <code>docs/superpowers/specs/2026-06-22-dashboard-widgets-design.md</code>
+    plus a focused plan, both following the same structure as the leaderboard race redesign.
+  </p>
+
+</div>
