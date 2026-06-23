@@ -54,9 +54,13 @@
 		</div>
 		<div class="text-center">
 			{#if score}
-				<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
+				<span
+					class="font-display text-[15px] {isLive
+						? 'inline-block rounded-md bg-success px-1.5 py-0.5 text-white'
+						: ''}"
+				>
 					<b class={homeLoses ? 'opacity-60' : ''}>{score.home_score}</b>
-					<span class="px-0.5 text-base-content/40">–</span>
+					<span class="px-0.5 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
 					<b class={awayLoses ? 'opacity-60' : ''}>{score.away_score}</b>
 				</span>
 			{:else}
@@ -64,7 +68,7 @@
 			{/if}
 			<div class="text-[10px] text-base-content/55">
 				{#if isLive}
-					<span class="font-bold text-success">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
+					<span class="inline-block rounded bg-success px-1.5 py-0.5 font-bold text-white">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
 				{:else}
 					{dateLabel}
 				{/if}
@@ -107,7 +111,11 @@
 					>{seeded ? teamCode(fixture.home_team) : 'TBD'}</span
 				>
 			</span>
-			<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
+			<span
+				class="font-display text-[15px] {isLive
+					? 'inline-block min-w-[1.5rem] rounded-md bg-success px-1.5 py-0.5 text-center text-white'
+					: ''}"
+			>
 				{#if score}{score.home_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
@@ -120,7 +128,11 @@
 					>{seeded ? teamCode(fixture.away_team) : 'TBD'}</span
 				>
 			</span>
-			<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
+			<span
+				class="font-display text-[15px] {isLive
+					? 'inline-block min-w-[1.5rem] rounded-md bg-success px-1.5 py-0.5 text-center text-white'
+					: ''}"
+			>
 				{#if score}{score.away_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
@@ -129,7 +141,7 @@
 		>
 			<span class="flex items-center gap-1 text-[12px] text-base-content/55">
 				{#if isLive}
-					<span class="font-bold text-success">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
+					<span class="inline-block rounded bg-success px-1.5 py-0.5 font-bold text-white">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
 					<span>·</span>
 				{/if}
 				{#if !seeded || isThirdPlace}
