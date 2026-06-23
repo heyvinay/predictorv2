@@ -15,8 +15,11 @@ import type {
 	BonusPredictionRead,
 	ChampionSurvivalResponse,
 	CohortTrailResponse,
+	DailyMvpsResponse,
 	LbResponseV4,
 	MatchMarkersResponse,
+	PersonalTrailResponse,
+	PoolDistributionResponse,
 	RaceStoriesResponse
 } from '$lib/types/leaderboard';
 import type { ScoringRules } from '$lib/types/results';
@@ -138,4 +141,18 @@ export async function getCohortTrail(days = 30): Promise<CohortTrailResponse> {
 
 export async function getMatchMarkers(days = 14): Promise<MatchMarkersResponse> {
 	return api.get<MatchMarkersResponse>(`/leaderboard/match-markers?days=${days}`);
+}
+
+// ---- Dashboard widget endpoints -----------------------------------------
+
+export async function getDailyMvps(): Promise<DailyMvpsResponse> {
+	return api.get<DailyMvpsResponse>('/leaderboard/daily-mvps');
+}
+
+export async function getPersonalTrail(): Promise<PersonalTrailResponse> {
+	return api.get<PersonalTrailResponse>('/leaderboard/personal-trail');
+}
+
+export async function getPoolDistribution(): Promise<PoolDistributionResponse> {
+	return api.get<PoolDistributionResponse>('/leaderboard/pool-distribution');
 }
