@@ -50,7 +50,6 @@
 	import EntryDrawer from '$lib/components/leaderboard/v4/EntryDrawer.svelte';
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import RaceStoryGrid from '$lib/components/leaderboard/v4/RaceStoryGrid.svelte';
-	import ChampionSurvival from '$lib/components/leaderboard/v4/ChampionSurvival.svelte';
 	import RaceViewPills from '$lib/components/leaderboard/v4/RaceViewPills.svelte';
 	import CohortRaceChart from '$lib/components/leaderboard/v4/CohortRaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
@@ -439,8 +438,6 @@
 			/>
 		{:else if view === 'race'}
 			<RaceStoryGrid on:open={(e) => openCompare(e.detail.entry_id, e.detail.compare_id)} />
-
-			<ChampionSurvival on:teamClick={(e) => openCohortDrawer(e.detail.team_code)} />
 
 			<RaceViewPills bind:mode={raceMode} {hasUserEntries} {cohortCounts} />
 
