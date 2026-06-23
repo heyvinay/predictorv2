@@ -382,7 +382,7 @@
 				><span class="h-2.5 w-2.5 rounded bg-amber-400"></span>Result</span
 			>
 			<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-base-content/70"
-				><span class="h-2.5 w-2.5 rounded bg-primary"></span>Rarity</span
+				><span class="h-2.5 w-2.5 rounded bg-[repeating-linear-gradient(135deg,#D4AF37_0_2px,#7C5E1D_2px_4px)]"></span>Rarity</span
 			>
 			<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-base-content/70"
 				><span class="h-2.5 w-2.5 rounded bg-info"></span>Bracket & bonus</span
