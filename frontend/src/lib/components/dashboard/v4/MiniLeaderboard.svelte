@@ -17,8 +17,13 @@
 	export let userId: string | null;
 	export let activeEntryId: string | null;
 	export let totalEntries: number;
+	/** "BRA 5–0 UZB" style label for the most-recently-finished fixture,
+	 *  computed by the parent from the fixtures store. Surfaces under the
+	 *  "X entries" footer as the freshness cue — "this is the last game
+	 *  that contributed points to this board." */
+	export let lastResult: string | null = null;
 
-	$: ({ yours, top } = miniLbRows(rows, userId, 10));
+	$: ({ yours, top } = miniLbRows(rows, userId, 15));
 	// Computed from the FULL board so the label can't flip with filters.
 	$: multiOwners = multiEntryUserIds(rows);
 
@@ -121,7 +126,10 @@
 		<div
 			class="border-t border-base-300/60 bg-base-300/40 px-3.5 py-1.5 text-center text-[10.5px] font-semibold text-base-content/55"
 		>
-			{totalEntries} entries
+			{totalEntries} entries{#if lastResult}
+				<span class="text-base-content/40"> · last result: </span>
+				<b class="text-base-content/75">{lastResult}</b>
+			{/if}
 		</div>
 	</div>
 </section>

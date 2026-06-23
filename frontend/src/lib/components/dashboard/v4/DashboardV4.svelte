@@ -40,6 +40,7 @@
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { Announcement } from '$lib/types/dashboard';
 	import { deriveGroupMatchdays } from '$lib/utils/resultsRounds';
+	import { teamCode } from '$lib/utils/teamCodes';
 	import { startLivePoll } from '$lib/utils/livePoll';
 	import {
 		bucketDashboardFixtures,
@@ -148,6 +149,19 @@
 		lbRows.map((e) => [e.entry_id, { position: e.position, total_points: e.total_points }])
 	);
 	$: visibleEntries = $submittedEntries.length > 0 ? $submittedEntries : $entries;
+
+	// ── "Last result" cue for the MiniLeaderboard footer ──
+	// Most-recently-finished fixture, formatted as "BRA 5–0 UZB". Mirrors
+	// the `lastFinished` derivation on /leaderboard so the dashboard
+	// surfaces the same freshness signal.
+	$: lastResult = (() => {
+		const finished = $fixtures.filter((f) => f.status === 'finished' && f.score && f.kickoff);
+		if (finished.length === 0) return null;
+		finished.sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
+		const f = finished[0];
+		if (!f.score) return null;
+		return `${teamCode(f.home_team)} ${f.score.home_score}–${f.score.away_score} ${teamCode(f.away_team)}`;
+	})();
 </script>
 
 <!-- pb-10 (not the marketing pb-20): the Touchline news band renders
@@ -231,6 +245,7 @@
 					userId={$user?.id ?? null}
 					activeEntryId={$activeEntryId}
 					{totalEntries}
+					{lastResult}
 				/>
 				<PoolDistribution />
 			</div>
