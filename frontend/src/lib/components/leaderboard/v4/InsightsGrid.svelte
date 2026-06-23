@@ -391,7 +391,7 @@
 		<div class="flex flex-col gap-2">
 			{#each dnaRows as r (r.entry_id)}
 				<div
-					class="grid grid-cols-[34px_minmax(110px,auto)_1fr_40px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(r)
+					class="grid grid-cols-[34px_220px_1fr_40px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(r)
 						? YOURS_ROW
 						: ''}"
 				>
