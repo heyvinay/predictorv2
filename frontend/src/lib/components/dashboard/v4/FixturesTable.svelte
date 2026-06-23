@@ -57,7 +57,7 @@
 				href={`/results/${f.id}`}
 				class="group {GRID} border-t border-base-300/40 transition-colors hover:bg-primary/5 {i % 2
 					? 'bg-base-300/10'
-					: ''}"
+					: ''} {isLive(f) ? 'border-l-4 border-l-success bg-success/5' : ''}"
 			>
 				<RoundChip chip={roundChipForFixture(f, derivedMatchdays)} />
 				<MatchCell fixture={f} />
