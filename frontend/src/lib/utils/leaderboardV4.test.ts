@@ -7,10 +7,12 @@ import {
 	bestOwnSummary,
 	ceilingOf,
 	chipState,
+	composeRankDelta,
 	deriveStage,
 	dnaOf,
 	eliminatedTeams,
 	filterByPool,
+	firstTwoPlusExpand,
 	foldBonus,
 	groupPtsOf,
 	initialsOf,
@@ -621,5 +623,32 @@ describe('selectRaceSlice', () => {
 		const result = selectRaceSlice(poolWithCohorts, 'around_me', 'u-E27', cohortMap);
 		expect(result.rankRange[0]).toBeLessThanOrEqual(1); // leader ghost
 		expect(result.rankRange[1]).toBeGreaterThanOrEqual(30);
+	});
+});
+
+describe('composeRankDelta', () => {
+	it('positive: returns ▲ N', () => expect(composeRankDelta(12)).toBe('▲ 12'));
+	it('negative: returns ▼ N', () => expect(composeRankDelta(-3)).toBe('▼ 3'));
+	it('zero: returns —', () => expect(composeRankDelta(0)).toBe('—'));
+});
+
+describe('firstTwoPlusExpand', () => {
+	const arr = ['a', 'b', 'c', 'd'];
+
+	it('expanded=false → first 2 + remaining count', () => {
+		const r = firstTwoPlusExpand(arr, false);
+		expect(r.visible).toEqual(['a', 'b']);
+		expect(r.remaining).toBe(2);
+	});
+
+	it('expanded=true → all + zero remaining', () => {
+		const r = firstTwoPlusExpand(arr, true);
+		expect(r.visible).toEqual(arr);
+		expect(r.remaining).toBe(0);
+	});
+
+	it('≤ 2 items: returns all, zero remaining regardless', () => {
+		expect(firstTwoPlusExpand(['x'], false).remaining).toBe(0);
+		expect(firstTwoPlusExpand([], false).visible).toEqual([]);
 	});
 });

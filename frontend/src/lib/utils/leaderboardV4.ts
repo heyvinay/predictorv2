@@ -485,3 +485,22 @@ export function selectRaceSlice(
 
 	return { included, minimapMarkers, rankRange: [minR, maxR] };
 }
+
+/** Renders a rank-delta as a string with ▲/▼ glyph. Zero → em-dash. */
+export function composeRankDelta(delta: number): string {
+	if (delta > 0) return `▲ ${delta}`;
+	if (delta < 0) return `▼ ${-delta}`;
+	return '—';
+}
+
+/** Personal Trail multi-entry helper — show first 2 entries by default,
+ *  with a "+N more" link to expand. */
+export function firstTwoPlusExpand<T>(
+	items: T[],
+	expanded: boolean
+): { visible: T[]; remaining: number } {
+	if (expanded || items.length <= 2) {
+		return { visible: items, remaining: 0 };
+	}
+	return { visible: items.slice(0, 2), remaining: items.length - 2 };
+}
