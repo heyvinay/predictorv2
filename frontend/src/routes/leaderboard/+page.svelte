@@ -201,8 +201,13 @@
 	})();
 
 	$: cohortCounts = (() => {
+		// `cohortMap` is keyed by per-user classification, which only emits
+		// 'atlas'/'jmfa'/'guests' (never 'all' — that's an aggregate label
+		// added by the chart for the pool-wide median line). Narrow here.
 		const c: { atlas: number; jmfa: number; guests: number } = { atlas: 0, jmfa: 0, guests: 0 };
-		for (const v of cohortMap.values()) c[v]++;
+		for (const v of cohortMap.values()) {
+			if (v === 'atlas' || v === 'jmfa' || v === 'guests') c[v]++;
+		}
 		return c;
 	})();
 
@@ -450,7 +455,14 @@
 				showMinimap
 			/>
 
-			<CohortRaceChart on:cohortClick={(e) => (raceMode = e.detail.cohort)} />
+			<CohortRaceChart
+				on:cohortClick={(e) => {
+					// 'all' isn't a RaceViewMode (the race chart slices are
+					// around-me/top10/top25/atlas/jmfa/guests). Fall back to
+					// the broadest slice, top25, for an "all-ish" view.
+					raceMode = e.detail.cohort === 'all' ? 'top25' : e.detail.cohort;
+				}}
+			/>
 		{:else if view === 'insights'}
 			<InsightsGrid
 				{rows}

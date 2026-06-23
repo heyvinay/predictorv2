@@ -168,7 +168,7 @@ export interface ChampionSurvivalResponse {
 	generated_at: string;
 }
 
-export type CohortKey = 'atlas' | 'jmfa' | 'guests';
+export type CohortKey = 'all' | 'atlas' | 'jmfa' | 'guests';
 
 export interface CohortTrailPoint {
 	captured_date: string;

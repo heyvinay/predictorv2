@@ -9,11 +9,13 @@
 	let loading = true;
 
 	const COLORS: Record<CohortKey, string> = {
+		all: '#FBBF24',
 		atlas: '#38bdf8',
 		jmfa: '#a78bfa',
 		guests: '#94a3b8',
 	};
 	const LABELS: Record<CohortKey, string> = {
+		all: 'All',
 		atlas: 'Atlas',
 		jmfa: 'JMFA',
 		guests: 'Guests',
@@ -60,6 +62,37 @@
 		const frac = (rank - min) / (max - min);
 		return PAD_T + frac * (H - PAD_T - PAD_B);
 	}
+
+	/** Spread label y-positions so they never collide.
+	 *  When two cohorts share (or near-share) the same median rank, their
+	 *  natural y-positions overlap and the labels render on top of each
+	 *  other. Walk top-to-bottom enforcing MIN_LABEL_GAP between adjacent
+	 *  labels; if pushing down a stack would exit the chart, walk
+	 *  backward from the bottom to pull the stack upward instead. */
+	const MIN_LABEL_GAP = 16;
+	$: labelYs = (() => {
+		if (!data || data.cohorts.length === 0) return new Map<string, number>();
+		const items = data.cohorts
+			.map((c) => ({ cohort: c.cohort, y: yPos(c.current_median_rank) }))
+			.sort((a, b) => a.y - b.y);
+		// First pass: push collisions downward.
+		for (let i = 1; i < items.length; i++) {
+			if (items[i].y < items[i - 1].y + MIN_LABEL_GAP) {
+				items[i].y = items[i - 1].y + MIN_LABEL_GAP;
+			}
+		}
+		// Second pass: if the stack ran past the bottom, pull upward from the end.
+		const yMax = H - PAD_B - 4;
+		if (items.length && items[items.length - 1].y > yMax) {
+			items[items.length - 1].y = yMax;
+			for (let i = items.length - 2; i >= 0; i--) {
+				if (items[i].y > items[i + 1].y - MIN_LABEL_GAP) {
+					items[i].y = items[i + 1].y - MIN_LABEL_GAP;
+				}
+			}
+		}
+		return new Map(items.map((x) => [x.cohort, x.y]));
+	})();
 </script>
 
 {#if !loading && data && data.cohorts.length > 0}
@@ -78,9 +111,25 @@
 				{@const pts = c.points.map(p => `${xPos(p.captured_date)},${yPos(p.median_rank)}`).join(' ')}
 				<polyline points={pts} stroke={COLORS[c.cohort]} stroke-width="3" fill="none" />
 				<circle cx={xPos(c.points.at(-1)?.captured_date ?? '')} cy={yPos(c.current_median_rank)} r="5" fill={COLORS[c.cohort]} />
+				{@const labelY = labelYs.get(c.cohort) ?? yPos(c.current_median_rank)}
+				{@const dotY = yPos(c.current_median_rank)}
+				{#if Math.abs(labelY - dotY) > 2}
+					<!-- Leader line from the natural dot position to the displaced
+					     label, so the reader can still tell which line each
+					     label belongs to when stacking shifted it away. -->
+					<line
+						x1={xPos(c.points.at(-1)?.captured_date ?? '')}
+						y1={dotY}
+						x2={W - PAD_R + 6}
+						y2={labelY}
+						stroke={COLORS[c.cohort]}
+						stroke-width="1"
+						stroke-opacity="0.45"
+					/>
+				{/if}
 				<text
 					x={W - PAD_R + 10}
-					y={yPos(c.current_median_rank) + 4}
+					y={labelY + 4}
 					font-size="12"
 					font-weight="700"
 					fill={COLORS[c.cohort]}
