@@ -10,16 +10,13 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.database import get_session
-from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser, get_current_user
+from app.dependencies import AdminUser, CurrentUser, DbSession, OptionalUser
 from app.models.entry import PredictionEntry
-from app.models.user import User
 from app.models._datetime import utc_now
 from app.schemas.leaderboard import LeaderboardResponse, PointBreakdown
 from app.services.entries import (
@@ -450,8 +447,8 @@ class RaceStoryOut(BaseModel):
     kind: RaceStoryKind
     title: str
     caption: str
-    subject_entry_id: str
-    compare_entry_id: str | None = None
+    subject_entry_id: uuid.UUID
+    compare_entry_id: uuid.UUID | None = None
     sparkline: list[SparklinePoint]
     compare_sparkline: list[SparklinePoint] | None = None
 
@@ -520,8 +517,8 @@ class MatchMarkersResponse(BaseModel):
 
 @router.get("/race-stories", response_model=RaceStoriesResponse)
 async def race_stories(
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    session: DbSession,
+    user: CurrentUser,
 ) -> RaceStoriesResponse:
     """Returns the 0-4 qualifying race-story cards. See spec §Story-cards grid."""
     return RaceStoriesResponse(stories=[], generated_at=utc_now())
@@ -529,8 +526,8 @@ async def race_stories(
 
 @router.get("/champion-survival", response_model=ChampionSurvivalResponse)
 async def champion_survival(
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    session: DbSession,
+    user: CurrentUser,
 ) -> ChampionSurvivalResponse:
     """Returns how much of the pool's champion pick is still alive."""
     return ChampionSurvivalResponse(alive_count=0, total_count=0, teams=[], generated_at=utc_now())
@@ -538,9 +535,9 @@ async def champion_survival(
 
 @router.get("/cohort-trail", response_model=CohortTrailResponse)
 async def cohort_trail(
-    days: int = 30,
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    session: DbSession,
+    user: CurrentUser,
+    days: int = Query(30, ge=7, le=90),
 ) -> CohortTrailResponse:
     """Returns the median rank trail per cohort over the last `days` days."""
     return CohortTrailResponse(cohorts=[], annotations=[], generated_at=utc_now())
@@ -548,9 +545,9 @@ async def cohort_trail(
 
 @router.get("/match-markers", response_model=MatchMarkersResponse)
 async def match_markers(
-    days: int = 14,
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    session: DbSession,
+    user: CurrentUser,
+    days: int = Query(14, ge=1, le=60),
 ) -> MatchMarkersResponse:
     """Returns the 0-3 most-impactful KO match results for chart annotation."""
     return MatchMarkersResponse(markers=[], generated_at=utc_now())
