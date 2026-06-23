@@ -10,10 +10,15 @@ import type { ScoringRules } from '$lib/types/results';
 import type {
 	BonusFold,
 	BonusPredictionRead,
+	CohortKey,
 	DnaSplit,
+	EntryTrajectory,
 	LbEntryV4,
 	LbPool,
-	LbStage
+	LbStage,
+	MinimapMarker,
+	RaceSliceDescriptor,
+	RaceViewMode
 } from '$lib/types/leaderboard';
 
 // ── Pools ────────────────────────────────────────────────────────────────
@@ -381,4 +386,102 @@ export function bestOwnSummary(
 	const best = own.reduce((a, b) => (b.position < a.position ? b : a));
 	const leadPts = Math.max(...rows.map((r) => r.total_points));
 	return { bestRank: best.position, ptsOffLead: leadPts - best.total_points };
+}
+
+// ── Race-tab slicing ─────────────────────────────────────────────────────
+
+const NEIGHBOURHOOD_RADIUS = 3;
+
+/**
+ * Selects the subset of trajectories that should render on the race chart for
+ * the given view mode. The minimap markers are also returned so the chart's
+ * minimap strip can render in a single derivation pass.
+ *
+ * - around_me: user's best-ranked entry ± 3 + all other user entries + leader (ghost if outside)
+ * - top10 / top25: top N + all user entries (if outside top N)
+ * - atlas / jmfa / guests: cohort filter ∪ user entries
+ *
+ * Signed-out (userId === null) or signed-in with zero entries: around_me
+ * silently falls back to top10.
+ */
+export function selectRaceSlice(
+	trajectories: EntryTrajectory[],
+	mode: RaceViewMode,
+	userId: string | null,
+	cohortMap: Map<string, CohortKey>
+): RaceSliceDescriptor {
+	const all = trajectories
+		.slice()
+		.sort((a, b) => (a.points.at(-1)?.position ?? 0) - (b.points.at(-1)?.position ?? 0));
+	const userEntries = userId ? all.filter((t) => t.user_id === userId) : [];
+
+	// around_me falls back to top10 if user has no entries (signed-out OR zero entries)
+	let effective = mode;
+	if (mode === 'around_me' && userEntries.length === 0) {
+		effective = 'top10';
+	}
+
+	let included: EntryTrajectory[];
+	switch (effective) {
+		case 'around_me': {
+			const best = userEntries[0]; // sorted, so first is the best-ranked
+			const bestRank = best!.points.at(-1)!.position;
+			// Maintain a 7-line window (2 * radius + 1) — shift right when clamped at 1.
+			const windowSize = NEIGHBOURHOOD_RADIUS * 2 + 1;
+			const minR = Math.max(1, bestRank - NEIGHBOURHOOD_RADIUS);
+			const maxR = minR + windowSize - 1;
+			const slice = all.filter((t) => {
+				const r = t.points.at(-1)?.position ?? Number.POSITIVE_INFINITY;
+				return r >= minR && r <= maxR;
+			});
+			for (const ue of userEntries) {
+				if (!slice.some((s) => s.entry_id === ue.entry_id)) slice.push(ue);
+			}
+			const leader = all[0];
+			if (leader && !slice.some((s) => s.entry_id === leader.entry_id)) {
+				slice.push(leader);
+			}
+			included = slice;
+			break;
+		}
+		case 'top10':
+		case 'top25': {
+			const n = effective === 'top10' ? 10 : 25;
+			const top = all.slice(0, n);
+			const merged = [...top];
+			for (const ue of userEntries) {
+				if (!merged.some((s) => s.entry_id === ue.entry_id)) merged.push(ue);
+			}
+			included = merged;
+			break;
+		}
+		case 'atlas':
+		case 'jmfa':
+		case 'guests': {
+			const cohort: CohortKey = effective;
+			const filtered = all.filter((t) => cohortMap.get(t.user_id) === cohort);
+			const merged = [...filtered];
+			for (const ue of userEntries) {
+				if (!merged.some((s) => s.entry_id === ue.entry_id)) merged.push(ue);
+			}
+			included = merged;
+			break;
+		}
+	}
+
+	const ranks = included
+		.map((t) => t.points.at(-1)?.position)
+		.filter((r): r is number => typeof r === 'number')
+		.sort((a, b) => a - b);
+	const minR = ranks[0] ?? 1;
+	const maxR = ranks.at(-1) ?? 1;
+
+	const minimapMarkers: MinimapMarker[] = [];
+	const leader = all[0];
+	if (leader) minimapMarkers.push({ rank: 1, kind: 'leader' });
+	for (const ue of userEntries) {
+		minimapMarkers.push({ rank: ue.points.at(-1)!.position, kind: 'you' });
+	}
+
+	return { included, minimapMarkers, rankRange: [minR, maxR] };
 }
