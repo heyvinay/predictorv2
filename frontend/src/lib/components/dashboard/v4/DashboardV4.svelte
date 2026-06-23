@@ -56,7 +56,6 @@
 	import DailyMvpStrip from './DailyMvpStrip.svelte';
 	import PersonalTrailStrip from './PersonalTrailStrip.svelte';
 	import PoolDistribution from './PoolDistribution.svelte';
-	import ChampionSurvival from '$lib/components/leaderboard/v4/ChampionSurvival.svelte';
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -233,7 +232,6 @@
 					activeEntryId={$activeEntryId}
 					{totalEntries}
 				/>
-				<ChampionSurvival />
 				<PoolDistribution />
 			</div>
 		</div>

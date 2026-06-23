@@ -23,6 +23,7 @@
 		rowDisplayName,
 		seededByStage
 	} from '$lib/utils/leaderboardV4';
+	import ChampionSurvival from './ChampionSurvival.svelte';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
@@ -410,6 +411,11 @@
 			{/each}
 		</div>
 	</InsightCard>
+
+	<!-- 1b · Champion Survival (full-width, brings its own card chrome) -->
+	<div class="min-[860px]:col-span-2">
+		<ChampionSurvival />
+	</div>
 
 	<!-- 2 · Champion picks -->
 	<InsightCard
