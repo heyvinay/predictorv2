@@ -705,7 +705,23 @@ async def daily_mvps(
     user: CurrentUser,
 ) -> DailyMvpsResponse:
     """Returns up to 5 daily MVPs (top scorer per day, most-recent-first)."""
-    return DailyMvpsResponse(mvps=[], generated_at=utc_now())
+    from app.services.dashboard_stats import compute_daily_mvps
+
+    raw = await compute_daily_mvps(session)
+    return DailyMvpsResponse(
+        mvps=[
+            DailyMvp(
+                captured_date=m.captured_date,
+                subject_entry_id=m.subject_entry_id,
+                user_name=m.user_name,
+                entry_name=m.entry_name,
+                day_points=m.day_points,
+                rank_delta=m.rank_delta,
+            )
+            for m in raw
+        ],
+        generated_at=utc_now(),
+    )
 
 
 @router.get("/personal-trail", response_model=PersonalTrailResponse)
