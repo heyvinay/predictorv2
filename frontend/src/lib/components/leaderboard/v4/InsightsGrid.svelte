@@ -509,7 +509,7 @@
 		<div class="flex flex-col gap-2">
 			{#each ceilRows as cr (cr.r.entry_id)}
 				<div
-					class="grid grid-cols-[34px_minmax(110px,auto)_1fr_90px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(
+					class="grid grid-cols-[34px_220px_1fr_90px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(
 						cr.r
 					)
 						? YOURS_ROW
