@@ -756,13 +756,15 @@ async def pool_distribution(
     user: CurrentUser,
 ) -> PoolDistributionResponse:
     """Returns the histogram of entries around the requesting user's points total."""
+    from app.services.dashboard_stats import compute_pool_distribution
+    r = await compute_pool_distribution(session, user_id=str(user.id))
     return PoolDistributionResponse(
-        user_points=0,
-        window_size=5,
-        bins=[],
-        next_rank_points_away=None,
-        next_rank_position=None,
-        near_count=0,
-        caption="",
-        generated_at=utc_now(),
+        user_points=r.user_points,
+        window_size=r.window_size,
+        bins=[DistBin(points_delta=b.points_delta, count=b.count) for b in r.bins],
+        next_rank_points_away=r.next_rank_points_away,
+        next_rank_position=r.next_rank_position,
+        near_count=r.near_count,
+        caption=r.caption,
+        generated_at=r.generated_at,
     )

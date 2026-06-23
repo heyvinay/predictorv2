@@ -24,7 +24,11 @@ from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.leaderboard_snapshot import LeaderboardSnapshot
 from app.models.prediction import PredictionPhase
 from app.models.user import AuthProvider, User
-from app.services.dashboard_stats import compute_daily_mvps, compute_personal_trail
+from app.services.dashboard_stats import (
+    compute_daily_mvps,
+    compute_personal_trail,
+    compute_pool_distribution,
+)
 
 
 pytestmark = pytest.mark.asyncio
@@ -268,3 +272,73 @@ async def test_personal_trail_current_gap(session: AsyncSession):
     entry_a = next(e for e in result if e.entry_id == str(entries["a"].id))
     # 150 - 138.4 = 11.6
     assert entry_a.current_gap == pytest.approx(11.6)
+
+
+async def test_pool_distribution_empty_pre_deadline(session: AsyncSession):
+    entries, _ = await _seed_basic_pool(session, deadline_passed=False)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_pool_distribution(session, user_id=str(user_row.id))
+    assert result.user_points == 0
+
+
+async def test_pool_distribution_bins(session: AsyncSession):
+    """User at 150 pts; pool spans 122..150. Window picks up nearby points."""
+    entries, _ = await _seed_basic_pool(session)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_pool_distribution(session, user_id=str(user_row.id))
+    assert result.user_points == 150
+    own = [b for b in result.bins if b.points_delta == 0]
+    assert own and own[0].count >= 1
+
+
+async def test_pool_distribution_leader_caption(session: AsyncSession):
+    """When user is at #1 (highest points), caption says they're leading."""
+    import uuid
+    from app.models import AuthProvider
+    comp = Competition(name="t", phase1_deadline=utc_now() - timedelta(hours=1), is_phase2_active=False)
+    session.add(comp)
+    await session.flush()
+    today = date.today()
+    for i, (label, pts) in enumerate([("leader", 200), ("second", 180)]):
+        u = User(
+            email=f"{label}@t", name=label, is_admin=False,
+            password_hash="x", auth_provider=AuthProvider.EMAIL,
+        )
+        session.add(u)
+        await session.flush()
+        entry = PredictionEntry(
+            user_id=u.id, competition_id=comp.id,
+            display_name=label, is_disabled=False,
+            reference=f"WC26-{uuid.uuid4().hex[:6]}",
+            entry_number=1,
+        )
+        session.add(entry)
+        await session.flush()
+        session.add(PredictionEntryPhase(
+            entry_id=entry.id, phase=PredictionPhase.PHASE_1,
+            status=EntryStatus.SUBMITTED,
+        ))
+        session.add(LeaderboardSnapshot(
+            entry_id=entry.id, user_id=u.id,
+            captured_date=today, position=1 if label == "leader" else 2,
+            total_points=pts,
+        ))
+    await session.commit()
+
+    from sqlalchemy import select as sa_select
+    leader_user = (await session.execute(sa_select(User).where(User.name == "leader"))).scalar_one()
+    result = await compute_pool_distribution(session, user_id=str(leader_user.id))
+    assert result.next_rank_points_away is None
+    caption_lower = result.caption.lower()
+    assert any(word in caption_lower for word in ("leading", "above", "ahead"))
+
+
+async def test_pool_distribution_default_caption(session: AsyncSession):
+    entries, _ = await _seed_basic_pool(session)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_pool_distribution(session, user_id=str(user_row.id))
+    caption_lower = result.caption.lower()
+    assert "entries" in caption_lower or "points" in caption_lower
