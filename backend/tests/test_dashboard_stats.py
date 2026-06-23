@@ -24,7 +24,7 @@ from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.leaderboard_snapshot import LeaderboardSnapshot
 from app.models.prediction import PredictionPhase
 from app.models.user import AuthProvider, User
-from app.services.dashboard_stats import compute_daily_mvps
+from app.services.dashboard_stats import compute_daily_mvps, compute_personal_trail
 
 
 pytestmark = pytest.mark.asyncio
@@ -228,3 +228,43 @@ async def test_daily_mvps_captured_date_is_date(session: AsyncSession):
     result = await compute_daily_mvps(session)
     for mvp in result:
         assert isinstance(mvp.captured_date, date)
+
+
+async def test_personal_trail_empty_pre_deadline(session: AsyncSession):
+    entries, _ = await _seed_basic_pool(session, deadline_passed=False)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_personal_trail(session, user_id=str(user_row.id))
+    assert result == []
+
+
+async def test_personal_trail_returns_user_entries(session: AsyncSession):
+    entries, _ = await _seed_basic_pool(session)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_personal_trail(session, user_id=str(user_row.id))
+    assert len(result) >= 1
+    assert any(e.entry_id == str(entries["a"].id) for e in result)
+
+
+async def test_personal_trail_includes_pool_average(session: AsyncSession):
+    """`pool_avg_points` per day should be the mean across all eligible entries that day."""
+    entries, _ = await _seed_basic_pool(session)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_personal_trail(session, user_id=str(user_row.id))
+    # On today, snapshots are a=150, b=140, c=145, d=135, e=122; mean = 138.4
+    entry_a = next(e for e in result if e.entry_id == str(entries["a"].id))
+    today_point = entry_a.points[-1]
+    assert today_point.pool_avg_points == pytest.approx(138.4)
+    assert today_point.your_points == 150
+
+
+async def test_personal_trail_current_gap(session: AsyncSession):
+    entries, _ = await _seed_basic_pool(session)
+    from sqlalchemy import select as sa_select
+    user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
+    result = await compute_personal_trail(session, user_id=str(user_row.id))
+    entry_a = next(e for e in result if e.entry_id == str(entries["a"].id))
+    # 150 - 138.4 = 11.6
+    assert entry_a.current_gap == pytest.approx(11.6)

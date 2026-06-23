@@ -5,10 +5,11 @@ Datetimes are aware-UTC; dates are plain `date`.
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import LeaderboardSnapshot, PredictionEntry, User
@@ -103,3 +104,93 @@ async def compute_daily_mvps(session: AsyncSession) -> list[DailyMvp]:
             )
         )
     return out
+
+
+@dataclass
+class TrailPoint:
+    captured_date: date
+    your_points: int
+    pool_avg_points: float
+
+
+@dataclass
+class EntryTrail:
+    entry_id: str
+    entry_name: str
+    current_rank: int
+    current_gap: float
+    points: list[TrailPoint]
+
+
+async def compute_personal_trail(
+    session: AsyncSession, *, user_id: str,
+) -> list[EntryTrail]:
+    """Returns the requesting user's entries' point trails vs the pool average.
+
+    Empty pre-deadline. One EntryTrail per submitted entry the user owns,
+    sorted by current_rank ascending.
+    """
+    if not await is_phase1_locked(session):
+        return []
+
+    today = date.today()
+    earliest = today - timedelta(days=29)  # 30 days of history
+
+    # Coerce string user_id to UUID so SQLAlchemy's UUID type binding works.
+    user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+
+    pool_rows = (
+        await session.execute(
+            select(
+                LeaderboardSnapshot.captured_date,
+                func.avg(LeaderboardSnapshot.total_points),
+            )
+            .where(LeaderboardSnapshot.entry_id.in_(eligible_entry_ids_select()))
+            .where(LeaderboardSnapshot.captured_date >= earliest)
+            .group_by(LeaderboardSnapshot.captured_date)
+        )
+    ).all()
+    pool_avg_by_date = {d: float(avg) for d, avg in pool_rows}
+
+    user_rows = (
+        await session.execute(
+            select(
+                LeaderboardSnapshot.entry_id,
+                LeaderboardSnapshot.captured_date,
+                LeaderboardSnapshot.position,
+                LeaderboardSnapshot.total_points,
+                PredictionEntry.display_name,
+            )
+            .join(PredictionEntry, PredictionEntry.id == LeaderboardSnapshot.entry_id)
+            .where(PredictionEntry.user_id == user_uuid)
+            .where(LeaderboardSnapshot.entry_id.in_(eligible_entry_ids_select()))
+            .where(LeaderboardSnapshot.captured_date >= earliest)
+            .order_by(LeaderboardSnapshot.entry_id, LeaderboardSnapshot.captured_date)
+        )
+    ).all()
+
+    by_entry: dict[str, EntryTrail] = {}
+    for entry_id, captured_date, position, pts, display_name in user_rows:
+        trail = by_entry.get(str(entry_id))
+        if trail is None:
+            trail = EntryTrail(
+                entry_id=str(entry_id),
+                entry_name=display_name,
+                current_rank=position,
+                current_gap=0.0,
+                points=[],
+            )
+            by_entry[str(entry_id)] = trail
+        trail.current_rank = position  # overwritten by newest below
+        trail.points.append(TrailPoint(
+            captured_date=captured_date,
+            your_points=pts,
+            pool_avg_points=pool_avg_by_date.get(captured_date, 0.0),
+        ))
+
+    for trail in by_entry.values():
+        if trail.points:
+            last = trail.points[-1]
+            trail.current_gap = last.your_points - last.pool_avg_points
+
+    return sorted(by_entry.values(), key=lambda t: t.current_rank)

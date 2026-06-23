@@ -730,7 +730,24 @@ async def personal_trail(
     user: CurrentUser,
 ) -> PersonalTrailResponse:
     """Returns the requesting user's entries' point trails vs the pool average."""
-    return PersonalTrailResponse(entries=[], generated_at=utc_now())
+    from app.services.dashboard_stats import compute_personal_trail
+    raw = await compute_personal_trail(session, user_id=str(user.id))
+    return PersonalTrailResponse(
+        entries=[
+            EntryTrail(
+                entry_id=t.entry_id,
+                entry_name=t.entry_name,
+                current_rank=t.current_rank,
+                current_gap=t.current_gap,
+                points=[
+                    TrailPoint(captured_date=p.captured_date, your_points=p.your_points, pool_avg_points=p.pool_avg_points)
+                    for p in t.points
+                ],
+            )
+            for t in raw
+        ],
+        generated_at=utc_now(),
+    )
 
 
 @router.get("/pool-distribution", response_model=PoolDistributionResponse)
