@@ -14,7 +14,12 @@
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
 	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
-	import { getAllTrajectories, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import {
+		getAllTrajectories,
+		getLeaderboardV4,
+		getMatchMarkers,
+		getScoringRules
+	} from '$api/leaderboard';
 	import { startLivePoll } from '$lib/utils/livePoll';
 	import { relativeAgo } from '$lib/utils/relativeTime';
 	import { currentTime } from '$stores/phase';
@@ -22,18 +27,32 @@
 	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import { track } from '$lib/analytics';
-	import type { LbEntryV4, LbPool, LbResponseV4, LbView } from '$lib/types/leaderboard';
+	import type {
+		LbEntryV4,
+		LbPool,
+		LbResponseV4,
+		LbView,
+		RaceViewMode,
+		MatchMarker,
+		CohortKey,
+		EntryTrajectory
+	} from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
 		deriveStage,
 		filterByPool,
 		multiEntryUserIds,
-		searchRows
+		searchRows,
+		selectRaceSlice
 	} from '$lib/utils/leaderboardV4';
 	import StandingsTable from '$lib/components/leaderboard/v4/StandingsTable.svelte';
 	import YourEntriesStrip from '$lib/components/leaderboard/v4/YourEntriesStrip.svelte';
 	import EntryDrawer from '$lib/components/leaderboard/v4/EntryDrawer.svelte';
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
+	import RaceStoryGrid from '$lib/components/leaderboard/v4/RaceStoryGrid.svelte';
+	import ChampionSurvival from '$lib/components/leaderboard/v4/ChampionSurvival.svelte';
+	import RaceViewPills from '$lib/components/leaderboard/v4/RaceViewPills.svelte';
+	import CohortRaceChart from '$lib/components/leaderboard/v4/CohortRaceChart.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
 	// v2.166.0: the deadline passing no longer auto-opens the page —
@@ -84,6 +103,10 @@
 	let loading = true;
 	let loadError = false;
 	let selected: LbEntryV4 | null = null;
+	/** Side-by-side compare row (story-card "closest race" opens this). */
+	let compareSelected: LbEntryV4 | null = null;
+	/** Champion-pick cohort (champion-survival chip opens this). */
+	let cohortSelected: { team_code: string; team_name: string; entry_ids: string[] } | null = null;
 	let stopPoll: (() => void) | null = null;
 	/** True if the most recent background poll failed (the .catch path in
 	 *  the live poll below). Surfaces as an amber dot on the freshness
@@ -124,6 +147,15 @@
 
 	onMount(() => pageTitle.set('Standings'));
 
+	onMount(async () => {
+		try {
+			const data = await getMatchMarkers();
+			matchMarkers = data.markers;
+		} catch {
+			matchMarkers = [];
+		}
+	});
+
 	// Load reactively, not in onMount — $phase1Deadline hydrates after this
 	// page mounts (same race the results page hit), so a one-shot mount
 	// check would skip the fetch and strand the page at "0 entries".
@@ -153,6 +185,75 @@
 	$: filteredRows = searchRows(filterByPool(rows, pool), search);
 	$: multiOwners = multiEntryUserIds(rows);
 	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
+
+	// ── Race-tab redesign state (2026-06-22) ──
+	let raceMode: RaceViewMode = 'around_me';
+	let matchMarkers: MatchMarker[] = [];
+
+	// Build cohort map from leaderboard rows.
+	$: cohortMap = (() => {
+		const m = new Map<string, CohortKey>();
+		for (const row of rows) {
+			const k: CohortKey =
+				row.employer === 'atlas' ? 'atlas' : row.employer === 'jmfa' ? 'jmfa' : 'guests';
+			m.set(row.user_id, k);
+		}
+		return m;
+	})();
+
+	$: cohortCounts = (() => {
+		const c: { atlas: number; jmfa: number; guests: number } = { atlas: 0, jmfa: 0, guests: 0 };
+		for (const v of cohortMap.values()) c[v]++;
+		return c;
+	})();
+
+	$: hasUserEntries = !!$user && rows.some((r) => r.user_id === $user!.id);
+
+	// If signed-in user has no entries, fall back from around_me to top10
+	$: if (!hasUserEntries && raceMode === 'around_me') raceMode = 'top10';
+
+	// Synthesize a thin EntryTrajectory[] for slice computation. RaceChart
+	// still owns the full trajectories; this is just the slice's entry-id
+	// whitelist input.
+	$: synthTrajectories = rows.map<EntryTrajectory>((r) => ({
+		entry_id: r.entry_id,
+		entry_name: r.entry_name ?? '',
+		user_id: r.user_id,
+		user_name: r.user_name ?? '',
+		points: [{ position: r.position, total_points: r.total_points, captured_date: '' }]
+	}));
+
+	$: raceSlice =
+		synthTrajectories.length > 0
+			? selectRaceSlice(synthTrajectories, raceMode, $user?.id ?? null, cohortMap)
+			: null;
+
+	function openCompare(subjectId: string, compareId: string | null) {
+		const subject = rows.find((r) => r.entry_id === subjectId);
+		if (!subject) return;
+		selected = subject;
+		if (compareId) {
+			compareSelected = rows.find((r) => r.entry_id === compareId) ?? null;
+		} else {
+			compareSelected = null;
+		}
+		cohortSelected = null;
+	}
+
+	function openCohortDrawer(teamCode: string) {
+		// v1: cohort entry-list is a follow-up endpoint; for now we render the
+		// drawer with an empty list and a "coming soon" placeholder.
+		cohortSelected = { team_code: teamCode, team_name: teamCode, entry_ids: [] };
+		// Drawer needs a `row` even in cohort mode; pass the first row as a no-op.
+		if (rows.length > 0) selected = rows[0];
+		compareSelected = null;
+	}
+
+	function closeDrawer() {
+		selected = null;
+		compareSelected = null;
+		cohortSelected = null;
+	}
 
 	// ── Freshness cue ──
 	// "Updated Ns ago" ticks via the shared $currentTime store (already
@@ -337,7 +438,22 @@
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}
-			<RaceChart {rows} userId={$user?.id} fixtures={$fixtures} />
+			<RaceStoryGrid on:open={(e) => openCompare(e.detail.entry_id, e.detail.compare_id)} />
+
+			<ChampionSurvival on:teamClick={(e) => openCohortDrawer(e.detail.team_code)} />
+
+			<RaceViewPills bind:mode={raceMode} {hasUserEntries} {cohortCounts} />
+
+			<RaceChart
+				{rows}
+				userId={$user?.id}
+				fixtures={$fixtures}
+				slice={raceSlice}
+				{matchMarkers}
+				showMinimap
+			/>
+
+			<CohortRaceChart on:cohortClick={(e) => (raceMode = e.detail.cohort)} />
 		{:else if view === 'insights'}
 			<InsightsGrid
 				{rows}
@@ -354,7 +470,9 @@
 				isOwn={selected.user_id === $user?.id}
 				{rules}
 				{multiOwners}
-				onClose={() => (selected = null)}
+				compareRow={compareSelected}
+				cohort={cohortSelected}
+				onClose={closeDrawer}
 			/>
 		{/if}
 	</div>

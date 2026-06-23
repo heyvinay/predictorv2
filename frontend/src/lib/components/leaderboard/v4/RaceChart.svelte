@@ -121,7 +121,8 @@
 	};
 	// Same display-name rule as the standings table (consistency).
 	$: multiOwners = multiEntryUserIds(trajectories);
-	$: rendered = slice?.included ?? trajectories;
+	$: sliceIds = slice ? new Set(slice.included.map((s) => s.entry_id)) : null;
+	$: rendered = sliceIds ? trajectories.filter((t) => sliceIds!.has(t.entry_id)) : trajectories;
 	$: lines = rendered
 		.map((t): Line | null => {
 			// Drop snapshot points outside the tournament window — pre-kickoff
