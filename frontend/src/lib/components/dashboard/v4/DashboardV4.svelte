@@ -202,6 +202,15 @@
 			{/if}
 		</div>
 
+		<!-- Daily MVP strip — promoted to the very top of the dashboard
+		     (above the leaderboard + announcement hero). It's a fast-
+		     glance "yesterday's hero" story that earns its place ahead
+		     of the standings table. Collapses on empty so the dashboard
+		     doesn't gain dead chrome when there's nothing to show. -->
+		<div class="mb-5">
+			<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
+		</div>
+
 		<div class="grid grid-cols-1 items-start gap-5 min-[920px]:grid-cols-[1.55fr_1fr]">
 			<!-- Main column -->
 			<div class="flex min-w-0 flex-col gap-5">
@@ -251,10 +260,11 @@
 			</div>
 		</div>
 
-		<!-- ============ Dashboard widgets region (2026-06-22) ============ -->
+		<!-- ============ Dashboard widgets region (2026-06-22) ============
+		     DailyMvpStrip was promoted to the top of the page (above the
+		     grid); PersonalTrailStrip stays below as the trailing widget. -->
 		<div class="my-5 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-60"></div>
 		<div class="flex flex-col gap-4">
-			<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
 			<PersonalTrailStrip />
 		</div>
 	{/if}

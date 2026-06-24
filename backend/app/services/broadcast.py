@@ -87,6 +87,15 @@ class BroadcastSegment(str, Enum):
     # leaderboard (post-deadline destination), UTM-tagged so PostHog can
     # attribute click-throughs.
     GROUP_R1_RECAP = "group_r1_recap"
+    # NEW v2.180.0 — Round 2 recap. Same audience predicate as R1 (every
+    # submitter), but the body anchors on standings highlights + the
+    # Sunday-28 close. Mirror twin of R1 with one deliberate difference:
+    # the R2 CTA is NOT UTM-tagged. R1's URL carried utm_source=email +
+    # utm_campaign=group_r1_recap which contributed to Gmail's
+    # promotional-bin classification; R2 ships clean to maximise inbox
+    # placement. Trade-off: PostHog can no longer attribute per-round
+    # click-throughs — deliverability beats analytics.
+    GROUP_R2_RECAP = "group_r2_recap"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -325,6 +334,11 @@ def _segment_predicate(
         # branches on a recap-specific body. Sharing the predicate
         # guarantees both broadcasts always agree on who counts as a
         # participant.
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.GROUP_R2_RECAP:
+        # v2.180.0 — same audience as R1 and SUBMITTERS. Shared predicate
+        # so the three counts stay locked together; a recipient who got
+        # the R1 recap is exactly the audience for R2.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

@@ -1308,6 +1308,14 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
     /results so the recipient lands directly on the scoreboard. v2.176.0.
     GROUP_R1_RECAP (v2.178.0) lands on /leaderboard with UTM tagging so
     PostHog $pageview can attribute the click-through.
+
+    GROUP_R2_RECAP (v2.180.0) intentionally OMITS the UTM tagging.
+    R1's recap was flagged by Gmail's promotional filter and bumped to
+    the spam bin for many recipients; the UTM tag combined with
+    "winner"/"prize"/"announced" phrasing was the most likely lexical
+    contributor (UTM-parameters are themselves a campaign signal).
+    Trade-off: PostHog can no longer attribute R2 click-throughs.
+    Deliverability beats analytics here.
     """
     base = frontend_url.rstrip("/")
     if segment == BroadcastSegment.GROUP_R1_RECAP:
@@ -1315,6 +1323,8 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
             f"{base}/leaderboard"
             "?utm_source=email&utm_campaign=group_r1_recap"
         )
+    if segment == BroadcastSegment.GROUP_R2_RECAP:
+        return f"{base}/leaderboard"
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"
@@ -1338,6 +1348,8 @@ async def get_broadcast_audience(
         draft_holders=counts[BroadcastSegment.DRAFT_HOLDERS],
         pool_ghost=counts[BroadcastSegment.POOL_GHOST],
         lapsing=counts[BroadcastSegment.LAPSING],
+        group_r1_recap=counts[BroadcastSegment.GROUP_R1_RECAP],
+        group_r2_recap=counts[BroadcastSegment.GROUP_R2_RECAP],
     )
 
 

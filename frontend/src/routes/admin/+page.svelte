@@ -262,6 +262,16 @@
 			title: 'Group Stage Round 1 recap',
 			description:
 				"One-off round-recap email. Same audience as Thank Submitters (everyone with a submitted entry), but the body summarises live standings, the public Google Sheet, and the prize breakdown. CTA lands on /leaderboard with UTM tagging so PostHog can attribute click-throughs."
+		},
+		// v2.180.0 — Round 2 recap. Twin of R1; sent the morning Round 2
+		// wraps, ahead of the Sunday 28 Group Stage winner announcement.
+		// Body has placeholder slots ({{TOP_1}}, {{R2_HERO}}, etc.) that
+		// MUST be filled in inside services/email.py before pressing
+		// "Send broadcast" — otherwise recipients see literal braces.
+		group_r2_recap: {
+			title: 'Group Stage Round 2 recap',
+			description:
+				"One-off Round 2 recap. Same audience as Thank Submitters. Body has leaderboard-highlight placeholders ({{TOP_1}}, {{R2_HERO}}, {{CLIMBERS}}, etc.) that need filling in services/email.py before sending. CTA tagged utm_campaign=group_r2_recap."
 		}
 	};
 
@@ -271,7 +281,8 @@
 		'draft_holders',
 		'pool_ghost',
 		'lapsing',
-		'group_r1_recap'
+		'group_r1_recap',
+		'group_r2_recap'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;

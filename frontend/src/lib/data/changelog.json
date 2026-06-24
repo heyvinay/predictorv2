@@ -2291,6 +2291,13 @@
       "type": "feature",
       "summary": "The Race tab on /leaderboard is redesigned. Story cards surface the day's biggest climbers, falls, closest races and hottest streaks. A Champion Survival gauge shows how much of the pool still has a live winner pick. The chart now focuses on entries around your rank by default — with match-result markers pinned along the date axis — and a new cohort race plots Atlas vs JMFA vs Guests over time. The dashboard also gains three new widgets below the existing grid: Daily MVP highlights the top scorer for each of the last five days, Personal Trail charts your points against the pool average over thirty days, and Pool Distribution shows where you sit in a histogram of nearby points totals.",
       "commit": "pending"
+    },
+    {
+      "version": "2.180.0",
+      "date": "2026-06-24",
+      "type": "feature",
+      "summary": "Dashboard polish for Round 2 wrap-up. The Daily MVP card now sits at the very top of the landing page so yesterday's hero is the first thing you see. Pool Distribution gets readable axis labels with five tick marks, hover tooltips on every bar showing points-delta and entry count, and a 'pts vs you' caption. Live-game team names on the dashboard matchday section now show three-letter codes at every screen size so they no longer truncate to a single 'C…' on narrow viewports. Admin also gains a Group Stage Round 2 recap email template — same audience as the R1 recap, body leads on standings highlights and the Sunday 28 close. R2 ships with spam-filter tuning that the R1 recap lacked: CTA URLs no longer carry UTM tracking parameters, and the wording avoids 'winner / prize / paid / announced' co-occurrences that historically pushed R1 into Gmail's promotional bin.",
+      "commit": "pending"
     }
   ]
 }

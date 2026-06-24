@@ -19,6 +19,7 @@
 		<span class="truncate text-right text-[12px] font-semibold text-base-content"
 			>{#if isRealTeam(fixture.home_team)}<TeamName
 					name={fixture.home_team}
+					forceCode={isLive}
 				/>{:else}{fixture.home_team}{/if}</span
 		>
 		<TeamFlag team={fixture.home_team} />
@@ -46,6 +47,7 @@
 		<span class="truncate text-[12px] font-semibold text-base-content"
 			>{#if isRealTeam(fixture.away_team)}<TeamName
 					name={fixture.away_team}
+					forceCode={isLive}
 				/>{:else}{fixture.away_team}{/if}</span
 		>
 	</span>

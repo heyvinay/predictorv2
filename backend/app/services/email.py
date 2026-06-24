@@ -1240,6 +1240,131 @@ def _broadcast_content_for_segment(
             cta_label="Open my standings",
         )
 
+    if segment == BroadcastSegment.GROUP_R2_RECAP:
+        # v2.180.0 — Round 2 recap (one-off). Sent the morning Round 2
+        # wraps, ahead of Round 3 finale on Sunday 28 June.
+        #
+        # Spam-filter notes (R1 hit Gmail's promotional bin; R2 tuned to
+        # avoid the same fate):
+        # * URLs carry NO utm_* query parameters (R1 used them and that
+        #   compounded with money/winner phrasing pushed score over the
+        #   threshold). Trade-off: PostHog can no longer attribute
+        #   click-throughs per round — acceptable because deliverability
+        #   matters more than analytics here.
+        # * Avoided word pairs that co-trigger SpamAssassin rules:
+        #     "winner" + "announced", "prize" + "paid", "prize" +
+        #     "awarded", money symbol next to "leader". Replaced with
+        #     neutral "standings" language.
+        # * Plain-text section dividers use sentence-case ("Leaderboard
+        #   highlights") rather than ALL CAPS, which is a multi-word
+        #   ALL-CAPS signal.
+        return _BroadcastContent(
+            subject="Round 2 wrap-up — Sunday closes the group stage",
+            headline="Round 2 is done — Sunday closes the group stage.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, all of Round 2 has been settled and "
+                "scored. <strong>Round 3 wraps on Sunday 28 June</strong> "
+                "&mdash; the final round of group-stage fixtures &mdash; "
+                "and we&rsquo;ll <strong>share the final group-stage "
+                "standings that same day</strong> once we&rsquo;ve "
+                "finished checking every point.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Leaderboard highlights</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>&#127942; <strong>Top of the "
+                "pile:</strong> {{TOP_1}}</li>\n"
+                "                <li>&#127941; <strong>Hot on their "
+                "heels:</strong> {{TOP_2_WITH_GAP}}</li>\n"
+                "                <li>&#129351; <strong>Three to "
+                "watch:</strong> {{TOP_3_TO_5}}</li>\n"
+                "                <li>&#127942; <strong>Round 2 "
+                "standout:</strong> {{R2_HERO}}</li>\n"
+                "                <li>&#128640; <strong>Biggest climbers "
+                "this round:</strong> {{CLIMBERS}}</li>\n"
+                "                <li>&#129413; <strong>Most "
+                "against-the-grain picks:</strong> {{CONTRARIAN}}</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Follow your standings &rarr;</strong> "
+                '<a href="https://wc26.heyvinay.com/leaderboard" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "wc26.heyvinay.com/leaderboard</a><br>"
+                "The leaderboard refreshes live, every Match Detail "
+                "page explains its scoring, and the Race tab shows "
+                "your trajectory against the rest of the pool.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Sunday 28 &mdash; what happens</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>All Round 3 fixtures complete in "
+                "the morning</li>\n"
+                "                <li>We re-run scoring end-to-end and "
+                "verify every match</li>\n"
+                "                <li>Final group-stage standings are "
+                "confirmed and the top entry is notified</li>\n"
+                "                <li>Knockout-stage scoring begins "
+                "immediately with the Round of 32</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "Every fixture is scored twice &mdash; once live from "
+                "the official feed, once verified by hand before the "
+                "standings are confirmed. If anything looks off, the "
+                "<strong>Help &amp; Support</strong> panel on any page "
+                "routes straight to us.</p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">Good luck for the final '
+                "round.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, all of Round 2 has been settled and "
+                "scored.\n"
+                "\n"
+                "Round 3 wraps on Sunday 28 June — the final round of "
+                "group-stage\n"
+                "fixtures — and we'll share the final group-stage "
+                "standings that same\n"
+                "day, once we've finished checking every point.\n"
+                "\n"
+                "Leaderboard highlights\n"
+                "  🥇 Top of the pile:        {{TOP_1}}\n"
+                "  🥈 Hot on their heels:     {{TOP_2_WITH_GAP}}\n"
+                "  🥉 Three to watch:         {{TOP_3_TO_5}}\n"
+                "  🏆 Round 2 standout:       {{R2_HERO}}\n"
+                "  🚀 Biggest climbers:       {{CLIMBERS}}\n"
+                "  🦅 Against-the-grain:      {{CONTRARIAN}}\n"
+                "\n"
+                "Follow your standings\n"
+                "https://wc26.heyvinay.com/leaderboard\n"
+                "\n"
+                "Sunday 28 — what happens\n"
+                "  • All Round 3 fixtures complete in the morning\n"
+                "  • We re-run scoring end-to-end and verify every "
+                "match\n"
+                "  • Final group-stage standings are confirmed and "
+                "the top\n"
+                "    entry is notified\n"
+                "  • Knockout-stage scoring begins immediately with "
+                "the Round of 32\n"
+                "\n"
+                "Every fixture is scored twice — once live from the "
+                "official feed,\n"
+                "once verified by hand before the standings are "
+                "confirmed. If anything\n"
+                "looks off, the Help & Support panel on any page "
+                "routes straight to us.\n"
+                "\n"
+                "Good luck for the final round.\n"
+            ),
+            cta_label="Open my standings",
+        )
+
     if segment == BroadcastSegment.LAPSING:
         # v2.176.0 — soft mid-tournament nudge for users who were
         # engaged early but haven't visited in 3-7 days. The copy

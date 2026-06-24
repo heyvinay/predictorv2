@@ -565,14 +565,16 @@ export interface AdminEntryFiltersV2 extends AdminEntryFilters {
 
 /** Mirrors the backend `BroadcastSegment` enum.
  *  v2.176.0 — added `pool_ghost` and `lapsing` cohorts.
- *  v2.178.0 — added `group_r1_recap` one-off round-recap broadcast. */
+ *  v2.178.0 — added `group_r1_recap` one-off round-recap broadcast.
+ *  v2.180.0 — added `group_r2_recap` Round 2 recap. */
 export type BroadcastSegment =
 	| 'submitters'
 	| 'no_entry'
 	| 'draft_holders'
 	| 'pool_ghost'
 	| 'lapsing'
-	| 'group_r1_recap';
+	| 'group_r1_recap'
+	| 'group_r2_recap';
 
 /** Live counts feed the badges on the broadcast card. */
 export interface BroadcastAudienceCounts {
@@ -582,6 +584,7 @@ export interface BroadcastAudienceCounts {
 	pool_ghost: number;       // NEW v2.176.0
 	lapsing: number;          // NEW v2.176.0
 	group_r1_recap: number;   // NEW v2.178.0
+	group_r2_recap: number;   // NEW v2.180.0
 }
 
 /** Result of a single-recipient test send. */
