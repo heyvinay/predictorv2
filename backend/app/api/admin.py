@@ -60,7 +60,10 @@ from app.services.completeness import (
     EntryCompletenessResult,
     check_all_eligible_entries,
 )
-from app.services.email import send_broadcast_email
+from app.services.email import (
+    _compute_r2_highlights,
+    send_broadcast_email,
+)
 from app.services.pool_close import PoolCloseError, close_pool, preview_pool_close
 from app.services.external_scores import get_score_provider, ExternalScore
 from app.services.leaderboard import invalidate_cache
@@ -1378,6 +1381,17 @@ async def send_broadcast_test(
     deadline_dt = comp.phase1_deadline if comp else None
     deadline_display = _format_deadline(deadline_dt)
 
+    # R2 recap pulls live leaderboard data into its placeholders. The
+    # test send wants the same interpolation as the real broadcast —
+    # otherwise the admin would see literal {{TOP_1}} in their test
+    # inbox and assume the broadcast is broken (this is what happened
+    # in v2.180.0, fixed in v2.180.1).
+    tokens = (
+        await _compute_r2_highlights(session)
+        if payload.segment == BroadcastSegment.GROUP_R2_RECAP
+        else None
+    )
+
     try:
         await send_broadcast_email(
             to_email=to_email,
@@ -1386,6 +1400,7 @@ async def send_broadcast_test(
             deep_link_url=deep_link_url,
             deadline_display=deadline_display,
             deadline_dt=deadline_dt,
+            tokens=tokens,
         )
         return BroadcastTestResult(sent=True, to_email=to_email, error=None)
     except Exception as exc:  # noqa: BLE001 — caller wants the error string
@@ -1435,6 +1450,16 @@ async def send_broadcast(
     deadline_dt = comp.phase1_deadline if comp else None
     deadline_display = _format_deadline(deadline_dt)
 
+    # R2 recap pre-fetches its placeholder values ONCE here so the
+    # per-recipient loop below doesn't run the same leaderboard +
+    # race-stories + matchday-2-SQL trio for every send. The token
+    # dict is then passed through every send_broadcast_email call.
+    tokens = (
+        await _compute_r2_highlights(session)
+        if payload.segment == BroadcastSegment.GROUP_R2_RECAP
+        else None
+    )
+
     sent = 0
     failed = 0
     failure_samples: list[str] = []
@@ -1448,6 +1473,7 @@ async def send_broadcast(
                 deep_link_url=deep_link_url,
                 deadline_display=deadline_display,
                 deadline_dt=deadline_dt,
+                tokens=tokens,
             )
             sent += 1
         except Exception:  # noqa: BLE001

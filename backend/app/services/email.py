@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -1283,10 +1283,8 @@ def _broadcast_content_for_segment(
                 "watch:</strong> {{TOP_3_TO_5}}</li>\n"
                 "                <li>&#127942; <strong>Round 2 "
                 "standout:</strong> {{R2_HERO}}</li>\n"
-                "                <li>&#128640; <strong>Biggest climbers "
-                "this round:</strong> {{CLIMBERS}}</li>\n"
-                "                <li>&#129413; <strong>Most "
-                "against-the-grain picks:</strong> {{CONTRARIAN}}</li>\n"
+                "                <li>&#128640; <strong>Biggest "
+                "climb this round:</strong> {{CLIMBERS}}</li>\n"
                 "              </ul>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
@@ -1337,8 +1335,7 @@ def _broadcast_content_for_segment(
                 "  🥈 Hot on their heels:     {{TOP_2_WITH_GAP}}\n"
                 "  🥉 Three to watch:         {{TOP_3_TO_5}}\n"
                 "  🏆 Round 2 standout:       {{R2_HERO}}\n"
-                "  🚀 Biggest climbers:       {{CLIMBERS}}\n"
-                "  🦅 Against-the-grain:      {{CONTRARIAN}}\n"
+                "  🚀 Biggest climb:          {{CLIMBERS}}\n"
                 "\n"
                 "Follow your standings\n"
                 "https://wc26.heyvinay.com/leaderboard\n"
@@ -1402,6 +1399,201 @@ def _broadcast_content_for_segment(
     raise ValueError(f"Unknown segment: {segment!r}")
 
 
+# ---------------------------------------------------------------------------
+# R2 recap dynamic interpolation (v2.180.1)
+# ---------------------------------------------------------------------------
+# v2.180.0 shipped the R2 template with literal {{TOP_1}}, {{R2_HERO}},
+# {{CLIMBERS}} placeholders that admins were expected to hand-fill in
+# email.py before pressing Send. That UX was broken — the first test
+# send surfaced the raw tokens in the rendered email. v2.180.1 closes
+# the loop by computing these values from live data at send time and
+# string-replacing the placeholders.
+#
+# The compute runs ONCE per broadcast (not per recipient) — the API
+# layer pre-computes the token dict and passes it through every
+# per-recipient send_broadcast_email call.
+
+
+async def _compute_round_hero_str(
+    session, *, before_date, round_label: str
+) -> str:
+    """Top entry by points scored between two snapshots.
+
+    `match_predictions` has no stored points column (scoring is
+    computed on read, then cached in the leaderboard). Stored
+    per-fixture points don't exist anywhere. The practical signal is
+    the diff between two `leaderboard_snapshots` rows:
+
+      points_gained_during_round =
+        latest_snapshot.total_points − latest_snapshot_on_or_before_R2_start.total_points
+
+    `before_date` is a `datetime.date` boundary (date(2026, 6, 18) for
+    R2 — the day before any R2 fixture). asyncpg requires a date
+    object, not an ISO string — strings raise DataError. The SQL takes the latest snapshot with
+    `captured_date <= before_date` as the baseline, and diffs against
+    the latest snapshot overall. `round_label` only affects the
+    returned string ("across Round 2").
+
+    Returns "Person Name — N points across {round_label}" or "—" if
+    no data is available (e.g. one of the snapshots is missing).
+    """
+    from sqlalchemy import text
+    sql = text("""
+        WITH before AS (
+          SELECT entry_id, total_points
+          FROM leaderboard_snapshots
+          WHERE captured_date = (
+            SELECT MAX(captured_date) FROM leaderboard_snapshots
+            WHERE captured_date <= :before_date
+          )
+        ),
+        latest AS (
+          SELECT entry_id, total_points
+          FROM leaderboard_snapshots
+          WHERE captured_date = (SELECT MAX(captured_date) FROM leaderboard_snapshots)
+        )
+        SELECT pe.display_name AS entry_name,
+               COALESCE(u.name, '?') AS user_name,
+               (n.total_points - b.total_points) AS round_points
+        FROM latest n
+        JOIN before b              USING (entry_id)
+        JOIN prediction_entries pe ON pe.id = n.entry_id
+        JOIN users u               ON u.id = pe.user_id
+        WHERE pe.is_disabled = false
+          AND pe.withdrawn_at IS NULL
+        ORDER BY round_points DESC NULLS LAST
+        LIMIT 1
+    """)
+    try:
+        row = (await session.execute(sql, {"before_date": before_date})).first()
+    except Exception as exc:  # noqa: BLE001 — broadcast must not crash
+        logger.warning("R2 hero query failed: %s", exc)
+        return "—"
+    if not row or row.round_points is None:
+        return "—"
+    return (
+        f"{row.user_name} — {int(row.round_points)} points "
+        f"across {round_label}"
+    )
+
+
+async def _compute_climbers_str(session) -> str:
+    """Render the biggest-climb race story as a human string.
+
+    Falls back to a Race-tab pointer when no entry qualifies (e.g.
+    pre-deadline pool, all entries flat, or every climb under the
+    threshold). The story's ``title`` is already "{user_name} — up N"
+    and ``caption`` is "From #X to #Y in 3 days." — we concatenate.
+    """
+    try:
+        from app.services.race_stories import select_race_stories
+        stories = await select_race_stories(session)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("R2 climbers query failed: %s", exc)
+        return "see the Race tab on /leaderboard"
+    climb = next((s for s in stories if s.kind == "biggest_climb"), None)
+    if not climb:
+        return "see the Race tab on /leaderboard"
+    return f"{climb.title} ({climb.caption.rstrip('.')})"
+
+
+async def _compute_r2_highlights(session) -> dict[str, str]:
+    """Build the token dict for R2 broadcast interpolation.
+
+    Pulls top-5 leaderboard rows + R2 points hero + biggest climber.
+    Empty dict means "no eligible data" — placeholders remain literal
+    in the email body, which surfaces the failure to the admin via the
+    test-send rather than silently sending a broken email.
+    """
+    from app.services.leaderboard import calculate_leaderboard
+    try:
+        lb = await calculate_leaderboard(session, phase=None)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("R2 leaderboard fetch failed: %s", exc)
+        return {}
+
+    entries = lb.entries[:5]
+    if not entries:
+        return {}
+
+    # Disambiguate same-user-multiple-entries with "Person — Entry name"
+    # so the top 5 doesn't print "Vinay" three times. Mirrors the
+    # frontend's rowDisplayName() rule in leaderboardV4.ts — count user
+    # occurrences within the visible slice, attach entry name only when
+    # the owner holds multiple of these top spots.
+    user_counts: dict[str, int] = {}
+    for e in entries:
+        user_counts[e.user_name] = user_counts.get(e.user_name, 0) + 1
+
+    def display_for(e) -> str:
+        if user_counts.get(e.user_name, 0) > 1:
+            return f"{e.user_name} — {e.entry_name}"
+        return e.user_name
+
+    top_1 = entries[0]
+    top_1_str = f"{display_for(top_1)} — {top_1.total_points} pts"
+
+    if len(entries) >= 2:
+        gap = top_1.total_points - entries[1].total_points
+        gap_str = "tied" if gap == 0 else f"{gap} behind"
+        top_2_str = (
+            f"{display_for(entries[1])} — {entries[1].total_points} pts "
+            f"({gap_str})"
+        )
+    else:
+        top_2_str = "—"
+
+    if len(entries) >= 3:
+        top_3_5_str = " · ".join(
+            f"{display_for(e)} ({e.total_points})" for e in entries[2:5]
+        )
+    else:
+        top_3_5_str = "—"
+
+    return {
+        "TOP_1": top_1_str,
+        "TOP_2_WITH_GAP": top_2_str,
+        "TOP_3_TO_5": top_3_5_str,
+        # R2 boundary: 2026-06-18 is the day BEFORE any R2 fixture
+        # (R1's last game UZB-COL kicked off morning of 18 Jun; R2's
+        # first game CZE-RSA kicked off 18:00 Malta = 16:00 UTC). So
+        # `captured_date <= date(2026, 6, 18)` picks the cleanest
+        # pre-R2 snapshot. For future round recaps, edit this date.
+        "R2_HERO": await _compute_round_hero_str(
+            session,
+            before_date=date(2026, 6, 18),
+            round_label="Round 2",
+        ),
+        "CLIMBERS": await _compute_climbers_str(session),
+    }
+
+
+def _interpolate(
+    content: _BroadcastContent, tokens: dict[str, str]
+) -> _BroadcastContent:
+    """Replace ``{{KEY}}`` placeholders across all string fields.
+
+    Returns a NEW frozen ``_BroadcastContent`` rather than mutating —
+    the dataclass is frozen so mutation would error anyway. Empty token
+    dict returns content unchanged (no allocations).
+    """
+    if not tokens:
+        return content
+
+    def sub(s: str) -> str:
+        for k, v in tokens.items():
+            s = s.replace("{{" + k + "}}", v)
+        return s
+
+    return _BroadcastContent(
+        subject=sub(content.subject),
+        headline=sub(content.headline),
+        body_html=sub(content.body_html),
+        body_text=sub(content.body_text),
+        cta_label=content.cta_label,
+    )
+
+
 async def send_broadcast_email(
     *,
     to_email: str,
@@ -1410,6 +1602,7 @@ async def send_broadcast_email(
     deep_link_url: str,
     deadline_display: str | None,
     deadline_dt: datetime | None = None,
+    tokens: dict[str, str] | None = None,
 ) -> None:
     """Send ONE broadcast email to ONE recipient.
 
@@ -1432,6 +1625,12 @@ async def send_broadcast_email(
         deadline_display=deadline_display,
         deadline_dt=deadline_dt,
     )
+    # Token-driven placeholder substitution (currently only R2 recap
+    # uses it). Tokens are pre-computed at the API layer ONCE per
+    # broadcast and passed through every per-recipient call so we
+    # don't re-query the leaderboard 183 times.
+    if tokens:
+        content = _interpolate(content, tokens)
 
     if not settings.resend_api_key:
         # Dev fallback — print the full message body too so we can
