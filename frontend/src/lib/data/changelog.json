@@ -2305,6 +2305,13 @@
       "type": "fix",
       "summary": "Round 2 recap email now auto-fills leaderboard highlights at send time — top 3, runners-up gap, top-5 chasers, Round 2 standout, and biggest climb are pulled live from the standings + race stories. v2.180.0 shipped the template with literal placeholder tokens expected to be hand-filled in code before each send, which surfaced as visible '{{TOP_1}}' text in the first test email. The token interpolation runs once per broadcast (not per recipient), so the per-send cost is unchanged.",
       "commit": "pending"
+    },
+    {
+      "version": "2.180.2",
+      "date": "2026-06-24",
+      "type": "improvement",
+      "summary": "Clicking a Daily MVP chip on the dashboard now opens that entry's detail drawer on the Leaderboard page, just like clicking a leaderboard row. The dashboard already navigated to /leaderboard?entry=<id>, but the leaderboard page didn't honour the URL parameter so the drawer never opened. Now it does — and refreshing the page won't re-open the drawer because the parameter is stripped after one consumption.",
+      "commit": "pending"
     }
   ]
 }

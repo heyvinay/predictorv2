@@ -10,6 +10,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
 	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
@@ -233,6 +234,25 @@
 		selected = null;
 		compareSelected = null;
 		cohortSelected = null;
+	}
+
+	// Deep-link: when the URL carries ?entry=<id> (e.g. arriving from a
+	// dashboard Daily MVP / Personal Trail click — see DashboardV4's
+	// openLeaderboardEntry), open the drawer for that entry as soon as
+	// `rows` has hydrated. Single-shot: `deepLinkConsumed` flips after
+	// the open so the reactive block doesn't refire when `rows` updates
+	// during the 60s live-poll. Also strips ?entry= from the URL so a
+	// refresh doesn't re-trigger.
+	let deepLinkConsumed = false;
+	$: if (browser && !deepLinkConsumed && rows.length > 0 && !selected) {
+		const targetId = $page.url.searchParams.get('entry');
+		if (targetId && rows.find((r) => r.entry_id === targetId)) {
+			openCompare(targetId, null);
+			deepLinkConsumed = true;
+			const cleanUrl = new URL($page.url);
+			cleanUrl.searchParams.delete('entry');
+			history.replaceState({}, '', cleanUrl);
+		}
 	}
 
 	// ── Freshness cue ──
