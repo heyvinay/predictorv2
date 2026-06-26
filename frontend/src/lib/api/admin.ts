@@ -144,6 +144,15 @@ export async function setPostDeadlineLive(
 	return api.post('/admin/competition/go-live', { live });
 }
 
+/** Flip the Group Stage Winner release switch (v2.181.0) — exposes the
+ *  GroupStageWinnerCard on the dashboard AND surfaces real data in
+ *  the GROUP_STAGE_FINAL broadcast template. */
+export async function setGroupStageWinnerReleased(
+	released: boolean
+): Promise<{ status: string; group_stage_winner_released: boolean }> {
+	return api.post('/admin/competition/group-stage-winner/release', { released });
+}
+
 /** Close-the-pool dry-run counts (v2.166.0). */
 export interface PoolClosePreview {
 	deadline_passed: boolean;
@@ -566,7 +575,8 @@ export interface AdminEntryFiltersV2 extends AdminEntryFilters {
 /** Mirrors the backend `BroadcastSegment` enum.
  *  v2.176.0 — added `pool_ghost` and `lapsing` cohorts.
  *  v2.178.0 — added `group_r1_recap` one-off round-recap broadcast.
- *  v2.180.0 — added `group_r2_recap` Round 2 recap. */
+ *  v2.180.0 — added `group_r2_recap` Round 2 recap.
+ *  v2.181.0 — added `group_stage_final` champion announcement. */
 export type BroadcastSegment =
 	| 'submitters'
 	| 'no_entry'
@@ -574,17 +584,19 @@ export type BroadcastSegment =
 	| 'pool_ghost'
 	| 'lapsing'
 	| 'group_r1_recap'
-	| 'group_r2_recap';
+	| 'group_r2_recap'
+	| 'group_stage_final';
 
 /** Live counts feed the badges on the broadcast card. */
 export interface BroadcastAudienceCounts {
 	submitters: number;
 	no_entry: number;
 	draft_holders: number;
-	pool_ghost: number;       // NEW v2.176.0
-	lapsing: number;          // NEW v2.176.0
-	group_r1_recap: number;   // NEW v2.178.0
-	group_r2_recap: number;   // NEW v2.180.0
+	pool_ghost: number;          // NEW v2.176.0
+	lapsing: number;             // NEW v2.176.0
+	group_r1_recap: number;      // NEW v2.178.0
+	group_r2_recap: number;      // NEW v2.180.0
+	group_stage_final: number;   // NEW v2.181.0
 }
 
 /** Result of a single-recipient test send. */

@@ -96,6 +96,16 @@ class BroadcastSegment(str, Enum):
     # placement. Trade-off: PostHog can no longer attribute per-round
     # click-throughs — deliverability beats analytics.
     GROUP_R2_RECAP = "group_r2_recap"
+    # NEW v2.181.0 — Group Stage Final / winner announcement. Same
+    # audience as the recap segments (every submitter). Body announces
+    # the group-stage champion with their 4-part points breakdown
+    # (outcome / exact / rarity / bonus) and the €183 group-stage prize.
+    # Gated behind Competition.group_stage_winner_released — the email
+    # template populates dynamic placeholders from the same service
+    # that backs the dashboard's GroupStageWinnerCard, so the card
+    # and the email are guaranteed to agree on the numbers. Subject
+    # avoids "winner+announced" pair to stay spam-friendly.
+    GROUP_STAGE_FINAL = "group_stage_final"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -339,6 +349,11 @@ def _segment_predicate(
         # v2.180.0 — same audience as R1 and SUBMITTERS. Shared predicate
         # so the three counts stay locked together; a recipient who got
         # the R1 recap is exactly the audience for R2.
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.GROUP_STAGE_FINAL:
+        # v2.181.0 — same audience as R1/R2/SUBMITTERS. The group-stage
+        # winner announcement is celebratory not transactional; everyone
+        # who entered the pool deserves to hear who won.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

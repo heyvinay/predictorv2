@@ -29,12 +29,19 @@
 </script>
 
 {#if !loading && !failed && mvps.length > 0}
-	<section class="rounded-box border border-base-300 bg-base-200 p-4">
-		<header class="mb-3 flex items-center gap-2">
-			<h3 class="m-0 text-xs font-bold uppercase tracking-wide text-primary">Daily MVP — last 5 days</h3>
+	<!--
+		v2.181.0 — compacted to 3 chips in a 3-column grid (was 5 chips
+		flex-wrapped). Lives in the dashboard's side column above the
+		MiniLeaderboard now, not at the top of the page. The 3-col grid
+		works the same on mobile and desktop — same chronological order
+		(today + 2 prior days), no wrap to a second row.
+	-->
+	<section class="rounded-box border border-base-300 bg-base-200 p-3">
+		<header class="mb-2 flex items-center gap-2">
+			<h3 class="m-0 text-[10.5px] font-bold uppercase tracking-wide text-primary">Daily MVP · last 3 days</h3>
 		</header>
-		<div class="flex flex-wrap gap-2.5">
-			{#each mvps as mvp (mvp.captured_date)}
+		<div class="grid grid-cols-3 gap-2">
+			{#each mvps.slice(0, 3) as mvp (mvp.captured_date)}
 				<MvpChip
 					{mvp}
 					isToday={mvp.captured_date === today}

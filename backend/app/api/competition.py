@@ -95,6 +95,10 @@ class PhaseStatus(BaseModel):
     # Post-deadline release switch (v2.166.0) — admin-controlled; the
     # V4 pages open to the pool only when this is true.
     post_deadline_live: bool = False
+    # Group Stage Winner release switch (v2.181.0) — admin-controlled;
+    # gates the GroupStageWinnerCard on the dashboard AND the
+    # GROUP_STAGE_FINAL broadcast email's data payload.
+    group_stage_winner_released: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -133,6 +137,9 @@ async def get_phase_status(
         phase2_bracket_deadline=competition.phase2_bracket_deadline if competition else None,
         phase2_bracket_locked=bracket_locked,
         post_deadline_live=competition.post_deadline_live if competition else False,
+        group_stage_winner_released=(
+            competition.group_stage_winner_released if competition else False
+        ),
     )
 
 

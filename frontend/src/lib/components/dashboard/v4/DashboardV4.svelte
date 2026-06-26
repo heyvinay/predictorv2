@@ -33,11 +33,11 @@
 		setActiveEntry,
 		submittedEntries
 	} from '$stores/entries';
-	import { getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import { getGroupStageWinner, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { getAnnouncements } from '$api/announcements';
 	import { track } from '$lib/analytics';
 	import type { EntryRankInfo, MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
-	import type { LbEntryV4 } from '$lib/types/leaderboard';
+	import type { GroupStageWinner, LbEntryV4 } from '$lib/types/leaderboard';
 	import type { Announcement } from '$lib/types/dashboard';
 	import { deriveGroupMatchdays } from '$lib/utils/resultsRounds';
 	import { teamCode } from '$lib/utils/teamCodes';
@@ -57,6 +57,8 @@
 	import DailyMvpStrip from './DailyMvpStrip.svelte';
 	import PersonalTrailStrip from './PersonalTrailStrip.svelte';
 	import PoolDistribution from './PoolDistribution.svelte';
+	import GroupStageWinnerCard from './GroupStageWinnerCard.svelte';
+	import MatchdayStrip from './MatchdayStrip.svelte';
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -64,6 +66,11 @@
 	let totalEntries = 0;
 	let announcements: Announcement[] = [];
 	let now = new Date();
+	// v2.181.0 — Group Stage Winner card. Null until the admin flips the
+	// release flag on /admin; backend gates the payload so the card
+	// stays hidden until release. Refetched on the same 60s tick as the
+	// leaderboard so a mid-session admin flip surfaces it within a minute.
+	let groupStageWinner: GroupStageWinner | null = null;
 
 	// ── Core data (fixtures, leaderboard, rules, announcements) ──
 	let coreRequested = false;
@@ -73,11 +80,12 @@
 	}
 
 	async function loadCore() {
-		const [, lb, scoringRules, news] = await Promise.all([
+		const [, lb, scoringRules, news, gsw] = await Promise.all([
 			fetchAllFixtures(),
 			getLeaderboardV4().catch(() => null),
 			getScoringRules(),
-			getAnnouncements().catch(() => [] as Announcement[])
+			getAnnouncements().catch(() => [] as Announcement[]),
+			getGroupStageWinner().catch(() => null)
 		]);
 		rules = scoringRules;
 		announcements = news;
@@ -85,6 +93,7 @@
 			lbRows = lb.entries;
 			totalEntries = lb.entries.length;
 		}
+		groupStageWinner = gsw;
 		loading = false;
 	}
 
@@ -129,6 +138,13 @@
 			.then((lb) => {
 				lbRows = lb.entries;
 				totalEntries = lb.entries.length;
+			})
+			.catch(() => undefined);
+		// Re-poll the GSW endpoint so an admin's mid-session toggle
+		// flip surfaces within ~60s (no hard refresh needed).
+		void getGroupStageWinner()
+			.then((gsw) => {
+				groupStageWinner = gsw;
 			})
 			.catch(() => undefined);
 	});
@@ -202,31 +218,43 @@
 			{/if}
 		</div>
 
-		<!-- Daily MVP strip — promoted to the very top of the dashboard
-		     (above the leaderboard + announcement hero). It's a fast-
-		     glance "yesterday's hero" story that earns its place ahead
-		     of the standings table. Collapses on empty so the dashboard
-		     doesn't gain dead chrome when there's nothing to show. -->
-		<div class="mb-5">
-			<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
-		</div>
+		<!-- Group Stage Winner card (v2.181.0) — admin-gated via
+		     competitions.group_stage_winner_released. Backend returns
+		     null until the flag flips; we hide the card unconditionally
+		     here. When the flag flips mid-session the 60s poll picks
+		     it up. The card is the ceremonial centrepiece — sits ABOVE
+		     the Daily MVP strip during its window. -->
+		{#if groupStageWinner}
+			<div class="mb-5">
+				<GroupStageWinnerCard winner={groupStageWinner} />
+			</div>
+		{/if}
+
+		<!-- v2.181.0: DailyMvpStrip moved out of the top-of-page slot
+		     and into the side column below (above MiniLeaderboard).
+		     The ceremonial top slot is now reserved for ONE card at a
+		     time — currently the GroupStageWinnerCard during release
+		     window. -->
+
+		<!-- Matchday scoreboard (v2.181.0): ESPN-style pill row, full
+		     container width, sits above the AnnouncementHero / 2-col
+		     grid so the most time-sensitive content (live + today's
+		     fixtures) is the first thing seen on the page after the
+		     header. Self-collapsing on empty days. -->
+		{#if buckets.matchday.length > 0}
+			<div class="mb-5">
+				<MatchdayStrip fixtures={buckets.matchday} />
+			</div>
+		{/if}
 
 		<div class="grid grid-cols-1 items-start gap-5 min-[920px]:grid-cols-[1.55fr_1fr]">
 			<!-- Main column -->
 			<div class="flex min-w-0 flex-col gap-5">
 				<AnnouncementHero {announcements} />
 
-				{#if buckets.matchday.length > 0}
-					<FixturesTable
-						title="Matchday"
-						fixtures={buckets.matchday}
-						{predictionsByFixture}
-						bracket={$bracketPrediction}
-						{derivedMatchdays}
-						{now}
-					/>
-				{/if}
-
+				<!-- Matchday FixturesTable removed in v2.181.0 — replaced
+				     by the full-width MatchdayStrip above the 2-col grid.
+				     Upcoming and Recent stay tabular below. -->
 				<FixturesTable
 					title="Upcoming matches"
 					fixtures={buckets.upcoming}
@@ -249,6 +277,11 @@
 
 			<!-- Side column -->
 			<div class="flex min-w-0 flex-col gap-5">
+				<!-- v2.181.0: DailyMvpStrip lives here now, above the
+				     leaderboard. 3 compact chips in a side-column-width
+				     row (was 5 full-width chips at top-of-page in
+				     v2.180.0). -->
+				<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
 				<MiniLeaderboard
 					rows={lbRows}
 					userId={$user?.id ?? null}

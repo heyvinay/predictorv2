@@ -2312,6 +2312,13 @@
       "type": "improvement",
       "summary": "Clicking a Daily MVP chip on the dashboard now opens that entry's detail drawer on the Leaderboard page, just like clicking a leaderboard row. The dashboard already navigated to /leaderboard?entry=<id>, but the leaderboard page didn't honour the URL parameter so the drawer never opened. Now it does — and refreshing the page won't re-open the drawer because the parameter is stripped after one consumption.",
       "commit": "pending"
+    },
+    {
+      "version": "2.181.0",
+      "date": "2026-06-26",
+      "type": "feature",
+      "summary": "Group Stage champion announcement — admin-released card + broadcast email. After Round 3 settles, admins flip a release switch on /admin and a celebratory card appears at the very top of every signed-in dashboard, showing the winner's name, total points, and a four-part breakdown: points from correct match outcomes, extra from exact scores, extra from rarity, and points from bonus questions. A matching champion-announcement broadcast email goes to every submitter with the same numbers and a narrative story line (5 templates by lead pattern, margin clause vs runner-up, bracket sentence). The card and the email share one backend service so they're guaranteed to agree. Dashboard also gets an ESPN-style Matchday scoreboard — six fixture pills across desktop, horizontal-scroll on mobile — that sits above everything so time-sensitive matches are the first thing on the page. Daily MVP moves into the side column above the leaderboard as three compact chips (was five wide chips at top-of-page). Plus polish: live-row team names on tighter viewports stop truncating to single letters; live-match scores on the results page now both wear the green chip (was asymmetric); group-stage winner card click opens that entry's full picks via the entry drawer.",
+      "commit": "pending"
     }
   ]
 }

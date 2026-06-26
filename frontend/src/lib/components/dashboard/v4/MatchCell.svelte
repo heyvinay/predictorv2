@@ -26,10 +26,14 @@
 	</span>
 
 	{#if score}
+		<!-- v2.181.0: live score chip is smaller on mobile (px-1 text-[12px])
+		     so the 1fr team-name columns get column width back. The bigger
+		     chip from v2.180.0 (px-1.5 text-[14px]) ate enough horizontal
+		     space to truncate TLAs to "C…" on narrow screens. -->
 		<span
-			class="font-display text-[14px] font-extrabold tabular-nums {isLive
-				? 'inline-block rounded-md bg-success px-1.5 py-0.5 text-white'
-				: 'text-base-content'}"
+			class="font-display font-extrabold tabular-nums {isLive
+				? 'inline-block rounded-md bg-success px-1 py-0.5 text-[12px] text-white sm:px-1.5 sm:text-[14px]'
+				: 'text-[14px] text-base-content'}"
 		>
 			{score.home}<span class="px-px {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>{score.away}{#if score.pens}<span
 					class="pl-0.5 align-super text-[9px] font-bold {isLive

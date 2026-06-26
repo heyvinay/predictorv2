@@ -238,3 +238,44 @@ export interface PoolDistributionResponse {
 	caption: string;
 	generated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Group Stage Winner (v2.181.0)
+// ---------------------------------------------------------------------------
+// Card-and-email payload returned by GET /api/leaderboard/group-stage-winner.
+// Null = release flag not flipped yet (admin hasn't pressed the button on
+// /admin) → card stays hidden. Frontend NEVER renders a partial card.
+
+export interface GroupStageWinner {
+	entry_id: string;
+	user_name: string;
+	entry_name: string;
+	total_points: number;
+	final_rank: number;
+
+	// 4-part breakdown — sums to total_points
+	outcome_points: number;
+	exact_score_extra: number;
+	rarity_extra: number;
+	bonus_question_points: number;
+
+	// Story stats
+	correct_outcomes: number;
+	exact_scores: number;
+	days_at_top: number;
+	champion_pick: string | null;
+	champion_alive: boolean;
+	finalist_picks: string[];
+	finalists_alive: number;
+
+	// Context facts that power the narrative (v2.181.0)
+	runner_up_name: string | null;
+	runner_up_gap: number | null;
+	total_days: number;
+
+	// Pre-composed narrative — card renders this verbatim. To edit
+	// wording, change `_compose_story_line` in the backend service.
+	story_line: string;
+
+	generated_at: string;
+}

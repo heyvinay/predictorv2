@@ -1362,6 +1362,139 @@ def _broadcast_content_for_segment(
             cta_label="Open my standings",
         )
 
+    if segment == BroadcastSegment.GROUP_STAGE_FINAL:
+        # v2.181.0 — Group stage champion announcement. Released
+        # Sunday 28 June 2026 ~7pm Malta time, after R3 settles and
+        # the admin flips Competition.group_stage_winner_released.
+        # The body has token placeholders ({{WINNER_NAME}}, {{TOTAL_POINTS}},
+        # {{OUTCOME_PTS}}, {{EXACT_EXTRA}}, {{RARITY_EXTRA}}, {{BONUS_PTS}},
+        # {{STORY_LINE}}, {{WINNER_FIRST_NAME}}) that the
+        # _compute_group_stage_winner_email_tokens helper fills in at
+        # send time from the same service that backs the dashboard card —
+        # card and email agree to the point.
+        #
+        # Spam-filter rules (same as R2):
+        #   * no UTM tags on the CTA URL
+        #   * no "winner+announced", "prize+paid", "prize+awarded" pairs
+        #   * sentence-case headers in plaintext body
+        return _BroadcastContent(
+            subject="Group stage closes — final standings inside",
+            headline="Group stage closes — final standings are in.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, the group stage of the Atlas World Cup "
+                "2026 pool has wrapped. Final standings have been "
+                "verified and the pool&rsquo;s group-stage champion is "
+                "locked in.</p>\n"
+                f'              <div style="margin:0 0 18px 0;padding:18px;'
+                f'background:#1C2541;border:1px solid #D4AF37;'
+                f'border-radius:14px;text-align:center;">'
+                f'<div style="font-size:11px;font-weight:700;'
+                f'letter-spacing:0.14em;text-transform:uppercase;'
+                f'color:{_GOLD};margin-bottom:6px;">'
+                "&#127942; Group stage champion</div>"
+                f'<div style="font-size:24px;font-weight:800;'
+                f'color:{_BODY_INK};line-height:1.2;">'
+                "{{WINNER_NAME}}</div>"
+                f'<div style="font-size:14px;color:{_MUTED_INK};'
+                f'margin-top:2px;">{{ENTRY_NAME}}</div>'
+                f'<div style="font-size:20px;font-weight:700;'
+                f'color:{_GOLD};margin-top:10px;">'
+                "{{TOTAL_POINTS}} points</div>"
+                "</div>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Points breakdown</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>Points from correct match outcomes: "
+                "<strong>{{OUTCOME_PTS}}</strong></li>\n"
+                "                <li>Extra points from exact scores: "
+                "<strong>{{EXACT_EXTRA}}</strong></li>\n"
+                "                <li>Extra points from rarity: "
+                "<strong>{{RARITY_EXTRA}}</strong></li>\n"
+                "                <li>Points from bonus questions: "
+                "<strong>{{BONUS_PTS}}</strong></li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>How they got there</strong><br>"
+                "{{STORY_LINE}}</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "{{WINNER_FIRST_NAME}} takes home <strong>&euro;183</strong> "
+                "from the pool, alongside the Atlas Insurance "
+                "<strong>&euro;500</strong> top-up that goes to the Soup "
+                "Kitchen &mdash; a total charitable contribution of "
+                "<strong>&euro;650</strong> from the pool this group "
+                "stage.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>What&rsquo;s next?</strong><br>"
+                "The knockout stage begins shortly. Brackets compete "
+                "for the Overall Winner prize of <strong>&euro;595</strong>. "
+                "The leaderboard restarts the drama from the Round of "
+                "32 onward &mdash; an entry can win the group stage and "
+                "still be overtaken in the bracket.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Follow your standings &rarr;</strong> "
+                '<a href="https://wc26.heyvinay.com/leaderboard" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "wc26.heyvinay.com/leaderboard</a></p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">'
+                "Thanks for being part of the pool. The bracket starts "
+                "the next chapter.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, the group stage of the Atlas World "
+                "Cup 2026 pool has wrapped.\n"
+                "Final standings have been verified and the pool's "
+                "group-stage champion\n"
+                "is locked in.\n"
+                "\n"
+                "🏆 GROUP STAGE CHAMPION\n"
+                "\n"
+                "{{WINNER_NAME}}\n"
+                "{{ENTRY_NAME}}\n"
+                "{{TOTAL_POINTS}} points\n"
+                "\n"
+                "Points breakdown\n"
+                "  • Points from correct match outcomes: {{OUTCOME_PTS}}\n"
+                "  • Extra points from exact scores:  {{EXACT_EXTRA}}\n"
+                "  • Extra points from rarity:        {{RARITY_EXTRA}}\n"
+                "  • Points from bonus questions:     {{BONUS_PTS}}\n"
+                "\n"
+                "How they got there\n"
+                "{{STORY_LINE}}\n"
+                "\n"
+                "{{WINNER_FIRST_NAME}} takes home €183 from the pool, "
+                "alongside the Atlas\n"
+                "Insurance €500 top-up that goes to the Soup Kitchen — "
+                "a total\n"
+                "charitable contribution of €650 from the pool this "
+                "group stage.\n"
+                "\n"
+                "What's next?\n"
+                "The knockout stage begins shortly. Brackets compete "
+                "for the Overall\n"
+                "Winner prize of €595. The leaderboard restarts the "
+                "drama from the\n"
+                "Round of 32 onward — an entry can win the group stage "
+                "and still be\n"
+                "overtaken in the bracket.\n"
+                "\n"
+                "Follow your standings\n"
+                "https://wc26.heyvinay.com/leaderboard\n"
+                "\n"
+                "Thanks for being part of the pool. The bracket starts "
+                "the next chapter.\n"
+            ),
+            cta_label="Open my standings",
+        )
+
     if segment == BroadcastSegment.LAPSING:
         # v2.176.0 — soft mid-tournament nudge for users who were
         # engaged early but haven't visited in 3-7 days. The copy
@@ -1565,6 +1698,76 @@ async def _compute_r2_highlights(session) -> dict[str, str]:
             round_label="Round 2",
         ),
         "CLIMBERS": await _compute_climbers_str(session),
+    }
+
+
+async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
+    """Build the token dict for the GROUP_STAGE_FINAL broadcast email.
+
+    Pulls from the same service that backs the dashboard's
+    GroupStageWinnerCard, so card and email agree on every number.
+    Returns an empty dict if no winner can be determined (defensive —
+    surfaces visibly as literal {{WINNER_NAME}} in the test send so
+    admins notice rather than sending a broken email).
+
+    Tokens:
+      WINNER_NAME        — "Brandon Bonello" (multi-entry disambig if owner has >1 top entry — n/a here, single winner)
+      WINNER_FIRST_NAME  — "Brandon"
+      ENTRY_NAME         — "Brandon 1"
+      TOTAL_POINTS       — "282"
+      OUTCOME_PTS        — "168"
+      EXACT_EXTRA        — "45"
+      RARITY_EXTRA       — "52"
+      BONUS_PTS          — "17"
+      STORY_LINE         — pre-composed sentence; champion-pick + finalists + days-at-top with graceful omission of unfavourable bits
+    """
+    from sqlalchemy import select
+    from app.models.competition import Competition
+    from app.services.group_stage_winner import get_group_stage_winner
+
+    # Gate token compute on the released flag — same rule as the
+    # dashboard card. Sunday workflow: admin flips release first
+    # (card appears on dashboards), then test-sends the broadcast
+    # email to verify wording, then fires the real send. If the
+    # release flag is OFF, the email tokens come back empty and the
+    # rendered email shows literal {{WINNER_NAME}} placeholders —
+    # this is the visible signal that "you tested too early."
+    try:
+        comp = (
+            await session.execute(
+                select(Competition).where(Competition.is_active.is_(True))
+            )
+        ).scalar_one_or_none()
+        if comp is None or not comp.group_stage_winner_released:
+            return {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("GSW release-flag check failed: %s", exc)
+        return {}
+
+    try:
+        w = await get_group_stage_winner(session)
+    except Exception as exc:  # noqa: BLE001 — broadcast must not crash
+        logger.warning("GSW token compute failed: %s", exc)
+        return {}
+    if w is None:
+        return {}
+
+    first_name = (w.user_name or "").split(" ", 1)[0] or w.user_name or "—"
+
+    # The story line is now pre-composed by the service so the card
+    # and the email render identical prose. To tweak wording, edit
+    # `_compose_story_line` in services/group_stage_winner.py — both
+    # surfaces will reflect the change on next request.
+    return {
+        "WINNER_NAME": w.user_name,
+        "WINNER_FIRST_NAME": first_name,
+        "ENTRY_NAME": w.entry_name,
+        "TOTAL_POINTS": str(w.total_points),
+        "OUTCOME_PTS": str(w.outcome_points),
+        "EXACT_EXTRA": str(w.exact_score_extra),
+        "RARITY_EXTRA": str(w.rarity_extra),
+        "BONUS_PTS": str(w.bonus_question_points),
+        "STORY_LINE": w.story_line,
     }
 
 

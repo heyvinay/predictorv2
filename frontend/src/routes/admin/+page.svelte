@@ -20,6 +20,7 @@
 	import { isAuthenticated, user } from '$stores/auth';
 	import {
 		fetchPhaseStatus,
+		groupStageWinnerReleased,
 		isPhase2Active,
 		phase1Deadline,
 		phase2BracketDeadline,
@@ -38,6 +39,7 @@
 		getBroadcastAudienceCounts,
 		sendBroadcast,
 		sendBroadcastTest,
+		setGroupStageWinnerReleased,
 		setPostDeadlineLive,
 		getPoolClosePreview,
 		runPoolClose,
@@ -84,6 +86,28 @@
 			goLiveError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingLive = false;
+		}
+	}
+
+	// ─── Group Stage Winner release (v2.181.0) ────────────────────────────
+	let togglingGsw = false;
+	let gswError: string | null = null;
+
+	async function handleToggleGsw() {
+		const next = !$groupStageWinnerReleased;
+		const message = next
+			? 'RELEASE the Group Stage Winner card + broadcast? The card will appear on every dashboard within ~60s; the GROUP_STAGE_FINAL broadcast template will pull live winner data when sent.'
+			: 'RETRACT the Group Stage Winner card + broadcast? Use this only to fix a late scoring correction; recipients of the email won\'t get a second one if you re-flip.';
+		if (!confirm(message)) return;
+		togglingGsw = true;
+		gswError = null;
+		try {
+			await setGroupStageWinnerReleased(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			gswError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingGsw = false;
 		}
 	}
 
@@ -272,6 +296,17 @@
 			title: 'Group Stage Round 2 recap',
 			description:
 				"One-off Round 2 recap. Same audience as Thank Submitters. Body has leaderboard-highlight placeholders ({{TOP_1}}, {{R2_HERO}}, {{CLIMBERS}}, etc.) that need filling in services/email.py before sending. CTA tagged utm_campaign=group_r2_recap."
+		},
+		// v2.181.0 — Group Stage champion announcement. Sent ~7pm Malta
+		// Sunday 28 June, after admin flips the release toggle. Body
+		// auto-fills the winner's name + 4-part points breakdown + story
+		// line. GATED: backend returns empty tokens until release flag
+		// flips, so a test send before release surfaces literal
+		// {{WINNER_NAME}} placeholders. Test only AFTER pressing release.
+		group_stage_final: {
+			title: 'Group Stage champion announcement',
+			description:
+				"Sunday 28 June ~7pm Malta. Auto-fills winner name + 4-part points breakdown + story line. Flip the 'Group Stage Winner release' switch above FIRST; test-send only after release, otherwise placeholders surface as literal {{WINNER_NAME}} text."
 		}
 	};
 
@@ -282,7 +317,8 @@
 		'pool_ghost',
 		'lapsing',
 		'group_r1_recap',
-		'group_r2_recap'
+		'group_r2_recap',
+		'group_stage_final'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;
@@ -626,6 +662,44 @@
 					</button>
 				</div>
 				{#if goLiveError}<div class="alert alert-error text-sm mt-3">{goLiveError}</div>{/if}
+			</section>
+
+			<!-- Group Stage Winner release (v2.181.0) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$groupStageWinnerReleased
+					? 'border-primary/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Group Stage Winner release
+					<span class="text-xs text-base-content/40">
+						· dashboard card + champion broadcast
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					Press <b>Release champion</b> after R3 settles and you've verified final standings (≤7pm Malta, Sunday 28 June 2026). The
+					GroupStageWinnerCard surfaces on every dashboard within ~60s and the GROUP_STAGE_FINAL broadcast template starts
+					pulling live winner data. If a late scoring correction changes the standings, retract here and re-flip
+					once corrected — the card and broadcast both re-render on the next 60s tick.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$groupStageWinnerReleased
+							? 'bg-primary/20 text-primary'
+							: 'bg-base-300 text-base-content/55'}"
+					>
+						{$groupStageWinnerReleased ? '🏆 RELEASED — card visible to pool' : 'HOLDING — card hidden'}
+					</span>
+					<button
+						class="btn btn-sm {$groupStageWinnerReleased ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleGsw}
+						disabled={togglingGsw}
+					>
+						{togglingGsw ? 'Switching…' : $groupStageWinnerReleased ? 'Retract release' : '🏆 Release champion'}
+					</button>
+				</div>
+				{#if gswError}<div class="alert alert-error text-sm mt-3">{gswError}</div>{/if}
 			</section>
 
 			<!-- Close the pool (v2.166.0) -->

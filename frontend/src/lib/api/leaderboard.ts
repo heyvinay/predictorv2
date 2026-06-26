@@ -15,6 +15,7 @@ import type {
 	BonusPredictionRead,
 	ChampionSurvivalResponse,
 	DailyMvpsResponse,
+	GroupStageWinner,
 	LbResponseV4,
 	MatchMarkersResponse,
 	PersonalTrailResponse,
@@ -150,4 +151,11 @@ export async function getPersonalTrail(): Promise<PersonalTrailResponse> {
 
 export async function getPoolDistribution(): Promise<PoolDistributionResponse> {
 	return api.get<PoolDistributionResponse>('/leaderboard/pool-distribution');
+}
+
+// ---- Group Stage Winner (v2.181.0) --------------------------------------
+// Returns null when the release flag isn't set — card stays hidden.
+
+export async function getGroupStageWinner(): Promise<GroupStageWinner | null> {
+	return api.get<GroupStageWinner | null>('/leaderboard/group-stage-winner');
 }

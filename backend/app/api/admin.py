@@ -61,6 +61,7 @@ from app.services.completeness import (
     check_all_eligible_entries,
 )
 from app.services.email import (
+    _compute_group_stage_winner_email_tokens,
     _compute_r2_highlights,
     send_broadcast_email,
 )
@@ -660,6 +661,60 @@ async def set_post_deadline_live(
     await session.commit()
 
     return {"status": "ok", "post_deadline_live": request.live}
+
+
+# ---------------------------------------------------------------------------
+# Group Stage Winner release switch (v2.181.0)
+# ---------------------------------------------------------------------------
+class GroupStageWinnerReleaseRequest(BaseModel):
+    """Toggle the Group Stage Winner card + broadcast visibility."""
+
+    released: bool
+
+
+@router.post("/competition/group-stage-winner/release")
+async def set_group_stage_winner_released(
+    request: GroupStageWinnerReleaseRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the Group Stage Winner release switch (v2.181.0).
+
+    `released=true` exposes the GroupStageWinnerCard on the dashboard
+    AND lets the GROUP_STAGE_FINAL broadcast template surface real
+    winner data when sent. `released=false` re-hides both surfaces —
+    use this to retract if the standings change post-flip due to a
+    late scoring correction.
+
+    Single audit event per change. Idempotent — flipping to the same
+    value twice records nothing on the second call.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.group_stage_winner_released
+    competition.group_stage_winner_released = request.released
+    competition.updated_at = utc_now()
+    if previous != request.released:
+        record_audit_event(
+            session,
+            event_type="competition.group_stage_winner_released_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.released},
+        )
+    await session.commit()
+
+    return {"status": "ok", "group_stage_winner_released": request.released}
 
 
 # ---------------------------------------------------------------------------
@@ -1328,6 +1383,11 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
         )
     if segment == BroadcastSegment.GROUP_R2_RECAP:
         return f"{base}/leaderboard"
+    if segment == BroadcastSegment.GROUP_STAGE_FINAL:
+        # v2.181.0 — same UTM-free /leaderboard destination as R2.
+        # The recipient lands on the dashboard's winner card via the
+        # navbar; the CTA itself lands them on the full standings.
+        return f"{base}/leaderboard"
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"
@@ -1353,6 +1413,7 @@ async def get_broadcast_audience(
         lapsing=counts[BroadcastSegment.LAPSING],
         group_r1_recap=counts[BroadcastSegment.GROUP_R1_RECAP],
         group_r2_recap=counts[BroadcastSegment.GROUP_R2_RECAP],
+        group_stage_final=counts[BroadcastSegment.GROUP_STAGE_FINAL],
     )
 
 
@@ -1381,16 +1442,17 @@ async def send_broadcast_test(
     deadline_dt = comp.phase1_deadline if comp else None
     deadline_display = _format_deadline(deadline_dt)
 
-    # R2 recap pulls live leaderboard data into its placeholders. The
-    # test send wants the same interpolation as the real broadcast —
-    # otherwise the admin would see literal {{TOP_1}} in their test
-    # inbox and assume the broadcast is broken (this is what happened
-    # in v2.180.0, fixed in v2.180.1).
-    tokens = (
-        await _compute_r2_highlights(session)
-        if payload.segment == BroadcastSegment.GROUP_R2_RECAP
-        else None
-    )
+    # R2 recap + Group Stage Final pull live data into their placeholders.
+    # The test send wants the same interpolation as the real broadcast —
+    # otherwise the admin would see literal {{TOP_1}} or {{WINNER_NAME}}
+    # in their test inbox and assume the broadcast is broken (this is
+    # what happened in v2.180.0, fixed in v2.180.1 for R2; v2.181.0
+    # extends the same pattern to GROUP_STAGE_FINAL).
+    tokens: dict[str, str] | None = None
+    if payload.segment == BroadcastSegment.GROUP_R2_RECAP:
+        tokens = await _compute_r2_highlights(session)
+    elif payload.segment == BroadcastSegment.GROUP_STAGE_FINAL:
+        tokens = await _compute_group_stage_winner_email_tokens(session)
 
     try:
         await send_broadcast_email(
@@ -1450,15 +1512,15 @@ async def send_broadcast(
     deadline_dt = comp.phase1_deadline if comp else None
     deadline_display = _format_deadline(deadline_dt)
 
-    # R2 recap pre-fetches its placeholder values ONCE here so the
-    # per-recipient loop below doesn't run the same leaderboard +
-    # race-stories + matchday-2-SQL trio for every send. The token
-    # dict is then passed through every send_broadcast_email call.
-    tokens = (
-        await _compute_r2_highlights(session)
-        if payload.segment == BroadcastSegment.GROUP_R2_RECAP
-        else None
-    )
+    # R2 recap + Group Stage Final pre-fetch their placeholder values
+    # ONCE here so the per-recipient loop below doesn't re-run the
+    # underlying queries N times. The token dict is then passed through
+    # every send_broadcast_email call as-is.
+    tokens: dict[str, str] | None = None
+    if payload.segment == BroadcastSegment.GROUP_R2_RECAP:
+        tokens = await _compute_r2_highlights(session)
+    elif payload.segment == BroadcastSegment.GROUP_STAGE_FINAL:
+        tokens = await _compute_group_stage_winner_email_tokens(session)
 
     sent = 0
     failed = 0

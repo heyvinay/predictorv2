@@ -278,15 +278,17 @@ class BroadcastAudienceCounts(BaseModel):
     card. v2.176.0: pool_ghost and lapsing added. v2.180.0:
     group_r1_recap and group_r2_recap surfaced (R1 was reachable but
     not counted on the badges due to the v2.178.0 endpoint omission).
+    v2.181.0: group_stage_final.
     """
 
     submitters: int
     no_entry: int
     draft_holders: int
-    pool_ghost: int       # NEW v2.176.0
-    lapsing: int          # NEW v2.176.0
-    group_r1_recap: int   # NEW v2.180.0 — backfilled (was added v2.178.0)
-    group_r2_recap: int   # NEW v2.180.0
+    pool_ghost: int           # NEW v2.176.0
+    lapsing: int              # NEW v2.176.0
+    group_r1_recap: int       # NEW v2.180.0 — backfilled (was added v2.178.0)
+    group_r2_recap: int       # NEW v2.180.0
+    group_stage_final: int    # NEW v2.181.0
 
 
 class BroadcastTestRequest(BaseModel):

@@ -42,6 +42,15 @@ class Competition(SQLModel, table=True):
     # always see the V4 pages regardless.
     post_deadline_live: bool = Field(default=False)
 
+    # Group Stage Winner release switch (v2.181.0): flipped by admin at
+    # 7pm Malta on Sunday 28 June 2026 (or whenever the group stage
+    # winner is to be revealed). Controls visibility of:
+    #   - GroupStageWinnerCard on the dashboard
+    #   - GROUP_STAGE_FINAL broadcast email content payload
+    # Mirrors the post_deadline_live pattern — admin-only toggle from
+    # /admin, defaults FALSE so the card stays hidden until release.
+    group_stage_winner_released: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 

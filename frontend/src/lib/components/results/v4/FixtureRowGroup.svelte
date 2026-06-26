@@ -108,7 +108,16 @@
 					>{teamCode(fixture.away_team)}</span
 				>
 			</span>
-			<span class="font-display text-[15px] {isLive ? 'text-success' : ''}">
+			<!-- v2.181.0: away_score wears the same solid-success chip as
+			     home_score during LIVE. Was 'text-success' only — visible
+			     asymmetry where the top score had a green pill background
+			     and the bottom didn't. FixtureRowKo was already symmetric;
+			     this brings FixtureRowGroup in line. -->
+			<span
+				class="font-display text-[15px] {isLive
+					? 'inline-block min-w-[1.5rem] rounded-md bg-success px-1.5 py-0.5 text-center text-white'
+					: ''}"
+			>
 				{#if score}{score.away_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>

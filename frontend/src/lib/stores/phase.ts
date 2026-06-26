@@ -46,6 +46,17 @@ export const postDeadlineLive = derived(
 			?.post_deadline_live ?? false
 );
 
+/** Admin-controlled release switch for the Group Stage Winner card +
+ *  GROUP_STAGE_FINAL broadcast (v2.181.0). False until the admin
+ *  presses release on /admin at 7pm Malta on Sunday 28 June 2026
+ *  (or whenever the group-stage winner is to be revealed). */
+export const groupStageWinnerReleased = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { group_stage_winner_released?: boolean }) | null)
+			?.group_stage_winner_released ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,
