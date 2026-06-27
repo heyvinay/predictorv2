@@ -2319,6 +2319,13 @@
       "type": "feature",
       "summary": "Group Stage champion announcement — admin-released card + broadcast email. After Round 3 settles, admins flip a release switch on /admin and a celebratory card appears at the very top of every signed-in dashboard, showing the winner's name, total points, and a four-part breakdown: points from correct match outcomes, extra from exact scores, extra from rarity, and points from bonus questions. A matching champion-announcement broadcast email goes to every submitter with the same numbers and a narrative story line (5 templates by lead pattern, margin clause vs runner-up, bracket sentence). The card and the email share one backend service so they're guaranteed to agree. Dashboard also gets an ESPN-style Matchday scoreboard — six fixture pills across desktop, horizontal-scroll on mobile — that sits above everything so time-sensitive matches are the first thing on the page. Daily MVP moves into the side column above the leaderboard as three compact chips (was five wide chips at top-of-page). Plus polish: live-row team names on tighter viewports stop truncating to single letters; live-match scores on the results page now both wear the green chip (was asymmetric); group-stage winner card click opens that entry's full picks via the entry drawer.",
       "commit": "pending"
+    },
+    {
+      "version": "2.181.1",
+      "date": "2026-06-28",
+      "type": "improvement",
+      "summary": "Group Standings page (/standings) — live group tables for all twelve groups (A–L) plus the best-eight third-placed qualifying table, derived server-side from finished match results with the full FIFA Article 13 tiebreaker chain applied. Pre-release shows a 'Standings open at kickoff' stub; admins always see the page. Refreshes every minute while the tab is visible. Also adds a new admin toggle, 'Knockout scoring', that gates every advancement payout in the scoring engine — group_advance / group_position bracket credits AND every reached-stage credit from Round of 32 through winner. Defaults OFF so the pool's standings stay on group-stage match points only until admin verifies the group standings and bracket seeding, then flips the switch. The leaderboard hard-rebuilds on the flip so every entry's score recomputes immediately.",
+      "commit": "pending"
     }
   ]
 }
