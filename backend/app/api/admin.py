@@ -718,6 +718,65 @@ async def set_group_stage_winner_released(
 
 
 # ---------------------------------------------------------------------------
+# Knockout scoring gate (v2.181.1)
+# ---------------------------------------------------------------------------
+class KnockoutScoringRequest(BaseModel):
+    """Toggle the knockout-scoring gate (suppresses all advancement payouts)."""
+
+    enabled: bool
+
+
+@router.post("/competition/knockout-scoring")
+async def set_knockout_scoring_enabled(
+    request: KnockoutScoringRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the knockout-scoring gate (v2.181.1).
+
+    `enabled=true` instructs the scoring engine to start paying out
+    advancement points — group_advance / group_position bracket credits
+    AND knockout-stage credits (R32 → winner). `enabled=false` holds
+    every advancement payout at zero until flipped.
+
+    Flipping the flag changes every entry's score, so we hard-invalidate
+    the leaderboard cache on the same commit. Auditable, idempotent.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.knockout_scoring_enabled
+    competition.knockout_scoring_enabled = request.enabled
+    competition.updated_at = utc_now()
+    if previous != request.enabled:
+        record_audit_event(
+            session,
+            event_type="competition.knockout_scoring_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.enabled},
+        )
+    await session.commit()
+
+    if previous != request.enabled:
+        # Every entry's advancement payouts have just turned on/off,
+        # so the leaderboard MUST rebuild on next read. invalidate_cache
+        # is a synchronous in-memory drop — no await.
+        invalidate_cache()
+
+    return {"status": "ok", "knockout_scoring_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
 # Close the pool (v2.166.0) — disable accounts with zero counting
 # submissions after the deadline. Preview first, then one confirm click.
 # ---------------------------------------------------------------------------

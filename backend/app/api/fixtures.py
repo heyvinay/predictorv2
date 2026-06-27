@@ -170,17 +170,22 @@ async def get_actual_standings(
     session: DbSession,
     current_user: CurrentUser,
 ) -> ActualStandingsResponse:
-    """Get actual group standings computed from finished matches.
+    """Actual group standings computed from finished matches (v2.181.1).
 
-    This endpoint requires Phase 2 to be active and returns group standings
-    based on completed group stage fixtures.
+    Gate: admin always; non-admin only when the active competition has
+    flipped `post_deadline_live` ('Go live' on /admin). Mirrors the V4
+    pages' rollout pattern — admins verify standings in prod, then one
+    flip exposes the page to the pool. No phase gate: standings are
+    derived from public match results, so the only reason to hide them
+    is the pre-tournament holding window.
     """
-    # Check if Phase 2 is active
     competition = await get_active_competition(session)
-    if not competition or not competition.is_phase2_active:
+    if not current_user.is_admin and (
+        not competition or not competition.post_deadline_live
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Phase 2 is not active",
+            detail="Standings not yet released",
         )
 
     standings = await get_actual_group_standings(session)

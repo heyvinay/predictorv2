@@ -51,6 +51,17 @@ class Competition(SQLModel, table=True):
     # /admin, defaults FALSE so the card stays hidden until release.
     group_stage_winner_released: bool = Field(default=False)
 
+    # Knockout scoring gate (v2.181.1): admin-controlled switch that
+    # gates ALL advancement-point payouts (group_advance / group_position
+    # / round_of_32 / ... / winner) computed by
+    # services.scoring.calculate_advancement_points. Match-points
+    # (group-stage fixtures only) are NOT affected. Defaults FALSE so
+    # the engine holds back knockout payouts until the admin verifies
+    # the group-stage standings and bracket seeding, then flips this
+    # from /admin. Distinct from group_stage_winner_released so an
+    # admin can announce the champion without committing the engine.
+    knockout_scoring_enabled: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 

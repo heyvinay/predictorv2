@@ -99,6 +99,10 @@ class PhaseStatus(BaseModel):
     # gates the GroupStageWinnerCard on the dashboard AND the
     # GROUP_STAGE_FINAL broadcast email's data payload.
     group_stage_winner_released: bool = False
+    # Knockout-scoring gate (v2.181.1) — admin-controlled; when false
+    # the scoring engine suppresses every advancement payout. Surfaced
+    # here so the admin UI can render the toggle's current state.
+    knockout_scoring_enabled: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -139,6 +143,9 @@ async def get_phase_status(
         post_deadline_live=competition.post_deadline_live if competition else False,
         group_stage_winner_released=(
             competition.group_stage_winner_released if competition else False
+        ),
+        knockout_scoring_enabled=(
+            competition.knockout_scoring_enabled if competition else False
         ),
     )
 

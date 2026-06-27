@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.config import get_tournament_config
+from app.models.competition import Competition
 from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
@@ -585,12 +586,29 @@ async def get_all_outcome_counts(
     return by_fixture
 
 
+async def is_knockout_scoring_enabled(session: AsyncSession) -> bool:
+    """Whether advancement-point payouts are unlocked for the active
+    competition (v2.181.1).
+
+    Returns False when no competition is active OR the active competition
+    has not flipped the gate. The leaderboard rebuild fetches this once
+    per rebuild and threads it through `calculate_entry_points`; single
+    entry callers can omit and we look it up here.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    return bool(competition and competition.knockout_scoring_enabled)
+
+
 async def calculate_entry_points(
     session: AsyncSession,
     entry_id: uuid.UUID,
     *,
     outcome_counts_by_fixture: dict[uuid.UUID, dict[str, int]] | None = None,
     actual_advancement: dict[str, str] | None = None,
+    knockout_scoring_enabled: bool | None = None,
 ) -> PointBreakdown:
     """Calculate total points for a single prediction entry.
 
@@ -603,6 +621,13 @@ async def calculate_entry_points(
             callers omit it and it is computed here.
         actual_advancement: Optional precomputed get_actual_advancement()
             result, same batching rationale.
+        knockout_scoring_enabled: Optional precomputed competition flag.
+            When False, ALL advancement-point payouts (group_advance,
+            group_position, round_of_32 … winner) are suppressed for
+            this entry — they sit at zero until the admin flips the
+            switch (v2.181.1). Match-points (group-stage fixtures only)
+            are unaffected. When None, looked up from the active
+            competition row.
 
     Returns:
         PointBreakdown with detailed point categories by phase
@@ -671,26 +696,34 @@ async def calculate_entry_points(
             is_exact_score,
         )
 
-    # Team-advancement predictions
-    result = await session.execute(
-        select(TeamPrediction).where(TeamPrediction.entry_id == entry_id)
-    )
-    team_predictions = result.scalars().all()
+    # Team-advancement predictions. Gated on the competition flag
+    # (v2.181.1): when knockout scoring is OFF, every advancement payout
+    # — including the group_advance / group_position bracket credits —
+    # sits at zero. We skip the queries entirely in that case so the
+    # cold-rebuild path doesn't waste a round trip per entry.
+    if knockout_scoring_enabled is None:
+        knockout_scoring_enabled = await is_knockout_scoring_enabled(session)
 
-    if actual_advancement is None:
-        actual_advancement = await get_actual_advancement(session)
-    for pred in team_predictions:
-        points = calculate_advancement_points(pred, actual_advancement, pred.phase)
-        if points == 0:
-            continue
-
-        phase_breakdown = phase1 if pred.phase == PredictionPhase.PHASE_1 else phase2
-        _add_advancement_points_to_phase(
-            phase_breakdown,
-            pred.stage,
-            pred.group_position,
-            points,
+    if knockout_scoring_enabled:
+        result = await session.execute(
+            select(TeamPrediction).where(TeamPrediction.entry_id == entry_id)
         )
+        team_predictions = result.scalars().all()
+
+        if actual_advancement is None:
+            actual_advancement = await get_actual_advancement(session)
+        for pred in team_predictions:
+            points = calculate_advancement_points(pred, actual_advancement, pred.phase)
+            if points == 0:
+                continue
+
+            phase_breakdown = phase1 if pred.phase == PredictionPhase.PHASE_1 else phase2
+            _add_advancement_points_to_phase(
+                phase_breakdown,
+                pred.stage,
+                pred.group_position,
+                points,
+            )
 
     # Bonus-question points (cross-phase). Imported locally so this module
     # can stay decoupled from services.bonus at import time.

@@ -22,6 +22,7 @@
 		fetchPhaseStatus,
 		groupStageWinnerReleased,
 		isPhase2Active,
+		knockoutScoringEnabled,
 		phase1Deadline,
 		phase2BracketDeadline,
 		phase1Countdown,
@@ -40,6 +41,7 @@
 		sendBroadcast,
 		sendBroadcastTest,
 		setGroupStageWinnerReleased,
+		setKnockoutScoringEnabled,
 		setPostDeadlineLive,
 		getPoolClosePreview,
 		runPoolClose,
@@ -108,6 +110,28 @@
 			gswError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingGsw = false;
+		}
+	}
+
+	// ─── Knockout scoring gate (v2.181.1) ─────────────────────────────────
+	let togglingKnockout = false;
+	let knockoutError: string | null = null;
+
+	async function handleToggleKnockoutScoring() {
+		const next = !$knockoutScoringEnabled;
+		const message = next
+			? 'ENABLE knockout scoring? The leaderboard rebuilds immediately — every entry banks its bracket credits (group_advance, group_position, and any reached-stage points from R32 onwards). Flip ONLY after you have verified the group standings and bracket seeding.'
+			: 'DISABLE knockout scoring? Every entry\'s advancement points reset to zero on the next leaderboard rebuild. Use this only to retract a premature enable.';
+		if (!confirm(message)) return;
+		togglingKnockout = true;
+		knockoutError = null;
+		try {
+			await setKnockoutScoringEnabled(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			knockoutError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingKnockout = false;
 		}
 	}
 
@@ -700,6 +724,52 @@
 					</button>
 				</div>
 				{#if gswError}<div class="alert alert-error text-sm mt-3">{gswError}</div>{/if}
+			</section>
+
+			<!-- Knockout scoring gate (v2.181.1) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$knockoutScoringEnabled
+					? 'border-success/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Knockout scoring
+					<span class="text-xs text-base-content/40">
+						· enable bracket + advancement payouts
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					When OFF, the scoring engine suppresses every advancement payout —
+					<b>group_advance</b>, <b>group_position</b>, and every reached-stage credit
+					from R32 through winner. Pool standings stay on group-stage match points
+					only. Flip this ON once the group standings settle and you have verified
+					the R32 bracket seeding. Toggling the flag forces a leaderboard rebuild
+					on next read.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$knockoutScoringEnabled
+							? 'bg-success/20 text-success'
+							: 'bg-warning/20 text-warning-text'}"
+					>
+						{$knockoutScoringEnabled
+							? '⚡ ENABLED — bracket points settle'
+							: 'HELD — advancement payouts paused'}
+					</span>
+					<button
+						class="btn btn-sm {$knockoutScoringEnabled ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleKnockoutScoring}
+						disabled={togglingKnockout}
+					>
+						{togglingKnockout
+							? 'Switching…'
+							: $knockoutScoringEnabled
+								? 'Disable knockout scoring'
+								: '⚡ Enable knockout scoring'}
+					</button>
+				</div>
+				{#if knockoutError}<div class="alert alert-error text-sm mt-3">{knockoutError}</div>{/if}
 			</section>
 
 			<!-- Close the pool (v2.166.0) -->

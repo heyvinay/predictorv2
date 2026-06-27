@@ -57,6 +57,19 @@ export const groupStageWinnerReleased = derived(
 			?.group_stage_winner_released ?? false
 );
 
+/** Admin-controlled gate for the scoring engine's advancement payouts
+ *  (v2.181.1). False until the admin presses "Enable knockout scoring"
+ *  on /admin — typically right after the group-stage winner has been
+ *  announced and the bracket seeding has been verified. Cast through
+ *  PhaseStatus the same way as the post-deadline switch above (barrel
+ *  WIP lockout). */
+export const knockoutScoringEnabled = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { knockout_scoring_enabled?: boolean }) | null)
+			?.knockout_scoring_enabled ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,

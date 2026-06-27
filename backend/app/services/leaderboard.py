@@ -40,6 +40,7 @@ from app.services.scoring import (
     calculate_entry_points,
     get_actual_advancement,
     get_all_outcome_counts,
+    is_knockout_scoring_enabled,
 )
 
 
@@ -410,6 +411,10 @@ async def _rebuild_leaderboard(
     # down to a handful.
     outcome_counts_by_fixture = await get_all_outcome_counts(session)
     actual_advancement = await get_actual_advancement(session)
+    # Knockout-scoring gate (v2.181.1): one DB read per rebuild instead
+    # of one per entry. When False, every advancement payout is
+    # suppressed inside calculate_entry_points.
+    knockout_enabled = await is_knockout_scoring_enabled(session)
 
     # V4 row inputs — each one bulk query per rebuild (v2.164.0).
     team_picks = await _load_team_picks(session, [e.id for e in eligible])
@@ -424,6 +429,7 @@ async def _rebuild_leaderboard(
             entry.id,
             outcome_counts_by_fixture=outcome_counts_by_fixture,
             actual_advancement=actual_advancement,
+            knockout_scoring_enabled=knockout_enabled,
         )
         phase_points = _get_phase_points(breakdown, phase)
 

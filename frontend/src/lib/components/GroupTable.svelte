@@ -2,15 +2,23 @@
 	import type { Fixture, MatchPrediction } from '$types';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { displayTeamName } from '$lib/utils/teamName';
-	import { calculateGroupStandings } from '$lib/utils/standings';
+	import { calculateGroupStandings, type TeamStanding } from '$lib/utils/standings';
 
 	export let group: string;
-	export let fixtures: Fixture[];
-	export let predictions: Map<string, MatchPrediction>;
+	/** Default empty so callers passing pre-computed standings (v2.181.1)
+	 *  don't have to thread fixture/prediction inputs they won't use. */
+	export let fixtures: Fixture[] = [];
+	export let predictions: Map<string, MatchPrediction> = new Map();
 	/** Optional in-table heading. Defaults to "Group {X} — Standings". */
 	export let title: string | null = null;
+	/** Pre-computed standings (v2.181.1). When provided, skips the
+	 *  client-side calculation — used by the /standings page where the
+	 *  backend has already applied FIFA tiebreakers from real match
+	 *  data. Leave null in the prediction wizard to keep the predicted
+	 *  standings recomputing reactively as the user edits scores. */
+	export let standings: TeamStanding[] | null = null;
 
-	$: standings = calculateGroupStandings(fixtures, predictions, group);
+	$: resolvedStandings = standings ?? calculateGroupStandings(fixtures, predictions, group);
 	$: resolvedTitle = title ?? `Group ${group} — Standings`;
 
 	// Position indicator styling
@@ -47,7 +55,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each standings as standing, i}
+				{#each resolvedStandings as standing, i}
 					{@const posClass = getPositionClass(i)}
 					<tr class="standing-row {posClass} animate-fade-in" style="animation-delay: {i * 50}ms; animation-fill-mode: both;">
 						<td class="text-center">

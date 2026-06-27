@@ -153,6 +153,17 @@ export async function setGroupStageWinnerReleased(
 	return api.post('/admin/competition/group-stage-winner/release', { released });
 }
 
+/** Flip the knockout-scoring gate (v2.181.1). When enabled=true the
+ *  scoring engine starts paying out advancement points (group_advance
+ *  / group_position bracket credits AND R32→winner credits). The
+ *  leaderboard cache hard-invalidates on the same commit, so every
+ *  entry's score rebuilds on next read. */
+export async function setKnockoutScoringEnabled(
+	enabled: boolean
+): Promise<{ status: string; knockout_scoring_enabled: boolean }> {
+	return api.post('/admin/competition/knockout-scoring', { enabled });
+}
+
 /** Close-the-pool dry-run counts (v2.166.0). */
 export interface PoolClosePreview {
 	deadline_passed: boolean;
