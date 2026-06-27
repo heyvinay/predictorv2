@@ -501,7 +501,7 @@ swap. After every prod deploy, grep the output for
 `Conflict. The container name` and run the targeted backend recreate if
 present. Memory: `feedback_docker_compose_rename_conflict.md`.
 
-### Broadcast email feature (v2.160.0, extended v2.176.0, v2.178.0)
+### Broadcast email feature (v2.160.0, extended v2.176.0, v2.178.0, v2.180.0, v2.181.0)
 
 **Admin "Broadcast Emails" card** at `/admin` fans out one email per
 audience row via Resend, paced ~50ms per send. **Templates are
@@ -533,6 +533,27 @@ exactly one email):
   CTA → `/leaderboard?utm_source=email&utm_campaign=group_r1_recap`.
   Plain-text deliberately omits the raw spreadsheet URL; recipients are
   routed to the in-app "View All Entries" button instead.
+- `GROUP_R2_RECAP` (v2.180.0) — Round 2 recap. Same audience predicate
+  as R1. **CTA ships clean** (no UTM) — R1's UTM-tagged URL contributed
+  to Gmail's promotional-bin classification, so R2 dropped it.
+  Wording also avoids `winner+announced` / `prize+paid` / `prize+awarded`
+  pairs. Trade-off: PostHog can no longer attribute per-round
+  click-throughs — deliverability beats analytics. Tokens auto-fill at
+  send time via `_compute_r2_highlights(session)` (top 5, R2 hero from
+  snapshot diff, biggest climber from race_stories) — admins don't
+  hand-fill placeholders.
+- `GROUP_STAGE_FINAL` (v2.181.0) — Group Stage champion announcement.
+  Same audience predicate as the recap segments. Body has tokens for
+  winner name + 4-part points breakdown + narrative story line, all
+  composed server-side in `services/group_stage_winner.py` so the
+  email and the `GroupStageWinnerCard` on the dashboard render
+  identical data. **Token compute is gated on
+  `Competition.group_stage_winner_released`** — admin flips that flag
+  from `/admin` ("Group Stage Winner release" section); until then,
+  test sends surface literal `{{WINNER_NAME}}` placeholders as a
+  defensive signal that the admin pressed test-send before release.
+  Same spam-filter rules as R2 (no UTM, no `winner+announced`-style
+  word pairs).
 
 **Engagement-signal architecture for POOL_GHOST / LAPSING is HYBRID:**
 `User.last_seen_at` column (primary, throttled per-request in
