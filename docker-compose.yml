@@ -60,6 +60,11 @@ services:
       - ./backend/scripts:/app/scripts
       - ./backend/tests:/app/tests
       - ./backend/data:/app/data
+      # Frozen audit reference snapshots — read-only at runtime. The
+      # whole point of these files is immutability after capture; the
+      # `:ro` mount enforces "no writer can ever touch them" even if
+      # something inside the container malfunctions.
+      - ./backend/snapshots:/app/snapshots:ro
       - ./backend/alembic:/app/alembic
       - ./config:/app/config
       # Shared cross-language golden fixtures (scoring parity tests).

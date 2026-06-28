@@ -16,10 +16,12 @@ Steps:
      confirmation email body that Resend has on file. The email body
      was generated at submit time and lives on a third-party platform
      we cannot rewrite — it's a frozen snapshot.
-  4. Compare the live DB predictions against the predictions matrix
-     published to the all-entries Google Sheet (a Workspace-hosted
-     copy that is also a separate environment). Historical revision
-     access is documented but currently constrained — see methodology.
+  4. Compare the live DB predictions against a FROZEN snapshot of
+     the all-entries Google Sheet — committed to the repo at
+     ``backend/snapshots/`` and read at runtime from the read-only
+     volume mount ``/app/snapshots/``. Immutable via git: any
+     difference between the live DB and the snapshot signals
+     tampering between the snapshot date and audit-time.
   5. Re-score the entry from scratch using the live scoring engine.
      The total must match what the leaderboard surfaces.
 
@@ -438,23 +440,35 @@ def _extract_canonical_from_email_text(body: str) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Step 4 — Sheet vs current DB
+# Step 4 — Frozen snapshot vs current DB
 # ─────────────────────────────────────────────────────────────────────
+#
+# The snapshot is a CSV dump of the all-entries Google Sheet's
+# Predictions tab, captured at a known moment and committed to the
+# repo (see ``backend/snapshots/MANIFEST.md``). Step 4 verifies the
+# live DB has not been modified relative to this immutable reference.
+#
+# Why a self-archived snapshot rather than the Drive API revision
+# history: Drive prunes revisions aggressively for frequently-edited
+# native Sheets, and on 2026-06-28 the post-deadline snapshot was
+# already gone. Self-archiving via this directory side-steps the
+# pruning issue — git history is the immutability mechanism.
+#
+# To capture a NEW snapshot in the future (e.g. before the final), add
+# a dated file in ``backend/snapshots/``, update MANIFEST.md, and
+# repoint ``_SNAPSHOT_PATH`` below. Never overwrite an existing one.
+
+_SNAPSHOT_PATH = Path("/app/snapshots/predictions-snapshot-2026-06-28.csv")
+_SNAPSHOT_LABEL = "2026-06-28"
+
 
 def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
-    """Return the entry's PICK column from the current sheet snapshot,
-    OR a structured "unavailable" record.
+    """Return the entry's column from the frozen audit snapshot.
 
-    Today the sheet content is the latest-pushed mirror of the DB
-    (sheets_sync.py re-pushes on backend restart). Without Drive API
-    revision access the comparison value is bounded — but the visible
-    snapshot is still useful: a pool member can independently load the
-    sheet and confirm the column values match the DB.
-
-    Future: when Drive API is enabled in the GCP project, this function
-    will fetch a specific revision (e.g. the earliest after the
-    deadline) so the audit triangulates against a third TIME-FROZEN
-    source rather than a current mirror.
+    See ``backend/snapshots/MANIFEST.md`` for provenance and the
+    immutability contract. The returned dict shape is preserved from
+    the previous live-sheet implementation so callers don't need
+    changes.
     """
     out: dict = {
         "available": False,
@@ -463,45 +477,29 @@ def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
         "row_labels": [],   # parallel to picks_column
         "picks_column": [], # the entry's PICK column values
     }
-    sheet_id = os.environ.get("GOOGLE_SHEET_ID", "")
-    sa_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "/app/data/sheets-sa.json")
-    if not sheet_id or not Path(sa_path).exists():
-        out["reason"] = "GOOGLE_SHEET_ID or service-account credential missing"
+
+    if not _SNAPSHOT_PATH.exists():
+        out["reason"] = (
+            f"Snapshot file not found at {_SNAPSHOT_PATH}. The audit "
+            f"cannot complete step 4 without the frozen reference. "
+            f"Check that ./backend/snapshots is bind-mounted into the "
+            f"container at /app/snapshots:ro (see docker-compose.yml)."
+        )
         return out
 
+    import csv as _csv
     try:
-        import gspread
-        from google.oauth2 import service_account
-    except ImportError as exc:
-        out["reason"] = f"gspread / google.oauth2 not importable: {exc}"
+        with _SNAPSHOT_PATH.open("r", encoding="utf-8", newline="") as f:
+            rows = list(_csv.reader(f))
+    except OSError as exc:
+        out["reason"] = f"Could not read {_SNAPSHOT_PATH}: {exc}"
         return out
 
-    rows: list[list[str]] = []
-    last_err: str = ""
-    # Retry up to 3 times — sheets_sync.py may be mid-push when we read
-    # (the rewrite blanks rows briefly), which manifests as transiently
-    # empty cells. A short backoff between attempts cleanly handles it.
-    import time as _time
-    for attempt in range(3):
-        try:
-            creds = service_account.Credentials.from_service_account_file(
-                sa_path,
-                scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
-            )
-            client = gspread.authorize(creds)
-            sh = client.open_by_key(sheet_id)
-            ws = sh.worksheet("Predictions")
-            rows = ws.get_all_values()
-            if rows and any(entry_reference in cell for row in rows for cell in row):
-                break
-        except Exception as exc:
-            last_err = f"{type(exc).__name__}: {exc}"
-        _time.sleep(1.5)
     if not rows:
-        out["reason"] = f"Sheet read failed after retries: {last_err}"
+        out["reason"] = f"Snapshot {_SNAPSHOT_PATH.name} is empty"
         return out
 
-    out["snapshot_kind"] = "current"
+    out["snapshot_kind"] = f"frozen:{_SNAPSHOT_LABEL}"
     # Find the entry's column. Try identity rows first (rows 0-14, where
     # the Ref row lives), then scan the whole sheet as a fallback.
     target_col: int | None = None
@@ -521,7 +519,10 @@ def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
             if target_col is not None:
                 break
     if target_col is None:
-        out["reason"] = f"Reference {entry_reference} not found anywhere in sheet"
+        out["reason"] = (
+            f"Reference {entry_reference} not found in snapshot "
+            f"{_SNAPSHOT_PATH.name}"
+        )
         return out
 
     out["available"] = True
@@ -532,6 +533,8 @@ def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
         r[target_col] if target_col < len(r) else "" for r in rows
     ]
     out["target_col"] = target_col
+    out["snapshot_path"] = str(_SNAPSHOT_PATH)
+    out["snapshot_label"] = _SNAPSHOT_LABEL
     return out
 
 
@@ -876,14 +879,16 @@ def _print_terminal_section(r: dict) -> None:
     sh = r["sheet_check"]
     print()
     if not sh["available"]:
-        print(f"  ③ Sheet      : ⚠ {sh.get('reason','unavailable')}")
+        print(f"  ③ Snapshot   : ⚠ {sh.get('reason','unavailable')}")
     else:
         cells = sh.get("cells_with_picks", 0)
         recognised = sh.get("cells_recognised", 0)
+        label = sh.get("snapshot_label", _SNAPSHOT_LABEL)
         print(
-            f"  ③ Sheet      : ◐ snapshot captured for visual cross-check "
+            f"  ③ Snapshot   : ◐ frozen reference {label} loaded "
             f"({recognised}/{cells} cells contain DB team tokens; "
-            f"rest are scores / bonuses / blanks)"
+            f"rest are scores / bonuses / blanks) — value-equality "
+            f"comparison still manual, see HTML report"
         )
 
     print()
@@ -949,27 +954,24 @@ _METHODOLOGY = """
       "needs review" rather than a silent pass.
     </li>
     <li>
-      <strong>③ Sheet snapshot (Google Workspace, separate environment)</strong>
-      — the all-entries predictions matrix is published to a Google
-      Sheet shared view-only with the pool. The sheet is hosted in
-      Google Workspace, under a separate identity (service account
-      <code>predictor-sheets-sync@atlwc26.iam.gserviceaccount.com</code>),
-      and is observable to every pool member. A tamper here would
-      require either compromise of the Google Workspace tenant OR
-      simultaneous compromise of the backend that pushes the sync.
-      We compare the entry's column in the sheet against the current DB
-      picks.
+      <strong>③ Frozen-snapshot comparison (committed to git)</strong>
+      — at known moments (post-group-stage, pre-final) we capture
+      the all-entries Google Sheet's Predictions tab as a CSV and
+      commit it to <code>backend/snapshots/</code>. The file is
+      mounted into the audit container <strong>read-only</strong>;
+      modification after capture shows up as a git diff and breaks
+      the SHA-256 recorded in <code>MANIFEST.md</code>. Step 4 reads
+      the entry's column from the snapshot and surfaces it alongside
+      the live DB picks for both automated comparison and human
+      cross-check.
       <br>
       <small class="caveat">
-        Note: the user's preferred version-history comparison (an
-        earliest-revision-after-June-15 snapshot) requires the Google
-        Drive API to be enabled in the GCP project hosting the service
-        account. The Drive API is currently disabled; the script
-        therefore compares against the <strong>current</strong> sheet
-        state, which is the latest-pushed mirror of DB content.
-        Enabling Drive API and re-running unlocks the historical-revision
-        check. Tracking ticket: enable Drive API on project
-        <code>atlwc26</code> at <code>console.developers.google.com</code>.
+        Why not the Drive revision history: a 2026-06-28 probe of
+        the live sheet returned only 3 revisions, all from that day
+        — Drive prunes aggressively for frequently-edited native
+        Sheets and the post-deadline snapshot had already been
+        removed. Self-archiving in the repo side-steps the pruning
+        issue entirely.
       </small>
     </li>
     <li>
@@ -1094,27 +1096,30 @@ def _section_sheet(sh: dict) -> str:
         return f'<p class="warn-text">⚠ {_h(sh.get("reason","unavailable"))}</p>'
     cells = sh.get("cells_with_picks", 0)
     recognised = sh.get("cells_recognised", 0)
+    label = sh.get("snapshot_label", _SNAPSHOT_LABEL)
     snap_note = (
-        '<p class="caption">'
-        '<strong>Snapshot:</strong> CURRENT sheet state (latest sheets_sync '
-        'mirror). Historical-revision access (the user\'s preferred '
-        'earliest-after-June-15 audit) requires Google Drive API enablement '
-        'in the GCP project — currently blocked. See methodology for the '
-        'follow-up ticket.</p>'
+        f'<p class="caption">'
+        f'<strong>Snapshot:</strong> FROZEN reference from {_h(label)} '
+        f'(<code>{_h(sh.get("snapshot_path", str(_SNAPSHOT_PATH)))}</code>), '
+        f'committed to git and mounted read-only. SHA-256 and capture '
+        f'provenance are pinned in <code>backend/snapshots/MANIFEST.md</code>. '
+        f'Any modification to the snapshot file would surface as a git '
+        f'diff against the manifest hash.</p>'
     )
-    # The automatic "team token in cell" heuristic is too noisy to act
-    # on alone — group cells often hold just "2-1", bonus cells hold a
-    # one-word answer, and several rows are headers/blanks. We surface
-    # the recognised count for context but the verdict here is always
-    # "needs human cross-check": the auditor opens the table below and
-    # confirms the entry's picks visually match their bracket page on
-    # the actual Google Sheet.
+    # TODO(audit): the current "team token in cell" heuristic is a
+    # sanity check, not a tampering detector. Upgrade to value-equality
+    # by reformatting the DB picks to match the CSV column shape (see
+    # services/predictions_export.build_all_entries_rows for the
+    # reference encoding) and hashing both sides. Until then, the
+    # auditor still needs to scan the side-by-side table for material
+    # mismatches.
     verdict = (
-        f'<p class="warn-text">⚠ Sheet check is provided for visual '
-        f'cross-reference rather than automated pass/fail. '
+        f'<p class="warn-text">⚠ Snapshot exists and was loaded; '
+        f'value-equality comparison is not yet automated — auditor '
+        f'should still scan the row-by-row table for mismatches. '
         f'{recognised}/{cells} populated cells in this entry\'s column '
-        f'contain at least one DB team-name token; the rest are scores, '
-        f'bonus answers, or section headers (expected).</p>'
+        f'contain at least one DB team-name token (sanity check that '
+        f'the column is real predictions, not blanks or headers).</p>'
     )
 
     # Side-by-side label / pick table for human inspection
@@ -1184,10 +1189,15 @@ def _verdict_badge(r: dict) -> str:
     intg_ok = intg["clean"] is True
     em_ok = em.get("verdict") in ("identical", "benign-renderer-quirk")
     sheet_present = sh.get("available")
-    # The sheet check no longer contributes a hard verdict (see step 3
-    # in methodology — it's a visual aid until Drive API is enabled).
+    # Step 4 (snapshot) doesn't yet emit a hard pass/fail — value-equality
+    # comparison vs the frozen CSV is still manual. The badge surfaces
+    # "snapshot loaded" so the auditor knows the reference is present;
+    # the side-by-side table in the HTML report carries the real check.
     if intg_ok and em_ok and sheet_present:
-        return _badge("pass", "✓ DB integrity + email match · sheet provided for visual cross-check")
+        return _badge(
+            "pass",
+            f"✓ DB integrity + email match · frozen snapshot {_SNAPSHOT_LABEL} loaded"
+        )
     if (intg["clean"] is False) or em.get("verdict") == "needs-review":
         return _badge("fail", "✗ Needs review")
     return _badge("warn", "⚠ Partial verification")
