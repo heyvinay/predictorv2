@@ -5,6 +5,7 @@
 	import type { Fixture } from '$types';
 	import { scorelineOf } from '$lib/utils/dashboardV4';
 	import { isRealTeam } from '$lib/utils/leaderboardV4';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import TeamFlag from './TeamFlag.svelte';
 	import TeamName from '$lib/components/TeamName.svelte';
 
@@ -20,7 +21,7 @@
 			>{#if isRealTeam(fixture.home_team)}<TeamName
 					name={fixture.home_team}
 					forceCode={isLive}
-				/>{:else}{fixture.home_team}{/if}</span
+				/>{:else}{displayTeamName(fixture.home_team)}{/if}</span
 		>
 		<TeamFlag team={fixture.home_team} />
 	</span>
@@ -52,7 +53,7 @@
 			>{#if isRealTeam(fixture.away_team)}<TeamName
 					name={fixture.away_team}
 					forceCode={isLive}
-				/>{:else}{fixture.away_team}{/if}</span
+				/>{:else}{displayTeamName(fixture.away_team)}{/if}</span
 		>
 	</span>
 </span>

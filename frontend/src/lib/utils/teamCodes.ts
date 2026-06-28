@@ -76,11 +76,17 @@ const TEAM_CODES: Record<string, string> = {
 };
 
 export function teamCode(name: string | null | undefined): string {
-	if (!name) return '???';
+	if (!name) return 'TBD';
+	// Knockout fixtures whose teams aren't determined yet hold a
+	// `slot:<stage>:<ext_id>:<side>` placeholder string. Detecting these
+	// here means EVERY surface that uses teamCode() (BracketChip,
+	// TeamName-via-forceCode, MatchdayPill) shows "TBD" instead of
+	// a slot-derived three-letter code like "SLO".
+	if (name.startsWith('slot:')) return 'TBD';
 	if (TEAM_CODES[name]) return TEAM_CODES[name];
 	// Strip non-letters and uppercase the first 3 chars.
 	const compact = name.replace(/[^A-Za-z]/g, '');
-	return compact.slice(0, 3).toUpperCase() || '???';
+	return compact.slice(0, 3).toUpperCase() || 'TBD';
 }
 
 // FIFA 3-letter → ISO 3166-1 alpha-2 (with UK home-nation subdivisions).
