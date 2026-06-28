@@ -276,6 +276,59 @@ class TestAudienceQueries:
         # are routed to the in-app button instead.
         assert "docs.google.com/spreadsheets" not in content.body_text
 
+    async def test_group_stage_final_template_tokens_interpolate(
+        self, db_session: AsyncSession
+    ):
+        # Regression — v2.183.x bug: ENTRY_NAME placeholder was written
+        # inside an f-string with double braces, which Python collapses
+        # to a single brace at compile time. The rendered HTML had
+        # "{ENTRY_NAME}" (single braces) while _interpolate looks for
+        # "{{ENTRY_NAME}}" — so the substitution silently no-op'd.
+        # Pin: every advertised token in the GROUP_STAGE_FINAL body
+        # must render as the substituted value, never as a literal
+        # placeholder fragment.
+        from app.services.email import (
+            _broadcast_content_for_segment,
+            _interpolate,
+        )
+
+        content = _broadcast_content_for_segment(
+            BroadcastSegment.GROUP_STAGE_FINAL,
+            player_name="Test User",
+            deadline_display="11 Jun 2026, 17:00 UTC",
+        )
+        tokens = {
+            "WINNER_NAME": "James Vella",
+            "WINNER_FIRST_NAME": "James",
+            "ENTRY_NAME": "James Vella 3rd Entry",
+            "TOTAL_POINTS": "404",
+            "OUTCOME_PTS": "225",
+            "EXACT_EXTRA": "130",
+            "RARITY_EXTRA": "34",
+            "BONUS_PTS": "15",
+            "STORY_LINE": "James won.",
+        }
+        rendered = _interpolate(content, tokens)
+        # Every token's VALUE must appear in both HTML and text bodies.
+        for key, value in tokens.items():
+            assert value in rendered.body_html, (
+                f"value {value!r} for token {key} missing from HTML"
+            )
+            assert value in rendered.body_text, (
+                f"value {value!r} for token {key} missing from text"
+            )
+        # And NO double-or-single-brace placeholder fragment may leak.
+        # Catches the original f-string single-brace bug AND a future
+        # missing-token mistake in one assertion.
+        for fragment in ("{{", "}}", "{WINNER_NAME}", "{ENTRY_NAME}",
+                         "{TOTAL_POINTS}", "{STORY_LINE}"):
+            assert fragment not in rendered.body_html, (
+                f"unsubstituted placeholder fragment {fragment!r} in HTML"
+            )
+            assert fragment not in rendered.body_text, (
+                f"unsubstituted placeholder fragment {fragment!r} in text"
+            )
+
     async def test_no_entry_excludes_inactive_and_onboarding_incomplete(
         self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
     ):

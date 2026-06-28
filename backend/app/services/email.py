@@ -1395,10 +1395,11 @@ def _broadcast_content_for_segment(
                 f'color:{_GOLD};margin-bottom:6px;">'
                 "&#127942; Group stage champion</div>"
                 f'<div style="font-size:24px;font-weight:800;'
-                f'color:{_BODY_INK};line-height:1.2;">'
+                f'color:#FFFFFF;line-height:1.2;">'
                 "{{WINNER_NAME}}</div>"
-                f'<div style="font-size:14px;color:{_MUTED_INK};'
-                f'margin-top:2px;">{{ENTRY_NAME}}</div>'
+                f'<div style="font-size:14px;color:#94A3B8;'
+                f'margin-top:2px;">'
+                "{{ENTRY_NAME}}</div>"
                 f'<div style="font-size:20px;font-weight:700;'
                 f'color:{_GOLD};margin-top:10px;">'
                 "{{TOTAL_POINTS}} points</div>"
