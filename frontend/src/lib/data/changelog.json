@@ -2347,6 +2347,13 @@
       "type": "fix",
       "summary": "Round of 32 fixtures now show real team names as soon as the relevant group stage finishes — no more TBD vs TBD for confirmed qualifiers. Before, the Results page Round of 32 tab (and Match Detail pages, and bracket-pick views) kept showing TBD until Football-Data's API ingested FIFA's lineup announcement, which can lag by hours. Now the backend resolves the slot placeholders at read time using our own computed group standings and the official 2026 bracket seeding map. Resolution only kicks in for groups whose six matches are all FINISHED (so a confirmed group winner can't be wrong on the last day), and Football-Data's eventual official lineup still wins once it lands — our resolver becomes a no-op for those rows. Database is never written. Both the home and away of each R32 fixture resolve independently: if Group A and Group L are settled but Group K isn't, A's qualifier shows up while K's slot stays TBD.",
       "commit": "pending"
+    },
+    {
+      "version": "2.182.2",
+      "date": "2026-06-28",
+      "type": "fix",
+      "summary": "Round of 32 third-place slots now correctly stay as TBD until FIFA's official assignment lands, instead of showing a confidently-wrong team name. Previous release used a greedy 'first eligible' algorithm to pick which third-placed team goes into each third-place R32 slot — but FIFA's actual assignment comes from a 495-row lookup table (Annex C of the tournament regulations) that depends on which 4 of the 12 groups don't have a third-placer qualifying. The greedy guess landed Sweden and Paraguay on the wrong sides of Germany vs Paraguay and France vs Sweden. Now the resolver only fills in group-position sources (1A, 2B, etc.), which are deterministic and correct. Third-place sources show TBD until the proper Wikipedia-backed resolver ships in 2.183.0.",
+      "commit": "pending"
     }
   ]
 }
