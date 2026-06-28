@@ -279,16 +279,45 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
     # convention. Bounded by the eligible-entries set (small in practice).
     user_entry_count: Counter[str] = Counter(e.user_id for e in lb.entries)
 
-    top: list = lb.entries[:3]
+    # ★ Group-stage total = match outcomes + exact scores + rarity +
+    # the TWO group-stage bonus questions (most goals scored / most
+    # conceded). Excludes everything knockout — bracket advancement
+    # credits, knockout-bonus payouts, the lot. This card is a
+    # FROZEN historical statement about the group-stage podium;
+    # once knockouts begin paying out, the live `e.total_points`
+    # diverges from group-stage truth (e.g. Brian Agius at #2 on
+    # the live board with strong R32 picks, but #5 on the group
+    # stage). The card must stay pinned to group-stage truth.
+    def _group_stage_total(e) -> int:
+        p1 = e.breakdown.phase1
+        return (
+            p1.match_outcome_points
+            + p1.exact_score_points
+            + p1.hybrid_bonus_points
+            + (e.bonus_group_points or 0)
+        )
+
+    # Re-sort the leaderboard entries by group-stage total (exact-score
+    # tiebreaker matches the live leaderboard convention). Once
+    # knockouts settle, this sort no longer matches lb.entries' order
+    # — that's the whole point. The GSW card is a snapshot of the
+    # group-stage podium even when the live podium has shifted.
+    gs_sorted = sorted(
+        lb.entries,
+        key=lambda e: (_group_stage_total(e), e.exact_scores),
+        reverse=True,
+    )
+    top: list = gs_sorted[:3]
     winner = top[0]
     phase1 = winner.breakdown.phase1
+    winner_gs_total = _group_stage_total(winner)
 
     runner_up_name: str | None = None
     runner_up_gap: int | None = None
     if len(top) >= 2:
         runner_up = top[1]
         runner_up_name = runner_up.user_name
-        runner_up_gap = winner.total_points - runner_up.total_points
+        runner_up_gap = winner_gs_total - _group_stage_total(runner_up)
 
     # Days-at-top: COUNT distinct snapshot dates where this entry was
     # at position 1. Captures dominance vs squeaked-in-at-the-end.
@@ -337,12 +366,20 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
             display_name=_display_name(
                 e.user_name, e.entry_name, user_entry_count[e.user_id]
             ),
-            final_rank=e.position,
-            total_points=e.total_points,
+            # Rank within the GROUP-STAGE podium (not the live board).
+            # gs_sorted is 0-indexed; rank is 1-indexed.
+            final_rank=gs_sorted.index(e) + 1,
+            # Total = group-stage total ONLY (excludes KO bracket payouts
+            # and knockout-bonus). Frozen historical statement.
+            total_points=_group_stage_total(e),
             outcome_points=e.breakdown.phase1.match_outcome_points,
             exact_score_extra=e.breakdown.phase1.exact_score_points,
             rarity_extra=e.breakdown.phase1.hybrid_bonus_points,
-            bonus_question_points=e.breakdown.bonus_question_points,
+            # Group bonus only — the 2 group-stage questions (most goals
+            # scored / most conceded). Excludes the 2 knockout-stage
+            # bonus questions when those eventually settle, since those
+            # are a different scoring layer.
+            bonus_question_points=(e.bonus_group_points or 0),
         )
         for e in top
     ]
