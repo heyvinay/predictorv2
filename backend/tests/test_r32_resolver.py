@@ -164,13 +164,14 @@ async def test_resolver_resolves_group_position_for_settled_group(
 
 
 @pytest.mark.asyncio
-async def test_third_place_sources_never_resolve_in_v2_182_2(
+async def test_third_place_resolves_via_annex_c_when_all_groups_settled(
     session: AsyncSession, competition: Competition
 ):
-    """All 8 R32 third-place sources stay as TBD placeholders. Greedy
-    resolution was producing wrong picks vs FIFA's Annex C — better
-    to surface TBD than to surface a wrong-with-confidence team name."""
-    # Settle every group so the greedy logic would otherwise activate.
+    """When all 12 groups are settled, third-place sources resolve via
+    the FIFA Annex C table (v2.183.0). The exact team depends on the
+    Annex C row for the qualifying-8 key — this test only asserts that
+    a real team comes out, NOT a placeholder. Specific assignments are
+    covered by the live-data smoke test in dev."""
     for grp_letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]:
         await _make_group(session, competition.id, group=grp_letter, results=[
             (f"{grp_letter}1", f"{grp_letter}2", 2, 0),
@@ -185,8 +186,53 @@ async def test_third_place_sources_never_resolve_in_v2_182_2(
     fx = await _make_r32_placeholder(session, competition.id, "537416")
     resolver = await build_r32_resolver(session)
     home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
-    assert home == "E1"  # 1E from Group E settled
-    # Third-place away stays as placeholder — no greedy assignment.
+    assert home == "E1"  # 1E from settled Group E
+    # Third-place away should now be a real team name (from the Annex C
+    # lookup), NOT a slot placeholder.
+    assert away is not None
+    assert not away.startswith("slot:round_of_32:")
+    # Per the synthetic fixture scoring pattern (g1 wins all, g3 wins
+    # two, g2 wins one, g4 loses all), each group's third-placed team
+    # is "{g}2". So Annex C lookup should land on one of those.
+    assert any(away == f"{g}2" for g in "ABCDEFGHIJKL")
+
+
+@pytest.mark.asyncio
+async def test_third_place_unresolved_when_some_groups_pending(
+    session: AsyncSession, competition: Competition
+):
+    """Until ALL 12 groups settle, third-place sources stay TBD — the
+    qualifying-8 letters could still change."""
+    # 11 settled, 1 pending.
+    for grp_letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"]:
+        await _make_group(session, competition.id, group=grp_letter, results=[
+            (f"{grp_letter}1", f"{grp_letter}2", 2, 0),
+            (f"{grp_letter}3", f"{grp_letter}4", 1, 0),
+            (f"{grp_letter}1", f"{grp_letter}3", 1, 0),
+            (f"{grp_letter}2", f"{grp_letter}4", 2, 1),
+            (f"{grp_letter}1", f"{grp_letter}4", 1, 0),
+            (f"{grp_letter}2", f"{grp_letter}3", 0, 1),
+        ])
+    # Group L: 5 finished, 1 scheduled — not settled.
+    await _make_group(session, competition.id, group="L", results=[
+        ("L1", "L2", 2, 0),
+        ("L3", "L4", 1, 0),
+        ("L1", "L3", 1, 0),
+        ("L2", "L4", 2, 1),
+        ("L1", "L4", 1, 0),
+    ])
+    pending = Fixture(
+        competition_id=competition.id, home_team="L2", away_team="L3",
+        kickoff=KICKOFF, stage="group", group="L", status=MatchStatus.SCHEDULED,
+    )
+    session.add(pending)
+    await session.commit()
+
+    fx = await _make_r32_placeholder(session, competition.id, "537416")
+    resolver = await build_r32_resolver(session)
+    home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
+    assert home == "E1"  # 1E side resolves — Group E settled
+    # Third-place stays as placeholder until Group L settles.
     assert away == fx.away_team
     assert away.startswith("slot:round_of_32:")
 
