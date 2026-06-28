@@ -181,53 +181,66 @@
 	/* Winner row halo + gold rail. Cells get an outer glow that overlaps
 	   on internal boundaries to read as one continuous halo (negative
 	   spread prevents the seam-doubling on internal cell boundaries).
-	   First cell adds the gold inset rail via combined box-shadow. */
+	   First cell adds the gold inset rail via combined box-shadow.
+
+	   All colors route through DaisyUI's primary token (hsl(var(--p))
+	   with alpha) so the row reads correctly in BOTH themes:
+	   premium-night = #D4AF37 champagne gold on dark navy;
+	   hybrid (light) = #B8941F deeper gold on cream slate.
+	   Previously the winner-rank / winner-total used hardcoded light
+	   golds (#F5D77A / #FFE08A) tuned for dark mode — invisible in
+	   light mode against the bright background. */
 	:global(tr.winner-row > td) {
-		background-color: rgba(212, 175, 55, 0.08);
-		box-shadow: 0 0 22px -2px rgba(212, 175, 55, 0.32);
+		background-color: hsl(var(--p) / 0.10);
+		box-shadow: 0 0 22px -2px hsl(var(--p) / 0.30);
 		padding-top: 0.875rem;
 		padding-bottom: 0.875rem;
 	}
 	:global(tr.winner-row > td:first-child) {
 		box-shadow:
-			0 0 22px -2px rgba(212, 175, 55, 0.32),
-			inset 3px 0 0 0 #d4af37;
+			0 0 22px -2px hsl(var(--p) / 0.30),
+			inset 3px 0 0 0 hsl(var(--p));
 	}
+	/* Rank + total inherit the row's text-primary color from the
+	   Tailwind class on the element — DaisyUI maps that to the
+	   right primary gold for each theme. We only override the
+	   font-size here to amplify the winner cells. */
 	:global(tr.winner-row > td.winner-rank) {
-		color: #f5d77a;
 		font-size: 16.5px;
 	}
 	:global(tr.winner-row > td.winner-total) {
-		color: #ffe08a;
 		font-size: 18px;
 	}
 	:global(tr.winner-row:hover > td) {
-		background-color: rgba(212, 175, 55, 0.14);
+		background-color: hsl(var(--p) / 0.18);
 	}
 	:global(tr.winner-row:focus-visible) {
-		outline: 2px solid rgba(212, 175, 55, 0.5);
+		outline: 2px solid hsl(var(--p) / 0.5);
 		outline-offset: -2px;
 	}
 
-	/* Trophy heartbeat — slow, low-amplitude glow swell. */
+	/* Trophy heartbeat — slow, low-amplitude glow swell. The glow
+	   routes through hsl(var(--p)) so it picks up the correct primary
+	   gold for each theme (champagne #D4AF37 in dark, deeper #B8941F
+	   in light) instead of staying hardcoded to the dark-mode gold. */
 	.trophy-pulse {
 		display: inline-block;
-		filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.55));
+		filter: drop-shadow(0 0 10px hsl(var(--p) / 0.55));
 		animation: trophy-pulse 3.2s ease-in-out infinite;
 	}
 	@keyframes trophy-pulse {
 		0%,
 		100% {
-			filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.38));
+			filter: drop-shadow(0 0 6px hsl(var(--p) / 0.38));
 		}
 		50% {
-			filter: drop-shadow(0 0 16px rgba(212, 175, 55, 0.85));
+			filter: drop-shadow(0 0 16px hsl(var(--p) / 0.85));
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.trophy-pulse {
 			animation: none;
-			filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.55));
+			filter: drop-shadow(0 0 10px hsl(var(--p) / 0.55));
 		}
 	}
 </style>
