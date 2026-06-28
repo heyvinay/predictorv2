@@ -2333,6 +2333,13 @@
       "type": "improvement",
       "summary": "Group Standings now also surfaces as a tab on the Results page, sitting between Round 3 and Round of 32. Same live group tables and best-third-placed view as the standalone /standings page — they share one underlying view component, so they always render identically. The tab is labelled 'Live tables' instead of a date range because the standings update reactively as group matches finish, not on a fixed window. Tab data loads lazily the first time it's selected and refreshes every minute thereafter via the same poll cadence as the rest of the page.",
       "commit": "pending"
+    },
+    {
+      "version": "2.182.0",
+      "date": "2026-06-28",
+      "type": "feature",
+      "summary": "Standings drift verifier — admin can now cross-check our computed group standings against Football-Data's official standings endpoint. New 'Standings drift verifier' card on /admin with a Verify standings now button; press it any time after a group's six matches are all FINISHED and the system compares team-by-team. If everything matches, a green confirmation. If there's drift, an event opens that the admin reviews and dismisses (either 'ours is correct' with a note, or 'transient' if the trusted source was briefly stale). The verifier is detect-only and never overwrites the live /standings page — the admin's reaction is to either fix a score via /admin/sync (which causes the next compute to agree) or dismiss the alert. Only fully-finished groups are compared to avoid false positives during in-play matches, since Football-Data's standings include live scores and ours don't. Source chain extends in 2.182.1 with ESPN secondary + Wikipedia tertiary fallbacks and an auto-trigger on match-FINISHED transitions.",
+      "commit": "pending"
     }
   ]
 }
