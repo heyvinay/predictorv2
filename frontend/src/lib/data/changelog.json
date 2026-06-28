@@ -2340,6 +2340,13 @@
       "type": "feature",
       "summary": "Standings drift verifier — admin can now cross-check our computed group standings against Football-Data's official standings endpoint. New 'Standings drift verifier' card on /admin with a Verify standings now button; press it any time after a group's six matches are all FINISHED and the system compares team-by-team. If everything matches, a green confirmation. If there's drift, an event opens that the admin reviews and dismisses (either 'ours is correct' with a note, or 'transient' if the trusted source was briefly stale). The verifier is detect-only and never overwrites the live /standings page — the admin's reaction is to either fix a score via /admin/sync (which causes the next compute to agree) or dismiss the alert. Only fully-finished groups are compared to avoid false positives during in-play matches, since Football-Data's standings include live scores and ours don't. Source chain extends in 2.182.1 with ESPN secondary + Wikipedia tertiary fallbacks and an auto-trigger on match-FINISHED transitions.",
       "commit": "pending"
+    },
+    {
+      "version": "2.182.1",
+      "date": "2026-06-28",
+      "type": "fix",
+      "summary": "Round of 32 fixtures now show real team names as soon as the relevant group stage finishes — no more TBD vs TBD for confirmed qualifiers. Before, the Results page Round of 32 tab (and Match Detail pages, and bracket-pick views) kept showing TBD until Football-Data's API ingested FIFA's lineup announcement, which can lag by hours. Now the backend resolves the slot placeholders at read time using our own computed group standings and the official 2026 bracket seeding map. Resolution only kicks in for groups whose six matches are all FINISHED (so a confirmed group winner can't be wrong on the last day), and Football-Data's eventual official lineup still wins once it lands — our resolver becomes a no-op for those rows. Database is never written. Both the home and away of each R32 fixture resolve independently: if Group A and Group L are settled but Group K isn't, A's qualifier shows up while K's slot stays TBD.",
+      "commit": "pending"
     }
   ]
 }
