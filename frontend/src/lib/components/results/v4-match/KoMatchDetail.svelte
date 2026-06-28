@@ -28,6 +28,7 @@
 	import MostExposedEntries from './MostExposedEntries.svelte';
 	import PoolRollKo from './PoolRollKo.svelte';
 	import FutureCone from './FutureCone.svelte';
+	import BracketQuadrant from './BracketQuadrant.svelte';
 
 	export let fixture: Fixture;
 	export let mode: 'played' | 'upcoming';
@@ -97,6 +98,7 @@
 
 	<!-- RIGHT column: contextual sidebar -->
 	<div class="flex flex-col gap-4">
+		<BracketQuadrant {fixture} />
 		<FutureCone {fixture} />
 	</div>
 </div>
