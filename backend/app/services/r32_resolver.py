@@ -34,10 +34,7 @@ from app.services.bracket_seeding import (
     is_r32_slot_placeholder,
     parse_r32_slot,
 )
-from app.services.standings import (
-    get_actual_group_standings,
-    get_qualifying_third_place_teams,
-)
+from app.services.standings import get_actual_group_standings
 
 
 log = logging.getLogger(__name__)
@@ -47,8 +44,15 @@ class R32Resolver:
     """Bundled state for resolving slot placeholders within one request.
 
     Built once at the top of an endpoint; passed to each
-    `resolve_team_name()` call. Caches the settled-groups set, the
-    group_position → team map, and the third-place qualifier pool.
+    `resolve_team_name()` call. Caches the settled-groups set and the
+    group_position → team map.
+
+    Scope (v2.182.2): resolves ONLY group-position sources (1A, 2B,
+    etc.). Third-place sources are returned as None — FIFA's Annex C
+    assignment table determines which qualifying-third-placed team goes
+    to which R32 slot, and we don't have that table locally. v2.183.0
+    will layer in a Wikipedia parser as the authoritative source for
+    third-place assignments once FIFA confirms them.
     """
 
     def __init__(
@@ -56,52 +60,9 @@ class R32Resolver:
         *,
         settled_groups: set[str],
         positions: dict[str, str],  # "1A" → "Mexico"
-        third_qualifiers: list[dict[str, Any]],
     ):
         self._settled = settled_groups
         self._positions = positions
-        # Greedy third-place assignment: track which group letters have
-        # been claimed across the 8 R32 third-place slots. Same shape
-        # as scripts/dev_populate_r32.py — first eligible qualifier
-        # from each match's possible_groups list, in match_number order.
-        self._third_assigned: dict[int, str] = {}
-        self._third_qualifiers = third_qualifiers
-        # Pre-compute all R32 third-place assignments in match order so
-        # the resolver's output is deterministic regardless of which
-        # fixture happens to be looked up first.
-        self._assign_thirds_greedy()
-
-    def _assign_thirds_greedy(self) -> None:
-        used_groups: set[str] = set()
-        for match_num in sorted(R32_SOURCES):
-            for src in R32_SOURCES[match_num]:
-                if src["type"] != "third_place":
-                    continue
-                possible = src["possible_groups"]
-                pick = self._pick_third(possible, used_groups)
-                if pick:
-                    self._third_assigned[match_num] = pick["team"]
-                    used_groups.add(pick["group"])
-                # Each R32 match has at most one third_place source,
-                # so we only need one entry per match.
-                break
-
-    def _pick_third(
-        self, possible_groups: list[str], used: set[str]
-    ) -> dict[str, Any] | None:
-        for q in self._third_qualifiers:
-            grp = q.get("group")
-            if not grp or grp in used:
-                continue
-            if grp not in possible_groups:
-                continue
-            # All eight third-place teams must come from settled groups;
-            # if their parent group isn't settled, treat the qualifier
-            # as unresolved.
-            if grp not in self._settled:
-                continue
-            return q
-        return None
 
     def resolve_team_name(self, placeholder: str) -> str | None:
         """Map a `slot:round_of_32:{ext}:home|away` string to a real
@@ -110,10 +71,9 @@ class R32Resolver:
         Returns None when:
           * The string isn't a recognised R32 slot.
           * The R32 external_id isn't in our seeding map.
-          * The match's source needs a group that isn't fully settled.
-          * The match's third-place source has no available qualifier
-            (shouldn't happen once all 12 groups settle, but possible
-            mid-progression).
+          * The match's source is a third-place qualifier (deferred to
+            2.183.0 — FIFA's Annex C assignment table required).
+          * The match's group source references an unsettled group.
         """
         parsed = parse_r32_slot(placeholder)
         if not parsed:
@@ -125,15 +85,15 @@ class R32Resolver:
         home_src, away_src = R32_SOURCES[match_num]
         src = home_src if side == "home" else away_src
 
-        if src["type"] == "group":
-            position = src["position"]
-            group_letter = position[1:]
-            if group_letter not in self._settled:
-                return None
-            return self._positions.get(position)
+        if src["type"] != "group":
+            # third_place source — deferred to 2.183.0.
+            return None
 
-        # third_place source — return the pre-assigned team for this match.
-        return self._third_assigned.get(match_num)
+        position = src["position"]
+        group_letter = position[1:]
+        if group_letter not in self._settled:
+            return None
+        return self._positions.get(position)
 
 
 async def build_r32_resolver(session: AsyncSession) -> R32Resolver:
@@ -162,12 +122,9 @@ async def build_r32_resolver(session: AsyncSession) -> R32Resolver:
         for i, row in enumerate(rows, start=1):
             positions[f"{i}{grp}"] = row["team"]
 
-    third_qualifiers = await get_qualifying_third_place_teams(session)
-
     return R32Resolver(
         settled_groups=settled,
         positions=positions,
-        third_qualifiers=third_qualifiers,
     )
 
 

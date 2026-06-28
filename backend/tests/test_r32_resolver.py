@@ -158,9 +158,37 @@ async def test_resolver_resolves_group_position_for_settled_group(
     resolver = await build_r32_resolver(session)
     home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
     assert home == "Mexico"  # 1A
-    # Away is third-place from C/E/F/H/I — none of those groups are
-    # settled, so away should remain the placeholder.
+    # Away is third-place — resolver returns None (the placeholder stays
+    # untouched) until FIFA's Annex C assignment is wired in (v2.183.0).
     assert away == fx.away_team
+
+
+@pytest.mark.asyncio
+async def test_third_place_sources_never_resolve_in_v2_182_2(
+    session: AsyncSession, competition: Competition
+):
+    """All 8 R32 third-place sources stay as TBD placeholders. Greedy
+    resolution was producing wrong picks vs FIFA's Annex C — better
+    to surface TBD than to surface a wrong-with-confidence team name."""
+    # Settle every group so the greedy logic would otherwise activate.
+    for grp_letter in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]:
+        await _make_group(session, competition.id, group=grp_letter, results=[
+            (f"{grp_letter}1", f"{grp_letter}2", 2, 0),
+            (f"{grp_letter}3", f"{grp_letter}4", 1, 0),
+            (f"{grp_letter}1", f"{grp_letter}3", 1, 0),
+            (f"{grp_letter}2", f"{grp_letter}4", 2, 1),
+            (f"{grp_letter}1", f"{grp_letter}4", 1, 0),
+            (f"{grp_letter}2", f"{grp_letter}3", 0, 1),
+        ])
+
+    # M74 (ext 537416) has third_place away source.
+    fx = await _make_r32_placeholder(session, competition.id, "537416")
+    resolver = await build_r32_resolver(session)
+    home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
+    assert home == "E1"  # 1E from Group E settled
+    # Third-place away stays as placeholder — no greedy assignment.
+    assert away == fx.away_team
+    assert away.startswith("slot:round_of_32:")
 
 
 @pytest.mark.asyncio
