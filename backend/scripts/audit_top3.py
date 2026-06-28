@@ -236,10 +236,14 @@ async def _fetch_submission_email(
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
-    # Optional positional args: Resend email IDs for rank-1, rank-2, rank-3.
-    # Supply as many as you have; omit the rest and the cursor search is used.
-    #   python -m scripts.audit_top3 <id1> <id2> <id3>
-    supplied_ids: list[str | None] = (sys.argv[1:] + [None, None, None])[:3]
+    # Optional args: email:resend_id pairs — order-independent.
+    # Supply as many as you have; omit any and the cursor search is used.
+    #   python -m scripts.audit_top3 user@example.com:resend-id-here ...
+    email_to_resend_id: dict[str, str] = {}
+    for arg in sys.argv[1:]:
+        if ":" in arg:
+            addr, rid = arg.split(":", 1)
+            email_to_resend_id[addr.strip().lower()] = rid.strip()
 
     async_session = _make_session()
     resend_api_key: str | None = os.environ.get("RESEND_API_KEY")
@@ -277,7 +281,8 @@ async def main() -> None:
         print(f"  {len(eligible)} eligible entries scored. Auditing top 3.\n")
 
         for rank, (entry, breakdown) in enumerate(top3, 1):
-            supplied_email_id = supplied_ids[rank - 1]
+            user_email = (entry.user.email or "").lower() if entry.user else ""
+            supplied_email_id = email_to_resend_id.get(user_email)
             # Fetch phase row for submitted_at
             phase_result = await session.execute(
                 select(PredictionEntryPhase).where(
