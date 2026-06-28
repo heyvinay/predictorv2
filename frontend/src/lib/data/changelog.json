@@ -2354,6 +2354,13 @@
       "type": "fix",
       "summary": "Round of 32 third-place slots now correctly stay as TBD until FIFA's official assignment lands, instead of showing a confidently-wrong team name. Previous release used a greedy 'first eligible' algorithm to pick which third-placed team goes into each third-place R32 slot — but FIFA's actual assignment comes from a 495-row lookup table (Annex C of the tournament regulations) that depends on which 4 of the 12 groups don't have a third-placer qualifying. The greedy guess landed Sweden and Paraguay on the wrong sides of Germany vs Paraguay and France vs Sweden. Now the resolver only fills in group-position sources (1A, 2B, etc.), which are deterministic and correct. Third-place sources show TBD until the proper Wikipedia-backed resolver ships in 2.183.0.",
       "commit": "pending"
+    },
+    {
+      "version": "2.183.0",
+      "date": "2026-06-28",
+      "type": "improvement",
+      "summary": "Round of 32 third-place opponents now resolve correctly via FIFA's official Annex C assignment table — the same 495-row lookup the entry wizard already uses to seed predicted brackets. Once all twelve group-stage groups settle, the Results page Round of 32 tab shows real team names for the eight third-place slots (Germany vs Paraguay, France vs Sweden, etc.) instead of TBD. The backend now reads from a copy of frontend/src/lib/config/thirdPlaceMapping.json — same source of truth so the wizard's predicted bracket and the live results bracket are guaranteed to agree on assignments. While the group stage is still in progress, third-place slots stay TBD until the final eight qualifying groups are known; FIFA can sometimes announce specific matches earlier when all plausible Annex C keys agree (e.g. Germany vs Paraguay), and that early-announcement behaviour is a planned follow-up.",
+      "commit": "pending"
     }
   ]
 }
