@@ -1,10 +1,13 @@
 """Audit script: verify top-3 entries before announcing a group-stage winner.
 
-For each of the top 3 entries this script:
-  1. Checks data integrity — were any prediction rows modified after the entry
-     was submitted? (updated_at > submitted_at on any match/bracket/bonus row)
-  2. Re-scores from scratch using the live scoring engine (same function the
-     leaderboard uses) and prints a full breakdown.
+For each of the top 3 entries this script runs three independent checks:
+  1. Data integrity — were any prediction rows modified after the entry was
+     submitted? (updated_at > submitted_at on any match/bracket/bonus row)
+  2. Fresh re-score — re-runs calculate_entry_points() from scratch using the
+     live scoring engine (same function the leaderboard uses).
+  3. Resend email receipt — fetches the submission confirmation email from the
+     Resend API and shows the subject + sent timestamp as a third source of
+     truth independent of both the DB and the scoring engine.
 
 Run on prod:
     docker exec predictor-backend-1 python -m scripts.audit_top3
@@ -15,6 +18,8 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -122,10 +127,81 @@ def _print_breakdown(breakdown: PointBreakdown) -> None:
     )
 
 
+# ── Resend email lookup ──────────────────────────────────────────────────────
+
+RESEND_API = "https://api.resend.com"
+_SUBMISSION_SUBJECT_MARKER = "Submission locked in:"
+
+
+async def _fetch_submission_email(
+    entry_ref: str,
+    to_email: str,
+    resend_api_key: str,
+) -> dict | None:
+    """Search Resend for the last submission confirmation sent for entry_ref.
+
+    Resend's list endpoint doesn't filter by recipient or subject server-side,
+    so we page through recent emails (up to 500) and match client-side on:
+      - subject contains entry_ref  (unique per entry)
+      - to contains to_email
+
+    Returns the most recent matching email dict, or None if not found.
+    """
+    headers = {"Authorization": f"Bearer {resend_api_key}"}
+    PAGE = 100
+    matches: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        for offset in range(0, 500, PAGE):
+            try:
+                resp = await client.get(
+                    f"{RESEND_API}/emails",
+                    headers=headers,
+                    params={"limit": PAGE, "offset": offset},
+                )
+            except httpx.RequestError as exc:
+                print(f"  ⚠  Resend network error: {exc}")
+                return None
+
+            if resp.status_code == 401:
+                print("  ⚠  Resend API key invalid or missing.")
+                return None
+            if resp.status_code != 200:
+                print(f"  ⚠  Resend returned {resp.status_code}: {resp.text[:120]}")
+                return None
+
+            payload = resp.json()
+            # Resend wraps results in {"data": [...], "total": N}
+            batch = payload.get("data", payload) if isinstance(payload, dict) else payload
+            if not batch:
+                break
+
+            for email in batch:
+                subj = email.get("subject", "")
+                recipients = email.get("to", [])
+                if (
+                    entry_ref in subj
+                    and _SUBMISSION_SUBJECT_MARKER in subj
+                    and to_email in recipients
+                ):
+                    matches.append(email)
+
+            if len(batch) < PAGE:
+                break  # last page
+
+    if not matches:
+        return None
+
+    # Most recently sent = last submit before deadline
+    matches.sort(key=lambda e: e.get("created_at", ""), reverse=True)
+    return matches[0]
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
     async_session = _make_session()
+    resend_api_key: str | None = os.environ.get("RESEND_API_KEY")
 
     async with async_session() as session:
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -206,6 +282,52 @@ async def main() -> None:
             print()
             print("  SCORE BREAKDOWN (re-computed from scratch)")
             _print_breakdown(breakdown)
+
+            # ── Resend email receipt ─────────────────────────────
+            print()
+            print("  RESEND EMAIL RECEIPT (third independent check)")
+            to_email = entry.user.email if entry.user else None
+            if not resend_api_key:
+                print("  ⚠  RESEND_API_KEY not set — skipping email check")
+            elif not to_email:
+                print("  ⚠  No email address on record for this user")
+            else:
+                print(f"  Searching Resend for last submission email → {to_email} ...")
+                found = await _fetch_submission_email(
+                    entry.reference, to_email, resend_api_key
+                )
+                if found is None:
+                    print("  ⚠  No matching submission email found in Resend")
+                else:
+                    sent_at = found.get("created_at", "unknown")
+                    email_id = found.get("id", "unknown")
+                    subj = found.get("subject", "unknown")
+                    status = found.get("last_event", found.get("status", "unknown"))
+                    print(f"  ✓ Email found")
+                    print(f"    ID      : {email_id}")
+                    print(f"    Subject : {subj}")
+                    print(f"    Sent at : {sent_at}")
+                    print(f"    Status  : {status}")
+                    if submitted_at:
+                        # Compare email send time to submission timestamp
+                        try:
+                            sent_dt = datetime.fromisoformat(
+                                sent_at.replace("Z", "+00:00")
+                            )
+                            delta = abs((sent_dt - submitted_at).total_seconds())
+                            if delta < 300:
+                                print(
+                                    f"    Timing  : ✓ sent {int(delta)}s after DB submit "
+                                    f"(within 5-min window — consistent)"
+                                )
+                            else:
+                                mins = int(delta // 60)
+                                print(
+                                    f"    Timing  : ⚠ sent {mins}m after DB submit "
+                                    f"— worth checking"
+                                )
+                        except ValueError:
+                            pass
             print()
 
         print("=" * W)
