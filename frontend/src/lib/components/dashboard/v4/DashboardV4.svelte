@@ -33,11 +33,11 @@
 		setActiveEntry,
 		submittedEntries
 	} from '$stores/entries';
-	import { getGroupStageWinner, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
+	import { getGroupStagePodium, getLeaderboardV4, getScoringRules } from '$api/leaderboard';
 	import { getAnnouncements } from '$api/announcements';
 	import { track } from '$lib/analytics';
 	import type { EntryRankInfo, MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
-	import type { GroupStageWinner, LbEntryV4 } from '$lib/types/leaderboard';
+	import type { GroupStagePodium, LbEntryV4 } from '$lib/types/leaderboard';
 	import type { Announcement } from '$lib/types/dashboard';
 	import { deriveGroupMatchdays } from '$lib/utils/resultsRounds';
 	import { teamCode } from '$lib/utils/teamCodes';
@@ -66,11 +66,12 @@
 	let totalEntries = 0;
 	let announcements: Announcement[] = [];
 	let now = new Date();
-	// v2.181.0 — Group Stage Winner card. Null until the admin flips the
-	// release flag on /admin; backend gates the payload so the card
-	// stays hidden until release. Refetched on the same 60s tick as the
-	// leaderboard so a mid-session admin flip surfaces it within a minute.
-	let groupStageWinner: GroupStageWinner | null = null;
+	// v2.181.0 — Group Stage Winner card (v2.183.x: upgraded to top-3
+	// podium). Null until the admin flips the release flag on /admin;
+	// backend gates the payload so the card stays hidden until release.
+	// Refetched on the same 60s tick as the leaderboard so a mid-session
+	// admin flip surfaces it within a minute.
+	let groupStagePodium: GroupStagePodium | null = null;
 
 	// ── Core data (fixtures, leaderboard, rules, announcements) ──
 	let coreRequested = false;
@@ -85,7 +86,7 @@
 			getLeaderboardV4().catch(() => null),
 			getScoringRules(),
 			getAnnouncements().catch(() => [] as Announcement[]),
-			getGroupStageWinner().catch(() => null)
+			getGroupStagePodium().catch(() => null)
 		]);
 		rules = scoringRules;
 		announcements = news;
@@ -93,7 +94,7 @@
 			lbRows = lb.entries;
 			totalEntries = lb.entries.length;
 		}
-		groupStageWinner = gsw;
+		groupStagePodium = gsw;
 		loading = false;
 	}
 
@@ -142,9 +143,9 @@
 			.catch(() => undefined);
 		// Re-poll the GSW endpoint so an admin's mid-session toggle
 		// flip surfaces within ~60s (no hard refresh needed).
-		void getGroupStageWinner()
-			.then((gsw) => {
-				groupStageWinner = gsw;
+		void getGroupStagePodium()
+			.then((gsp) => {
+				groupStagePodium = gsp;
 			})
 			.catch(() => undefined);
 	});
@@ -224,9 +225,9 @@
 		     here. When the flag flips mid-session the 60s poll picks
 		     it up. The card is the ceremonial centrepiece — sits ABOVE
 		     the Daily MVP strip during its window. -->
-		{#if groupStageWinner}
+		{#if groupStagePodium && groupStagePodium.entries.length > 0}
 			<div class="mb-5">
-				<GroupStageWinnerCard winner={groupStageWinner} />
+				<GroupStageWinnerCard podium={groupStagePodium} />
 			</div>
 		{/if}
 

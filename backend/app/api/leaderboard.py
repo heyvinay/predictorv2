@@ -735,14 +735,17 @@ async def group_stage_winner_endpoint(
     session: DbSession,
     user: CurrentUser,
 ):
-    """Return the Group Stage winner payload (or null if not released).
+    """Return the Group Stage podium payload (or null if not released).
 
-    Null response = card hidden. Caller decides what to render.
+    URL preserved from v2.181.0 for compat; response shape upgraded in
+    v2.183.x from a single winner to top-3 podium so the dashboard card
+    can surface the runners-up alongside the champion. Null = card
+    hidden (release flag not flipped). Caller decides what to render.
     """
     from sqlalchemy import select
     from app.models.competition import Competition
-    from app.schemas.group_stage_winner import GroupStageWinnerResponse
-    from app.services.group_stage_winner import get_group_stage_winner
+    from app.schemas.group_stage_winner import GroupStageEntry, GroupStagePodium
+    from app.services.group_stage_winner import get_group_stage_podium
 
     comp_row = (
         await session.execute(
@@ -752,30 +755,34 @@ async def group_stage_winner_endpoint(
     if comp_row is None or not comp_row.group_stage_winner_released:
         return None
 
-    winner = await get_group_stage_winner(session)
-    if winner is None:
+    podium = await get_group_stage_podium(session)
+    if podium is None or not podium.entries:
         return None
 
-    return GroupStageWinnerResponse(
-        entry_id=winner.entry_id,
-        user_name=winner.user_name,
-        entry_name=winner.entry_name,
-        total_points=winner.total_points,
-        final_rank=winner.final_rank,
-        outcome_points=winner.outcome_points,
-        exact_score_extra=winner.exact_score_extra,
-        rarity_extra=winner.rarity_extra,
-        bonus_question_points=winner.bonus_question_points,
-        correct_outcomes=winner.correct_outcomes,
-        exact_scores=winner.exact_scores,
-        days_at_top=winner.days_at_top,
-        champion_pick=winner.champion_pick,
-        champion_alive=winner.champion_alive,
-        finalist_picks=winner.finalist_picks,
-        finalists_alive=winner.finalists_alive,
-        runner_up_name=winner.runner_up_name,
-        runner_up_gap=winner.runner_up_gap,
-        total_days=winner.total_days,
-        story_line=winner.story_line,
-        generated_at=winner.generated_at,
+    return GroupStagePodium(
+        entries=[
+            GroupStageEntry(
+                entry_id=e.entry_id,
+                user_name=e.user_name,
+                entry_name=e.entry_name,
+                display_name=e.display_name,
+                final_rank=e.final_rank,
+                total_points=e.total_points,
+                outcome_points=e.outcome_points,
+                exact_score_extra=e.exact_score_extra,
+                rarity_extra=e.rarity_extra,
+                bonus_question_points=e.bonus_question_points,
+            )
+            for e in podium.entries
+        ],
+        champion_pick=podium.champion_pick,
+        champion_alive=podium.champion_alive,
+        finalist_picks=podium.finalist_picks,
+        finalists_alive=podium.finalists_alive,
+        days_at_top=podium.days_at_top,
+        total_days=podium.total_days,
+        runner_up_gap=podium.runner_up_gap,
+        story_line=podium.story_line,
+        audit_verified=podium.audit_verified,
+        generated_at=podium.generated_at,
     )

@@ -240,42 +240,60 @@ export interface PoolDistributionResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Group Stage Winner (v2.181.0)
+// Group Stage Podium (v2.183.x — upgrade from single-winner GroupStageWinner)
 // ---------------------------------------------------------------------------
 // Card-and-email payload returned by GET /api/leaderboard/group-stage-winner.
+// URL preserved from v2.181.0 to avoid breaking external consumers; payload
+// upgraded in v2.183.x to surface the runners-up alongside the champion.
 // Null = release flag not flipped yet (admin hasn't pressed the button on
 // /admin) → card stays hidden. Frontend NEVER renders a partial card.
 
-export interface GroupStageWinner {
+export interface GroupStageEntry {
 	entry_id: string;
 	user_name: string;
 	entry_name: string;
-	total_points: number;
+	// "Person" when the owner has one entry, "Person — Entry name" when
+	// multiple — with the owner-name prefix stripped from entry_name to
+	// avoid "James Vella — James Vella 3rd Entry" duplication. Card
+	// renders this verbatim, no client-side rowDisplayName needed.
+	display_name: string;
 	final_rank: number;
+	total_points: number;
 
-	// 4-part breakdown — sums to total_points
+	// 4-part breakdown — sums to total_points.
 	outcome_points: number;
 	exact_score_extra: number;
 	rarity_extra: number;
 	bonus_question_points: number;
+}
 
-	// Story stats
-	correct_outcomes: number;
-	exact_scores: number;
-	days_at_top: number;
+export interface GroupStagePodium {
+	// Top 3 in rank order. entries[0] is the winner. May be shorter than
+	// 3 in degenerate cases (pool with <3 eligible entries).
+	entries: GroupStageEntry[];
+
+	// Story stats — context the narrative draws on. Available as
+	// supporting numbers if the card wants to display them.
 	champion_pick: string | null;
 	champion_alive: boolean;
 	finalist_picks: string[];
 	finalists_alive: number;
-
-	// Context facts that power the narrative (v2.181.0)
-	runner_up_name: string | null;
-	runner_up_gap: number | null;
+	days_at_top: number;
 	total_days: number;
+	runner_up_gap: number | null;
 
 	// Pre-composed narrative — card renders this verbatim. To edit
 	// wording, change `_compose_story_line` in the backend service.
+	// Refers to runner-up by name, so it lives at podium level.
 	story_line: string;
+
+	// Audit verification claim — drives the "Verified ✓" pill.
+	audit_verified: boolean;
 
 	generated_at: string;
 }
+
+// Re-export under the legacy name for any straggling consumers. New
+// code should import GroupStagePodium directly.
+/** @deprecated use GroupStagePodium */
+export type GroupStageWinner = GroupStagePodium;

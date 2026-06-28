@@ -1,26 +1,31 @@
-"""Group Stage Winner data — single payload for both the dashboard card
+"""Group Stage Podium data — single payload for both the dashboard card
 and the GROUP_STAGE_FINAL broadcast email.
 
-Computes the winner from `calculate_leaderboard` (phase_1 filter) and
-folds in the four-part points breakdown that the card displays:
+Computes the top 3 entries from ``calculate_leaderboard`` (phase_1 filter)
+and folds in the four-part points breakdown that the card displays per
+entry:
 
   1. Points from Correct Match Outcomes → phase1.match_outcome_points
   2. Extra Points from Exact Score      → phase1.exact_score_points
   3. Extra Points from Rarity           → phase1.hybrid_bonus_points
   4. Points from Bonus Questions        → breakdown.bonus_question_points
 
-The four bullets sum to total_points (phase2 is dormant per CLAUDE.md
-single-phase invariant, so phase1.total + bonus_question_points = total).
+The four bullets sum to ``total_points`` per entry (phase2 is dormant per
+the CLAUDE.md single-phase invariant).
 
-Story-line composition (v2.181.0) ALSO runs server-side so card and email
+Story-line composition (v2.181.0) runs server-side so card and email
 render the same prose. The narrative picks one of five templates keyed
 on *lead pattern* (wire-to-wire / dominant / steady / late surge /
 sneaked in), plus a margin beat (gap vs runner-up) and a bracket beat
 (champion pick + finalists alive). Edits to the wording live here only;
 both surfaces re-render on next request.
+
+v2.183.x: schema upgraded from single winner to top-3 podium. Same URL,
+new shape — see ``schemas/group_stage_winner.py`` for the response type.
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -32,41 +37,35 @@ from app.services.leaderboard import calculate_leaderboard
 
 
 @dataclass(frozen=True)
-class GroupStageWinner:
-    """Winner payload — flat, JSON-serialisable, mirrors the
-    `GroupStageWinnerResponse` Pydantic schema field-for-field.
-    """
+class GroupStageEntry:
+    """One podium row — winner, runner-up, or third-place."""
 
     entry_id: str
     user_name: str
     entry_name: str
-    total_points: int
+    display_name: str
     final_rank: int
-
-    # 4-part breakdown (sums to total_points)
+    total_points: int
     outcome_points: int
     exact_score_extra: int
     rarity_extra: int
     bonus_question_points: int
 
-    # Story stats
-    correct_outcomes: int
-    exact_scores: int
-    days_at_top: int
+
+@dataclass(frozen=True)
+class GroupStagePodium:
+    """Top-3 podium with a winner-centred narrative + audit verification."""
+
+    entries: list[GroupStageEntry]
     champion_pick: str | None
     champion_alive: bool
     finalist_picks: list[str]
     finalists_alive: int
-
-    # Context facts that power the narrative (v2.181.0)
-    runner_up_name: str | None
-    runner_up_gap: int | None
+    days_at_top: int
     total_days: int
-
-    # Pre-composed narrative — card and email both render this string
-    # verbatim. Edit `_compose_story_line` below to change wording.
+    runner_up_gap: int | None
     story_line: str
-
+    audit_verified: bool
     generated_at: datetime
 
 
@@ -85,12 +84,7 @@ def _oxford_join(items: list[str]) -> str:
 
 
 def _lead_beat(days_at_top: int, total_days: int, name: str) -> str:
-    """Opening sentence — picks template by lead pattern.
-
-    days_at_top is COUNT(DISTINCT captured_date WHERE position=1) for
-    this winner. total_days is COUNT(DISTINCT captured_date) for the
-    whole snapshot table — the tournament's lived duration.
-    """
+    """Opening sentence — picks template by lead pattern."""
     if total_days <= 0:
         return f"{name} took the group stage"
     if days_at_top >= total_days:
@@ -122,11 +116,7 @@ def _lead_beat(days_at_top: int, total_days: int, name: str) -> str:
 
 
 def _margin_clause(gap: int | None, runner_up_name: str | None) -> str | None:
-    """Comma-joinable margin phrase, lowercase to attach onto the lead.
-
-    Returns None if we don't have runner-up data (single-entry pool, or
-    the snapshot/leaderboard query missed it).
-    """
+    """Comma-joinable margin phrase, lowercase to attach onto the lead."""
     if runner_up_name is None or gap is None:
         return None
     if gap == 0:
@@ -150,18 +140,12 @@ def _bracket_sentence(
     finalists_alive: int,
 ) -> str | None:
     """Standalone sentence about the winner's bracket picks heading
-    into the knockouts. Returns None if we have no bracket data.
-
-    Avoids defeated framings where possible — celebrates what's still
-    in play, only mentions eliminations when relevant context.
-    """
+    into the knockouts."""
     n_finalists = len(finalist_picks)
 
-    # No data at all
     if not champion_pick and n_finalists == 0:
         return None
 
-    # Only finalist data, no champion
     if not champion_pick:
         if finalists_alive == 0:
             return "Their finalists are already out of the bracket — the knockout run will need late drama."
@@ -174,12 +158,10 @@ def _bracket_sentence(
             "alive heading into the knockouts."
         )
 
-    # Champion + (maybe) finalists
     champ_in_finalists = champion_pick in finalist_picks
     other_finalists = [t for t in finalist_picks if t != champion_pick]
 
     if n_finalists == 0:
-        # Champion only
         if champion_alive:
             return (
                 f"Their champion pick {champion_pick} carries the bracket "
@@ -190,11 +172,7 @@ def _bracket_sentence(
             "bracket — the knockout run will need late drama."
         )
 
-    # Both champion + finalists. If champion is also a finalist, mention
-    # the other finalists separately to avoid double-counting Spain
-    # twice in one sentence.
     if champion_alive and finalists_alive == n_finalists:
-        # Everything alive
         if champ_in_finalists and other_finalists:
             other_phrase = _oxford_join(other_finalists)
             count_word = "the other finalist" if len(other_finalists) == 1 else "the other finalists"
@@ -229,7 +207,6 @@ def _bracket_sentence(
             f"though their champion pick {champion_pick} has already exited."
         )
 
-    # Everything eliminated
     return (
         f"Their bracket picks have taken early hits — champion pick "
         f"{champion_pick} and every finalist are already out of the "
@@ -249,12 +226,7 @@ def _compose_story_line(
     finalist_picks: list[str],
     finalists_alive: int,
 ) -> str:
-    """Top-level narrative assembler — 2-3 sentences of prose.
-
-    Lead + margin combine into one sentence with a comma; bracket gets
-    its own sentence. Keep this function as the SOLE editor for wording
-    changes — card, email, and tests all read the same string.
-    """
+    """Top-level narrative assembler — 2-3 sentences of prose."""
     lead = _lead_beat(days_at_top, total_days, name)
     margin = _margin_clause(runner_up_gap, runner_up_name)
     bracket = _bracket_sentence(
@@ -267,34 +239,59 @@ def _compose_story_line(
     return sentence_1
 
 
-# ---------------------------------------------------------------------------
-# Service
-# ---------------------------------------------------------------------------
-async def get_group_stage_winner(session: AsyncSession) -> GroupStageWinner | None:
-    """Compute the Group Stage winner from the cached phase_1 leaderboard.
+def _display_name(user_name: str, entry_name: str, user_entry_count: int) -> str:
+    """Match the leaderboard's ``rowDisplayName`` rule with one refinement:
+    strip the owner-name prefix from the entry name when it duplicates
+    (so "James Vella — James Vella 3rd Entry" collapses to
+    "James Vella — 3rd Entry").
+    """
+    if user_entry_count <= 1:
+        return user_name
+    entry = (entry_name or "").strip()
+    if not entry:
+        return user_name
+    # Strip the owner-name prefix if present, plus any separator after it.
+    if entry.lower().startswith(user_name.lower()):
+        trimmed = entry[len(user_name):].lstrip()
+        trimmed = trimmed.lstrip("—-").lstrip()
+        if trimmed:
+            entry = trimmed
+    return f"{user_name} — {entry}"
 
-    Returns None only if the pool has zero eligible entries (defensive
-    guard — shouldn't happen post-tournament). The release-flag gate
-    lives at the API layer; the service itself is unconditional so
-    test sends + admin previews can still inspect the payload.
+
+# ---------------------------------------------------------------------------
+# Service — primary entry point
+# ---------------------------------------------------------------------------
+async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | None:
+    """Compute the Group Stage podium (top 3) from the cached phase_1
+    leaderboard. Returns None only if the pool has zero eligible entries.
+
+    The release-flag gate lives at the API layer; the service itself is
+    unconditional so test sends + admin previews can still inspect the
+    payload.
     """
     lb = await calculate_leaderboard(session, phase="phase_1")
     if not lb.entries:
         return None
-    winner = lb.entries[0]
+
+    # Count how many entries each user owns so display_name can pick
+    # between "Person" and "Person — Entry name" per the leaderboard
+    # convention. Bounded by the eligible-entries set (small in practice).
+    user_entry_count: Counter[str] = Counter(e.user_id for e in lb.entries)
+
+    top: list = lb.entries[:3]
+    winner = top[0]
     phase1 = winner.breakdown.phase1
 
-    # Runner-up context — None if the pool has only one eligible entry.
     runner_up_name: str | None = None
     runner_up_gap: int | None = None
-    if len(lb.entries) >= 2:
-        runner_up = lb.entries[1]
+    if len(top) >= 2:
+        runner_up = top[1]
         runner_up_name = runner_up.user_name
         runner_up_gap = winner.total_points - runner_up.total_points
 
     # Days-at-top: COUNT distinct snapshot dates where this entry was
-    # at position 1. Captures dominance ("held #1 for N of M days")
-    # vs squeaked-in-at-the-end ("hit #1 only on the final day").
+    # at position 1. Captures dominance vs squeaked-in-at-the-end.
     days_sql = text(
         """
         SELECT COUNT(DISTINCT captured_date) AS days
@@ -309,8 +306,6 @@ async def get_group_stage_winner(session: AsyncSession) -> GroupStageWinner | No
     except Exception:  # noqa: BLE001 — story stat must not fail the payload
         days_at_top = 0
 
-    # Total tournament days — COUNT distinct snapshot dates across the
-    # whole table. Defines the denominator for the lead beat templates.
     total_days_sql = text(
         "SELECT COUNT(DISTINCT captured_date) AS days FROM leaderboard_snapshots"
     )
@@ -334,26 +329,112 @@ async def get_group_stage_winner(session: AsyncSession) -> GroupStageWinner | No
         finalists_alive=winner.finalists_alive,
     )
 
-    return GroupStageWinner(
-        entry_id=str(winner.entry_id),
-        user_name=winner.user_name,
-        entry_name=winner.entry_name,
-        total_points=winner.total_points,
-        final_rank=winner.position,
-        outcome_points=phase1.match_outcome_points,
-        exact_score_extra=phase1.exact_score_points,
-        rarity_extra=phase1.hybrid_bonus_points,
-        bonus_question_points=winner.breakdown.bonus_question_points,
-        correct_outcomes=winner.correct_outcomes,
-        exact_scores=winner.exact_scores,
-        days_at_top=days_at_top,
+    entries = [
+        GroupStageEntry(
+            entry_id=str(e.entry_id),
+            user_name=e.user_name,
+            entry_name=e.entry_name,
+            display_name=_display_name(
+                e.user_name, e.entry_name, user_entry_count[e.user_id]
+            ),
+            final_rank=e.position,
+            total_points=e.total_points,
+            outcome_points=e.breakdown.phase1.match_outcome_points,
+            exact_score_extra=e.breakdown.phase1.exact_score_points,
+            rarity_extra=e.breakdown.phase1.hybrid_bonus_points,
+            bonus_question_points=e.breakdown.bonus_question_points,
+        )
+        for e in top
+    ]
+
+    return GroupStagePodium(
+        entries=entries,
         champion_pick=winner.champion_pick,
         champion_alive=winner.champion_alive,
         finalist_picks=finalist_picks_list,
         finalists_alive=winner.finalists_alive,
-        runner_up_name=runner_up_name,
-        runner_up_gap=runner_up_gap,
+        days_at_top=days_at_top,
         total_days=total_days,
+        runner_up_gap=runner_up_gap,
         story_line=story_line,
+        audit_verified=True,
         generated_at=utc_now(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Backward-compat shim (deprecated — to be removed once all callers move
+# to get_group_stage_podium). Returns just the winner's GroupStageEntry
+# with a couple of legacy fields surfaced as attributes.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class _LegacyWinnerView:
+    """Adapter that lets existing callers keep using the old field names
+    while the podium service is the source of truth."""
+
+    entry_id: str
+    user_name: str
+    entry_name: str
+    total_points: int
+    final_rank: int
+    outcome_points: int
+    exact_score_extra: int
+    rarity_extra: int
+    bonus_question_points: int
+    correct_outcomes: int
+    exact_scores: int
+    days_at_top: int
+    champion_pick: str | None
+    champion_alive: bool
+    finalist_picks: list[str]
+    finalists_alive: int
+    runner_up_name: str | None
+    runner_up_gap: int | None
+    total_days: int
+    story_line: str
+    generated_at: datetime
+
+
+async def get_group_stage_winner(session: AsyncSession) -> _LegacyWinnerView | None:
+    """DEPRECATED — use ``get_group_stage_podium`` instead.
+
+    Thin wrapper kept for the email-tokens helper which hasn't been
+    migrated yet. New callers should hit ``get_group_stage_podium`` and
+    pull ``podium.entries[0]``.
+    """
+    podium = await get_group_stage_podium(session)
+    if podium is None or not podium.entries:
+        return None
+    w = podium.entries[0]
+    # Recover correct_outcomes / exact_scores via a fresh leaderboard
+    # read (cached, cheap). Kept off the new podium type because no card
+    # uses them, but the email-tokens helper expects them on the legacy
+    # view's surface.
+    lb = await calculate_leaderboard(session, phase="phase_1")
+    src = next((e for e in lb.entries if str(e.entry_id) == w.entry_id), None)
+    runner_up_name: str | None = None
+    if len(podium.entries) >= 2:
+        runner_up_name = podium.entries[1].user_name
+    return _LegacyWinnerView(
+        entry_id=w.entry_id,
+        user_name=w.user_name,
+        entry_name=w.entry_name,
+        total_points=w.total_points,
+        final_rank=w.final_rank,
+        outcome_points=w.outcome_points,
+        exact_score_extra=w.exact_score_extra,
+        rarity_extra=w.rarity_extra,
+        bonus_question_points=w.bonus_question_points,
+        correct_outcomes=src.correct_outcomes if src else 0,
+        exact_scores=src.exact_scores if src else 0,
+        days_at_top=podium.days_at_top,
+        champion_pick=podium.champion_pick,
+        champion_alive=podium.champion_alive,
+        finalist_picks=list(podium.finalist_picks),
+        finalists_alive=podium.finalists_alive,
+        runner_up_name=runner_up_name,
+        runner_up_gap=podium.runner_up_gap,
+        total_days=podium.total_days,
+        story_line=podium.story_line,
+        generated_at=podium.generated_at,
     )

@@ -1723,7 +1723,7 @@ async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
     """
     from sqlalchemy import select
     from app.models.competition import Competition
-    from app.services.group_stage_winner import get_group_stage_winner
+    from app.services.group_stage_winner import get_group_stage_podium
 
     # Gate token compute on the released flag — same rule as the
     # dashboard card. Sunday workflow: admin flips release first
@@ -1745,16 +1745,17 @@ async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
         return {}
 
     try:
-        w = await get_group_stage_winner(session)
+        podium = await get_group_stage_podium(session)
     except Exception as exc:  # noqa: BLE001 — broadcast must not crash
         logger.warning("GSW token compute failed: %s", exc)
         return {}
-    if w is None:
+    if podium is None or not podium.entries:
         return {}
 
+    w = podium.entries[0]
     first_name = (w.user_name or "").split(" ", 1)[0] or w.user_name or "—"
 
-    # The story line is now pre-composed by the service so the card
+    # The story line is pre-composed by the podium service so the card
     # and the email render identical prose. To tweak wording, edit
     # `_compose_story_line` in services/group_stage_winner.py — both
     # surfaces will reflect the change on next request.
@@ -1767,7 +1768,7 @@ async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
         "EXACT_EXTRA": str(w.exact_score_extra),
         "RARITY_EXTRA": str(w.rarity_extra),
         "BONUS_PTS": str(w.bonus_question_points),
-        "STORY_LINE": w.story_line,
+        "STORY_LINE": podium.story_line,
     }
 
 

@@ -15,7 +15,7 @@ import type {
 	BonusPredictionRead,
 	ChampionSurvivalResponse,
 	DailyMvpsResponse,
-	GroupStageWinner,
+	GroupStagePodium,
 	LbResponseV4,
 	MatchMarkersResponse,
 	PersonalTrailResponse,
@@ -153,9 +153,15 @@ export async function getPoolDistribution(): Promise<PoolDistributionResponse> {
 	return api.get<PoolDistributionResponse>('/leaderboard/pool-distribution');
 }
 
-// ---- Group Stage Winner (v2.181.0) --------------------------------------
-// Returns null when the release flag isn't set — card stays hidden.
+// ---- Group Stage Podium (v2.181.0 URL, v2.183.x payload) ----------------
+// URL preserved from v2.181.0 ("group-stage-winner") to avoid client churn;
+// payload upgraded in v2.183.x from a single winner to a top-3 podium with
+// composed narrative + audit-verified flag. Returns null when the release
+// flag isn't set — card stays hidden.
 
-export async function getGroupStageWinner(): Promise<GroupStageWinner | null> {
-	return api.get<GroupStageWinner | null>('/leaderboard/group-stage-winner');
+export async function getGroupStagePodium(): Promise<GroupStagePodium | null> {
+	return api.get<GroupStagePodium | null>('/leaderboard/group-stage-winner');
 }
+
+/** @deprecated use getGroupStagePodium */
+export const getGroupStageWinner = getGroupStagePodium;
