@@ -2375,6 +2375,13 @@
       "type": "fix",
       "summary": "Knockout fixtures whose teams aren't determined yet now consistently display 'TBD' instead of leaking the raw 'slot:round_of_32:...' placeholder string anywhere in the UI. The dashboard 'Upcoming matches' panel was showing the raw slot text (and BracketChip rendered 'SLO' from the first three letters of the slot string) — both now show TBD. Fix is at the lowest level (the displayTeamName helper and teamCode helper) so every surface that renders a team name gets it for free: dashboard scoreboards, results page bracket, match detail headers, leaderboard pick chips, everywhere.",
       "commit": "pending"
+    },
+    {
+      "version": "2.183.3",
+      "date": "2026-06-28",
+      "type": "fix",
+      "summary": "Two fixes on the Results page knockout rounds. First: while knockout scoring is still pending release, the per-fixture points cells and the Round Total are now fully hidden (was: showing speculative 'banked' points based on the user's bracket picks despite the admin gate saying not to score). Pool members see the 'Knockout points pending release' note plus dash placeholders, and totals stay at 0 until the admin enables knockout scoring on /admin. Second: the Round Total was being computed wrong even on its own terms — fixtures where only one side was resolved (Germany vs TBD, France vs TBD) had Germany/France's bracket hit silently added to the subtotal while the row displayed as TBD with no points, double-counting against the visible rows (200 visible became 400 in the total). Now the per-fixture hit counter returns zero whenever either side carries a slot placeholder, matching the row display and the summary card consistently. Regression-pinned in koPoints.test.ts so the doubling can't sneak back.",
+      "commit": "pending"
     }
   ]
 }
