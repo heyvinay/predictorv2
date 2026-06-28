@@ -2368,6 +2368,13 @@
       "type": "fix",
       "summary": "Critical fix: Round of 32 fixtures were displaying the wrong matchups for every single match. An earlier release used a formula to map Football-Data's external IDs to FIFA's official match numbers (537415 = M73, 537416 = M74, ...), but those IDs don't correspond linearly to FIFA numbers — Football-Data's order is internal, not FIFA's. The first R32 match was showing 'Netherlands vs Morocco' when FIFA's schedule has it as 'South Africa vs Canada' (the Netherlands match is actually two days later). Every R32 fixture in the Results page bracket was off. Now the mapping is built from kickoff-time cross-reference against Wikipedia's published schedule (with a pinned regression test) and the bracket displays match FIFA exactly. Also adds a user-facing note on the Results page Round of 32 / Round of 16 / Quarter-Finals / Semi-Finals / Finals / Winner tabs explaining that knockout points haven't been released yet — they'll be allocated after every group-stage match finishes and the group-stage champion is verified and announced.",
       "commit": "pending"
+    },
+    {
+      "version": "2.183.2",
+      "date": "2026-06-28",
+      "type": "fix",
+      "summary": "Knockout fixtures whose teams aren't determined yet now consistently display 'TBD' instead of leaking the raw 'slot:round_of_32:...' placeholder string anywhere in the UI. The dashboard 'Upcoming matches' panel was showing the raw slot text (and BracketChip rendered 'SLO' from the first three letters of the slot string) — both now show TBD. Fix is at the lowest level (the displayTeamName helper and teamCode helper) so every surface that renders a team name gets it for free: dashboard scoreboards, results page bracket, match detail headers, leaderboard pick chips, everywhere.",
+      "commit": "pending"
     }
   ]
 }
