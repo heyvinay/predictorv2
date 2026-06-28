@@ -458,8 +458,8 @@ def _extract_canonical_from_email_text(body: str) -> dict:
 # a dated file in ``backend/snapshots/``, update MANIFEST.md, and
 # repoint ``_SNAPSHOT_PATH`` below. Never overwrite an existing one.
 
-_SNAPSHOT_PATH = Path("/app/snapshots/predictions-snapshot-2026-06-28.csv")
-_SNAPSHOT_LABEL = "2026-06-28"
+_SNAPSHOT_PATH = Path("/app/snapshots/predictions-snapshot-2026-06-11.csv")
+_SNAPSHOT_LABEL = "2026-06-11"
 
 
 def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
@@ -489,7 +489,10 @@ def _fetch_sheet_predictions_for_entry(entry_reference: str) -> dict:
 
     import csv as _csv
     try:
-        with _SNAPSHOT_PATH.open("r", encoding="utf-8", newline="") as f:
+        # utf-8-sig — the deadline-night CSV is BOM-prefixed for Excel
+        # interop; reading as plain utf-8 would leave a literal
+        # on the first cell and break the identity-row column lookup.
+        with _SNAPSHOT_PATH.open("r", encoding="utf-8-sig", newline="") as f:
             rows = list(_csv.reader(f))
     except OSError as exc:
         out["reason"] = f"Could not read {_SNAPSHOT_PATH}: {exc}"

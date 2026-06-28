@@ -20,19 +20,20 @@ stays so historical audits can re-run against the original reference.
 The `:ro` flag on the docker-compose volume mount enforces this at
 runtime: nothing inside the container can write to `/app/snapshots/`.
 
-## Files
+## Active reference
 
-### `predictions-snapshot-2026-06-28.csv`
+### `predictions-snapshot-2026-06-11.csv` *(deadline-night capture)*
 
 | Property | Value |
 |---|---|
-| Captured (UTC) | 2026-06-28 ~11:14 |
-| Source | Live `Predictions` worksheet of `GOOGLE_SHEET_ID 1-UZTOYQh0jIUuMw7VarsXdj8a3gPC3whVwii61ZS75Y` |
-| Mechanism | One-shot `dump_sheet_to_csv.py` via gspread on the prod backend container |
-| Rows × cols | 167 × 371 |
-| SHA-256 (file as committed) | `58623d46ba0c30c3e233394064a7f9129839901248e33045fcbeddf90c93b518` |
-| SHA-256 (LF-normalised content) | `9575e5fd05fd085fcaa8f4c7702db3ffabf91270dd2f8d17e29812bcbde17944` |
-| Context | First snapshot. Captures the post-group-stage state, two days after the v2.181.0 group-stage winner announcement (2026-06-26). Predictions have been locked since the deadline (2026-06-11) so no legitimate change can have occurred after this capture. |
+| Captured (UTC) | 2026-06-11 21:43 — 4h 43m after the 17:00 UTC deadline |
+| Source | One-off export from the all-entries Predictions data, generated at the moment all entries were locked. Originally archived to `docs/all-entries-predictions-2026-06-11.csv` and ported here on 2026-06-28. |
+| Rows × cols | 166 × 187 |
+| Encoding | UTF-8 with BOM (Excel-compatible) — the audit script reads via `utf-8-sig` to strip the BOM transparently. |
+| SHA-256 (file as committed) | `0d5f67bbfd21378b4283fc98aee938b57f353e9ceb512e8179d6bc80ea14db37` |
+| SHA-256 (LF-normalised content) | `7363bd10b476beed7e316cecb7d50bbb7eaffa3aca3d47e81fadea40fd4c11e1` |
+| Audit verification (2026-06-28) | All three top-3 entries' bonus answers, champion picks, and knockout selections match the live DB exactly. |
+| Context | This is the strongest available audit reference: it was generated within hours of the deadline, has been version-controlled in `docs/` since deadline night, and predates every subsequent system change (the v2.161.0 stage-rename migration, the v2.181.0 Group Stage Winner announcement, etc.). Any post-deadline tampering would show up as a CSV-vs-DB diff. |
 
 ## Why this approach (not Drive revision history)
 
@@ -40,10 +41,19 @@ We initially planned to fetch the earliest Google Sheet revision after
 the deadline via the Drive API. A 2026-06-28 probe of the live sheet's
 revision history returned only 3 revisions, all from the day of the
 probe — Drive aggressively prunes revisions for frequently-edited
-native Sheets, and the post-deadline snapshot (the very first
-sheets_sync push at 2026-06-15 09:39 UTC) had already been removed.
+native Sheets, and the post-deadline snapshot we wanted had already
+been removed.
 
-Self-archiving in this directory side-steps the pruning issue: git
-history is the immutability mechanism, the file is mounted read-only
-into the backend container, and the SHA-256s above are part of the
-manifest so accidental corruption shows up immediately.
+Self-archiving in this directory side-steps the pruning issue
+entirely. The deadline-night CSV in `docs/` happened to be exactly
+what we needed; ported here, it inherits the same git-history
+immutability + read-only mount the audit infrastructure provides.
+
+## History
+
+A mid-tournament reference (`predictions-snapshot-2026-06-28.csv`,
+captured 11:13 UTC on 2026-06-28) was briefly committed under this
+directory in commit `ee15fee` and superseded in the next commit when
+the deadline-night CSV was discovered. The 06-28 capture remains in
+git history for anyone who wants to inspect mid-tournament state but
+is not the active audit reference.

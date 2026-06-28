@@ -35,9 +35,9 @@ def test_snapshot_constants_match_manifest() -> None:
     """If you capture a NEW snapshot (e.g. before the final), bump
     these to the new file and add a new MANIFEST.md entry — never
     edit an existing committed snapshot."""
-    assert _SNAPSHOT_LABEL == "2026-06-28"
+    assert _SNAPSHOT_LABEL == "2026-06-11"
     assert _SNAPSHOT_PATH == Path(
-        "/app/snapshots/predictions-snapshot-2026-06-28.csv"
+        "/app/snapshots/predictions-snapshot-2026-06-11.csv"
     )
 
 
@@ -46,7 +46,7 @@ def test_snapshot_constants_match_manifest() -> None:
 # ─────────────────────────────────────────────────────────────────────
 
 _EXPECTED_SHA256 = (
-    "58623d46ba0c30c3e233394064a7f9129839901248e33045fcbeddf90c93b518"
+    "0d5f67bbfd21378b4283fc98aee938b57f353e9ceb512e8179d6bc80ea14db37"
 )
 
 
