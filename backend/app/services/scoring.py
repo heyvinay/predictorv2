@@ -448,15 +448,30 @@ async def get_actual_advancement(session: AsyncSession) -> dict[str, str]:
     )
     rows = result.all()
 
+    # Resolve R32 slot placeholders to real team names BEFORE crediting.
+    # Football-Data writes `slot:round_of_32:NNN:home/away` placeholders
+    # for several hours/days after the group stage ends, until it
+    # ingests the FIFA-published lineup. We can derive the real
+    # qualifiers from settled group standings immediately — that's what
+    # r32_resolver does. Without this step, the admin flips
+    # knockout_scoring_enabled and sees ZERO advancement credits until
+    # FD catches up, which can lag the actual qualification clarity by
+    # 24+ hours. (v2.183.x — surfaced when KO scoring was enabled
+    # 2026-06-28 with R32 fixtures still placeholder-seeded.)
+    from app.services.r32_resolver import build_r32_resolver, resolve_r32_pair
+
+    r32_resolver = await build_r32_resolver(session)
+
     for fixture, score in rows:
         stage = fixture.stage
-        home_team = fixture.home_team
-        away_team = fixture.away_team
+        home_team, away_team = resolve_r32_pair(
+            r32_resolver, fixture.home_team, fixture.away_team
+        )
 
         # "Reached this stage": credit any team seeded into the fixture.
-        # Football-Data may briefly seed placeholder names (e.g. "Winner
-        # of Match 32") before the real team is known — harmless here, as
-        # no user prediction matches a placeholder, so no points pay out.
+        # R32 placeholders are now resolved above. R16+ placeholders stay
+        # (they can only be known once R32 matches finish), and harmlessly
+        # earn no credit because no user prediction matches them.
         for team in [home_team, away_team]:
             if team:
                 current_stage = team_advancement.get(team)
