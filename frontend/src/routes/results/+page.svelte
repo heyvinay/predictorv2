@@ -29,6 +29,8 @@
 	import { postDeadlineLive } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboard, getScoringRules } from '$api/leaderboard';
+	import { getActualStandings } from '$api/fixtures';
+	import type { ActualStandingsResponse } from '$types';
 	import type {
 		EntryRankInfo,
 		MatchPredictionWithPoints,
@@ -53,6 +55,7 @@
 	import ProgressingCard from '$lib/components/results/v4/ProgressingCard.svelte';
 	import SummaryView from '$lib/components/results/v4/SummaryView.svelte';
 	import WinnerView from '$lib/components/results/v4/WinnerView.svelte';
+	import GroupStandingsView from '$lib/components/results/v4/GroupStandingsView.svelte';
 
 	$: if (!$isAuthenticated) goto('/login');
 
@@ -114,6 +117,11 @@
 			void getLeaderboard()
 				.then(applyLeaderboard)
 				.catch(() => undefined);
+			// Refresh standings only when its tab is selected — avoids
+			// burning the request on every tick when the user is on /r3.
+			if (selectedRound === 'groups' && standingsRequested) {
+				void loadStandings();
+			}
 		});
 	}
 
@@ -130,6 +138,33 @@
 
 	let stopPoll: (() => void) | null = null;
 	onDestroy(() => stopPoll?.());
+
+	// Group Standings tab data (v2.181.2). Lazy: only loads the first time
+	// the user selects the 'groups' tab; refreshes via the same livePoll
+	// cycle as the rest of the page.
+	let standingsPayload: ActualStandingsResponse | null = null;
+	let standingsLoading = false;
+	let standingsError: string | null = null;
+	let standingsLastUpdated: Date | null = null;
+	let standingsRequested = false;
+
+	async function loadStandings() {
+		standingsLoading = true;
+		try {
+			standingsPayload = await getActualStandings();
+			standingsLastUpdated = new Date();
+			standingsError = null;
+		} catch (e) {
+			standingsError = e instanceof Error ? e.message : 'Failed to load standings';
+		} finally {
+			standingsLoading = false;
+		}
+	}
+
+	$: if (selectedRound === 'groups' && !standingsRequested && resultsOpen) {
+		standingsRequested = true;
+		void loadStandings();
+	}
 
 	// Entries + predictions load reactively once the user store hydrates —
 	// at onMount time $user is usually still null (auth/me resolves in the
@@ -323,6 +358,13 @@
 				/>
 			{:else if selectedRound === 'winner'}
 				<WinnerView bracket={$bracketPrediction} {finalFixture} {rules} />
+			{:else if selectedRound === 'groups'}
+				<GroupStandingsView
+					payload={standingsPayload}
+					loading={standingsLoading}
+					error={standingsError}
+					lastUpdatedAt={standingsLastUpdated}
+				/>
 			{:else if activeRound?.isKnockout}
 				{#if missedTeams.length > 0}
 					<MissedPicksCard

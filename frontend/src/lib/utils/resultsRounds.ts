@@ -16,6 +16,7 @@ export const ROUND_ORDER: RoundId[] = [
 	'r1',
 	'r2',
 	'r3',
+	'groups',
 	'r32',
 	'r16',
 	'qf',
@@ -29,6 +30,7 @@ export const ROUND_LABELS: Record<RoundId, string> = {
 	r1: 'Round 1',
 	r2: 'Round 2',
 	r3: 'Round 3',
+	groups: 'Group Standings',
 	r32: 'Round of 32',
 	r16: 'Round of 16',
 	qf: 'Quarter-Finals',
@@ -158,6 +160,8 @@ export function buildRounds(fixtures: Fixture[]): RoundDef[] {
 				? formatDateRange(list[0].kickoff, list[list.length - 1].kickoff)
 				: id === 'summary'
 				? 'All rounds'
+				: id === 'groups'
+				? 'Live tables'
 				: '';
 		return {
 			id,

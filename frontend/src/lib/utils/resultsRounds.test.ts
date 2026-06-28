@@ -56,7 +56,7 @@ describe('roundIdForFixture', () => {
 });
 
 describe('buildRounds', () => {
-	it('produces all ten rounds in display order with fixtures attached', () => {
+	it('produces all eleven rounds in display order with fixtures attached', () => {
 		const fixtures = [
 			fx({ id: 'a', stage: 'group', match_number: 3, kickoff: '2026-06-12T18:00:00+00:00' }),
 			fx({ id: 'b', stage: 'group', match_number: 30, kickoff: '2026-06-19T18:00:00+00:00' }),
@@ -69,6 +69,7 @@ describe('buildRounds', () => {
 			'r1',
 			'r2',
 			'r3',
+			'groups',
 			'r32',
 			'r16',
 			'qf',
@@ -81,6 +82,23 @@ describe('buildRounds', () => {
 		expect(rounds.find((r) => r.id === 'r32')?.fixtureIds).toEqual(['c']);
 		expect(rounds.find((r) => r.id === 'f')?.fixtureIds).toEqual(['d']);
 		expect(rounds.find((r) => r.id === 'winner')?.fixtureIds).toEqual([]);
+	});
+
+	it('Group Standings tab sits between r3 and r32, with no fixtures and "Live tables" label', () => {
+		const rounds = buildRounds([
+			fx({ id: 'a', stage: 'group', match_number: 50 }),
+			fx({ id: 'b', stage: 'round_of_32', kickoff: '2026-06-28T18:00:00+00:00' })
+		]);
+		const ids = rounds.map((r) => r.id);
+		const groupsIdx = ids.indexOf('groups');
+		const r3Idx = ids.indexOf('r3');
+		const r32Idx = ids.indexOf('r32');
+		expect(groupsIdx).toBeGreaterThan(r3Idx);
+		expect(groupsIdx).toBeLessThan(r32Idx);
+		const g = rounds.find((r) => r.id === 'groups');
+		expect(g?.fixtureIds).toEqual([]);
+		expect(g?.dates).toBe('Live tables');
+		expect(g?.isKnockout).toBe(false);
 	});
 
 	it('orders fixtures within a round by kickoff', () => {

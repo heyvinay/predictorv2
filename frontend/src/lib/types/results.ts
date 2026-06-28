@@ -24,12 +24,16 @@ export type MatchPredictionWithPoints = MatchPrediction & {
 	points?: PickPoints | null;
 };
 
-/** Round tab identifiers, in display order. */
+/** Round tab identifiers, in display order. `'groups'` is the
+ *  Group Standings tab (v2.181.2) — a non-fixture-bearing tab sitting
+ *  between R3 and R32. It carries no `fixtureIds` and uses its own
+ *  pseudo-date label ("Live tables"). */
 export type RoundId =
 	| 'summary'
 	| 'r1'
 	| 'r2'
 	| 'r3'
+	| 'groups'
 	| 'r32'
 	| 'r16'
 	| 'qf'
