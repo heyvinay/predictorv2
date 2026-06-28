@@ -133,6 +133,34 @@ RESEND_API = "https://api.resend.com"
 _SUBMISSION_SUBJECT_MARKER = "Submission locked in:"
 
 
+async def _fetch_email_by_id(
+    email_id: str,
+    resend_api_key: str,
+) -> dict | None:
+    """Direct lookup by Resend email ID — O(1), no pagination needed."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(
+                f"{RESEND_API}/emails/{email_id}",
+                headers={"Authorization": f"Bearer {resend_api_key}"},
+            )
+        except httpx.RequestError as exc:
+            print(f"  ⚠  Resend network error: {exc}")
+            return None
+
+        if resp.status_code == 401:
+            print("  ⚠  Resend API key invalid or missing.")
+            return None
+        if resp.status_code == 404:
+            print(f"  ⚠  Email ID {email_id!r} not found in Resend.")
+            return None
+        if resp.status_code != 200:
+            print(f"  ⚠  Resend returned {resp.status_code}: {resp.text[:120]}")
+            return None
+
+        return resp.json()
+
+
 async def _fetch_submission_email(
     entry_ref: str,
     to_email: str,
@@ -208,6 +236,11 @@ async def _fetch_submission_email(
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
+    # Optional positional args: Resend email IDs for rank-1, rank-2, rank-3.
+    # Supply as many as you have; omit the rest and the cursor search is used.
+    #   python -m scripts.audit_top3 <id1> <id2> <id3>
+    supplied_ids: list[str | None] = (sys.argv[1:] + [None, None, None])[:3]
+
     async_session = _make_session()
     resend_api_key: str | None = os.environ.get("RESEND_API_KEY")
 
@@ -244,6 +277,7 @@ async def main() -> None:
         print(f"  {len(eligible)} eligible entries scored. Auditing top 3.\n")
 
         for rank, (entry, breakdown) in enumerate(top3, 1):
+            supplied_email_id = supplied_ids[rank - 1]
             # Fetch phase row for submitted_at
             phase_result = await session.execute(
                 select(PredictionEntryPhase).where(
@@ -300,10 +334,14 @@ async def main() -> None:
             elif not to_email:
                 print("  ⚠  No email address on record for this user")
             else:
-                print(f"  Searching Resend for last submission email → {to_email} ...")
-                found = await _fetch_submission_email(
-                    entry.reference, to_email, resend_api_key
-                )
+                if supplied_email_id:
+                    print(f"  Direct lookup: {supplied_email_id}")
+                    found = await _fetch_email_by_id(supplied_email_id, resend_api_key)
+                else:
+                    print(f"  Searching Resend for last submission email → {to_email} ...")
+                    found = await _fetch_submission_email(
+                        entry.reference, to_email, resend_api_key
+                    )
                 if found is None:
                     print("  ⚠  No matching submission email found in Resend")
                 else:
