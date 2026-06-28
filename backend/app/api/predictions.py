@@ -29,11 +29,13 @@ from app.models.user import User
 from app.services.locking import get_active_competition, is_phase1_locked
 from app.services.predictions_export import build_all_entries_export
 from app.schemas.fixture import FixtureScore
+from app.schemas.ko_match_detail import KoMatchDetailResponse
 from app.schemas.prediction import CommunityPrediction, CommunityPredictionsResponse
 from app.services.bonus import (
     get_meta as get_bonus_meta,
     get_questions as get_bonus_questions,
 )
+from app.services.ko_match_detail import get_ko_match_detail
 
 router = APIRouter()
 
@@ -173,6 +175,64 @@ async def get_community_predictions(
         predictions=predictions,
         actual=actual,
     )
+
+
+@router.get(
+    "/matches/{fixture_id}/ko-detail", response_model=KoMatchDetailResponse
+)
+async def get_ko_match_detail_endpoint(
+    fixture_id: uuid.UUID,
+    session: DbSession,
+    _user: OptionalUser,
+) -> KoMatchDetailResponse:
+    """Bundled knockout match-detail view for the /results/[fixture_id] page.
+
+    Returns four sub-objects in one trip: pool advancement split (with
+    Atlas/JMFA/Guests cohort breakdown), bracket implications (alive-at-
+    later-stage counts per side), most-exposed entries (top 5 per side by
+    cumulative points-at-stake), and the full pool roll.
+
+    Blind-pool gate is the same as ``/community``: visible once the
+    global Phase-1 deadline passes, or this fixture's per-match lock
+    trips, or the match finishes.
+
+    Knockout-only — group fixtures use the existing ``/community``
+    endpoint. The 404 here for group stages is intentional, not a
+    misconfiguration.
+    """
+    fixture_row = await session.execute(
+        select(Fixture).options(selectinload(Fixture.score)).where(Fixture.id == fixture_id)
+    )
+    fixture = fixture_row.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found"
+        )
+
+    if fixture.stage not in {
+        "round_of_32",
+        "round_of_16",
+        "quarter_final",
+        "semi_final",
+        "final",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ko-detail is only available for knockout fixtures",
+        )
+
+    deadline_passed = await is_phase1_locked(session)
+    if (
+        not deadline_passed
+        and not fixture.is_locked(LOCK_MINUTES)
+        and fixture.status != MatchStatus.FINISHED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Predictions are not yet visible for this match",
+        )
+
+    return await get_ko_match_detail(session, fixture)
 
 
 @router.get("/export/all-entries.csv", response_class=Response)

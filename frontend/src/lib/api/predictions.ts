@@ -114,3 +114,16 @@ export async function getCommunityPredictions(
 		`/predictions/matches/${fixtureId}/community`
 	);
 }
+
+// Lazy import to avoid pulling the V4 types module on every page that
+// touches the predictions API. Only the /results/[fixture_id] knockout
+// path needs this type.
+import type { KoMatchDetailResponse } from '$lib/types/results';
+
+export async function getKoMatchDetail(
+	fixtureId: string
+): Promise<KoMatchDetailResponse> {
+	return api.get<KoMatchDetailResponse>(
+		`/predictions/matches/${fixtureId}/ko-detail`
+	);
+}

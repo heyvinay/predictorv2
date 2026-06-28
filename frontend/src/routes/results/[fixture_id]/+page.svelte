@@ -47,6 +47,18 @@
 	import PoolList from '$lib/components/results/v4-match/PoolList.svelte';
 	import PoolPickedWhat from '$lib/components/results/v4-match/PoolPickedWhat.svelte';
 	import PoolSplit from '$lib/components/results/v4-match/PoolSplit.svelte';
+	import KoMatchDetail from '$lib/components/results/v4-match/KoMatchDetail.svelte';
+
+	// Knockout fixture branch: stage values stored on Fixture follow the
+	// singular convention (`round_of_32`, etc.) — the KO detail bundle
+	// only lives at /api/predictions/matches/{id}/ko-detail for these.
+	const KO_STAGES = new Set([
+		'round_of_32',
+		'round_of_16',
+		'quarter_final',
+		'semi_final',
+		'final'
+	]);
 
 	$: if (!$isAuthenticated) goto('/login');
 	$: fixtureId = $page.params.fixture_id ?? '';
@@ -124,6 +136,7 @@
 
 	// ── Derived view state ──
 	$: fixture = $fixtureById.get(fixtureId) ?? null;
+	$: isKnockout = !!fixture && KO_STAGES.has(fixture.stage);
 	$: mode =
 		fixture &&
 		(fixture.status === 'finished' || fixture.status === 'live' || fixture.status === 'halftime')
@@ -234,6 +247,13 @@
 				onNext={() => go(pos?.nextId ?? null)}
 			/>
 
+			{#if isKnockout}
+				<!-- Knockout-fixture branch: scoreline grid + 1/X/2 split don't
+				     describe the bet (advancement, not score) — the KO bundle
+				     pivots the page around pool split / bracket implications /
+				     most-exposed entries. Group fixtures keep the layout below. -->
+				<KoMatchDetail {fixture} {mode} {upset} scoringRules={rules} />
+			{:else}
 			<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
 				<!-- LEFT column: hero → rarity → spread -->
 				<div class="flex flex-col gap-4">
@@ -293,6 +313,7 @@
 					{/if}
 				</div>
 			</div>
+			{/if}
 		{/if}
 	</div>
 {/if}

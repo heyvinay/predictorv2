@@ -93,6 +93,82 @@ export interface OutcomePayout {
 /** [home 0..3+][away 0..3+] pick counts. */
 export type SpreadGrid = number[][];
 
+// ───────────────────────────────────────────────────────────────────────
+// Knockout Match Detail bundle — served by
+// GET /api/predictions/matches/{fixture_id}/ko-detail. Mirrors
+// backend/app/schemas/ko_match_detail.py one-to-one. Powers the
+// /results/[fixture_id] page when fixture.stage is a knockout round.
+// ───────────────────────────────────────────────────────────────────────
+
+export interface KoCohortBreakdown {
+	atlas: number;
+	jmfa: number;
+	guests: number;
+}
+
+export interface KoPoolSplitSide {
+	team: string;
+	count: number;
+	pct: number;
+	cohorts: KoCohortBreakdown;
+}
+
+export interface KoPoolSplit {
+	total: number;
+	home: KoPoolSplitSide;
+	away: KoPoolSplitSide;
+}
+
+export interface KoImplicationSide {
+	team: string;
+	r32_outcome: number;
+	alive_r16: number;
+	alive_qf: number;
+	alive_sf: number;
+	alive_final: number;
+	alive_winner: number;
+}
+
+export interface KoImplications {
+	home: KoImplicationSide;
+	away: KoImplicationSide;
+}
+
+export interface KoExposedEntry {
+	entry_id: string;
+	user_name: string;
+	entry_reference: string | null;
+	entry_name: string;
+	rank: number | null;
+	points_at_stake: number;
+	stages_at_stake: string[];
+}
+
+export interface KoMostExposed {
+	home: KoExposedEntry[];
+	away: KoExposedEntry[];
+}
+
+export interface KoPoolRollEntry {
+	entry_id: string;
+	user_name: string;
+	entry_reference: string | null;
+	entry_name: string;
+	pick: string;
+	rank: number | null;
+}
+
+export interface KoMatchDetailResponse {
+	fixture_id: string;
+	home_team: string;
+	away_team: string;
+	stage: string;
+	pool_split: KoPoolSplit;
+	implications: KoImplications;
+	most_exposed: KoMostExposed;
+	pool_roll: KoPoolRollEntry[];
+}
+
 /** Scoring rules served by GET /api/leaderboard/scoring-rules. The page
  *  loads this once and threads it everywhere a point value appears in
  *  copy (spec C.1 — no hardcoded numbers). */
