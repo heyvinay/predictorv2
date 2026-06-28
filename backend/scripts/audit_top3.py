@@ -140,24 +140,32 @@ async def _fetch_submission_email(
 ) -> dict | None:
     """Search Resend for the last submission confirmation sent for entry_ref.
 
-    Resend's list endpoint doesn't filter by recipient or subject server-side,
-    so we page through recent emails (up to 500) and match client-side on:
-      - subject contains entry_ref  (unique per entry)
-      - to contains to_email
+    Resend's GET /emails list endpoint has no server-side filtering by
+    recipient or subject — only cursor-based pagination (limit / after).
+    We walk the list newest-first, matching client-side on:
+      - to   contains to_email        (the recipient)
+      - subject contains entry_ref    (unique per entry, e.g. "WC26-000042")
+      - subject contains the fixed submission marker string
 
-    Returns the most recent matching email dict, or None if not found.
+    Stops as soon as the first match is found (list is newest-first, so the
+    first match is automatically the most recent submission email).
+    Caps at 500 emails to avoid runaway pagination.
     """
     headers = {"Authorization": f"Bearer {resend_api_key}"}
     PAGE = 100
-    matches: list[dict] = []
+    cursor: str | None = None  # Resend cursor = ID of last email on previous page
 
     async with httpx.AsyncClient(timeout=15) as client:
-        for offset in range(0, 500, PAGE):
+        for _ in range(500 // PAGE):
+            params: dict = {"limit": PAGE}
+            if cursor:
+                params["after"] = cursor
+
             try:
                 resp = await client.get(
                     f"{RESEND_API}/emails",
                     headers=headers,
-                    params={"limit": PAGE, "offset": offset},
+                    params=params,
                 )
             except httpx.RequestError as exc:
                 print(f"  ⚠  Resend network error: {exc}")
@@ -184,17 +192,17 @@ async def _fetch_submission_email(
                     and _SUBMISSION_SUBJECT_MARKER in subj
                     and to_email in recipients
                 ):
-                    matches.append(email)
+                    return email  # newest-first — first match is the last submission
 
             if len(batch) < PAGE:
-                break  # last page
+                break  # reached the end of Resend's history
 
-    if not matches:
-        return None
+            # Advance cursor to the last email ID on this page
+            cursor = batch[-1].get("id")
+            if not cursor:
+                break
 
-    # Most recently sent = last submit before deadline
-    matches.sort(key=lambda e: e.get("created_at", ""), reverse=True)
-    return matches[0]
+    return None
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
