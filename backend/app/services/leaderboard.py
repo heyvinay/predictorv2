@@ -156,11 +156,23 @@ def _response_from_cache(cached: CachedLeaderboard) -> LeaderboardResponse:
 
 
 def _get_phase_points(breakdown: PointBreakdown, phase: PhaseFilter) -> int:
-    """Get points for a specific phase from a breakdown."""
+    """Get points for a specific phase from a breakdown.
+
+    Bonus-question points are part of the standing per the YAML scoring
+    rules (2 group-stage questions + 2 knockout-stage questions). They
+    live at ``breakdown.bonus_question_points`` (top-level) rather than
+    nested inside the phase sub-objects, so ``breakdown.phase1.total``
+    alone excludes them. We add them back here so every phase-filtered
+    leaderboard read agrees with the unfiltered ``breakdown.total``
+    that the /leaderboard endpoint uses.
+
+    The structural follow-up — moving bonus into the phase sub-objects
+    so this asymmetry can't recur — is on the nice-to-haves backlog.
+    """
     if phase == "phase_1":
-        return breakdown.phase1.total
+        return breakdown.phase1.total + breakdown.bonus_question_points
     elif phase == "phase_2":
-        return breakdown.phase2.total
+        return breakdown.phase2.total + breakdown.bonus_question_points
     else:
         return breakdown.total
 
