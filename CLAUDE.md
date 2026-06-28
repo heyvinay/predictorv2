@@ -542,9 +542,10 @@ exactly one email):
   send time via `_compute_r2_highlights(session)` (top 5, R2 hero from
   snapshot diff, biggest climber from race_stories) — admins don't
   hand-fill placeholders.
-- `GROUP_STAGE_FINAL` (v2.181.0) — Group Stage champion announcement.
-  Same audience predicate as the recap segments. Body has tokens for
-  winner name + 4-part points breakdown + narrative story line, all
+- `GROUP_STAGE_FINAL` (v2.181.0, podium upgrade v2.183.x 2026-06-28) —
+  Group Stage champion announcement. Same audience predicate as the
+  recap segments. Body has tokens for winner name + 4-part points
+  breakdown + narrative story line + audit-credibility closer, all
   composed server-side in `services/group_stage_winner.py` so the
   email and the `GroupStageWinnerCard` on the dashboard render
   identical data. **Token compute is gated on
@@ -553,7 +554,45 @@ exactly one email):
   test sends surface literal `{{WINNER_NAME}}` placeholders as a
   defensive signal that the admin pressed test-send before release.
   Same spam-filter rules as R2 (no UTM, no `winner+announced`-style
-  word pairs).
+  word pairs). **Regression test in `test_admin_broadcasts.py`
+  (`test_group_stage_final_template_tokens_interpolate`)** pins that
+  every advertised token interpolates and no literal `{TOKEN}` /
+  `{{TOKEN}}` fragment leaks through — catches the f-string-double-
+  brace bug class (Python collapses `{{` to `{` in f-strings, breaking
+  the `_interpolate` regex if a token's segment is inside an f-string).
+
+### Group Stage Winner Card (★ invariants, v2.183.x)
+
+The dashboard's `GroupStageWinnerCard.svelte` and the
+`/api/leaderboard/group-stage-winner` endpoint (URL kept from v2.181.0;
+payload upgraded) surface a **top-3 podium**, not a single winner.
+
+- **★ Pinned to group-stage totals** — never the live leaderboard
+  total. `get_group_stage_podium()` computes per-entry group-stage
+  total as `phase1.match_outcome_points + phase1.exact_score_points
+  + phase1.hybrid_bonus_points + bonus_group_points` (group-stage
+  bonus only, NOT bonus_knockout_points). It sorts by that, takes
+  top 3, and ranks them within that ordering. Once knockouts pay
+  out, the live leaderboard reorders but the GSW card stays
+  pinned at the group-stage podium (James/Kevin/John, not the
+  shifting live top 3). This is THE rule that keeps "Group Stage
+  Champion" a frozen historical statement.
+- **Top-3 visual** — rows for #1/#2/#3, winner row amplified (gold
+  halo, gold rail, brighter rank + total, animated trophy on the
+  name). Each row clickable → opens that entry's drawer at
+  `/leaderboard?entry={id}` (same convention as standings rows).
+- **Audit footnote inline + Verified pill** — pill is the
+  at-a-glance signal; the inline footnote below the story panel
+  names the four sources (database modification log, deadline-night
+  predictions snapshot, submission emails on Resend, fresh scoring
+  engine re-run) and survives mobile screenshots (tooltip text
+  doesn't).
+- **Theme-aware colors** — every gold value routes through
+  `hsl(var(--p))` rather than hardcoded hex, so the card reads
+  correctly in BOTH premium-night (#D4AF37 champagne gold on dark
+  navy) and hybrid (#B8941F deeper gold on cream). Light-mode QA
+  is an explicit checklist item for any dashboard surface — see
+  the feedback memory `feedback_check_light_mode_before_shipping`.
 
 **Engagement-signal architecture for POOL_GHOST / LAPSING is HYBRID:**
 `User.last_seen_at` column (primary, throttled per-request in
