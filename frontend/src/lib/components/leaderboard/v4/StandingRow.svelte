@@ -110,8 +110,15 @@
 		role="cell"
 		class="text-right font-display text-[15px] font-extrabold {isOwn
 			? 'text-primary'
-			: 'text-base-content'}">{row.total_points}</span
+			: 'text-base-content'}"
+		title={koPts > 0
+			? `Total includes ${koPts - bonusK} knockout point${koPts - bonusK === 1 ? '' : 's'} from bracket picks${bonusK ? ` plus ${bonusK} knockout bonus` : ''}`
+			: 'Group-stage total only — knockout points will appear once scoring opens'}
 	>
+		{row.total_points}{#if koPts > 0}<span
+				class="ml-0.5 align-super text-[8.5px] text-primary">+K</span
+			>{/if}
+	</span>
 
 	<span
 		role="cell"

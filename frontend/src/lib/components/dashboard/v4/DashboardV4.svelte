@@ -219,12 +219,23 @@
 			{/if}
 		</div>
 
-		<!-- Group Stage Winner card (v2.181.0) — admin-gated via
+		<!-- Matchday scoreboard (v2.181.0): ESPN-style pill row, full
+		     container width. Promoted above the GSW card in v2.183.x —
+		     during knockouts, today's fixtures are the most time-
+		     sensitive content and should sit at the top of the page.
+		     Self-collapsing on empty days. -->
+		{#if buckets.matchday.length > 0}
+			<div class="mb-5">
+				<MatchdayStrip fixtures={buckets.matchday} />
+			</div>
+		{/if}
+
+		<!-- Group Stage Winner card (v2.181.0, upgraded to top-3 podium
+		     in v2.183.x) — admin-gated via
 		     competitions.group_stage_winner_released. Backend returns
 		     null until the flag flips; we hide the card unconditionally
 		     here. When the flag flips mid-session the 60s poll picks
-		     it up. The card is the ceremonial centrepiece — sits ABOVE
-		     the Daily MVP strip during its window. -->
+		     it up. -->
 		{#if groupStagePodium && groupStagePodium.entries.length > 0}
 			<div class="mb-5">
 				<GroupStageWinnerCard podium={groupStagePodium} />
@@ -232,21 +243,7 @@
 		{/if}
 
 		<!-- v2.181.0: DailyMvpStrip moved out of the top-of-page slot
-		     and into the side column below (above MiniLeaderboard).
-		     The ceremonial top slot is now reserved for ONE card at a
-		     time — currently the GroupStageWinnerCard during release
-		     window. -->
-
-		<!-- Matchday scoreboard (v2.181.0): ESPN-style pill row, full
-		     container width, sits above the AnnouncementHero / 2-col
-		     grid so the most time-sensitive content (live + today's
-		     fixtures) is the first thing seen on the page after the
-		     header. Self-collapsing on empty days. -->
-		{#if buckets.matchday.length > 0}
-			<div class="mb-5">
-				<MatchdayStrip fixtures={buckets.matchday} />
-			</div>
-		{/if}
+		     and into the side column below (above MiniLeaderboard). -->
 
 		<div class="grid grid-cols-1 items-start gap-5 min-[920px]:grid-cols-[1.55fr_1fr]">
 			<!-- Main column -->

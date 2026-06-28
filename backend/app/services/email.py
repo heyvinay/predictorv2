@@ -1424,11 +1424,7 @@ def _broadcast_content_for_segment(
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "{{WINNER_FIRST_NAME}} takes home <strong>&euro;183</strong> "
-                "from the pool, alongside the Atlas Insurance "
-                "<strong>&euro;500</strong> top-up that goes to the Soup "
-                "Kitchen &mdash; a total charitable contribution of "
-                "<strong>&euro;650</strong> from the pool this group "
-                "stage.</p>\n"
+                "from the pool.</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "<strong>What&rsquo;s next?</strong><br>"
@@ -1445,8 +1441,8 @@ def _broadcast_content_for_segment(
                 "wc26.heyvinay.com/leaderboard</a></p>\n"
                 f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
                 f'color:{_MUTED_INK};">'
-                "Thanks for being part of the pool. The bracket starts "
-                "the next chapter.</p>\n"
+                "Final standings independently audited against four "
+                "immutable sources. Thanks for being part of the pool.</p>\n"
             ),
             body_text=(
                 f"Hi {safe_name}, the group stage of the Atlas World "
@@ -1470,12 +1466,7 @@ def _broadcast_content_for_segment(
                 "How they got there\n"
                 "{{STORY_LINE}}\n"
                 "\n"
-                "{{WINNER_FIRST_NAME}} takes home €183 from the pool, "
-                "alongside the Atlas\n"
-                "Insurance €500 top-up that goes to the Soup Kitchen — "
-                "a total\n"
-                "charitable contribution of €650 from the pool this "
-                "group stage.\n"
+                "{{WINNER_FIRST_NAME}} takes home €183 from the pool.\n"
                 "\n"
                 "What's next?\n"
                 "The knockout stage begins shortly. Brackets compete "
@@ -1489,8 +1480,8 @@ def _broadcast_content_for_segment(
                 "Follow your standings\n"
                 "https://wc26.heyvinay.com/leaderboard\n"
                 "\n"
-                "Thanks for being part of the pool. The bracket starts "
-                "the next chapter.\n"
+                "Final standings independently audited against four "
+                "immutable sources. Thanks for being part of the pool.\n"
             ),
             cta_label="Open my standings",
         )

@@ -159,6 +159,22 @@
 			</p>
 		</section>
 	{/if}
+
+	<!-- Inline audit credibility footnote — same content as the
+	     Verified pill's tooltip but visible on every device (the pill
+	     tooltip only fires on hover, so mobile/touch users wouldn't
+	     see it otherwise). The pill stays as the at-a-glance signal;
+	     this paragraph serves the stop-and-read path. -->
+	<p
+		class="mt-3 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-base-content/55"
+	>
+		<span aria-hidden="true" class="mt-[1px] text-success">✓</span>
+		<span>
+			Independently audited against four immutable sources &mdash; the
+			database modification log, the deadline-night predictions snapshot,
+			submission emails on Resend, and a fresh re-run of the scoring engine.
+		</span>
+	</p>
 </article>
 
 <style>

@@ -386,11 +386,8 @@
 							Knockout points pending release
 						</div>
 						<p class="text-base-content/80">
-							Bracket points for the knockout rounds haven't been allocated
-							yet. They'll be released after every group-stage match finishes
-							and the group-stage champion has been verified and announced.
-							Until then your pool standings reflect group-stage match points
-							only.
+							Knockout scoring opens shortly. Until then your pool standings
+							reflect group-stage points only.
 						</p>
 					</div>
 				{/if}
