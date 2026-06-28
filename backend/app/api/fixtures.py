@@ -23,6 +23,11 @@ from app.schemas.fixture import (
 )
 from app.services.audit import record_audit_event
 from app.services.locking import get_active_competition
+from app.services.r32_resolver import (
+    R32Resolver,
+    build_r32_resolver,
+    resolve_r32_pair,
+)
 from app.services.standings import (
     get_actual_group_standings,
     get_group_positions,
@@ -34,8 +39,18 @@ router = APIRouter()
 LOCK_MINUTES = 5
 
 
-def fixture_to_read(fixture: Fixture) -> FixtureRead:
-    """Convert Fixture model to FixtureRead schema."""
+def fixture_to_read(
+    fixture: Fixture,
+    resolver: R32Resolver | None = None,
+) -> FixtureRead:
+    """Convert Fixture model to FixtureRead schema.
+
+    When `resolver` is supplied, R32 `slot:...` placeholders get
+    replaced by real team names for fixtures whose source groups are
+    fully settled (v2.182.1). The DB rows themselves are never
+    written — Football-Data's eventual official lineup still wins when
+    it lands via score_sync.
+    """
     time_until = fixture.time_until_lock(LOCK_MINUTES)
 
     # Emit score whenever a row exists — covers LIVE / HALFTIME / FINISHED.
@@ -54,10 +69,15 @@ def fixture_to_read(fixture: Fixture) -> FixtureRead:
             verified=fixture.score.verified,
         )
 
+    home_team = fixture.home_team
+    away_team = fixture.away_team
+    if resolver is not None and fixture.stage == "round_of_32":
+        home_team, away_team = resolve_r32_pair(resolver, home_team, away_team)
+
     return FixtureRead(
         id=fixture.id,
-        home_team=fixture.home_team,
-        away_team=fixture.away_team,
+        home_team=home_team,
+        away_team=away_team,
         kickoff=fixture.kickoff,
         stage=fixture.stage,
         group=fixture.group,
@@ -75,7 +95,8 @@ async def get_all_fixtures(session: DbSession, _user: OptionalUser) -> list[Fixt
     """Get all fixtures ordered by kickoff time."""
     result = await session.execute(select(Fixture).options(selectinload(Fixture.score)).order_by(Fixture.kickoff, Fixture.match_number))
     fixtures = result.scalars().all()
-    return [fixture_to_read(f) for f in fixtures]
+    resolver = await build_r32_resolver(session)
+    return [fixture_to_read(f, resolver) for f in fixtures]
 
 
 @router.get("/groups", response_model=list[FixturesByGroup])
@@ -89,7 +110,8 @@ async def get_group_fixtures(session: DbSession, _user: OptionalUser) -> list[Fi
     )
     fixtures = result.scalars().all()
 
-    # Organize by group
+    # Group-stage endpoint never returns knockout fixtures, so no resolver
+    # build required — saves one DB round-trip on the hottest path.
     groups: dict[str, list[FixtureRead]] = {}
     for fixture in fixtures:
         group = fixture.group or "Unknown"
@@ -110,7 +132,8 @@ async def get_knockout_fixtures(session: DbSession, _user: OptionalUser) -> list
         .order_by(Fixture.kickoff, Fixture.match_number)
     )
     fixtures = result.scalars().all()
-    return [fixture_to_read(f) for f in fixtures]
+    resolver = await build_r32_resolver(session)
+    return [fixture_to_read(f, resolver) for f in fixtures]
 
 
 class TeamStandingResponse(BaseModel):
@@ -162,7 +185,8 @@ async def get_actual_knockout_fixtures(
     )
     fixtures = result.scalars().all()
 
-    return [fixture_to_read(f) for f in fixtures]
+    resolver = await build_r32_resolver(session)
+    return [fixture_to_read(f, resolver) for f in fixtures]
 
 
 @router.get("/standings/actual", response_model=ActualStandingsResponse)
@@ -209,7 +233,10 @@ async def get_fixture(fixture_id: uuid.UUID, session: DbSession, _user: Optional
     if not fixture:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixture not found")
 
-    return fixture_to_read(fixture)
+    # Build resolver only when the requested fixture is in R32 — saves a
+    # standings query on every group-fixture detail open.
+    resolver = await build_r32_resolver(session) if fixture.stage == "round_of_32" else None
+    return fixture_to_read(fixture, resolver)
 
 
 @router.get("/{fixture_id}/lock-status", response_model=LockStatus)
