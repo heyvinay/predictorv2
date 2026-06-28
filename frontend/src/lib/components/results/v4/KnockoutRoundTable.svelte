@@ -12,11 +12,22 @@
 	export let roundPicks: Set<string>;
 	export let stagePoints: number;
 	export let rules: ScoringRules;
+	/** When false, per-row points and Round Total are hidden — the pool
+	 *  is still in "knockout scoring pending release" mode (v2.183.3).
+	 *  Defaults to true so callers that don't know about the gate stay
+	 *  backward-compatible. */
+	export let pointsVisible = true;
 
-	$: subtotal = fixtures.reduce(
-		(s, f) => s + fixtureKoHits(f, roundPicks).hits * stagePoints,
-		0
-	);
+	// fixtureKoHits() returns 0 for both third_place fixtures and any
+	// fixture with a slot placeholder on either side (v2.183.3 fix to
+	// the doubled-subtotal bug). When pointsVisible is false the
+	// admin-controlled knockout-scoring gate is OFF — show nothing.
+	$: subtotal = pointsVisible
+		? fixtures.reduce(
+				(s, f) => s + fixtureKoHits(f, roundPicks).hits * stagePoints,
+				0
+			)
+		: 0;
 </script>
 
 <div class="mt-4 overflow-hidden rounded-box border border-base-300/60 bg-base-200">
@@ -34,8 +45,10 @@
 		<div
 			class="flex items-center justify-end gap-1 text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
 		>
-			<span>Points</span>
-			<PointsHelpButton roundId={round.id} {rules} />
+			{#if pointsVisible}
+				<span>Points</span>
+				<PointsHelpButton roundId={round.id} {rules} />
+			{/if}
 		</div>
 	</div>
 	<div
@@ -50,14 +63,24 @@
 		</div>
 	{:else}
 		{#each fixtures as f, i (f.id)}
-			<FixtureRowKo fixture={f} {roundPicks} {stagePoints} striped={i % 2 === 1} />
+			<FixtureRowKo
+				fixture={f}
+				{roundPicks}
+				{stagePoints}
+				striped={i % 2 === 1}
+				{pointsVisible}
+			/>
 		{/each}
 	{/if}
 
-	<div class="flex items-center justify-end gap-2 border-t border-base-300/50 px-3 py-1.5">
-		<span class="text-[11.5px] font-bold tracking-[0.06em] text-primary">Round Total</span>
-		<span class="font-display text-[16px] {subtotal > 0 ? 'text-primary' : 'text-base-content/70'}"
-			>{subtotal}</span
-		>
-	</div>
+	{#if pointsVisible}
+		<div class="flex items-center justify-end gap-2 border-t border-base-300/50 px-3 py-1.5">
+			<span class="text-[11.5px] font-bold tracking-[0.06em] text-primary">Round Total</span>
+			<span
+				class="font-display text-[16px] {subtotal > 0
+					? 'text-primary'
+					: 'text-base-content/70'}">{subtotal}</span
+			>
+		</div>
+	{/if}
 </div>

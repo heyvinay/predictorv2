@@ -85,6 +85,35 @@ describe('fixtureKoHits', () => {
 			hits: 0
 		});
 	});
+
+	// Pinned regression for v2.183.3: a half-resolved fixture (one side
+	// is a real team in the user's bracket, the other is a slot:...
+	// placeholder) MUST return hits=0. Earlier code returned hits=1,
+	// silently doubling round subtotals because the row display showed
+	// the fixture as TBD while the reducer counted Germany's hit.
+	it('counts 0 when EITHER side is a slot placeholder', () => {
+		expect(
+			fixtureKoHits(
+				fx({ home_team: 'Mexico', away_team: 'slot:round_of_32:537416:away' }),
+				picks
+			)
+		).toEqual({ home: false, away: false, hits: 0 });
+		expect(
+			fixtureKoHits(
+				fx({ home_team: 'slot:round_of_32:537416:home', away_team: 'Senegal' }),
+				picks
+			)
+		).toEqual({ home: false, away: false, hits: 0 });
+		expect(
+			fixtureKoHits(
+				fx({
+					home_team: 'slot:round_of_32:537416:home',
+					away_team: 'slot:round_of_32:537416:away'
+				}),
+				picks
+			)
+		).toEqual({ home: false, away: false, hits: 0 });
+	});
 });
 
 describe('progressingSplit', () => {

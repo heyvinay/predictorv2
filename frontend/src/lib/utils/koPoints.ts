@@ -44,12 +44,31 @@ export function stagePointsForRound(
 	return stage ? advancement[stage] ?? 0 : 0;
 }
 
-/** Per-fixture bracket hits. third_place earns nothing by design. */
+/** Per-fixture bracket hits.
+ *
+ *  Returns hits=0 when:
+ *   - The fixture is the bronze-medal playoff (third_place earns no
+ *     advancement points by design — see CLAUDE.md invariant).
+ *   - EITHER side is still a slot placeholder (string contains a digit,
+ *     e.g. "slot:round_of_32:537416:home"). A half-resolved fixture
+ *     like "Germany vs slot:..." would otherwise count Germany's hit
+ *     into the round subtotal while the row itself displays as TBD —
+ *     the production doubling bug from v2.183.2.
+ *
+ *  When a slot placeholder is present, both `home` and `away` are
+ *  returned as `false` so callers that show pick chips per side don't
+ *  light up the resolved side either (consistent with the
+ *  "round-not-yet-resolvable" visual state).
+ */
 export function fixtureKoHits(
 	fixture: Fixture,
 	roundPicks: Set<string>
 ): { home: boolean; away: boolean; hits: number } {
 	if (fixture.stage === 'third_place') {
+		return { home: false, away: false, hits: 0 };
+	}
+	const seeded = !/\d/.test(fixture.home_team) && !/\d/.test(fixture.away_team);
+	if (!seeded) {
 		return { home: false, away: false, hits: 0 };
 	}
 	const home = roundPicks.has(fixture.home_team);

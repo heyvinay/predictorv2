@@ -251,7 +251,14 @@
 	// stays at 0. Plumbed as optional props so the cell appears the moment
 	// the split lands.
 	$: groupTotalPts = typedPredictions.reduce((s, p) => s + (p.points?.total ?? 0), 0);
-	$: knockoutTotalPts = computeKoTotal(rules, rounds, $fixtureById, $bracketPrediction, winnerHit);
+	// Knockout totals are zeroed in the UI while the admin gate is OFF —
+	// matches the backend's `Competition.knockout_scoring_enabled` gate
+	// (v2.183.3), so the round-table subtotals, the summary pill's
+	// Knockout column, and the grand total all agree with the deferred
+	// "pending release" message shown above the round content.
+	$: knockoutTotalPts = $knockoutScoringEnabled
+		? computeKoTotal(rules, rounds, $fixtureById, $bracketPrediction, winnerHit)
+		: 0;
 
 	function computeKoTotal(
 		rulesRef: ScoringRules | null,
@@ -400,6 +407,7 @@
 					{roundPicks}
 					stagePoints={stagePts}
 					{rules}
+					pointsVisible={$knockoutScoringEnabled}
 				/>
 				{#if progressing && nextId && progressing.inNext.length + progressing.notInNext.length > 0}
 					<ProgressingCard

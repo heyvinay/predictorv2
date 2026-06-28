@@ -11,6 +11,9 @@
 	export let roundPicks: Set<string>;
 	export let stagePoints: number;
 	export let striped = false;
+	/** When false the Points cell renders the dash regardless of hits —
+	 *  used while knockout scoring is held back (v2.183.3). */
+	export let pointsVisible = true;
 
 	$: isLive = fixture.status === 'live' || fixture.status === 'halftime';
 	$: score = fixture.score;
@@ -96,7 +99,11 @@
 			{/if}
 		</div>
 		<div class="text-right">
-			<PointsCellKo {stagePoints} {hits} applicable={seeded && !isThirdPlace} />
+			<PointsCellKo
+				{stagePoints}
+				{hits}
+				applicable={pointsVisible && seeded && !isThirdPlace}
+			/>
 		</div>
 	</div>
 
@@ -151,7 +158,11 @@
 					<BracketChip team={fixture.away_team} picked={awayPicked} />
 				{/if}
 			</span>
-			<PointsCellKo {stagePoints} {hits} applicable={seeded && !isThirdPlace} />
+			<PointsCellKo
+				{stagePoints}
+				{hits}
+				applicable={pointsVisible && seeded && !isThirdPlace}
+			/>
 		</div>
 	</div>
 </a>
