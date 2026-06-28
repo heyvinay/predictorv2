@@ -2326,6 +2326,13 @@
       "type": "improvement",
       "summary": "Group Standings page (/standings) — live group tables for all twelve groups (A–L) plus the best-eight third-placed qualifying table, derived server-side from finished match results with the full FIFA Article 13 tiebreaker chain applied. Pre-release shows a 'Standings open at kickoff' stub; admins always see the page. Refreshes every minute while the tab is visible. Also adds a new admin toggle, 'Knockout scoring', that gates every advancement payout in the scoring engine — group_advance / group_position bracket credits AND every reached-stage credit from Round of 32 through winner. Defaults OFF so the pool's standings stay on group-stage match points only until admin verifies the group standings and bracket seeding, then flips the switch. The leaderboard hard-rebuilds on the flip so every entry's score recomputes immediately.",
       "commit": "pending"
+    },
+    {
+      "version": "2.181.2",
+      "date": "2026-06-28",
+      "type": "improvement",
+      "summary": "Group Standings now also surfaces as a tab on the Results page, sitting between Round 3 and Round of 32. Same live group tables and best-third-placed view as the standalone /standings page — they share one underlying view component, so they always render identically. The tab is labelled 'Live tables' instead of a date range because the standings update reactively as group matches finish, not on a fixed window. Tab data loads lazily the first time it's selected and refreshes every minute thereafter via the same poll cadence as the rest of the page.",
+      "commit": "pending"
     }
   ]
 }
