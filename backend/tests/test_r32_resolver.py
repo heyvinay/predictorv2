@@ -56,9 +56,12 @@ def test_parse_r32_slot_returns_none_for_garbage():
 
 
 def test_ext_to_match_number_covers_all_16():
+    # Cross-referenced against Wikipedia kickoff schedule. See
+    # tests/test_r32_ext_id_mapping.py for the full pinned set.
     assert len(EXT_ID_TO_MATCH_NUMBER) == 16
-    assert EXT_ID_TO_MATCH_NUMBER["537415"] == 73
-    assert EXT_ID_TO_MATCH_NUMBER["537430"] == 88
+    assert EXT_ID_TO_MATCH_NUMBER["537417"] == 73  # SA vs Canada (first R32)
+    assert EXT_ID_TO_MATCH_NUMBER["537430"] == 87  # 1K vs Ghana (last R32)
+    assert EXT_ID_TO_MATCH_NUMBER["537423"] == 76  # Brazil vs Japan
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -152,14 +155,15 @@ async def test_resolver_resolves_group_position_for_settled_group(
         ("Mexico", "Czechia", 1, 0),
         ("S. Korea", "S. Africa", 0, 1),
     ])
-    # Match 79 is `1A vs 3rd[C,E,F,H,I]` → ext_id 537421.
-    fx = await _make_r32_placeholder(session, competition.id, "537421")
+    # Match 79 is `1A vs 3rd[C,E,F,H,I]` → ext_id 537425 (per pinned
+    # kickoff cross-reference; the earlier 537421 assumption was wrong).
+    fx = await _make_r32_placeholder(session, competition.id, "537425")
 
     resolver = await build_r32_resolver(session)
     home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
     assert home == "Mexico"  # 1A
-    # Away is third-place — resolver returns None (the placeholder stays
-    # untouched) until FIFA's Annex C assignment is wired in (v2.183.0).
+    # Away is third-place — until all 12 groups settle, no Annex C
+    # lookup; placeholder stays.
     assert away == fx.away_team
 
 
@@ -182,8 +186,8 @@ async def test_third_place_resolves_via_annex_c_when_all_groups_settled(
             (f"{grp_letter}2", f"{grp_letter}3", 0, 1),
         ])
 
-    # M74 (ext 537416) has third_place away source.
-    fx = await _make_r32_placeholder(session, competition.id, "537416")
+    # M74 (1E vs third_place) is ext 537415 per pinned cross-reference.
+    fx = await _make_r32_placeholder(session, competition.id, "537415")
     resolver = await build_r32_resolver(session)
     home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
     assert home == "E1"  # 1E from settled Group E
@@ -228,7 +232,8 @@ async def test_third_place_unresolved_when_some_groups_pending(
     session.add(pending)
     await session.commit()
 
-    fx = await _make_r32_placeholder(session, competition.id, "537416")
+    # M74 (1E vs third_place) is ext 537415 per pinned cross-reference.
+    fx = await _make_r32_placeholder(session, competition.id, "537415")
     resolver = await build_r32_resolver(session)
     home, away = resolve_r32_pair(resolver, fx.home_team, fx.away_team)
     assert home == "E1"  # 1E side resolves — Group E settled

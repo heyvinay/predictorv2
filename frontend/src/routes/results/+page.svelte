@@ -26,7 +26,7 @@
 		setActiveEntry,
 		submittedEntries
 	} from '$stores/entries';
-	import { postDeadlineLive } from '$stores/phase';
+	import { postDeadlineLive, knockoutScoringEnabled } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboard, getScoringRules } from '$api/leaderboard';
 	import { getActualStandings } from '$api/fixtures';
@@ -366,6 +366,27 @@
 					lastUpdatedAt={standingsLastUpdated}
 				/>
 			{:else if activeRound?.isKnockout}
+				{#if !$knockoutScoringEnabled}
+					<!-- v2.183.1: knockout-scoring gate user-facing note.
+					     Shown until the admin flips Competition.knockout_scoring_enabled
+					     on /admin (typically after the group-stage winner is
+					     verified and announced). -->
+					<div
+						class="mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-text"
+						role="status"
+					>
+						<div class="font-bold uppercase tracking-wider text-[11px] mb-1">
+							Knockout points pending release
+						</div>
+						<p class="text-base-content/80">
+							Bracket points for the knockout rounds haven't been allocated
+							yet. They'll be released after every group-stage match finishes
+							and the group-stage champion has been verified and announced.
+							Until then your pool standings reflect group-stage match points
+							only.
+						</p>
+					</div>
+				{/if}
 				{#if missedTeams.length > 0}
 					<MissedPicksCard
 						roundLabel={activeRound.label}

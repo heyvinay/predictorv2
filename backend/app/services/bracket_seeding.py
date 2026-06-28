@@ -52,10 +52,39 @@ R32_SOURCES: dict[int, tuple[dict, dict]] = {
     88: ({"type": "group", "position": "2D"}, {"type": "group", "position": "2G"}),
 }
 
-# Map Football-Data R32 external_id → FIFA match number.
-# external_ids 537415..537430 run sequentially with match numbers 73..88.
+# Map Football-Data R32 external_id → FIFA match number (v2.183.1).
+#
+# Cross-referenced against the official 2026 FWC Round of 32 schedule on
+# Wikipedia (https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_round_of_32)
+# by matching each fixture's UTC kickoff to FIFA's published match number.
+#
+# An earlier release (2.181.1) ASSUMED that Football-Data's ext_ids count
+# up in FIFA's match-number order (537415 = M73, 537416 = M74, ...). That
+# assumption was wrong — Football-Data's IDs follow a different ordering
+# (likely an internal one keyed on creation order at fixture-publish time).
+# Every R32 fixture displayed under the wrong kickoff for the duration
+# 2.181.1 → 2.183.0 was live, until this fix.
+#
+# Pinned by tests/test_r32_ext_id_mapping.py — if Football-Data ever
+# changes their ext_ids OR if FIFA reschedules a match between IDs, the
+# test catches it.
 EXT_ID_TO_MATCH_NUMBER: dict[str, int] = {
-    str(537415 + i): 73 + i for i in range(16)
+    "537417": 73,  # Sun 28 Jun 19:00 UTC — South Africa vs Canada
+    "537423": 76,  # Mon 29 Jun 17:00 UTC — Brazil vs Japan
+    "537415": 74,  # Mon 29 Jun 20:30 UTC — Germany vs Paraguay
+    "537418": 75,  # Tue 30 Jun 01:00 UTC — Netherlands vs Morocco
+    "537424": 78,  # Tue 30 Jun 17:00 UTC — Ivory Coast vs Norway
+    "537416": 77,  # Tue 30 Jun 21:00 UTC — France vs Sweden
+    "537425": 79,  # Wed 01 Jul 01:00 UTC — Mexico vs Ecuador
+    "537426": 80,  # Wed 01 Jul 16:00 UTC — England vs 3rd[I/K]
+    "537422": 82,  # Wed 01 Jul 20:00 UTC — Belgium vs 3rd[A/I/J]
+    "537421": 81,  # Thu 02 Jul 00:00 UTC — USA vs Bosnia
+    "537420": 84,  # Thu 02 Jul 19:00 UTC — Spain vs 2J
+    "537419": 83,  # Thu 02 Jul 23:00 UTC — 2K vs Croatia
+    "537429": 85,  # Fri 03 Jul 03:00 UTC — Switzerland vs 3rd[G/J]
+    "537428": 88,  # Fri 03 Jul 18:00 UTC — Australia vs Egypt
+    "537427": 86,  # Fri 03 Jul 22:00 UTC — Argentina vs Cape Verde
+    "537430": 87,  # Sat 04 Jul 01:30 UTC — 1K vs Ghana
 }
 
 
