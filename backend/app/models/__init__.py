@@ -17,6 +17,11 @@ from app.models.leaderboard_snapshot import LeaderboardSnapshot
 from app.models.magic_link_token import MagicLinkToken
 from app.models.prediction import MatchPrediction, PredictionPhase, TeamPrediction
 from app.models.score import Score
+from app.models.standings_drift import (
+    DriftEventStatus,
+    StandingsDriftEvent,
+    TrustedSource,
+)
 from app.models.user import AuthProvider, User
 
 __all__ = [
@@ -41,4 +46,7 @@ __all__ = [
     "TeamPrediction",
     "PredictionPhase",
     "Score",
+    "DriftEventStatus",
+    "StandingsDriftEvent",
+    "TrustedSource",
 ]

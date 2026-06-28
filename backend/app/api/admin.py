@@ -47,6 +47,13 @@ from app.services import entries as entries_service
 from app.services import posthog_read
 from app.services import pulse as pulse_service
 from app.services.audit import query_audit_events, record_audit_event
+from app.services.locking import get_active_competition
+from app.services.standings_verify import run_verification
+from app.models.standings_drift import (
+    DriftEventStatus,
+    StandingsDriftEvent,
+    TrustedSource,
+)
 from app.services.bonus import (
     compute_bonus_answers_for_competition,
     get_questions as get_bonus_questions,
@@ -774,6 +781,168 @@ async def set_knockout_scoring_enabled(
         invalidate_cache()
 
     return {"status": "ok", "knockout_scoring_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
+# Standings drift verification (v2.182.0)
+# ---------------------------------------------------------------------------
+class DriftCheckResult(BaseModel):
+    """Outcome of a manually-triggered standings verification."""
+
+    source_used: str | None
+    disagreement_count: int
+    created_event_id: uuid.UUID | None
+
+
+class DriftEventOut(BaseModel):
+    """One drift event surfaced to the admin UI."""
+
+    id: uuid.UUID
+    competition_id: uuid.UUID
+    detected_at: datetime
+    trusted_source: str
+    status: str
+    disagreement_count: int
+    groups_disagreeing: dict
+    resolved_at: datetime | None
+    resolution_note: str | None
+
+
+class DriftDismissRequest(BaseModel):
+    """Admin closes a drift event with a status + optional note."""
+
+    status: Literal[
+        "DISMISSED_OURS_CORRECT",
+        "DISMISSED_TRANSIENT",
+        "RESOLVED_VIA_SCORE_EDIT",
+    ]
+    note: str | None = None
+
+
+@router.post("/standings-drift/check", response_model=DriftCheckResult)
+async def trigger_standings_drift_check(
+    session: DbSession,
+    admin: AdminUser,
+) -> DriftCheckResult:
+    """Manually trigger a standings verification (v2.182.0).
+
+    Runs the full source chain (Football-Data primary; ESPN + Wikipedia
+    join in 2.182.1). If disagreements are found, opens a new
+    `StandingsDriftEvent` row and returns its id. If trusted sources are
+    all unavailable, returns source_used=None and disagreement_count=0.
+    """
+    source, disagreements = await run_verification(session)
+    if source is None:
+        return DriftCheckResult(
+            source_used=None, disagreement_count=0, created_event_id=None
+        )
+
+    if not disagreements:
+        return DriftCheckResult(
+            source_used=source.value, disagreement_count=0, created_event_id=None
+        )
+
+    # Open a new drift event for admin review.
+    competition = await get_active_competition(session)
+    event = StandingsDriftEvent(
+        competition_id=competition.id,
+        trusted_source=source,
+        groups_disagreeing={"groups": disagreements},
+        status=DriftEventStatus.OPEN,
+    )
+    session.add(event)
+    record_audit_event(
+        session,
+        event_type="standings_drift.detected",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="competition",
+        subject_id=competition.id,
+        metadata={
+            "source": source.value,
+            "disagreement_count": len(disagreements),
+            "groups": sorted(disagreements.keys()),
+        },
+    )
+    await session.commit()
+    await session.refresh(event)
+
+    return DriftCheckResult(
+        source_used=source.value,
+        disagreement_count=len(disagreements),
+        created_event_id=event.id,
+    )
+
+
+@router.get("/standings-drift/open", response_model=list[DriftEventOut])
+async def list_open_drift_events(
+    session: DbSession,
+    _admin: AdminUser,
+) -> list[DriftEventOut]:
+    """List currently-open drift events for the active competition."""
+    result = await session.execute(
+        select(StandingsDriftEvent)
+        .where(StandingsDriftEvent.status == DriftEventStatus.OPEN)
+        .order_by(StandingsDriftEvent.detected_at.desc())
+    )
+    rows = result.scalars().all()
+    return [
+        DriftEventOut(
+            id=r.id,
+            competition_id=r.competition_id,
+            detected_at=r.detected_at,
+            trusted_source=r.trusted_source.value,
+            status=r.status.value,
+            disagreement_count=len(
+                (r.groups_disagreeing or {}).get("groups", {})
+            ),
+            groups_disagreeing=r.groups_disagreeing or {},
+            resolved_at=r.resolved_at,
+            resolution_note=r.resolution_note,
+        )
+        for r in rows
+    ]
+
+
+@router.post("/standings-drift/{event_id}/dismiss")
+async def dismiss_drift_event(
+    event_id: uuid.UUID,
+    request: DriftDismissRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Close a drift event with a status + optional note."""
+    result = await session.execute(
+        select(StandingsDriftEvent).where(StandingsDriftEvent.id == event_id)
+    )
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Drift event not found"
+        )
+    if event.status != DriftEventStatus.OPEN:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Event already in status {event.status.value}",
+        )
+
+    event.status = DriftEventStatus(request.status)
+    event.resolved_at = utc_now()
+    event.resolved_by_user_id = admin.id
+    event.resolution_note = request.note
+    event.updated_at = utc_now()
+
+    record_audit_event(
+        session,
+        event_type="standings_drift.dismissed",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="standings_drift_event",
+        subject_id=event.id,
+        metadata={"resolution": request.status, "note": request.note},
+    )
+    await session.commit()
+    return {"status": "ok", "event_id": str(event.id), "resolution": request.status}
 
 
 # ---------------------------------------------------------------------------

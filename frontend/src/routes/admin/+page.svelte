@@ -43,6 +43,11 @@
 		setGroupStageWinnerReleased,
 		setKnockoutScoringEnabled,
 		setPostDeadlineLive,
+		triggerStandingsDriftCheck,
+		listOpenDriftEvents,
+		dismissDriftEvent,
+		type DriftEvent,
+		type DriftCheckResult,
 		getPoolClosePreview,
 		runPoolClose,
 		type PoolClosePreview,
@@ -133,6 +138,60 @@
 		} finally {
 			togglingKnockout = false;
 		}
+	}
+
+	// ─── Standings drift verifier (v2.182.0) ─────────────────────────────
+	let driftChecking = false;
+	let driftError: string | null = null;
+	let driftLastCheck: DriftCheckResult | null = null;
+	let driftEvents: DriftEvent[] = [];
+	let driftEventsLoading = false;
+
+	async function refreshDriftEvents() {
+		driftEventsLoading = true;
+		try {
+			driftEvents = await listOpenDriftEvents();
+		} catch (e) {
+			driftError = e instanceof Error ? e.message : 'Failed to load drift events';
+		} finally {
+			driftEventsLoading = false;
+		}
+	}
+
+	async function handleDriftCheck() {
+		driftChecking = true;
+		driftError = null;
+		try {
+			driftLastCheck = await triggerStandingsDriftCheck();
+			await refreshDriftEvents();
+		} catch (e) {
+			driftError = e instanceof Error ? e.message : 'Verification failed';
+		} finally {
+			driftChecking = false;
+		}
+	}
+
+	async function handleDismissDrift(
+		ev: DriftEvent,
+		resolution: 'DISMISSED_OURS_CORRECT' | 'DISMISSED_TRANSIENT'
+	) {
+		const note =
+			resolution === 'DISMISSED_OURS_CORRECT'
+				? prompt('Note: why is our compute correct?', '') ?? ''
+				: '';
+		try {
+			await dismissDriftEvent(ev.id, resolution, note || undefined);
+			await refreshDriftEvents();
+		} catch (e) {
+			driftError = e instanceof Error ? e.message : 'Dismiss failed';
+		}
+	}
+
+	// Load open events on first mount.
+	let driftLoaded = false;
+	$: if (!driftLoaded && !driftEventsLoading) {
+		driftLoaded = true;
+		void refreshDriftEvents();
 	}
 
 	// ─── Close the pool (v2.166.0) ─────────────────────────────────────────
@@ -770,6 +829,107 @@
 					</button>
 				</div>
 				{#if knockoutError}<div class="alert alert-error text-sm mt-3">{knockoutError}</div>{/if}
+			</section>
+
+			<!-- Standings drift verifier (v2.182.0) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {driftEvents.length > 0
+					? 'border-warning/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Standings drift verifier
+					<span class="text-xs text-base-content/40">
+						· cross-check our compute against Football-Data
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					Press <b>Verify standings now</b> to compare our computed group standings
+					against Football-Data's <code class="text-[11px]">/standings</code> endpoint.
+					Only groups whose six fixtures are all FINISHED are compared (live matches
+					would produce false positives — Football-Data includes in-play scores, we
+					don't). Any disagreement opens a drift event you can review and dismiss.
+				</p>
+
+				<div class="flex flex-wrap items-center gap-3 mb-3">
+					<button
+						class="btn btn-sm btn-primary"
+						type="button"
+						on:click={handleDriftCheck}
+						disabled={driftChecking}
+					>
+						{driftChecking ? 'Checking…' : '🔍 Verify standings now'}
+					</button>
+					{#if driftLastCheck}
+						<span class="text-xs text-base-content/55">
+							{#if driftLastCheck.source_used === null}
+								No eligible groups to verify yet (group stage still in progress).
+							{:else if driftLastCheck.disagreement_count === 0}
+								<span class="text-success font-medium">
+									✓ Standings match {driftLastCheck.source_used}.
+								</span>
+							{:else}
+								<span class="text-warning-text font-medium">
+									{driftLastCheck.disagreement_count} groups disagree with
+									{driftLastCheck.source_used}.
+								</span>
+							{/if}
+						</span>
+					{/if}
+				</div>
+
+				{#if driftError}
+					<div class="alert alert-error text-sm mt-2">{driftError}</div>
+				{/if}
+
+				{#if driftEvents.length > 0}
+					<div class="mt-2 space-y-2">
+						<p class="text-xs uppercase tracking-wider text-warning-text font-bold">
+							{driftEvents.length} open drift event{driftEvents.length === 1
+								? ''
+								: 's'}
+						</p>
+						{#each driftEvents as ev (ev.id)}
+							{@const groupKeys = Object.keys(ev.groups_disagreeing?.groups ?? {})}
+							<div
+								class="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm"
+							>
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div>
+										<div class="font-medium">
+											{groupKeys.length} group{groupKeys.length === 1 ? '' : 's'} disagree
+											<span class="text-base-content/55">
+												·
+												{ev.trusted_source}
+											</span>
+										</div>
+										<div class="text-xs text-base-content/55">
+											{new Date(ev.detected_at).toLocaleString('en-GB')}
+											· Groups: {groupKeys.join(', ')}
+										</div>
+									</div>
+									<div class="flex gap-2">
+										<button
+											class="btn btn-xs btn-ghost"
+											type="button"
+											on:click={() => handleDismissDrift(ev, 'DISMISSED_TRANSIENT')}
+										>
+											Dismiss (transient)
+										</button>
+										<button
+											class="btn btn-xs"
+											type="button"
+											on:click={() =>
+												handleDismissDrift(ev, 'DISMISSED_OURS_CORRECT')}
+										>
+											Ours is correct
+										</button>
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</section>
 
 			<!-- Close the pool (v2.166.0) -->

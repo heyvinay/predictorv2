@@ -97,6 +97,24 @@ class FootballDataClient:
                 return None
             raise
 
+    async def get_standings(self, code: str) -> list[dict[str, Any]]:
+        """GET /v4/competitions/{code}/standings — group standings (v2.182.0).
+
+        Returns the list of group tables. Each entry has shape:
+            {"group": "Group A", "stage": "ALL", "type": "TOTAL",
+             "table": [
+                 {"position": 1, "team": {"name": "Mexico", ...},
+                  "playedGames": 3, "won": 3, "draw": 0, "lost": 0,
+                  "points": 9, "goalsFor": 7, "goalsAgainst": 1,
+                  "goalDifference": 6},
+                 ...
+             ]}
+
+        Used by the standings drift verifier as the primary trusted source.
+        """
+        payload = await self._request("GET", f"/competitions/{code}/standings")
+        return list(payload.get("standings", []))
+
     async def _request(
         self,
         method: str,

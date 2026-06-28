@@ -164,6 +164,48 @@ export async function setKnockoutScoringEnabled(
 	return api.post('/admin/competition/knockout-scoring', { enabled });
 }
 
+/** Standings drift verification (v2.182.0). */
+export interface DriftCheckResult {
+	source_used: 'FOOTBALL_DATA' | 'ESPN' | 'WIKIPEDIA' | null;
+	disagreement_count: number;
+	created_event_id: string | null;
+}
+
+export interface DriftEvent {
+	id: string;
+	competition_id: string;
+	detected_at: string;
+	trusted_source: 'FOOTBALL_DATA' | 'ESPN' | 'WIKIPEDIA';
+	status:
+		| 'OPEN'
+		| 'DISMISSED_OURS_CORRECT'
+		| 'DISMISSED_TRANSIENT'
+		| 'RESOLVED_VIA_SCORE_EDIT';
+	disagreement_count: number;
+	groups_disagreeing: { groups?: Record<string, { ours: unknown[]; theirs: unknown[] }> };
+	resolved_at: string | null;
+	resolution_note: string | null;
+}
+
+export async function triggerStandingsDriftCheck(): Promise<DriftCheckResult> {
+	return api.post('/admin/standings-drift/check', {});
+}
+
+export async function listOpenDriftEvents(): Promise<DriftEvent[]> {
+	return api.get<DriftEvent[]>('/admin/standings-drift/open');
+}
+
+export async function dismissDriftEvent(
+	eventId: string,
+	resolution: 'DISMISSED_OURS_CORRECT' | 'DISMISSED_TRANSIENT' | 'RESOLVED_VIA_SCORE_EDIT',
+	note?: string
+): Promise<{ status: string; event_id: string; resolution: string }> {
+	return api.post(`/admin/standings-drift/${eventId}/dismiss`, {
+		status: resolution,
+		note: note ?? null
+	});
+}
+
 /** Close-the-pool dry-run counts (v2.166.0). */
 export interface PoolClosePreview {
 	deadline_passed: boolean;
