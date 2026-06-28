@@ -2361,6 +2361,13 @@
       "type": "improvement",
       "summary": "Round of 32 third-place opponents now resolve correctly via FIFA's official Annex C assignment table — the same 495-row lookup the entry wizard already uses to seed predicted brackets. Once all twelve group-stage groups settle, the Results page Round of 32 tab shows real team names for the eight third-place slots (Germany vs Paraguay, France vs Sweden, etc.) instead of TBD. The backend now reads from a copy of frontend/src/lib/config/thirdPlaceMapping.json — same source of truth so the wizard's predicted bracket and the live results bracket are guaranteed to agree on assignments. While the group stage is still in progress, third-place slots stay TBD until the final eight qualifying groups are known; FIFA can sometimes announce specific matches earlier when all plausible Annex C keys agree (e.g. Germany vs Paraguay), and that early-announcement behaviour is a planned follow-up.",
       "commit": "pending"
+    },
+    {
+      "version": "2.183.1",
+      "date": "2026-06-28",
+      "type": "fix",
+      "summary": "Critical fix: Round of 32 fixtures were displaying the wrong matchups for every single match. An earlier release used a formula to map Football-Data's external IDs to FIFA's official match numbers (537415 = M73, 537416 = M74, ...), but those IDs don't correspond linearly to FIFA numbers — Football-Data's order is internal, not FIFA's. The first R32 match was showing 'Netherlands vs Morocco' when FIFA's schedule has it as 'South Africa vs Canada' (the Netherlands match is actually two days later). Every R32 fixture in the Results page bracket was off. Now the mapping is built from kickoff-time cross-reference against Wikipedia's published schedule (with a pinned regression test) and the bracket displays match FIFA exactly. Also adds a user-facing note on the Results page Round of 32 / Round of 16 / Quarter-Finals / Semi-Finals / Finals / Winner tabs explaining that knockout points haven't been released yet — they'll be allocated after every group-stage match finishes and the group-stage champion is verified and announced.",
+      "commit": "pending"
     }
   ]
 }
