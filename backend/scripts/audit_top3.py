@@ -260,14 +260,19 @@ async def _resolve_entry(
         # Pick highest-scoring entry for this user
         candidates.sort(
             key=lambda e: (
-                scored_map.get(e.id, (None, None))[1].total
-                if scored_map.get(e.id)
-                else 0
+                scored_map[e.id][1].total if e.id in scored_map else 0
             ),
             reverse=True,
         )
         return candidates[0]
 
+    # Entry reference (e.g. WC26-000083) — most precise, check first
+    spec_upper = entry_spec.upper()
+    for e in candidates:
+        if e.reference.upper() == spec_upper:
+            return e
+
+    # Entry number (e.g. "3")
     if entry_spec.isdigit():
         num = int(entry_spec)
         for e in candidates:
@@ -275,7 +280,7 @@ async def _resolve_entry(
                 return e
         return None
 
-    # Name fragment match (case-insensitive)
+    # Display name fragment (case-insensitive)
     spec_lower = entry_spec.lower()
     for e in candidates:
         if spec_lower in e.display_name.lower():
