@@ -67,12 +67,17 @@ export function fixtureKoHits(
 	if (fixture.stage === 'third_place') {
 		return { home: false, away: false, hits: 0 };
 	}
-	const seeded = !/\d/.test(fixture.home_team) && !/\d/.test(fixture.away_team);
-	if (!seeded) {
-		return { home: false, away: false, hits: 0 };
-	}
-	const home = roundPicks.has(fixture.home_team);
-	const away = roundPicks.has(fixture.away_team);
+	// Per-side seeded check (v2.184.x — same fix as FixtureRowKo).
+	// Partial resolution: R16 home is the R32 winner, away still TBD —
+	// the resolved side MUST be allowed to count its hit, otherwise the
+	// Round Total shows 0 even though the row visibly displays +30×1.
+	// Prior binary `seeded` flag zeroed everything if either side held a
+	// slot:* placeholder, hiding the user's banked points from the
+	// Round Total subtotal.
+	const homeSeeded = !!fixture.home_team && !fixture.home_team.startsWith('slot:');
+	const awaySeeded = !!fixture.away_team && !fixture.away_team.startsWith('slot:');
+	const home = homeSeeded && roundPicks.has(fixture.home_team);
+	const away = awaySeeded && roundPicks.has(fixture.away_team);
 	return { home, away, hits: (home ? 1 : 0) + (away ? 1 : 0) };
 }
 
