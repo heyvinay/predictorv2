@@ -106,3 +106,83 @@ def parse_r32_slot(name: str) -> tuple[str, str] | None:
     if len(parts) != 4 or parts[3] not in ("home", "away"):
         return None
     return parts[2], parts[3]
+
+
+# ─── Downstream KO bracket sources (v2.184.x) ──────────────────────────────
+# Ported from frontend/src/lib/config/bracketConfig.ts:177-330.
+# Each entry: match_number → (home_source, away_source) where each source is
+# a dict {"type": "winner", "match_number": N}. Walking is recursive:
+# R16 sources reference R32 winners; QF references R16; SF references QF;
+# Final references SF. third_place is intentionally absent — unscored stage.
+#
+# Match numbers per FIFA 2026 schedule:
+#   R32:  73-88   (16 matches)
+#   R16:  89-96   (8 matches)
+#   QF:   97-100  (4 matches)
+#   SF:   101-102 (2 matches)
+#   F:    104     (1 match; M103 is third_place playoff, omitted)
+
+ROUND_OF_16_SOURCES: dict[int, tuple[dict, dict]] = {
+    89: ({"type": "winner", "match_number": 74}, {"type": "winner", "match_number": 77}),
+    90: ({"type": "winner", "match_number": 73}, {"type": "winner", "match_number": 75}),
+    91: ({"type": "winner", "match_number": 76}, {"type": "winner", "match_number": 78}),
+    92: ({"type": "winner", "match_number": 79}, {"type": "winner", "match_number": 80}),
+    93: ({"type": "winner", "match_number": 83}, {"type": "winner", "match_number": 84}),
+    94: ({"type": "winner", "match_number": 81}, {"type": "winner", "match_number": 82}),
+    95: ({"type": "winner", "match_number": 86}, {"type": "winner", "match_number": 88}),
+    96: ({"type": "winner", "match_number": 85}, {"type": "winner", "match_number": 87}),
+}
+
+QUARTER_FINAL_SOURCES: dict[int, tuple[dict, dict]] = {
+    97: ({"type": "winner", "match_number": 89}, {"type": "winner", "match_number": 90}),
+    98: ({"type": "winner", "match_number": 93}, {"type": "winner", "match_number": 94}),
+    99: ({"type": "winner", "match_number": 91}, {"type": "winner", "match_number": 92}),
+    100: ({"type": "winner", "match_number": 95}, {"type": "winner", "match_number": 96}),
+}
+
+SEMI_FINAL_SOURCES: dict[int, tuple[dict, dict]] = {
+    101: ({"type": "winner", "match_number": 97}, {"type": "winner", "match_number": 98}),
+    102: ({"type": "winner", "match_number": 99}, {"type": "winner", "match_number": 100}),
+}
+
+FINAL_SOURCES: dict[int, tuple[dict, dict]] = {
+    104: ({"type": "winner", "match_number": 101}, {"type": "winner", "match_number": 102}),
+}
+
+
+# Stage → first match number in that stage (used to map kickoff-sorted
+# index back to FIFA match number for stages R16+).
+STAGE_FIRST_MATCH_NUMBER: dict[str, int] = {
+    "round_of_16": 89,
+    "quarter_final": 97,
+    "semi_final": 101,
+    "final": 104,
+}
+
+
+def is_downstream_ko_slot_placeholder(name: str | None) -> bool:
+    """True if a team-name string is a downstream KO slot placeholder
+    (`slot:round_of_16:...` / `slot:quarter_final:...` / ...).
+
+    R32 slots are handled separately by `is_r32_slot_placeholder`; this
+    helper covers R16 / QF / SF / F.
+    """
+    if not name:
+        return False
+    return any(
+        name.startswith(f"slot:{stage}:")
+        for stage in ("round_of_16", "quarter_final", "semi_final", "final")
+    )
+
+
+def parse_downstream_ko_slot(name: str) -> tuple[str, str, str] | None:
+    """Parse `slot:{stage}:{external_id}:{side}` → (stage, external_id, side).
+
+    Returns None if the string doesn't match the expected shape.
+    """
+    if not is_downstream_ko_slot_placeholder(name):
+        return None
+    parts = name.split(":")
+    if len(parts) != 4 or parts[3] not in ("home", "away"):
+        return None
+    return parts[1], parts[2], parts[3]

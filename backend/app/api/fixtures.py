@@ -22,12 +22,12 @@ from app.schemas.fixture import (
     LockStatus,
 )
 from app.services.audit import record_audit_event
-from app.services.locking import get_active_competition
-from app.services.r32_resolver import (
-    R32Resolver,
-    build_r32_resolver,
-    resolve_r32_pair,
+from app.services.ko_lineup_resolver import (
+    KoLineupResolver,
+    build_ko_lineup_resolver,
+    resolve_ko_pair,
 )
+from app.services.locking import get_active_competition
 from app.services.standings import (
     get_actual_group_standings,
     get_group_positions,
@@ -41,15 +41,15 @@ LOCK_MINUTES = 5
 
 def fixture_to_read(
     fixture: Fixture,
-    resolver: R32Resolver | None = None,
+    resolver: KoLineupResolver | None = None,
 ) -> FixtureRead:
     """Convert Fixture model to FixtureRead schema.
 
-    When `resolver` is supplied, R32 `slot:...` placeholders get
-    replaced by real team names for fixtures whose source groups are
-    fully settled (v2.182.1). The DB rows themselves are never
-    written — Football-Data's eventual official lineup still wins when
-    it lands via score_sync.
+    When `resolver` is supplied, slot placeholders are replaced by real
+    team names across ALL knockout stages (v2.184.x — extends the v2.182.1
+    R32-only resolver to R16/QF/SF/F by walking the bracket). The DB rows
+    themselves are never written — Football-Data's eventual official
+    lineup still wins when it lands via score_sync.
     """
     time_until = fixture.time_until_lock(LOCK_MINUTES)
 
@@ -71,8 +71,18 @@ def fixture_to_read(
 
     home_team = fixture.home_team
     away_team = fixture.away_team
-    if resolver is not None and fixture.stage == "round_of_32":
-        home_team, away_team = resolve_r32_pair(resolver, home_team, away_team)
+    if resolver is not None and fixture.stage in (
+        "round_of_32",
+        "round_of_16",
+        "quarter_final",
+        "semi_final",
+        "final",
+    ):
+        resolved_home, resolved_away = resolve_ko_pair(resolver, fixture)
+        if resolved_home:
+            home_team = resolved_home
+        if resolved_away:
+            away_team = resolved_away
 
     return FixtureRead(
         id=fixture.id,
@@ -95,7 +105,7 @@ async def get_all_fixtures(session: DbSession, _user: OptionalUser) -> list[Fixt
     """Get all fixtures ordered by kickoff time."""
     result = await session.execute(select(Fixture).options(selectinload(Fixture.score)).order_by(Fixture.kickoff, Fixture.match_number))
     fixtures = result.scalars().all()
-    resolver = await build_r32_resolver(session)
+    resolver = await build_ko_lineup_resolver(session)
     return [fixture_to_read(f, resolver) for f in fixtures]
 
 
@@ -132,7 +142,7 @@ async def get_knockout_fixtures(session: DbSession, _user: OptionalUser) -> list
         .order_by(Fixture.kickoff, Fixture.match_number)
     )
     fixtures = result.scalars().all()
-    resolver = await build_r32_resolver(session)
+    resolver = await build_ko_lineup_resolver(session)
     return [fixture_to_read(f, resolver) for f in fixtures]
 
 
@@ -185,7 +195,7 @@ async def get_actual_knockout_fixtures(
     )
     fixtures = result.scalars().all()
 
-    resolver = await build_r32_resolver(session)
+    resolver = await build_ko_lineup_resolver(session)
     return [fixture_to_read(f, resolver) for f in fixtures]
 
 
@@ -235,7 +245,7 @@ async def get_fixture(fixture_id: uuid.UUID, session: DbSession, _user: Optional
 
     # Build resolver only when the requested fixture is in R32 — saves a
     # standings query on every group-fixture detail open.
-    resolver = await build_r32_resolver(session) if fixture.stage == "round_of_32" else None
+    resolver = await build_ko_lineup_resolver(session) if fixture.stage == "round_of_32" else None
     return fixture_to_read(fixture, resolver)
 
 

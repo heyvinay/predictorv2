@@ -18,7 +18,7 @@
 	import type { Fixture } from '$types';
 	import { fixtures } from '$stores/fixtures';
 	import { activeEntryId } from '$stores/entries';
-	import TeamName from '$lib/components/TeamName.svelte';
+	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let fixture: Fixture;
 
@@ -85,6 +85,8 @@
 			{#each siblings as sib, i}
 				{@const y = R32_LAYOUT.r32Ys[i]}
 				{@const isHere = sib.id === fixture.id}
+				{@const homeCode = teamCode(sib.home_team)}
+				{@const awayCode = teamCode(sib.away_team)}
 				<g>
 					<rect
 						x={R32_LAYOUT.r32Box.x}
@@ -102,7 +104,7 @@
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						<TeamName name={sib.home_team} forceCode />
+						{homeCode}
 					</text>
 					<text
 						x={R32_LAYOUT.r32Box.x + 6}
@@ -111,7 +113,7 @@
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						<TeamName name={sib.away_team} forceCode />
+						{awayCode}
 					</text>
 					{#if isHere}
 						<text
@@ -199,10 +201,7 @@
 						: 'border-base-300/40 bg-base-300/15 text-base-content/70'}"
 				>
 					<span>
-						<TeamName name={sib.home_team} forceCode /> vs <TeamName
-							name={sib.away_team}
-							forceCode
-						/>
+						{teamCode(sib.home_team)} vs {teamCode(sib.away_team)}
 					</span>
 					{#if isHere}
 						<span class="text-[9.5px] font-extrabold tracking-wider">YOU</span>

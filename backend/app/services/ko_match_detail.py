@@ -36,6 +36,10 @@ from app.schemas.ko_match_detail import (
     KoPoolSplit,
     KoPoolSplitSide,
 )
+from app.services.ko_lineup_resolver import (
+    build_ko_lineup_resolver,
+    resolve_ko_pair,
+)
 from app.services.scoring import get_scoring_config
 
 
@@ -88,8 +92,19 @@ async def get_ko_match_detail(
     Caller is responsible for the blind-pool / authorisation gate — this
     function assumes the data is allowed to be returned.
     """
-    home_team = fixture.home_team
-    away_team = fixture.away_team
+    # Resolve slot placeholders to real team names BEFORE the picks query.
+    # Without this, fixture.home_team would be e.g.
+    # "slot:round_of_32:537417:home" and the picks query's `team.in_(sides)`
+    # filter would never match real TeamPrediction rows ("South Africa",
+    # "Canada"). Symptom on the frontend: Pool Split / Implications / Most
+    # Exposed / Pool Roll all render "TBD" and zero counts, even for
+    # FINISHED fixtures. The fixture row itself is never written — same
+    # read-time resolution philosophy as v2.182.1, now extended across all
+    # KO stages by ko_lineup_resolver (v2.184.x).
+    ko_resolver = await build_ko_lineup_resolver(session)
+    resolved_home, resolved_away = resolve_ko_pair(ko_resolver, fixture)
+    home_team = resolved_home or fixture.home_team
+    away_team = resolved_away or fixture.away_team
     sides = (home_team, away_team)
 
     # ── Query 1: eligible entries + their cohort + leaderboard rank ──
