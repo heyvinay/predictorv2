@@ -54,13 +54,11 @@
 		};
 	}
 
-	// Build the layout-ready data once we have a recognized quadrant.
-	$: primaryR32A = quadrant ? r32Cell(quadrant.primaryR32[0]) : null;
-	$: primaryR32B = quadrant ? r32Cell(quadrant.primaryR32[1]) : null;
-	$: secondaryR32A = quadrant ? r32Cell(quadrant.secondaryR32[0]) : null;
-	$: secondaryR32B = quadrant ? r32Cell(quadrant.secondaryR32[1]) : null;
-	$: primaryR16Cell = quadrant ? r32Cell(quadrant.primaryR16) : null;
-	$: secondaryR16Cell = quadrant ? r32Cell(quadrant.secondaryR16) : null;
+	// Layout-ready cells in FIFA wallchart top-to-bottom order
+	// (v2.184.x — was "current match always at position 0", which
+	// flipped the bracket every time the viewer switched fixtures).
+	$: r32Cells = quadrant ? quadrant.r32.map((n) => ({ num: n, ...r32Cell(n) })) : [];
+	$: r16Cells = quadrant ? quadrant.r16.map((n) => ({ num: n, ...r32Cell(n) })) : [];
 	$: qfCell = quadrant ? r32Cell(quadrant.qf) : null;
 
 	// Geometry — same dimensions as the prior version (the layout shape
@@ -90,7 +88,7 @@
 		>
 	</div>
 
-	{#if isR32 && quadrant && primaryR32A && primaryR32B && secondaryR32A && secondaryR32B && primaryR16Cell && secondaryR16Cell && qfCell}
+	{#if isR32 && quadrant && r32Cells.length === 4 && r16Cells.length === 2 && qfCell}
 		<svg viewBox={LAYOUT.viewBox} class="w-full" style="max-height: 220px;" role="img" aria-label="Local bracket position">
 			<!-- Connector lines: R32 → R16 → QF, classic bracket-tree shape. -->
 			<g stroke="currentColor" stroke-width="1" fill="none" opacity="0.3">
@@ -102,13 +100,16 @@
 				<path d="M 255 157 H 266 V 126 H 277" />
 			</g>
 
-			<!-- 4 R32 boxes: primary pair on top, secondary pair on bottom -->
-			{#each [{ cell: primaryR32A, y: LAYOUT.r32Ys[0], num: quadrant.primaryR32[0] }, { cell: primaryR32B, y: LAYOUT.r32Ys[1], num: quadrant.primaryR32[1] }, { cell: secondaryR32A, y: LAYOUT.r32Ys[2], num: quadrant.secondaryR32[0] }, { cell: secondaryR32B, y: LAYOUT.r32Ys[3], num: quadrant.secondaryR32[1] }] as row}
-				{@const isHere = row.cell.fixture?.id === fixture.id}
+			<!-- 4 R32 boxes in FIFA wallchart top-to-bottom order. The user's
+			     current match could be at any position (0-3) depending on
+			     where their fixture sits in the quadrant. -->
+			{#each r32Cells as cell, i (cell.num)}
+				{@const y = LAYOUT.r32Ys[i]}
+				{@const isHere = cell.fixture?.id === fixture.id}
 				<g>
 					<rect
 						x={LAYOUT.r32Box.x}
-						y={row.y}
+						{y}
 						width={LAYOUT.r32Box.w}
 						height={LAYOUT.r32Box.h}
 						rx="4"
@@ -119,26 +120,26 @@
 					/>
 					<text
 						x={LAYOUT.r32Box.x + 6}
-						y={row.y + 14}
+						y={y + 14}
 						class="fill-current text-[10px] font-bold"
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						{row.cell.home}
+						{cell.home}
 					</text>
 					<text
 						x={LAYOUT.r32Box.x + 6}
-						y={row.y + 28}
+						y={y + 28}
 						class="fill-current text-[10px] font-bold"
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						{row.cell.away}
+						{cell.away}
 					</text>
 					{#if isHere}
 						<text
 							x={LAYOUT.r32Box.x + LAYOUT.r32Box.w - 4}
-							y={row.y + 14}
+							y={y + 14}
 							text-anchor="end"
 							class="fill-primary text-[8px] font-extrabold tracking-wider"
 						>
@@ -148,23 +149,25 @@
 				</g>
 			{/each}
 
-			<!-- 2 R16 boxes — show resolved team codes when available, M-number tag below -->
-			{#each [{ cell: primaryR16Cell, y: LAYOUT.r16Ys[0], num: quadrant.primaryR16 }, { cell: secondaryR16Cell, y: LAYOUT.r16Ys[1], num: quadrant.secondaryR16 }] as r16}
+			<!-- 2 R16 boxes in FIFA wallchart order — top R16 feeds QF home,
+			     bottom R16 feeds QF away. -->
+			{#each r16Cells as cell, i (cell.num)}
+				{@const y = LAYOUT.r16Ys[i]}
 				<g>
 					<rect
 						x={LAYOUT.r16Box.x}
-						y={r16.y}
+						{y}
 						width={LAYOUT.r16Box.w}
 						height={LAYOUT.r16Box.h}
 						rx="4"
 						class="fill-base-300/15 stroke-base-300/45"
 						stroke-width="1"
 					/>
-					<text x={LAYOUT.r16Box.x + 6} y={r16.y + 14} class="fill-current text-[9.5px] font-bold opacity-80">
-						{r16.cell.home} <tspan class="opacity-55">vs</tspan> {r16.cell.away}
+					<text x={LAYOUT.r16Box.x + 6} y={y + 14} class="fill-current text-[9.5px] font-bold opacity-80">
+						{cell.home} <tspan class="opacity-55">vs</tspan> {cell.away}
 					</text>
-					<text x={LAYOUT.r16Box.x + 6} y={r16.y + 27} class="fill-current text-[8.5px] opacity-45">
-						R16 · M{r16.num}
+					<text x={LAYOUT.r16Box.x + 6} y={y + 27} class="fill-current text-[8.5px] opacity-45">
+						R16 · M{cell.num}
 					</text>
 				</g>
 			{/each}

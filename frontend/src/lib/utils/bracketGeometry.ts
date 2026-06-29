@@ -183,30 +183,50 @@ export function r32SiblingOf(r32MatchNum: number): number | null {
 }
 
 /**
- * Quadrant view for an R32 fixture: returns the 4 R32 match numbers
- * that converge to the same QF, the 2 R16 match numbers in that
- * quadrant, and the QF match number. The "primary" R16 is the one
- * the current R32 feeds into; "primary" R32 list is its sibling-pair.
+ * Quadrant view for an R32 fixture, returned in FIFA WALLCHART ORDER
+ * (top-to-bottom on the printed bracket), NOT "current match first"
+ * (v2.184.x refactor). The render in BracketQuadrant.svelte then walks
+ * `r32` / `r16` in array order and gets a layout that matches FIFA's
+ * published bracket diagram regardless of which match the viewer is on.
+ *
+ * Walking rule: QF's children give the [top R16, bottom R16] pair in
+ * wallchart order (QF source-order = FIFA order). Each R16's children
+ * give the [top R32, bottom R32] pair, same rule. Flattening yields
+ * 4 R32s in correct visual sequence.
  */
 export interface R32Quadrant {
-	primaryR16: number;
-	primaryR32: [number, number]; // current + sibling
-	secondaryR16: number;
-	secondaryR32: [number, number]; // the other half's two R32s
+	/** 4 R32 match numbers in wallchart top-to-bottom order. */
+	r32: [number, number, number, number];
+	/** 2 R16 match numbers in wallchart order — top R16 feeds QF home,
+	 *  bottom R16 feeds QF away. */
+	r16: [number, number];
 	qf: number;
 }
 
 export function r32QuadrantFor(r32MatchNum: number): R32Quadrant | null {
-	const primaryR16 = parentOf(r32MatchNum);
-	if (primaryR16 === null) return null;
-	const primaryR32 = childrenOf(primaryR16);
-	if (!primaryR32) return null;
-	const qf = parentOf(primaryR16);
+	const r16Parent = parentOf(r32MatchNum);
+	if (r16Parent === null) return null;
+	const qf = parentOf(r16Parent);
 	if (qf === null) return null;
+
+	// QF source order = FIFA wallchart order: first source is top, second is bottom.
 	const r16Pair = childrenOf(qf);
 	if (!r16Pair) return null;
-	const secondaryR16 = r16Pair[0] === primaryR16 ? r16Pair[1] : r16Pair[0];
-	const secondaryR32 = childrenOf(secondaryR16);
-	if (!secondaryR32) return null;
-	return { primaryR16, primaryR32, secondaryR16, secondaryR32, qf };
+	const [topR16, bottomR16] = r16Pair;
+
+	// Each R16's children in FIFA order (top R32, bottom R32 of that R16's sub-bracket).
+	const topR16Children = childrenOf(topR16);
+	const bottomR16Children = childrenOf(bottomR16);
+	if (!topR16Children || !bottomR16Children) return null;
+
+	return {
+		r32: [
+			topR16Children[0],
+			topR16Children[1],
+			bottomR16Children[0],
+			bottomR16Children[1]
+		],
+		r16: [topR16, bottomR16],
+		qf
+	};
 }
