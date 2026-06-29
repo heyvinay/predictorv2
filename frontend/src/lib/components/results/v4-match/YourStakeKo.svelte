@@ -57,6 +57,17 @@
 		winner: 'W'
 	};
 
+	// Long-form labels for the explicit framing sentence (Q11 — give
+	// cold readers an anchor like "Your R16 pick: Brazil" instead of
+	// asking them to infer the bank stage from the path strip).
+	const STAGE_NAME: Record<BracketStage, string> = {
+		round_of_16: 'Round of 16',
+		quarter_final: 'Quarter-final',
+		semi_final: 'Semi-final',
+		final: 'Final',
+		winner: 'Champion'
+	};
+
 	// Map a fixture's stage to the bracket stage its winner advances INTO
 	// (the "bank stage" — points pay out when team reaches it).
 	const BANK_STAGE_FOR_FIXTURE: Record<string, BracketStage> = {
@@ -126,6 +137,10 @@
 
 	$: bankPoints = (scoringRules?.advancement[bankStage] as number) ?? 0;
 
+	// For ONE case: which side is the user staked on (used in the explicit
+	// framing sentence and the single-card layout).
+	$: stakedSide = homeStake.isStaked ? homeStake : awayStake;
+
 	// Helper for template expressions — Svelte template parses {...} as JS
 	// (NOT TS), so `as number` casts inside the template fail to compile.
 	// Keep the cast inside this script function and call it from the markup.
@@ -162,6 +177,26 @@
 			bracket for this round — no advancement credit at stake for you on this fixture.
 		</div>
 	{:else}
+		<!-- Explicit framing sentence (Q11/Q12) — names the user's pick(s)
+		     and the bank-stage payout in one short sentence above the path
+		     strip, so a cold reader doesn't need to decode the visual. -->
+		{#if stakeCase === 'one'}
+			<div class="mb-3 pl-1 text-[12.5px] text-base-content/85">
+				Your <strong class="text-primary">{STAGE_NAME[bankStage]}</strong> pick:
+				<strong><TeamName name={stakedSide.team} /></strong>. Banks
+				<strong class="text-success">+{bankPoints}</strong>
+				{mode === 'played' ? 'if' : 'when'}
+				{teamCode(stakedSide.team)} advances.
+			</div>
+		{:else}
+			<div class="mb-3 pl-1 text-[12.5px] text-base-content/85">
+				You picked <strong><TeamName name={bundle.home_team} /></strong> AND
+				<strong><TeamName name={bundle.away_team} /></strong> to advance to
+				<strong class="text-primary">{STAGE_NAME[bankStage]}</strong> — either side wins
+				you the credit.
+			</div>
+		{/if}
+
 		<!-- BOTH case banner — outcome-immune advancement credit. Only renders
 		     when both teams sit in the user's bank-stage pick list. -->
 		{#if stakeCase === 'both'}

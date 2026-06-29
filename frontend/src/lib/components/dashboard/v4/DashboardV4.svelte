@@ -230,24 +230,27 @@
 			</div>
 		{/if}
 
-		<!-- Group Stage Winner card (v2.181.0, upgraded to top-3 podium
-		     in v2.183.x) — admin-gated via
-		     competitions.group_stage_winner_released. Backend returns
-		     null until the flag flips; we hide the card unconditionally
-		     here. When the flag flips mid-session the 60s poll picks
-		     it up. -->
-		{#if groupStagePodium && groupStagePodium.entries.length > 0}
-			<div class="mb-5">
-				<GroupStageWinnerCard podium={groupStagePodium} />
-			</div>
-		{/if}
-
 		<!-- v2.181.0: DailyMvpStrip moved out of the top-of-page slot
-		     and into the side column below (above MiniLeaderboard). -->
+		     and into the side column below (above MiniLeaderboard).
+		     v2.184.x: GroupStageWinnerCard moved INTO the main column
+		     (was full-width above the grid). At its old size the card
+		     pushed the side widgets — DailyMVP, MiniLeaderboard — too
+		     far down. Inside the main column it sits at top-left while
+		     those widgets pull up to top-right. -->
 
 		<div class="grid grid-cols-1 items-start gap-5 min-[920px]:grid-cols-[1.55fr_1fr]">
 			<!-- Main column -->
 			<div class="flex min-w-0 flex-col gap-5">
+				<!-- Group Stage Winner card (v2.181.0, upgraded to top-3
+				     podium in v2.183.x, moved into main column in
+				     v2.184.x) — admin-gated via
+				     competitions.group_stage_winner_released. Backend
+				     returns null until the flag flips; we hide
+				     unconditionally here. -->
+				{#if groupStagePodium && groupStagePodium.entries.length > 0}
+					<GroupStageWinnerCard podium={groupStagePodium} />
+				{/if}
+
 				<AnnouncementHero {announcements} />
 
 				<!-- Matchday FixturesTable removed in v2.181.0 — replaced
