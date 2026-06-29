@@ -278,10 +278,16 @@
 			for (const fid of r.fixtureIds) {
 				const f = fxById.get(fid);
 				if (!f) continue;
-				const seeded = !/\d/.test(f.home_team) && !/\d/.test(f.away_team);
-				if (!seeded || f.stage === 'third_place') continue;
-				if (picks.has(f.home_team)) hits++;
-				if (picks.has(f.away_team)) hits++;
+				if (f.stage === 'third_place') continue;
+				// Per-side seeded — partial-resolution R16+ rows must still
+				// count hits on the resolved side (v2.184.x — same fix as
+				// FixtureRowKo / fixtureKoHits). The prior binary check
+				// hid the Summary total from users whose R16 winner had
+				// landed but whose other-side R32 hadn't kicked off yet.
+				const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:');
+				const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:');
+				if (homeSeeded && picks.has(f.home_team)) hits++;
+				if (awaySeeded && picks.has(f.away_team)) hits++;
 			}
 			total += hits * stagePts;
 		}
