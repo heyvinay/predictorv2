@@ -34,6 +34,11 @@ class FixtureRead(BaseModel):
     stage: str
     group: str | None
     match_number: int | None
+    # external_id is the Football-Data fixture ID (v2.184.x: surfaced so
+    # frontend bracket-position widgets can map a Fixture to its FIFA match
+    # number via the hand-verified R32 mapping, mirroring backend
+    # bracket_seeding.EXT_ID_TO_MATCH_NUMBER).
+    external_id: str | None = None
     status: MatchStatus
     minute: int | None
     is_locked: bool

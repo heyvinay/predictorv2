@@ -20,9 +20,18 @@
 	$: homeLoses = !!score && score.home_score < score.away_score;
 	$: awayLoses = !!score && score.away_score < score.home_score;
 	$: isThirdPlace = fixture.stage === 'third_place';
-	$: seeded = !/\d/.test(fixture.home_team) && !/\d/.test(fixture.away_team);
-	$: homePicked = seeded && !isThirdPlace && roundPicks.has(fixture.home_team);
-	$: awayPicked = seeded && !isThirdPlace && roundPicks.has(fixture.away_team);
+	// PER-SIDE seeded check (v2.184.x — Q9 fix). The downstream lineup
+	// resolver can now partially resolve a fixture: e.g., the R16 home is
+	// known (a finished R32's winner) while the away is still TBD (its
+	// feeding R32 hasn't kicked off). A binary seeded flag would render
+	// BOTH sides as TBD in that case, hiding the resolved side from the
+	// user. Slot strings always start with "slot:" — that's a stronger
+	// test than the prior /\d/ heuristic, which could misclassify any
+	// future team name with a digit.
+	$: homeSeeded = !!fixture.home_team && !fixture.home_team.startsWith('slot:');
+	$: awaySeeded = !!fixture.away_team && !fixture.away_team.startsWith('slot:');
+	$: homePicked = homeSeeded && !isThirdPlace && roundPicks.has(fixture.home_team);
+	$: awayPicked = awaySeeded && !isThirdPlace && roundPicks.has(fixture.away_team);
 	$: hits = (homePicked ? 1 : 0) + (awayPicked ? 1 : 0);
 	$: dateLabel = new Date(fixture.kickoff).toLocaleDateString('en-GB', {
 		day: 'numeric',
@@ -44,11 +53,11 @@
 	>
 		<div class="flex items-center justify-end gap-2 {homeLoses ? 'opacity-60' : ''}">
 			<span class="truncate text-[13px] font-semibold">
-				{seeded ? displayTeamName(fixture.home_team) : 'TBD'}
+				{homeSeeded ? displayTeamName(fixture.home_team) : 'TBD'}
 			</span>
-			{#if seeded && hasFlag(fixture.home_team)}
+			{#if homeSeeded && hasFlag(fixture.home_team)}
 				<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
-			{:else if !seeded}
+			{:else if !homeSeeded}
 				<span
 					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
 					>?</span
@@ -78,31 +87,39 @@
 			</div>
 		</div>
 		<div class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
-			{#if seeded && hasFlag(fixture.away_team)}
+			{#if awaySeeded && hasFlag(fixture.away_team)}
 				<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-[22px] rounded-sm" style="aspect-ratio: 4 / 3" />
-			{:else if !seeded}
+			{:else if !awaySeeded}
 				<span
 					class="grid h-4 w-[22px] place-items-center rounded-sm border border-dashed border-base-300/80 bg-base-300/40 text-[9px] font-extrabold text-base-content/55"
 					>?</span
 				>
 			{/if}
 			<span class="truncate text-[13px] font-semibold">
-				{seeded ? displayTeamName(fixture.away_team) : 'TBD'}
+				{awaySeeded ? displayTeamName(fixture.away_team) : 'TBD'}
 			</span>
 		</div>
 		<div class="flex items-center justify-center gap-1">
-			{#if !seeded || isThirdPlace}
+			{#if isThirdPlace || (!homeSeeded && !awaySeeded)}
 				<span class="text-xs text-base-content/30">—</span>
 			{:else}
-				<BracketChip team={fixture.home_team} picked={homePicked} />
-				<BracketChip team={fixture.away_team} picked={awayPicked} />
+				{#if homeSeeded}
+					<BracketChip team={fixture.home_team} picked={homePicked} />
+				{:else}
+					<span class="text-xs text-base-content/30">·</span>
+				{/if}
+				{#if awaySeeded}
+					<BracketChip team={fixture.away_team} picked={awayPicked} />
+				{:else}
+					<span class="text-xs text-base-content/30">·</span>
+				{/if}
 			{/if}
 		</div>
 		<div class="text-right">
 			<PointsCellKo
 				{stagePoints}
 				{hits}
-				applicable={pointsVisible && seeded && !isThirdPlace}
+				applicable={pointsVisible && !isThirdPlace && (homeSeeded || awaySeeded)}
 			/>
 		</div>
 	</div>
@@ -111,11 +128,11 @@
 	<div class="flex flex-col gap-1 px-3 py-1.5 sm:hidden">
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {homeLoses ? 'opacity-60' : ''}">
-				{#if seeded && hasFlag(fixture.home_team)}
+				{#if homeSeeded && hasFlag(fixture.home_team)}
 					<img src={getFlagUrl(fixture.home_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.home_team)}
-					>{seeded ? teamCode(fixture.home_team) : 'TBD'}</span
+					>{homeSeeded ? teamCode(fixture.home_team) : 'TBD'}</span
 				>
 			</span>
 			<span
@@ -128,11 +145,11 @@
 		</div>
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
-				{#if seeded && hasFlag(fixture.away_team)}
+				{#if awaySeeded && hasFlag(fixture.away_team)}
 					<img src={getFlagUrl(fixture.away_team, 'sm')} alt="" class="h-auto w-5 rounded-sm" style="aspect-ratio: 4 / 3" />
 				{/if}
 				<span class="text-[13px] font-semibold" title={displayTeamName(fixture.away_team)}
-					>{seeded ? teamCode(fixture.away_team) : 'TBD'}</span
+					>{awaySeeded ? teamCode(fixture.away_team) : 'TBD'}</span
 				>
 			</span>
 			<span
@@ -151,17 +168,25 @@
 					<span class="inline-block rounded bg-success px-1.5 py-0.5 font-bold text-white">LIVE {fixture.minute ? `${fixture.minute}'` : ''}</span>
 					<span>·</span>
 				{/if}
-				{#if !seeded || isThirdPlace}
+				{#if isThirdPlace || (!homeSeeded && !awaySeeded)}
 					<span class="text-base-content/30">—</span>
 				{:else}
-					<BracketChip team={fixture.home_team} picked={homePicked} />
-					<BracketChip team={fixture.away_team} picked={awayPicked} />
+					{#if homeSeeded}
+						<BracketChip team={fixture.home_team} picked={homePicked} />
+					{:else}
+						<span class="text-base-content/30">·</span>
+					{/if}
+					{#if awaySeeded}
+						<BracketChip team={fixture.away_team} picked={awayPicked} />
+					{:else}
+						<span class="text-base-content/30">·</span>
+					{/if}
 				{/if}
 			</span>
 			<PointsCellKo
 				{stagePoints}
 				{hits}
-				applicable={pointsVisible && seeded && !isThirdPlace}
+				applicable={pointsVisible && !isThirdPlace && (homeSeeded || awaySeeded)}
 			/>
 		</div>
 	</div>

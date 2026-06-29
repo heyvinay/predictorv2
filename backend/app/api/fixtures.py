@@ -92,6 +92,7 @@ def fixture_to_read(
         stage=fixture.stage,
         group=fixture.group,
         match_number=fixture.match_number,
+        external_id=fixture.external_id,
         status=fixture.status,
         minute=fixture.minute,
         is_locked=fixture.is_locked(LOCK_MINUTES),

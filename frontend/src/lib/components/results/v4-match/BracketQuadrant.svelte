@@ -1,47 +1,71 @@
 <script lang="ts">
-	/** Bracket Quadrant — schematic SVG showing this fixture's local bracket
-	 *  neighborhood (4 R32 matches → 2 R16 → 1 QF, classic tournament tree).
+	/** Bracket Quadrant — SVG tree of the LOCAL bracket neighborhood for a
+	 *  knockout fixture (v2.184.x rebuild).
 	 *
-	 *  Why not the full bracket? The /entries/{id} page already renders the
-	 *  full tournament wallchart via KnockoutBracket.svelte. This sidebar
-	 *  widget's job is *orientation* — make it tangible where the current
-	 *  fixture sits, then let the user escape to the full view via the
-	 *  "Open your bracket →" link.
+	 *  R32 case (the user's screenshot trigger): renders the actual FIFA
+	 *  quadrant — 4 R32 matches that genuinely converge to the same QF —
+	 *  derived from bracketConfig.ts via `bracketGeometry.ts`. The earlier
+	 *  version grouped 4 consecutive R32s by kickoff, which doesn't match
+	 *  FIFA's bracket fan-in (M73 + M76 don't share a QF — M76 belongs to
+	 *  a different quadrant). With the new walker, M73 (SA-Can) correctly
+	 *  pairs with M75 (Ned-Mar) in R16#A, and M74 + M77 in R16#B; both
+	 *  R16s feed QF M97.
 	 *
-	 *  Fixture-to-matchNumber mapping isn't available in the DB (match_number
-	 *  is NULL for all KO fixtures, verified 2026-06-28), so adjacency is
-	 *  inferred from kickoff-sorted ordering within the same stage. For R32,
-	 *  the 16 matches divide cleanly into 4 quadrants of 4 matches each.
-	 *  This matches the FIFA bracket structure but isn't authoritative —
-	 *  intentional v1 trade-off, documented in the wireframe.
+	 *  Once an upstream R32 finishes, the corresponding R16 fixture's
+	 *  resolved team flows through automatically via the v2.184.x backend
+	 *  ko_lineup_resolver — we just look up the fixture by FIFA match
+	 *  number and render whatever team names are surfaced.
+	 *
+	 *  Non-R32 fixtures fall back to a linear list — proper neighborhood
+	 *  rendering for R16/QF/SF/F can come later.
 	 */
 	import type { Fixture } from '$types';
 	import { fixtures } from '$stores/fixtures';
 	import { activeEntryId } from '$stores/entries';
 	import { teamCode } from '$lib/utils/teamCodes';
+	import {
+		buildMatchNumberIndex,
+		matchNumberOf,
+		r32QuadrantFor
+	} from '$lib/utils/bracketGeometry';
 
 	export let fixture: Fixture;
 
-	$: stage = fixture.stage;
+	// Match-number index from the live fixtures store.
+	$: byMatchNum = buildMatchNumberIndex($fixtures);
+	$: currentMatchNum = matchNumberOf(fixture, $fixtures);
+	$: quadrant = currentMatchNum !== null ? r32QuadrantFor(currentMatchNum) : null;
+	$: isR32 = fixture.stage === 'round_of_32';
 
-	// Kickoff-sorted same-stage fixtures — index proxies for matchNumber.
-	$: stageFixtures = $fixtures
-		.filter((f) => f.stage === stage)
-		.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+	// Per-fixture helpers — pull resolved team codes from the fixtures store.
+	// A slot:* string flowing through teamCode() resolves to '?'; that's OK
+	// for downstream cells where the team is genuinely TBD.
+	function isResolved(s: string | null | undefined): boolean {
+		return !!s && !s.startsWith('slot:');
+	}
 
-	$: idx = stageFixtures.findIndex((f) => f.id === fixture.id);
+	function r32Cell(matchNum: number): { fixture: Fixture | null; home: string; away: string } {
+		const f = byMatchNum.get(matchNum) ?? null;
+		if (!f) return { fixture: null, home: '?', away: '?' };
+		return {
+			fixture: f,
+			home: isResolved(f.home_team) ? teamCode(f.home_team) : 'TBD',
+			away: isResolved(f.away_team) ? teamCode(f.away_team) : 'TBD'
+		};
+	}
 
-	// Quadrant logic — for R32, group every 4 matches (4 quadrants × 4 matches).
-	// For later stages, scope narrows naturally (R16 → halves of 4, QF → halves
-	// of 2). For Final, just the one match.
-	$: quadrantSize = stage === 'round_of_32' ? 4 : stage === 'round_of_16' ? 4 : stage === 'quarter_final' ? 2 : 1;
-	$: quadrantIdx = idx >= 0 ? Math.floor(idx / quadrantSize) : 0;
-	$: quadrantStart = quadrantIdx * quadrantSize;
-	$: siblings = stageFixtures.slice(quadrantStart, quadrantStart + quadrantSize);
+	// Build the layout-ready data once we have a recognized quadrant.
+	$: primaryR32A = quadrant ? r32Cell(quadrant.primaryR32[0]) : null;
+	$: primaryR32B = quadrant ? r32Cell(quadrant.primaryR32[1]) : null;
+	$: secondaryR32A = quadrant ? r32Cell(quadrant.secondaryR32[0]) : null;
+	$: secondaryR32B = quadrant ? r32Cell(quadrant.secondaryR32[1]) : null;
+	$: primaryR16Cell = quadrant ? r32Cell(quadrant.primaryR16) : null;
+	$: secondaryR16Cell = quadrant ? r32Cell(quadrant.secondaryR16) : null;
+	$: qfCell = quadrant ? r32Cell(quadrant.qf) : null;
 
-	// View geometry (R32 case): 4 boxes left → 2 boxes mid → 1 box right.
-	// For other stages we render a simpler vertical strip.
-	const R32_LAYOUT = {
+	// Geometry — same dimensions as the prior version (the layout shape
+	// hasn't changed, just the data it's bound to).
+	const LAYOUT = {
 		r32Box: { x: 6, w: 120, h: 34 },
 		r32Ys: [10, 54, 118, 162],
 		r16Box: { x: 150, w: 105, h: 34 },
@@ -51,6 +75,11 @@
 	};
 
 	$: entryHref = $activeEntryId ? `/entries/${$activeEntryId}` : '/entries';
+
+	// Non-R32 fallback: collect this stage's fixtures and show as a strip.
+	$: stageSiblings = $fixtures
+		.filter((f) => f.stage === fixture.stage)
+		.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
 </script>
 
 <div class="rounded-box border border-base-300/60 bg-base-200 p-4">
@@ -61,64 +90,55 @@
 		>
 	</div>
 
-	{#if stage === 'round_of_32' && siblings.length === 4}
-		<!-- R32 quadrant tree: 4 → 2 → 1, classic bracket-tree shape -->
-		<svg viewBox={R32_LAYOUT.viewBox} class="w-full" style="max-height: 220px;" role="img" aria-label="Local bracket position">
-			<!-- Connector lines: each pair of R32s → one R16, both R16s → QF.
-			     stroke-current ⇒ inherits theme text colour so light/dark both work. -->
+	{#if isR32 && quadrant && primaryR32A && primaryR32B && secondaryR32A && secondaryR32B && primaryR16Cell && secondaryR16Cell && qfCell}
+		<svg viewBox={LAYOUT.viewBox} class="w-full" style="max-height: 220px;" role="img" aria-label="Local bracket position">
+			<!-- Connector lines: R32 → R16 → QF, classic bracket-tree shape. -->
 			<g stroke="currentColor" stroke-width="1" fill="none" opacity="0.3">
-				<!-- R32#1 (y top edge 10, h 34, mid 27) → R16#1 (mid 49) — bracket -->
 				<path d="M 126 27 H 138 V 49 H 150" />
-				<!-- R32#2 (mid 71) → R16#1 (mid 49) -->
 				<path d="M 126 71 H 138 V 49 H 150" />
-				<!-- R32#3 (mid 135) → R16#2 (mid 157) -->
 				<path d="M 126 135 H 138 V 157 H 150" />
-				<!-- R32#4 (mid 179) → R16#2 (mid 157) -->
 				<path d="M 126 179 H 138 V 157 H 150" />
-				<!-- R16#1 (mid 49) → QF (mid 126) -->
 				<path d="M 255 49 H 266 V 126 H 277" />
-				<!-- R16#2 (mid 157) → QF (mid 126) -->
 				<path d="M 255 157 H 266 V 126 H 277" />
 			</g>
 
-			<!-- R32 boxes: 4 stacked left -->
-			{#each siblings as sib, i}
-				{@const y = R32_LAYOUT.r32Ys[i]}
-				{@const isHere = sib.id === fixture.id}
-				{@const homeCode = teamCode(sib.home_team)}
-				{@const awayCode = teamCode(sib.away_team)}
+			<!-- 4 R32 boxes: primary pair on top, secondary pair on bottom -->
+			{#each [{ cell: primaryR32A, y: LAYOUT.r32Ys[0], num: quadrant.primaryR32[0] }, { cell: primaryR32B, y: LAYOUT.r32Ys[1], num: quadrant.primaryR32[1] }, { cell: secondaryR32A, y: LAYOUT.r32Ys[2], num: quadrant.secondaryR32[0] }, { cell: secondaryR32B, y: LAYOUT.r32Ys[3], num: quadrant.secondaryR32[1] }] as row}
+				{@const isHere = row.cell.fixture?.id === fixture.id}
 				<g>
 					<rect
-						x={R32_LAYOUT.r32Box.x}
-						{y}
-						width={R32_LAYOUT.r32Box.w}
-						height={R32_LAYOUT.r32Box.h}
+						x={LAYOUT.r32Box.x}
+						y={row.y}
+						width={LAYOUT.r32Box.w}
+						height={LAYOUT.r32Box.h}
 						rx="4"
-						class={isHere ? 'fill-primary/15 stroke-primary' : 'fill-base-300/20 stroke-base-300/50'}
+						class={isHere
+							? 'fill-primary/15 stroke-primary'
+							: 'fill-base-300/20 stroke-base-300/50'}
 						stroke-width={isHere ? 1.5 : 1}
 					/>
 					<text
-						x={R32_LAYOUT.r32Box.x + 6}
-						y={y + 14}
+						x={LAYOUT.r32Box.x + 6}
+						y={row.y + 14}
 						class="fill-current text-[10px] font-bold"
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						{homeCode}
+						{row.cell.home}
 					</text>
 					<text
-						x={R32_LAYOUT.r32Box.x + 6}
-						y={y + 28}
+						x={LAYOUT.r32Box.x + 6}
+						y={row.y + 28}
 						class="fill-current text-[10px] font-bold"
 						class:text-primary={isHere}
 						class:text-base-content={!isHere}
 					>
-						{awayCode}
+						{row.cell.away}
 					</text>
 					{#if isHere}
 						<text
-							x={R32_LAYOUT.r32Box.x + R32_LAYOUT.r32Box.w - 4}
-							y={y + 14}
+							x={LAYOUT.r32Box.x + LAYOUT.r32Box.w - 4}
+							y={row.y + 14}
 							text-anchor="end"
 							class="fill-primary text-[8px] font-extrabold tracking-wider"
 						>
@@ -128,72 +148,81 @@
 				</g>
 			{/each}
 
-			<!-- R16 boxes: 2 in the middle column -->
-			{#each R32_LAYOUT.r16Ys as y, i}
+			<!-- 2 R16 boxes — show resolved team codes when available, M-number tag below -->
+			{#each [{ cell: primaryR16Cell, y: LAYOUT.r16Ys[0], num: quadrant.primaryR16 }, { cell: secondaryR16Cell, y: LAYOUT.r16Ys[1], num: quadrant.secondaryR16 }] as r16}
 				<g>
 					<rect
-						x={R32_LAYOUT.r16Box.x}
-						{y}
-						width={R32_LAYOUT.r16Box.w}
-						height={R32_LAYOUT.r16Box.h}
+						x={LAYOUT.r16Box.x}
+						y={r16.y}
+						width={LAYOUT.r16Box.w}
+						height={LAYOUT.r16Box.h}
 						rx="4"
 						class="fill-base-300/15 stroke-base-300/45"
 						stroke-width="1"
 					/>
-					<text
-						x={R32_LAYOUT.r16Box.x + 6}
-						y={y + 14}
-						class="fill-current text-[9px] font-bold opacity-60"
-					>
-						R16 · M{i + 1}
+					<text x={LAYOUT.r16Box.x + 6} y={r16.y + 14} class="fill-current text-[9.5px] font-bold opacity-80">
+						{r16.cell.home} <tspan class="opacity-55">vs</tspan> {r16.cell.away}
 					</text>
-					<text
-						x={R32_LAYOUT.r16Box.x + 6}
-						y={y + 27}
-						class="fill-current text-[9px] opacity-45"
-					>
-						TBD
+					<text x={LAYOUT.r16Box.x + 6} y={r16.y + 27} class="fill-current text-[8.5px] opacity-45">
+						R16 · M{r16.num}
 					</text>
 				</g>
 			{/each}
 
-			<!-- QF box (narrow, just a label column) -->
+			<!-- QF box — narrow column with M-number and resolved teams if any -->
 			<g>
 				<rect
-					x={R32_LAYOUT.qfBox.x}
-					y={R32_LAYOUT.qfBox.y}
-					width={R32_LAYOUT.qfBox.w}
-					height={R32_LAYOUT.qfBox.h}
+					x={LAYOUT.qfBox.x}
+					y={LAYOUT.qfBox.y}
+					width={LAYOUT.qfBox.w}
+					height={LAYOUT.qfBox.h}
 					rx="4"
 					class="fill-base-300/10 stroke-base-300/40"
 					stroke-width="1"
 				/>
 				<text
-					x={R32_LAYOUT.qfBox.x + R32_LAYOUT.qfBox.w / 2}
-					y={R32_LAYOUT.qfBox.y + R32_LAYOUT.qfBox.h / 2 - 2}
+					x={LAYOUT.qfBox.x + LAYOUT.qfBox.w / 2}
+					y={LAYOUT.qfBox.y + 16}
 					text-anchor="middle"
 					class="fill-current text-[10px] font-extrabold opacity-65"
 				>
 					QF
 				</text>
 				<text
-					x={R32_LAYOUT.qfBox.x + R32_LAYOUT.qfBox.w / 2}
-					y={R32_LAYOUT.qfBox.y + R32_LAYOUT.qfBox.h / 2 + 12}
+					x={LAYOUT.qfBox.x + LAYOUT.qfBox.w / 2}
+					y={LAYOUT.qfBox.y + 30}
 					text-anchor="middle"
-					class="fill-current text-[8px] opacity-40"
+					class="fill-current text-[8.5px] opacity-40"
 				>
-					#{quadrantIdx + 1}
+					M{quadrant.qf}
+				</text>
+				<text
+					x={LAYOUT.qfBox.x + LAYOUT.qfBox.w / 2}
+					y={LAYOUT.qfBox.y + 48}
+					text-anchor="middle"
+					class="fill-current text-[8.5px] opacity-55"
+				>
+					{qfCell.home}
+				</text>
+				<text
+					x={LAYOUT.qfBox.x + LAYOUT.qfBox.w / 2}
+					y={LAYOUT.qfBox.y + 62}
+					text-anchor="middle"
+					class="fill-current text-[8.5px] opacity-55"
+				>
+					{qfCell.away}
 				</text>
 			</g>
 		</svg>
 
 		<p class="mt-2 text-[10.5px] text-base-content/50">
-			Quadrant #{quadrantIdx + 1} · 4 R32 matches converge to 1 quarter-final
+			4 R32 matches converge into 1 quarter-final · resolved teams appear as upstream rounds finish.
 		</p>
 	{:else}
-		<!-- Fallback for R16/QF/SF/F: linear path from current to trophy -->
+		<!-- Non-R32 stages: simple list of the stage's siblings. Proper
+		     local neighborhood rendering for R16+ is a future polish. -->
 		<div class="flex flex-col gap-2">
-			{#each siblings as sib}
+			{#each stageSiblings as sib}
 				{@const isHere = sib.id === fixture.id}
 				<div
 					class="flex items-center justify-between rounded-btn border px-3 py-2 text-[12px] {isHere
@@ -208,11 +237,6 @@
 					{/if}
 				</div>
 			{/each}
-			<p class="mt-1 text-[10.5px] text-base-content/50">
-				{siblings.length === 1
-					? 'This match feeds the next round.'
-					: 'Both matches in this section of the bracket.'}
-			</p>
 		</div>
 	{/if}
 
