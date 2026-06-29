@@ -26,13 +26,13 @@
 	href={`/results/${fixture.id}`}
 	on:click={() => track('match_detail_opened', { fixture_id: fixture.id, source: 'results_group_row' })}
 	class="block border-t border-base-300/45 transition-colors first:border-t-0 hover:bg-primary/5
-		{striped && !isLive ? 'bg-base-300/15' : ''}
+		{striped && !isLive ? 'bg-base-300/15 lg:bg-transparent' : ''}
 		{isLive ? 'border-l-4 border-l-success bg-success/5' : ''}"
 	aria-label={`Open match detail for ${displayTeamName(fixture.home_team)} vs ${displayTeamName(fixture.away_team)}`}
 >
 	<!-- Desktop grid -->
 	<div
-		class="hidden items-center gap-2 px-3 py-1.5 sm:grid sm:grid-cols-[minmax(130px,1fr)_86px_minmax(130px,1fr)_64px_118px]"
+		class="hidden items-center gap-2 px-3 py-1.5 sm:grid sm:grid-cols-[minmax(90px,1fr)_70px_minmax(90px,1fr)_56px_92px]"
 	>
 		<div class="flex items-center justify-end gap-2 {homeLoses ? 'opacity-60' : ''}">
 			<span class="truncate text-[13px] font-semibold">{displayTeamName(fixture.home_team)}</span>

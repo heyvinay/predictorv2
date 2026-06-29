@@ -86,24 +86,29 @@ describe('fixtureKoHits', () => {
 		});
 	});
 
-	// Pinned regression for v2.183.3: a half-resolved fixture (one side
-	// is a real team in the user's bracket, the other is a slot:...
-	// placeholder) MUST return hits=0. Earlier code returned hits=1,
-	// silently doubling round subtotals because the row display showed
-	// the fixture as TBD while the reducer counted Germany's hit.
-	it('counts 0 when EITHER side is a slot placeholder', () => {
+	// Per-side resolution (v2.184.x — supersedes the v2.183.3 all-or-nothing
+	// gate). A half-resolved fixture (one side real, other still slot:*)
+	// now counts the hit on the RESOLVED side if that team is in the
+	// user's picks. The previous behaviour returned hits=0 in this case
+	// which hid the user's banked R16-advancement points from the Round
+	// Total once R32 winners started flowing through to R16 fixtures.
+	// Fully-unresolved fixtures (both sides slot:*) still return hits=0.
+	it('counts per-side hits when only one side is a slot placeholder', () => {
+		// Mexico (picked) vs slot — counts the home hit
 		expect(
 			fixtureKoHits(
 				fx({ home_team: 'Mexico', away_team: 'slot:round_of_32:537416:away' }),
 				picks
 			)
-		).toEqual({ home: false, away: false, hits: 0 });
+		).toEqual({ home: true, away: false, hits: 1 });
+		// slot vs Senegal (picked) — counts the away hit
 		expect(
 			fixtureKoHits(
 				fx({ home_team: 'slot:round_of_32:537416:home', away_team: 'Senegal' }),
 				picks
 			)
-		).toEqual({ home: false, away: false, hits: 0 });
+		).toEqual({ home: false, away: true, hits: 1 });
+		// fully unresolved — no claim either way
 		expect(
 			fixtureKoHits(
 				fx({

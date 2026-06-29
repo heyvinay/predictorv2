@@ -42,7 +42,8 @@
 	import { defaultRound, roundsWithLive } from '$lib/utils/roundsLive';
 	import {
 		bracketPicksForRound,
-		missedR32Picks,
+		isRoundLineupSeeded,
+		missedPicksForRound,
 		progressingSplit,
 		stagePointsForRound
 	} from '$lib/utils/koPoints';
@@ -51,7 +52,7 @@
 	import RoundExplainer from '$lib/components/results/v4/RoundExplainer.svelte';
 	import GroupRoundTable from '$lib/components/results/v4/GroupRoundTable.svelte';
 	import KnockoutRoundTable from '$lib/components/results/v4/KnockoutRoundTable.svelte';
-	import MissedPicksCard from '$lib/components/results/v4/MissedPicksCard.svelte';
+	import RoundPicksCard from '$lib/components/results/v4/RoundPicksCard.svelte';
 	import ProgressingCard from '$lib/components/results/v4/ProgressingCard.svelte';
 	import SummaryView from '$lib/components/results/v4/SummaryView.svelte';
 	import WinnerView from '$lib/components/results/v4/WinnerView.svelte';
@@ -229,7 +230,17 @@
 	$: nextPicks = nextId ? bracketPicksForRound($bracketPrediction, nextId) : new Set<string>();
 	$: progressing =
 		activeRound?.isKnockout && nextId ? progressingSplit(roundFixtures, nextPicks) : null;
-	$: missedTeams = selectedRound === 'r32' ? missedR32Picks(roundFixtures, roundPicks) : [];
+	// v2.184.x: generalised from R32-only to every KO round so the
+	// RoundPicksCard can show ✗ pills on R16/QF/SF/F once the round's
+	// lineup is fully seeded. `missedPicksForRound` returns [] when the
+	// lineup still has slot:* placeholders — see isRoundLineupSeeded
+	// below for the gate.
+	$: missedTeams = activeRound?.isKnockout
+		? missedPicksForRound(roundFixtures, roundPicks)
+		: [];
+	$: roundLineupSeeded = activeRound?.isKnockout
+		? isRoundLineupSeeded(roundFixtures)
+		: true;
 	$: finalFixture =
 		rounds
 			.find((r) => r.id === 'f')
@@ -397,11 +408,14 @@
 						</p>
 					</div>
 				{/if}
-				{#if missedTeams.length > 0}
-					<MissedPicksCard
+				{#if roundPicks.size > 0}
+					<RoundPicksCard
 						roundLabel={activeRound.label}
-						teams={missedTeams}
+						picks={[...roundPicks]}
+						{missedTeams}
 						stagePoints={stagePts}
+						compactCodes={selectedRound === 'r32' || selectedRound === 'r16'}
+						lineupSeeded={roundLineupSeeded}
 					/>
 				{/if}
 				<KnockoutRoundTable
@@ -418,6 +432,7 @@
 						inNext={progressing.inNext}
 						notInNext={progressing.notInNext}
 						nextStagePoints={nextStagePts}
+						compactCodes={selectedRound === 'r32' || selectedRound === 'r16'}
 					/>
 				{/if}
 			{:else if activeRound}

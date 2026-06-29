@@ -110,18 +110,53 @@ function lineupSeeded(fixtures: Fixture[]): boolean {
 	);
 }
 
-/** R32 picks that never made it out of the groups — only meaningful once
- *  the R32 lineup is fully seeded with real team names. No reason chip
- *  (spec F.1). */
+/** Bracket picks for a KO round that never made the actual lineup (v2.184.x).
+ *
+ *  Generalises the older `missedR32Picks` for every knockout stage:
+ *   - R32: picks that didn't qualify out of the group stage
+ *   - R16: R16 picks whose team didn't survive R32
+ *   - QF: QF picks whose team didn't survive R16
+ *   - ... and so on
+ *
+ *  Gated by `lineupSeeded()` so we only return ✗ misses once we KNOW
+ *  the round's lineup is fully resolved. During partial resolution
+ *  (e.g. R16 with some R32s still scheduled) we return [] — the
+ *  consuming card should then render its "lineup pending" state rather
+ *  than tentative misses.
+ *
+ *  Third-place fixtures are excluded — unscored stage per the CLAUDE.md
+ *  invariant. R32 has no third_place but later rounds inherit the
+ *  filter defensively.
+ */
+export function missedPicksForRound(
+	roundFixtures: Fixture[],
+	roundPicks: Set<string>
+): string[] {
+	if (!lineupSeeded(roundFixtures)) return [];
+	const seeded = new Set<string>();
+	for (const f of roundFixtures) {
+		if (f.stage === 'third_place') continue;
+		seeded.add(f.home_team);
+		seeded.add(f.away_team);
+	}
+	return [...roundPicks].filter((team) => !seeded.has(team)).sort();
+}
+
+/** Whether `roundFixtures` is fully resolved (no `slot:*` placeholders
+ *  on either side). Surfaced for callers that need to gate UI states
+ *  (e.g. show "lineup pending" copy on the RoundPicksCard until the
+ *  upstream round finishes).
+ */
+export function isRoundLineupSeeded(roundFixtures: Fixture[]): boolean {
+	return lineupSeeded(roundFixtures);
+}
+
+/** @deprecated Use `missedPicksForRound`. Kept as an alias so existing
+ *  tests + any straggler callers don't break — both delegate to the
+ *  same implementation. */
 export function missedR32Picks(
 	r32Fixtures: Fixture[],
 	r32Picks: Set<string>
 ): string[] {
-	if (!lineupSeeded(r32Fixtures)) return [];
-	const seeded = new Set<string>();
-	for (const f of r32Fixtures) {
-		seeded.add(f.home_team);
-		seeded.add(f.away_team);
-	}
-	return [...r32Picks].filter((team) => !seeded.has(team)).sort();
+	return missedPicksForRound(r32Fixtures, r32Picks);
 }
