@@ -67,4 +67,21 @@
 		</div>
 	</div>
 
+	<!-- Overlap footer — picks include double-counted BOTH-pickers, so the
+	     bars alone hide important structure. Surfaced here so a reader can
+	     sanity-check why home + away > total. -->
+	{#if split.total > 0 && (split.both_picked > 0 || split.neither_picked > 0)}
+		<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/55">
+			{#if split.both_picked > 0}
+				<span>
+					<strong class="font-bold text-success">{split.both_picked}</strong> picked both
+				</span>
+			{/if}
+			{#if split.neither_picked > 0}
+				<span>
+					<strong class="font-bold text-base-content/75">{split.neither_picked}</strong> picked neither
+				</span>
+			{/if}
+		</div>
+	{/if}
 </div>

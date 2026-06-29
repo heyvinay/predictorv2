@@ -56,6 +56,21 @@ _KNOCKOUT_STAGES: list[str] = [
 ]
 
 
+# A fixture's "bank stage" — the stage that its winner advances TO and is
+# credited in. For an R32 fixture, the winner reaches round_of_16, so the
+# bank stage is round_of_16 and the relevant pick list is the entry's
+# round_of_16 advancement picks. Used by Pool Split / Pool Roll to count
+# entries that have THIS fixture's outcome in their bracket — not the
+# qualifier list (which is what `fixture.stage` would have surfaced).
+_BANK_STAGE_OF: dict[str, str] = {
+    "round_of_32": "round_of_16",
+    "round_of_16": "quarter_final",
+    "quarter_final": "semi_final",
+    "semi_final": "final",
+    "final": "winner",
+}
+
+
 def _cohort_of(employer: str | None) -> str:
     """Map User.employer onto the leaderboard's cohort buckets."""
     if employer == "atlas":
@@ -181,9 +196,16 @@ async def get_ko_match_detail(
         picks_by_team_stage[(team, stage)].add(entry_id)
         stages_by_entry_team[entry_id][team].add(stage)
 
-    # ── Pool split — who picked which side to advance from THIS fixture ──
+    # ── Pool split — who picked which side to ADVANCE from this fixture ──
+    # Bank stage is the stage that the winner of this fixture reaches
+    # (round_of_16 for an R32 fixture, etc.). We index picks_by_team_stage
+    # at the bank stage — picks at `fixture.stage` itself are the qualifier
+    # list (e.g., "predicted to be in R32"), which is a different question
+    # from "predicted to win this R32 match."
+    bank_stage = _BANK_STAGE_OF.get(fixture.stage, fixture.stage)
+
     def build_split_side(team: str) -> KoPoolSplitSide:
-        pick_ids = picks_by_team_stage.get((team, fixture.stage), set())
+        pick_ids = picks_by_team_stage.get((team, bank_stage), set())
         cohorts = KoCohortBreakdown(atlas=0, jmfa=0, guests=0)
         for eid in pick_ids:
             meta = entry_meta.get(eid)
@@ -203,10 +225,18 @@ async def get_ko_match_detail(
             cohorts=cohorts,
         )
 
+    # BOTH / NEITHER counts — derived from the bank-stage pick sets.
+    home_pickers = picks_by_team_stage.get((home_team, bank_stage), set())
+    away_pickers = picks_by_team_stage.get((away_team, bank_stage), set())
+    both_picked = len(home_pickers & away_pickers)
+    neither_picked = len(eligible_ids - (home_pickers | away_pickers))
+
     pool_split = KoPoolSplit(
         total=len(eligible_ids),
         home=build_split_side(home_team),
         away=build_split_side(away_team),
+        both_picked=both_picked,
+        neither_picked=neither_picked,
     )
 
     # ── Implications — alive-at-stage counts per side ──
@@ -264,14 +294,14 @@ async def get_ko_match_detail(
         away=build_exposed_side(away_team),
     )
 
-    # ── Pool roll — full list with each entry's R32 pick ──
-    # An entry might have neither team in their picks (incomplete bracket
-    # corner case); we skip those rather than render an empty pick.
+    # ── Pool roll — full list with each entry's pick for this fixture ──
+    # Uses the bank stage (see Pool Split comment above). Entries with no
+    # pick at the bank stage are skipped — they have no stake.
     pool_roll: list[KoPoolRollEntry] = []
     for entry_id, meta in entry_meta.items():
         pick: str | None = None
         for team in sides:
-            if entry_id in picks_by_team_stage.get((team, fixture.stage), set()):
+            if entry_id in picks_by_team_stage.get((team, bank_stage), set()):
                 pick = team
                 break
         if not pick:

@@ -38,11 +38,21 @@ class KoPoolSplitSide(BaseModel):
 
 
 class KoPoolSplit(BaseModel):
-    """Advancement vote across the eligible pool."""
+    """Advancement vote across the eligible pool.
+
+    ``home.count`` + ``away.count`` will exceed ``total`` whenever some
+    entries picked BOTH teams in the same advancement list (impossible
+    structurally — only one R32 winner advances — but the wizard doesn't
+    block it, and the user might have meant the second pick for a sibling
+    fixture). ``both_picked`` quantifies that overlap; ``neither_picked``
+    is the dual residual.
+    """
 
     total: int  # eligible entry count
     home: KoPoolSplitSide
     away: KoPoolSplitSide
+    both_picked: int  # entries that have BOTH teams in the bank-stage pick list
+    neither_picked: int  # entries with NEITHER team picked at the bank stage
 
 
 class KoImplicationSide(BaseModel):

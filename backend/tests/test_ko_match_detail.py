@@ -99,6 +99,8 @@ class TestKoSchemas:
                 total=183,
                 home=self._split_side("South Africa", 41, 183),
                 away=self._split_side("Canada", 142, 183),
+                both_picked=8,
+                neither_picked=8,  # 183 - (41 + 142 - 8)
             ),
             implications=KoImplications(
                 home=KoImplicationSide(
@@ -171,6 +173,8 @@ class TestKoSchemas:
                     team="B", count=0, pct=0,
                     cohorts=KoCohortBreakdown(atlas=0, jmfa=0, guests=0),
                 ),
+                both_picked=0,
+                neither_picked=0,
             ),
             implications=KoImplications(
                 home=KoImplicationSide(

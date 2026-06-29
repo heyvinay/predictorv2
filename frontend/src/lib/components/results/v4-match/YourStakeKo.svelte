@@ -1,15 +1,30 @@
 <script lang="ts">
-	/** Your Stake — the personal headline card for a knockout fixture.
+	/** Your Stake — the personal headline card for a knockout fixture (v2.184.x rewrite).
 	 *
-	 *  Answers "do I care about this match?" within two seconds:
-	 *   - which side you picked to advance (pill + flag)
-	 *   - points-at-stake on this specific fixture (scoring.advancement[stage])
-	 *   - bracket-path strip showing the downstream stages where the same
-	 *     team is alive in your bracket — lights up the chain of future
-	 *     points that depend on this one outcome
+	 *  Three cases per fixture:
 	 *
-	 *  Falls back to a neutral "no pick on file" state if the user's
-	 *  bracket isn't loaded yet or doesn't contain either team. */
+	 *  1. NEITHER — neither team is in your "bank stage" picks (the list
+	 *     of teams you've predicted to advance OUT of this round). No
+	 *     stake on this match's advancement credit.
+	 *
+	 *  2. ONE — one side is in your bank-stage list. Standard "I have a
+	 *     pick" case. Surfaces the chain of further stages where the
+	 *     same team carries deeper stakes.
+	 *
+	 *  3. BOTH — both teams are in your bank-stage list (Q1, Q2). You
+	 *     bank the advancement credit either way — outcome-immune at THIS
+	 *     stage. The page now flags this with a GUARANTEED banner and
+	 *     renders both team paths side-by-side so the deeper-stake
+	 *     asymmetry is visible (Q2 — "one team I have at QF, other only at
+	 *     R16").
+	 *
+	 *  Bank stage = the stage that the winner of THIS fixture advances TO.
+	 *  For an R32 fixture, that's round_of_16 — i.e., the relevant pick
+	 *  list is `bracket.round_of_16`. A previous version checked
+	 *  `bracket.round_of_32` (= group qualifiers list), which is the
+	 *  user's prediction at submission time about who reaches R32, not
+	 *  who wins R32. That bug is fixed here.
+	 */
 	import type { Fixture } from '$types';
 	import type { BracketPrediction } from '$types';
 	import type { KoMatchDetailResponse, ScoringRules } from '$lib/types/results';
@@ -23,20 +38,18 @@
 	export let scoringRules: ScoringRules | null;
 	export let mode: 'played' | 'upcoming';
 
-	// Stage order from the current fixture's stage onward — these are
-	// the steps the path strip walks through.
-	const KO_STAGE_ORDER = [
-		'round_of_32',
+	// Bracket-pick stages — increasing depth. Each maps to an advancement
+	// point payout in scoring config + a list in BracketPrediction.
+	const BRACKET_STAGES = [
 		'round_of_16',
 		'quarter_final',
 		'semi_final',
 		'final',
 		'winner'
 	] as const;
-	type KoStage = (typeof KO_STAGE_ORDER)[number];
+	type BracketStage = (typeof BRACKET_STAGES)[number];
 
-	const STAGE_LABEL: Record<KoStage, string> = {
-		round_of_32: 'R32',
+	const STAGE_LABEL: Record<BracketStage, string> = {
 		round_of_16: 'R16',
 		quarter_final: 'QF',
 		semi_final: 'SF',
@@ -44,86 +57,87 @@
 		winner: 'W'
 	};
 
-	// Resolve the user's pick for THIS fixture: whichever side appears in
-	// their R32 (or R16/QF/SF/F if this is a later round) advancement list.
-	$: thisStage = fixture.stage as KoStage;
-	$: bracketListForStage = (() => {
-		if (!bracket) return [] as string[];
-		switch (thisStage) {
-			case 'round_of_32':
-				return bracket.round_of_32 ?? [];
-			case 'round_of_16':
-				return bracket.round_of_16 ?? [];
-			case 'quarter_final':
-				return bracket.quarter_finals ?? [];
-			case 'semi_final':
-				return bracket.semi_finals ?? [];
-			case 'final':
-				return bracket.final ?? [];
-			default:
-				return [] as string[];
-		}
-	})();
+	// Map a fixture's stage to the bracket stage its winner advances INTO
+	// (the "bank stage" — points pay out when team reaches it).
+	const BANK_STAGE_FOR_FIXTURE: Record<string, BracketStage> = {
+		round_of_32: 'round_of_16',
+		round_of_16: 'quarter_final',
+		quarter_final: 'semi_final',
+		semi_final: 'final',
+		final: 'winner'
+	};
 
-	$: pick = (() => {
-		const home = bundle.home_team;
-		const away = bundle.away_team;
-		if (bracketListForStage.includes(home)) return home;
-		if (bracketListForStage.includes(away)) return away;
-		return null;
-	})();
+	$: bankStage = (BANK_STAGE_FOR_FIXTURE[fixture.stage] ?? 'round_of_16') as BracketStage;
 
-	$: stagePoints = (() => {
-		if (!scoringRules) return null;
-		const val = scoringRules.advancement[thisStage];
-		return typeof val === 'number' ? val : null;
-	})();
-
-	// Bracket path: for each KO stage AFTER thisStage, does the user have
-	// the same `pick` team listed? Lit cell = same team; dim cell = future
-	// stages they haven't bet this team on.
-	function teamInStage(team: string, stage: KoStage): boolean {
-		if (!bracket) return false;
+	function teamInStage(b: BracketPrediction | null, team: string, stage: BracketStage): boolean {
+		if (!b) return false;
 		switch (stage) {
-			case 'round_of_32':
-				return (bracket.round_of_32 ?? []).includes(team);
 			case 'round_of_16':
-				return (bracket.round_of_16 ?? []).includes(team);
+				return (b.round_of_16 ?? []).includes(team);
 			case 'quarter_final':
-				return (bracket.quarter_finals ?? []).includes(team);
+				return (b.quarter_finals ?? []).includes(team);
 			case 'semi_final':
-				return (bracket.semi_finals ?? []).includes(team);
+				return (b.semi_finals ?? []).includes(team);
 			case 'final':
-				return (bracket.final ?? []).includes(team);
+				return (b.final ?? []).includes(team);
 			case 'winner':
-				return bracket.winner === team;
-			default:
-				return false;
+				return b.winner === team;
 		}
 	}
 
-	$: futureStages = (() => {
-		const idx = KO_STAGE_ORDER.indexOf(thisStage);
-		if (idx < 0) return [] as KoStage[];
-		return KO_STAGE_ORDER.slice(idx + 1);
+	interface SideStake {
+		team: string;
+		isStaked: boolean; // in user's bank-stage pick list?
+		stagedAt: BracketStage[]; // every stage where team appears in bracket
+		deepestStage: BracketStage | null;
+		chainPoints: number; // sum of advancement points across stagedAt
+		bankPoints: number; // points awarded for THIS fixture's advancement
+	}
+
+	function analyzeSide(team: string): SideStake {
+		const stagedAt: BracketStage[] = bracket
+			? BRACKET_STAGES.filter((s) => teamInStage(bracket, team, s))
+			: [];
+		const deepestStage = stagedAt.length > 0 ? stagedAt[stagedAt.length - 1] : null;
+		const chainPoints =
+			scoringRules && bracket
+				? stagedAt.reduce((sum, s) => sum + ((scoringRules!.advancement[s] as number) ?? 0), 0)
+				: 0;
+		const bankPoints = (scoringRules?.advancement[bankStage] as number) ?? 0;
+		return {
+			team,
+			isStaked: stagedAt.includes(bankStage),
+			stagedAt,
+			deepestStage,
+			chainPoints,
+			bankPoints
+		};
+	}
+
+	$: homeStake = analyzeSide(bundle.home_team);
+	$: awayStake = analyzeSide(bundle.away_team);
+
+	$: stakeCase = (() => {
+		if (!bracket) return 'loading' as const;
+		if (homeStake.isStaked && awayStake.isStaked) return 'both' as const;
+		if (homeStake.isStaked || awayStake.isStaked) return 'one' as const;
+		return 'none' as const;
 	})();
 
-	$: pathCells = pick
-		? futureStages.map((s) => ({
-				stage: s,
-				label: STAGE_LABEL[s],
-				alive: teamInStage(pick, s)
-			}))
-		: [];
+	$: bankPoints = (scoringRules?.advancement[bankStage] as number) ?? 0;
 
-	// Maximum cumulative payout if `pick` keeps winning through every stage
-	// the user has them at. Helps the user feel the chain, not just one cell.
-	$: chainPoints = (() => {
-		if (!pick || !scoringRules) return null;
-		const stages: KoStage[] = [thisStage, ...futureStages];
-		return stages
-			.filter((s) => teamInStage(pick!, s))
-			.reduce((sum, s) => sum + ((scoringRules!.advancement[s] as number) ?? 0), 0);
+	// Helper for template expressions — Svelte template parses {...} as JS
+	// (NOT TS), so `as number` casts inside the template fail to compile.
+	// Keep the cast inside this script function and call it from the markup.
+	function stagePoints(stage: BracketStage): number {
+		const v = scoringRules?.advancement[stage];
+		return typeof v === 'number' ? v : 0;
+	}
+
+	// Stages to render in the path strip (everything from the bank stage onward).
+	$: pathStages = (() => {
+		const idx = BRACKET_STAGES.indexOf(bankStage);
+		return idx < 0 ? [] : (BRACKET_STAGES.slice(idx) as BracketStage[]);
 	})();
 </script>
 
@@ -140,78 +154,131 @@
 		</span>
 	</div>
 
-	{#if !bracket}
-		<!-- Bracket hasn't hydrated yet — the rest of the page can read but
-		     this card waits for the user's picks. -->
-		<div class="text-[12.5px] text-base-content/55">Loading your bracket…</div>
-	{:else if !pick}
-		<!-- Defensive: bracket exists but neither team is in the user's
-		     advancement list for this stage. Should be impossible for a
-		     completed bracket, but better than rendering an empty hero. -->
-		<div class="text-[12.5px] text-base-content/55">
-			Neither <TeamName name={bundle.home_team} /> nor <TeamName name={bundle.away_team} /> is in
-			your bracket for this round.
+	{#if stakeCase === 'loading'}
+		<div class="pl-1 text-[12.5px] text-base-content/55">Loading your bracket…</div>
+	{:else if stakeCase === 'none'}
+		<div class="pl-1 text-[12.5px] text-base-content/55">
+			Neither <TeamName name={bundle.home_team} /> nor <TeamName name={bundle.away_team} /> is in your
+			bracket for this round — no advancement credit at stake for you on this fixture.
 		</div>
 	{:else}
-		<div class="mb-3 flex flex-wrap items-center gap-2 pl-1 text-[12.5px]">
-			<span class="text-[10.5px] font-bold uppercase tracking-[0.14em] text-base-content/55"
-				>You picked</span
-			>
-			<span class="inline-flex items-center gap-2 rounded-full bg-primary/20 px-3 py-1 font-bold text-primary">
-				{#if hasFlag(pick)}
-					<img src={getFlagUrl(pick, 'sm')} alt="" class="h-3 w-[18px] rounded-sm" style="aspect-ratio: 4 / 3" />
-				{/if}
-				<TeamName name={pick} />
-				<span class="text-[10.5px] font-semibold opacity-70">to advance</span>
-			</span>
-		</div>
-
-		<!-- Points band — what THIS match pays out if your pick is right. -->
-		{#if stagePoints !== null}
+		<!-- BOTH case banner — outcome-immune advancement credit. Only renders
+		     when both teams sit in the user's bank-stage pick list. -->
+		{#if stakeCase === 'both'}
 			<div
-				class="mb-3 flex items-center justify-between rounded-btn bg-base-300/30 px-3 py-2.5"
+				class="mb-3 flex items-center justify-between rounded-btn border border-success/40 bg-success/15 px-3 py-2.5"
 			>
-				<span class="text-[12.5px] text-base-content/70">
-					{#if mode === 'played'}If <TeamName name={pick} forceCode /> advanced, this banks{:else}If <TeamName name={pick} forceCode /> advances, this match pays{/if}
-				</span>
-				<span class="font-display text-[20px] font-extrabold text-success">+{stagePoints}</span>
+				<div class="flex items-center gap-2 text-[12px] font-bold text-success">
+					<span class="text-[14px]" aria-hidden="true">✓</span>
+					<span class="uppercase tracking-[0.12em]">Guaranteed</span>
+					<span class="font-normal normal-case opacity-90"
+						>— you bank this round either way</span
+					>
+				</div>
+				<div class="font-display text-[18px] font-extrabold text-success">+{bankPoints}</div>
 			</div>
 		{/if}
 
-		<!-- Bracket-path strip — downstream stages where the same team is
-		     alive in your bracket. Empty when you're on the Final. -->
-		{#if pathCells.length > 0}
-			<div class="rounded-btn bg-base-300/20 px-3 py-3">
-				<div
-					class="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-base-content/55"
-				>
-					Your {teamCode(pick)} path through the bracket
-				</div>
-				<div class="flex items-center gap-1.5">
-					{#each pathCells as cell, i (cell.stage)}
-						<div
-							class="flex flex-1 flex-col items-center rounded-btn border px-1.5 py-1.5 text-center text-[10.5px] {cell.alive
-								? 'border-primary/40 bg-primary/15 font-bold text-primary'
-								: 'border-base-300/40 text-base-content/45'}"
-						>
-							<span class="text-[11px] font-extrabold">{cell.label}</span>
-							<span class="text-[9.5px] opacity-80">
-								{cell.alive ? 'picked' : '—'}
+		<!-- Per-side stake cards. ONE case: only the staked side card renders.
+		     BOTH case: both cards side-by-side on sm+ so the asymmetric
+		     deeper stake (Q2) is visible at a glance. -->
+		<div
+			class="grid gap-3 {stakeCase === 'both' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} pl-1"
+		>
+			{#each [homeStake, awayStake] as side (side.team)}
+				{#if side.isStaked}
+					{@const isFurthest =
+						stakeCase === 'both' && side.chainPoints >= Math.max(homeStake.chainPoints, awayStake.chainPoints)}
+					<div
+						class="rounded-btn border border-base-300/45 bg-base-300/20 p-3 {isFurthest &&
+						stakeCase === 'both' &&
+						homeStake.chainPoints !== awayStake.chainPoints
+							? 'border-l-[3px] border-l-primary/70'
+							: ''}"
+					>
+						<!-- Team identity -->
+						<div class="mb-2 flex items-center justify-between">
+							<span class="inline-flex items-center gap-2">
+								{#if hasFlag(side.team)}
+									<img
+										src={getFlagUrl(side.team, 'sm')}
+										alt=""
+										class="h-3 w-[18px] rounded-sm"
+										style="aspect-ratio: 4 / 3"
+									/>
+								{/if}
+								<span class="font-display text-[14px] font-extrabold">
+									<TeamName name={side.team} />
+								</span>
 							</span>
+							{#if stakeCase === 'both' && side.chainPoints > bankPoints}
+								<span class="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-primary">
+									Deeper stake
+								</span>
+							{/if}
 						</div>
-						{#if i < pathCells.length - 1}
-							<span class="text-[10px] text-base-content/30">→</span>
-						{/if}
-					{/each}
-				</div>
 
-				{#if chainPoints !== null && chainPoints > (stagePoints ?? 0)}
-					<div class="mt-2 text-[11.5px] text-base-content/65">
-						If <TeamName name={pick} forceCode /> keeps winning, max chain payout:
-						<strong class="text-primary">+{chainPoints} pts</strong>
+						<!-- Path strip — stages from bank onward; lit if in bracket. -->
+						<div class="flex items-center gap-1">
+							{#each pathStages as ps, i (ps)}
+								{@const alive = teamInStage(bracket, side.team, ps)}
+								{@const points = stagePoints(ps)}
+								<div
+									class="flex flex-1 flex-col items-center rounded-btn border px-1 py-1.5 text-center {alive
+										? 'border-primary/50 bg-primary/15 font-bold text-primary'
+										: 'border-base-300/40 text-base-content/40'}"
+								>
+									<span class="text-[10.5px] font-extrabold">{STAGE_LABEL[ps]}</span>
+									<span class="text-[9px] font-mono opacity-80">
+										{alive ? `+${points}` : '—'}
+									</span>
+								</div>
+								{#if i < pathStages.length - 1}
+									<span class="text-[8.5px] text-base-content/30">›</span>
+								{/if}
+							{/each}
+						</div>
+
+						<!-- Chain total — only shows additional value if it exceeds the bank-only payout -->
+						{#if side.chainPoints > side.bankPoints}
+							<div class="mt-2 text-[11px] text-base-content/65">
+								Max chain payout:
+								<strong class="text-primary">+{side.chainPoints} pts</strong>
+								<span class="opacity-60">
+									if {teamCode(side.team)} keeps winning
+								</span>
+							</div>
+						{:else if stakeCase === 'one'}
+							<div class="mt-2 text-[11px] text-base-content/65">
+								Banks <strong class="text-success">+{side.bankPoints}</strong>
+								{mode === 'played' ? 'if' : 'when'}
+								{teamCode(side.team)}
+								advances.
+							</div>
+						{/if}
 					</div>
 				{/if}
-			</div>
+			{/each}
+		</div>
+
+		<!-- BOTH-only deeper-context line — quantifies how much extra hangs on which side advances. -->
+		{#if stakeCase === 'both'}
+			{@const diff = Math.abs(homeStake.chainPoints - awayStake.chainPoints)}
+			{#if diff > 0}
+				{@const deeperSide =
+					homeStake.chainPoints > awayStake.chainPoints ? homeStake : awayStake}
+				<div class="mt-3 rounded-btn bg-base-300/15 px-3 py-2 text-[11.5px] text-base-content/70">
+					<span class="font-semibold text-base-content"
+						>{teamCode(deeperSide.team)} advancing</span
+					>
+					adds <strong class="text-primary">+{diff} pts</strong> of further potential to
+					this match — the asymmetric stake.
+				</div>
+			{:else}
+				<div class="mt-3 rounded-btn bg-base-300/15 px-3 py-2 text-[11.5px] text-base-content/70">
+					Equal stake on either side — both teams carry the same chain in your bracket.
+				</div>
+			{/if}
 		{/if}
 	{/if}
 </div>

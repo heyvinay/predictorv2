@@ -117,6 +117,13 @@ export interface KoPoolSplit {
 	total: number;
 	home: KoPoolSplitSide;
 	away: KoPoolSplitSide;
+	/** Entries with BOTH teams in their bank-stage pick list (e.g. both teams
+	 *  in their R16 picks for an R32 fixture). Such entries are outcome-immune
+	 *  for this fixture's advancement credit — whichever wins, they bank. */
+	both_picked: number;
+	/** Entries with NEITHER team picked at the bank stage — no stake on this
+	 *  fixture's advancement at all. */
+	neither_picked: number;
 }
 
 export interface KoImplicationSide {
