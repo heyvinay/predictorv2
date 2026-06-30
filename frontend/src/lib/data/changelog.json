@@ -2396,6 +2396,13 @@
       "type": "feature",
       "summary": "Results page redesign — every knockout round now opens with a single combined picks card that shows your full bracket for that round in one read: alive picks marked ✓, missed picks marked ✗ with strike-through, summary header reading e.g. 'Your Round of 32 bracket · 26/32 through · +520 · –120'. Replaces the old red 'picks that didn't make it' banner which only told half the story. The Progressing card at the bottom of each round was tightened to match — same pill geometry, same 3-letter codes at R32/R16. On the fixtures table itself, desktop (≥1024px wide) now renders two fixtures per visual row instead of one — so you can see all 16 R32 matches or all 24 group-stage matches without scrolling. Each fixture becomes its own discrete card with a clear border and lifted background. Mobile and smaller laptops keep the existing single-column layout. Same compactness treatment applies to all knockout rounds (R32 → Final) and to the group-stage rounds (R1/R2/R3).",
       "commit": "pending"
+    },
+    {
+      "version": "2.185.1",
+      "date": "2026-06-30",
+      "type": "fix",
+      "summary": "Knockout scoreline fixes after Germany vs Paraguay and Netherlands vs Morocco went to penalties. Two layers were wrong. First: the score-sync mapping was pulling Football-Data's combined-total (regulation + extra time + penalty-shootout goals) into the regulation column, and its extra-time-period delta into the after-ET column — so Netherlands–Morocco landed as '1–1 with ET 0–0 and no pens' (the system thought it ended as a draw, with no clear winner). Now regulation, after-ET and penalties each land in the right column. Second: when Football-Data misreports the penalty shootout itself (it served '4–4 with no winner' for Germany–Paraguay and '3–3 with no winner' for Netherlands–Morocco, both wrong), the shootout result is now derived from the combined fullTime score, which encodes the truth correctly. Result: Netherlands–Morocco self-heals on the next sync tick to 1–1 (Morocco won pens 3–2). Visually: the eliminated team is now greyed out on the home dashboard Latest Results row, on the Results page knockout rows, and on the per-match detail hero — which also now shows three score lines (regulation, After Extra Time, Pens) and an 'AFTER PENALTIES' badge when applicable.",
+      "commit": "pending"
     }
   ]
 }
