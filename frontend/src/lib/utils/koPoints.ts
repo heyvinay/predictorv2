@@ -192,9 +192,25 @@ export function partialMissedPicksForRound(
 ): string[] {
 	const inPlay = new Set<string>();
 	for (const f of prevRoundFixtures) {
-		if (f.status === 'finished') continue;
-		if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
-		if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
+		if (f.stage === 'third_place') continue;
+		if (f.status !== 'finished') {
+			// Both teams still competing — neither can be marked missed yet.
+			if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
+			if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
+		} else {
+			// Finished: only the winner advances into the next round.
+			// The loser falls out of inPlay and becomes ✗ missed.
+			// If score data is absent, keep both teams in play defensively.
+			const outcome = f.score?.outcome;
+			if (!outcome) {
+				if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
+				if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
+			} else if (outcome === '1' && f.home_team && !f.home_team.startsWith('slot:')) {
+				inPlay.add(f.home_team);
+			} else if (outcome === '2' && f.away_team && !f.away_team.startsWith('slot:')) {
+				inPlay.add(f.away_team);
+			}
+		}
 	}
 	return [...roundPicks].filter((t) => !confirmed.has(t) && !inPlay.has(t)).sort();
 }
