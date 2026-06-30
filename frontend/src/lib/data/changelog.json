@@ -2403,6 +2403,13 @@
       "type": "fix",
       "summary": "Knockout scoreline fixes after Germany vs Paraguay and Netherlands vs Morocco went to penalties. Two layers were wrong. First: the score-sync mapping was pulling Football-Data's combined-total (regulation + extra time + penalty-shootout goals) into the regulation column, and its extra-time-period delta into the after-ET column — so Netherlands–Morocco landed as '1–1 with ET 0–0 and no pens' (the system thought it ended as a draw, with no clear winner). Now regulation, after-ET and penalties each land in the right column. Second: when Football-Data misreports the penalty shootout itself (it served '4–4 with no winner' for Germany–Paraguay and '3–3 with no winner' for Netherlands–Morocco, both wrong), the shootout result is now derived from the combined fullTime score, which encodes the truth correctly. Result: Netherlands–Morocco self-heals on the next sync tick to 1–1 (Morocco won pens 3–2). Visually: the eliminated team is now greyed out on the home dashboard Latest Results row, on the Results page knockout rows, and on the per-match detail hero — which also now shows three score lines (regulation, After Extra Time, Pens) and an 'AFTER PENALTIES' badge when applicable.",
       "commit": "pending"
+    },
+    {
+      "version": "2.186.0",
+      "date": "2026-06-30",
+      "type": "improvement",
+      "summary": "Score sync now uses ESPN's match summary endpoint to get accurate penalty and extra-time splits for knockout matches, with Football-Data as a safety net. Stale penalty data from earlier rounds auto-heals on the next sync.",
+      "commit": "pending"
     }
   ]
 }
