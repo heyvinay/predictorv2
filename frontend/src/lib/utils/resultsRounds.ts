@@ -17,6 +17,7 @@ export const ROUND_ORDER: RoundId[] = [
 	'r2',
 	'r3',
 	'groups',
+	'bracket',
 	'r32',
 	'r16',
 	'qf',
@@ -31,6 +32,7 @@ export const ROUND_LABELS: Record<RoundId, string> = {
 	r2: 'Round 2',
 	r3: 'Round 3',
 	groups: 'Group Standings',
+	bracket: 'Bracket',
 	r32: 'Round of 32',
 	r16: 'Round of 16',
 	qf: 'Quarter-Finals',
@@ -162,6 +164,8 @@ export function buildRounds(fixtures: Fixture[]): RoundDef[] {
 				? 'All rounds'
 				: id === 'groups'
 				? 'Live tables'
+				: id === 'bracket'
+				? 'Knockout tree'
 				: '';
 		return {
 			id,

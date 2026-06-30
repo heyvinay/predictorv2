@@ -34,6 +34,7 @@ export type RoundId =
 	| 'r2'
 	| 'r3'
 	| 'groups'
+	| 'bracket'
 	| 'r32'
 	| 'r16'
 	| 'qf'

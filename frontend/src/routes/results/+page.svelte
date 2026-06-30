@@ -57,6 +57,7 @@
 	import SummaryView from '$lib/components/results/v4/SummaryView.svelte';
 	import WinnerView from '$lib/components/results/v4/WinnerView.svelte';
 	import GroupStandingsView from '$lib/components/results/v4/GroupStandingsView.svelte';
+	import ResultsBracket from '$lib/components/results/v4/ResultsBracket.svelte';
 
 	$: if (!$isAuthenticated) goto('/login');
 
@@ -78,6 +79,7 @@
 		'r1',
 		'r2',
 		'r3',
+		'bracket',
 		'r32',
 		'r16',
 		'qf',
@@ -388,6 +390,13 @@
 					loading={standingsLoading}
 					error={standingsError}
 					lastUpdatedAt={standingsLastUpdated}
+				/>
+			{:else if selectedRound === 'bracket'}
+				<ResultsBracket
+					fixtures={$fixtures}
+					bracketPrediction={$bracketPrediction}
+					{rules}
+					knockoutScoringEnabled={$knockoutScoringEnabled}
 				/>
 			{:else if activeRound?.isKnockout}
 				{#if !$knockoutScoringEnabled}

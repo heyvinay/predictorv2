@@ -41,7 +41,7 @@ export function defaultRound(
 ): RoundId {
 	const live = roundsWithLive(rounds, fixtureById);
 	for (const r of rounds) {
-		if (r.id !== 'summary' && r.id !== 'winner' && live.has(r.id)) return r.id;
+		if (r.id !== 'summary' && r.id !== 'winner' && r.id !== 'bracket' && live.has(r.id)) return r.id;
 	}
 
 	const playable = rounds.filter(
