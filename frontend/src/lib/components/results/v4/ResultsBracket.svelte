@@ -16,42 +16,79 @@
 	import { bracketPicksForRound, fixtureKoHits, isRoundLineupSeeded } from '$lib/utils/koPoints';
 	import { koLoserSide } from '$lib/utils/matchDetailV4';
 	import { displayTeamName } from '$lib/utils/teamName';
-	import { matchNumberOf } from '$lib/utils/bracketGeometry';
+	import { buildMatchNumberIndex } from '$lib/utils/bracketGeometry';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { SEMI_FINALS, QUARTER_FINALS, ROUND_OF_16 } from '$lib/config/bracketConfig';
 
 	export let fixtures: Fixture[];
 	export let bracketPrediction: BracketPrediction | null;
 	export let rules: ScoringRules | null;
 	export let knockoutScoringEnabled: boolean;
 
-	// ── KO fixture sets, sorted by FIFA match number ─────────────────────────
-	function koByStage(stage: string): Fixture[] {
-		return fixtures
-			.filter((f) => f.stage === stage)
-			.sort(
-				(a, b) =>
-					(matchNumberOf(a, fixtures) ?? 999) - (matchNumberOf(b, fixtures) ?? 999)
-			);
+	// ── Derive wallchart columns by walking the source graph ─────────────────
+	// FIFA match numbers are chronological, NOT visual top-to-bottom order.
+	// We walk SF → QF → R16 → R32 via homeSource/awaySource to get the
+	// correct wallchart sequence — the same approach BracketQuadrant uses.
+	interface BracketHalf {
+		r32: Fixture[];
+		r16: Fixture[];
+		qf: Fixture[];
+		sf: Fixture | null;
 	}
 
-	$: r32All = koByStage('round_of_32');
-	$: r16All = koByStage('round_of_16');
-	$: qfAll = koByStage('quarter_final');
-	$: sfAll = koByStage('semi_final');
-	$: finalF =
-		fixtures.find((f) => f.stage === 'final' && matchNumberOf(f, fixtures) === 104) ??
-		fixtures.find((f) => f.stage === 'final') ??
-		null;
+	function deriveHalf(sfMatchNum: number, idx: Map<number, Fixture>): BracketHalf {
+		const sfCfg = SEMI_FINALS.find((m) => m.matchNumber === sfMatchNum);
+		if (!sfCfg) return { r32: [], r16: [], qf: [], sf: null };
 
-	// ── L / R halves ─────────────────────────────────────────────────────────
-	$: r32L = r32All.slice(0, 8);
-	$: r32R = r32All.slice(8);
-	$: r16L = r16All.slice(0, 4);
-	$: r16R = r16All.slice(4);
-	$: qfL = qfAll.slice(0, 2);
-	$: qfR = qfAll.slice(2);
-	$: sfL = sfAll.slice(0, 1);
-	$: sfR = sfAll.slice(1);
+		const winnerNums = (src: { type: string; matchNumber?: number }[]) =>
+			src.flatMap((s) => (s.type === 'winner' && s.matchNumber !== undefined ? [s.matchNumber] : []));
+
+		const qfNums = winnerNums([sfCfg.homeSource, sfCfg.awaySource]);
+		const r16Nums: number[] = [];
+		const r32Nums: number[] = [];
+
+		for (const qfNum of qfNums) {
+			const qfCfg = QUARTER_FINALS.find((m) => m.matchNumber === qfNum);
+			if (!qfCfg) continue;
+			const r16Pair = winnerNums([qfCfg.homeSource, qfCfg.awaySource]);
+			for (const r16Num of r16Pair) {
+				r16Nums.push(r16Num);
+				const r16Cfg = ROUND_OF_16.find((m) => m.matchNumber === r16Num);
+				if (!r16Cfg) continue;
+				r32Nums.push(...winnerNums([r16Cfg.homeSource, r16Cfg.awaySource]));
+			}
+		}
+
+		const fx = (n: number) => idx.get(n) ?? null;
+		return {
+			r32: r32Nums.map(fx).filter((f): f is Fixture => f !== null),
+			r16: r16Nums.map(fx).filter((f): f is Fixture => f !== null),
+			qf: qfNums.map(fx).filter((f): f is Fixture => f !== null),
+			sf: fx(sfMatchNum),
+		};
+	}
+
+	$: matchIdx = buildMatchNumberIndex(fixtures);
+	$: leftHalf  = deriveHalf(101, matchIdx);  // SF M101 → QF M97/98 → left columns
+	$: rightHalf = deriveHalf(102, matchIdx);  // SF M102 → QF M99/100 → right columns
+
+	$: r32L = leftHalf.r32;
+	$: r16L = leftHalf.r16;
+	$: qfL  = leftHalf.qf;
+	$: sfL  = leftHalf.sf ? [leftHalf.sf] : [];
+
+	$: r32R = rightHalf.r32;
+	$: r16R = rightHalf.r16;
+	$: qfR  = rightHalf.qf;
+	$: sfR  = rightHalf.sf ? [rightHalf.sf] : [];
+
+	$: finalF = matchIdx.get(104) ?? null;
+
+	// ── All fixtures per stage for hits/seeded checks ─────────────────────────
+	$: r32All = [...r32L, ...r32R];
+	$: r16All = [...r16L, ...r16R];
+	$: qfAll  = [...qfL, ...qfR];
+	$: sfAll  = [...sfL, ...sfR];
 
 	// ── Bracket picks per round ───────────────────────────────────────────────
 	$: r32Picks = bracketPicksForRound(bracketPrediction, 'r32');

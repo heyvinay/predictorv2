@@ -2431,6 +2431,13 @@
       "type": "improvement",
       "summary": "Bracket tab chips now match the entry wizard design: flags, green winner wash, dimmed losers, and a gold FINAL header strip.",
       "commit": "pending"
+    },
+    {
+      "version": "2.188.1",
+      "date": "2026-06-30",
+      "type": "fix",
+      "summary": "Fixed bracket wallchart game ordering — columns now follow the correct FIFA wallchart structure derived from the source graph, not sequential match numbers.",
+      "commit": "pending"
     }
   ]
 }
