@@ -151,7 +151,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row"
 						class:is-winner={loser === 'away'}
 						class:is-loser={loser === 'home'}
@@ -185,7 +185,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -213,7 +213,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -241,7 +241,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -269,7 +269,7 @@
 				{@const awaySeeded = !!finalF.away_team && !finalF.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && fPicks.has(finalF.home_team ?? '')}
 				{@const awayHit = awaySeeded && fPicks.has(finalF.away_team ?? '')}
-				<div class="bracket-chip bracket-chip--final">
+				<div class="bracket-chip bracket-chip--final border border-primary/80 bg-base-200">
 					<div class="final-strip">Final</div>
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
@@ -298,7 +298,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -326,7 +326,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -354,7 +354,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -382,7 +382,7 @@
 				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 				{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
 				{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip">
+				<div class="bracket-chip border border-base-content/15 bg-base-200">
 					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 						{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -467,7 +467,7 @@
 							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 							{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
 							{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip">
+							<div class="bracket-chip border border-base-content/15 bg-base-200">
 								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 									{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -493,7 +493,7 @@
 							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 							{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
 							{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip">
+							<div class="bracket-chip border border-base-content/15 bg-base-200">
 								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 									{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -525,7 +525,7 @@
 							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 							{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
 							{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip">
+							<div class="bracket-chip border border-base-content/15 bg-base-200">
 								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 									{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -551,7 +551,7 @@
 							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 							{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
 							{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip">
+							<div class="bracket-chip border border-base-content/15 bg-base-200">
 								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 									{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -585,7 +585,7 @@
 								{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 								{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
 								{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-								<div class="bracket-chip">
+								<div class="bracket-chip border border-base-content/15 bg-base-200">
 									<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 										<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 										{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -614,7 +614,7 @@
 								{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
 								{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
 								{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-								<div class="bracket-chip">
+								<div class="bracket-chip border border-base-content/15 bg-base-200">
 									<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 										<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
 										{#if homeSeeded && hasFlag(f.home_team ?? '')}
@@ -646,7 +646,7 @@
 						{@const awaySeeded = !!finalF.away_team && !finalF.away_team.startsWith('slot:')}
 						{@const homeHit = homeSeeded && fPicks.has(finalF.home_team ?? '')}
 						{@const awayHit = awaySeeded && fPicks.has(finalF.away_team ?? '')}
-						<div class="bracket-chip bracket-chip--final w-full max-w-xs">
+						<div class="bracket-chip bracket-chip--final border border-primary/80 bg-base-200 w-full max-w-xs">
 							<div class="final-strip">Final</div>
 							<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
 								<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
@@ -715,18 +715,16 @@
 		min-height: 100%;
 	}
 
-	/* ── Bracket chip — mirrors BracketMatch.svelte visual exactly ─────────── */
+	/* ── Bracket chip — layout only; surface tokens applied via Tailwind classes
+	       on the element so DaisyUI's rgb-channel variables resolve correctly ── */
 	.bracket-chip {
 		position: relative;
 		overflow: hidden;
 		border-radius: 6px;
-		border: 1px solid hsl(var(--bc) / 0.15);
-		background: hsl(var(--b2));
 		box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
 	}
 
 	.bracket-chip--final {
-		border-color: hsl(var(--p) / 0.80);
 		box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
 	}
 
@@ -736,8 +734,7 @@
 		font-size: 10px;
 		letter-spacing: 0.2em;
 		text-transform: uppercase;
-		background: hsl(var(--p));
-		color: hsl(var(--pc));
+		@apply bg-primary text-primary-content;
 		padding: 2px 0;
 	}
 
@@ -770,7 +767,7 @@
 	}
 
 	.divider {
-		border-top: 1px solid hsl(var(--bc) / 0.15);
+		@apply border-t border-base-content/15;
 	}
 
 	/* ── Bullet column (reserved width so name text aligns) ───────────────── */
@@ -781,7 +778,7 @@
 		font-size: 0.7rem;
 		font-weight: 900;
 		line-height: 1;
-		color: hsl(var(--su));
+		@apply text-success;
 	}
 
 	/* ── Flag ──────────────────────────────────────────────────────────────── */
