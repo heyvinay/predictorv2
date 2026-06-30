@@ -2423,6 +2423,13 @@
       "date": "2026-06-30",
       "type": "feature",
       "summary": "New Bracket tab on the Results page shows the full knockout tree with live team names and a subtle check mark on slots matching your bracket picks. Eliminated teams are greyed out. Desktop view is a 9-column wallchart; mobile has a 4-page swipeable carousel.",
+      "commit": "a169723"
+    },
+    {
+      "version": "2.188.0",
+      "date": "2026-06-30",
+      "type": "improvement",
+      "summary": "Bracket tab chips now match the entry wizard design: flags, green winner wash, dimmed losers, and a gold FINAL header strip.",
       "commit": "pending"
     }
   ]
