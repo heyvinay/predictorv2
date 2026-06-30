@@ -112,7 +112,7 @@ def _parse_side(competitor: dict[str, Any]) -> dict[str, Any] | None:
 
     reg = sum(play[:_REGULATION_PERIODS])
     went_past_reg = has_pen or len(play) > _REGULATION_PERIODS
-    et = sum(play) if went_past_reg else None
+    et = sum(play) if went_past_reg else None  # cumulative score at end of ET (reg + ET goals)
 
     score_total: int | None = None
     raw_score = competitor.get("score")
@@ -240,7 +240,7 @@ class EspnClient:
 
     DEFAULT_TIMEOUT = 10.0
     MAX_RETRIES = 2
-    BACKOFF_SECONDS = (1.0,)
+    BACKOFF_SECONDS: float = 1.0
 
     def __init__(self, *, timeout: float = DEFAULT_TIMEOUT) -> None:
         self._timeout = timeout
@@ -249,16 +249,14 @@ class EspnClient:
         """GET /{league}/scoreboard?dates=YYYYMMDD[-YYYYMMDD] → events list."""
         url = f"{BASE_URL}/{league_slug}/scoreboard"
         params = {"dates": dates, "limit": "200"}
-        last_exc: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
             try:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     resp = await client.get(url, params=params)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                last_exc = exc
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(self.BACKOFF_SECONDS[attempt])
+                    await asyncio.sleep(self.BACKOFF_SECONDS)
                     continue
                 raise EspnError(f"Network error after {self.MAX_RETRIES} attempts: {exc}") from exc
 
@@ -268,22 +266,18 @@ class EspnClient:
             payload = resp.json()
             return list(payload.get("events", []))
 
-        raise EspnError(f"Exhausted retries for {url}; last error: {last_exc}")
-
     async def get_summary(self, league_slug: str, event_id: str) -> dict[str, Any]:
         """GET /{league}/summary?event={id} → full match summary with linescores."""
         url = f"{BASE_URL}/{league_slug}/summary"
         params = {"event": event_id}
-        last_exc: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
             try:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     resp = await client.get(url, params=params)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                last_exc = exc
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(self.BACKOFF_SECONDS[attempt])
+                    await asyncio.sleep(self.BACKOFF_SECONDS)
                     continue
                 raise EspnError(f"Network error after {self.MAX_RETRIES} attempts: {exc}") from exc
 
@@ -291,5 +285,3 @@ class EspnClient:
                 raise EspnError(f"HTTP {resp.status_code} for {url}: {resp.text[:200]}")
 
             return dict(resp.json())
-
-        raise EspnError(f"Exhausted retries for {url}; last error: {last_exc}")
