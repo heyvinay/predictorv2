@@ -2444,7 +2444,14 @@
       "date": "2026-06-30",
       "type": "feature",
       "summary": "Bracket wallchart chips are now clickable (opens match detail) and show live scores with penalty shootout result in smaller italic text.",
-      "commit": "pending"
+      "commit": "a4c7848"
+    },
+    {
+      "version": "2.190.0",
+      "date": "2026-06-30",
+      "type": "feature",
+      "summary": "R16 (and later KO rounds) bracket chip strip now shows three states — confirmed ✓ for teams already through, missed ✗ for teams eliminated, and pending — for R32 matches not yet played.",
+      "commit": "9539014"
     }
   ]
 }
