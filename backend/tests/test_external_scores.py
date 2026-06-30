@@ -237,10 +237,178 @@ def test_regular_90min_match_still_uses_fulltime() -> None:
     assert ext.home_penalties is None and ext.away_penalties is None
 
 
+def test_parse_summary_split_clean_pens() -> None:
+    """Well-formed linescores with a penalty shootout return correct split."""
+    from app.services.external.espn import parse_summary_split
+
+    def make_competitor(home_away: str, linescores: list, score: str, shootout: str):
+        return {
+            "homeAway": home_away,
+            "linescores": [{"displayValue": str(v)} for v in linescores],
+            "score": score,
+            "shootoutScore": shootout,
+        }
+
+    # Germany 1-1 (0-1, 1-0 halves), Paraguay wins 4-3 on pens
+    # linescores: [half1, half2, ET_half1, ET_half2, shootout]
+    # Wait -- linescores for a pens match = [h1, h2, et1, et2, pens_count]
+    # play = vals[:-1] = [h1, h2, et1, et2], pen = vals[-1]
+    # reg = sum(play[:2]) = h1 + h2
+    # et = sum(play) = h1+h2+et1+et2 (cumulative after ET)
+    summary = {"header": {"competitions": [{"competitors": [
+        make_competitor("home", [0, 1, 0, 0, 3], "1", "3"),   # Germany: reg=1, et=1, pen=3
+        make_competitor("away", [1, 0, 0, 0, 4], "1", "4"),   # Paraguay: reg=1, et=1, pen=4
+    ]}]}}
+    split = parse_summary_split(summary)
+    assert split is not None
+    assert split.home_reg == 1
+    assert split.away_reg == 1
+    assert split.home_et == 1
+    assert split.away_et == 1
+    assert split.home_pen == 3
+    assert split.away_pen == 4
+
+
+def test_parse_summary_split_tied_pens_returns_none() -> None:
+    """Tied shootout count is unresolvable — returns None."""
+    from app.services.external.espn import parse_summary_split
+
+    def make_competitor(home_away: str, linescores: list, score: str, shootout: str):
+        return {
+            "homeAway": home_away,
+            "linescores": [{"displayValue": str(v)} for v in linescores],
+            "score": score,
+            "shootoutScore": shootout,
+        }
+
+    summary = {"header": {"competitions": [{"competitors": [
+        make_competitor("home", [1, 0, 0, 0, 4], "1", "4"),
+        make_competitor("away", [0, 1, 0, 0, 4], "1", "4"),  # 4-4 tied
+    ]}]}}
+    assert parse_summary_split(summary) is None
+
+
+def test_parse_summary_split_malformed_returns_none() -> None:
+    """Missing linescores or malformed structure returns None gracefully."""
+    from app.services.external.espn import parse_summary_split
+
+    assert parse_summary_split({}) is None
+    assert parse_summary_split({"header": {}}) is None
+    # Both sides present but no linescores key
+    assert parse_summary_split({"header": {"competitions": [{"competitors": [
+        {"homeAway": "home"},
+        {"homeAway": "away"},
+    ]}]}}) is None
+
+
+def test_parse_summary_split_et_only_no_pens() -> None:
+    """ET-decided match (no shootout) — pen fields are None, ET total correct."""
+    from app.services.external.espn import parse_summary_split
+
+    def make_competitor(home_away: str, linescores: list, score: str):
+        return {
+            "homeAway": home_away,
+            "linescores": [{"displayValue": str(v)} for v in linescores],
+            "score": score,
+        }
+
+    # Brazil 2-1 AET: h1=1,h2=0 (1-1 at 90'), ET: 1-0
+    summary = {"header": {"competitions": [{"competitors": [
+        make_competitor("home", [1, 0, 1], "2"),  # reg=1, et_total=2
+        make_competitor("away", [0, 1, 0], "1"),  # reg=1, et_total=1
+    ]}]}}
+    split = parse_summary_split(summary)
+    assert split is not None
+    assert split.home_reg == 1
+    assert split.away_reg == 1
+    assert split.home_et == 2
+    assert split.away_et == 1
+    assert split.home_pen is None
+    assert split.away_pen is None
+
+
+@pytest.mark.asyncio
+async def test_enrich_knockout_splits_overlays_split() -> None:
+    """When summary enrichment succeeds, ExternalScore is updated in-place
+    and final_authoritative flips to True."""
+    from unittest.mock import AsyncMock, patch
+    from app.services.external_scores import EspnScoreProvider, ExternalScore
+    from app.models.fixture import MatchStatus
+
+    ext = ExternalScore(
+        external_id="",
+        home_team="Germany",
+        away_team="Paraguay",
+        home_score=1,
+        away_score=1,
+        status=MatchStatus.FINISHED,
+        espn_event_id="12345",
+        final_authoritative=False,
+    )
+
+    # Germany 1-1 AET, Paraguay wins 4-3 pens
+    # linescores: [h1, h2, et1, et2, pens] → play=[h1,h2,et1,et2], pen=pens
+    fake_summary = {"header": {"competitions": [{"competitors": [
+        {"homeAway": "home",
+         "linescores": [{"displayValue": "0"}, {"displayValue": "1"},
+                        {"displayValue": "0"}, {"displayValue": "0"},
+                        {"displayValue": "3"}],
+         "score": "1", "shootoutScore": "3"},
+        {"homeAway": "away",
+         "linescores": [{"displayValue": "1"}, {"displayValue": "0"},
+                        {"displayValue": "0"}, {"displayValue": "0"},
+                        {"displayValue": "4"}],
+         "score": "1", "shootoutScore": "4"},
+    ]}]}}
+
+    provider = EspnScoreProvider()
+    with patch.object(provider._client, "get_summary", AsyncMock(return_value=fake_summary)):
+        await provider._enrich_knockout_splits("fifa.world", [ext])
+
+    assert ext.final_authoritative is True
+    assert ext.home_score == 1   # split.home_reg
+    assert ext.away_score == 1   # split.away_reg
+    assert ext.home_score_et == 1  # cumulative after ET = 0+1+0+0 = 1
+    assert ext.away_score_et == 1  # 1+0+0+0 = 1
+    assert ext.home_penalties == 3
+    assert ext.away_penalties == 4
+
+
+@pytest.mark.asyncio
+async def test_enrich_knockout_splits_failure_leaves_base_score() -> None:
+    """A summary fetch failure leaves the base ExternalScore untouched."""
+    from unittest.mock import AsyncMock, patch
+    from app.services.external_scores import EspnScoreProvider, ExternalScore
+    from app.services.external.espn import EspnError
+    from app.models.fixture import MatchStatus
+
+    ext = ExternalScore(
+        external_id="",
+        home_team="Germany",
+        away_team="Paraguay",
+        home_score=1,
+        away_score=1,
+        status=MatchStatus.FINISHED,
+        espn_event_id="12345",
+        final_authoritative=False,
+    )
+
+    provider = EspnScoreProvider()
+    with patch.object(provider._client, "get_summary",
+                      AsyncMock(side_effect=EspnError("timeout"))):
+        await provider._enrich_knockout_splits("fifa.world", [ext])
+
+    assert ext.final_authoritative is False
+    assert ext.home_score == 1
+    assert ext.away_score == 1
+    assert ext.home_score_et is None
+    assert ext.home_penalties is None
+
+
 def test_default_provider_is_espn_first_with_fd_resolver() -> None:
-    """Regression pin for the provider chain: ESPN paints live scores,
-    Football-Data is the bulk fallback AND the per-fixture resolver that
-    lands FINISHED results (the live filter never delivers them)."""
+    """Regression pin for the provider chain: ESPN is the live-score leader
+    (with summary enrichment for KO splits); Football-Data is the bulk
+    live fallback AND the sole per-fixture resolver. No backup_resolver."""
     from app.services.external_scores import (
         EspnScoreProvider,
         FallbackScoreProvider,
@@ -253,4 +421,4 @@ def test_default_provider_is_espn_first_with_fd_resolver() -> None:
     assert isinstance(provider._live_providers[0], EspnScoreProvider)
     assert isinstance(provider._live_providers[1], FootballDataScoreProvider)
     assert isinstance(provider._resolver, FootballDataScoreProvider)
-    assert isinstance(provider._backup_resolver, EspnScoreProvider)
+    assert not hasattr(provider, "_backup_resolver")
