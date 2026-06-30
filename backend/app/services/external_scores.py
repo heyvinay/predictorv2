@@ -1,13 +1,14 @@
 """External score fetching service.
 
 Two providers with one job each:
-  - ESPN (unofficial public JSON) paints LIVE in-play scores — near
-    real-time, no auth, but never emits finished matches.
-  - Football-Data.org is the authoritative finisher (proper FT/ET/pens
-    split via score_sync's per-fixture resolution pass) and the bulk
-    fallback if ESPN errors on a tick.
+  - ESPN (unofficial public JSON) paints ALL scores (pre/in-play/finished)
+    with per-period enrichment for past-regulation matches. Sets
+    final_authoritative=True once the summary split is successfully overlaid.
+  - Football-Data.org resolves per-fixture finals (FT/ET/pens split) and
+    is the bulk live fallback if ESPN errors on a tick.
 """
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -18,9 +19,13 @@ from app.models.fixture import MatchStatus
 from app.services.external.espn import (
     LEAGUE_SLUGS,
     EspnClient,
+    EspnError,
+    KnockoutSplit,
     canonical_team_name,
+    competition_past_regulation,
     map_event_status,
     parse_minute,
+    parse_summary_split,
 )
 from app.services.external.football_data import FootballDataClient, map_status
 
@@ -43,6 +48,18 @@ class ExternalScore:
     away_score_et: int | None = None
     home_penalties: int | None = None
     away_penalties: int | None = None
+    # Match period (soccer): 1/2 = halves, 3/4 = extra time, 5 = shootout.
+    # >2 means the match went past regulation. None when provider doesn't
+    # expose it (Football-Data). Used by the 90-min freeze in score_sync.
+    period: int | None = None
+    # True when this result carries the full FT/ET/pens split and score_sync
+    # should accept it as final without routing to the FD resolution pass.
+    # ESPN scoreboard events start as False; set to True after summary
+    # enrichment overlays the per-period split. FD always emits True.
+    final_authoritative: bool = True
+    # ESPN scoreboard event id — used only to fetch that event's summary for
+    # the per-period split. Not a match key. None for FD and un-enrichable events.
+    espn_event_id: str | None = None
     # False when the provider had NO score values (nulls) and home/away
     # are merely the 0-coercion of missing data. Football-Data transiently
     # served FINISHED-with-null-fullTime at the WC2026 opener's final
@@ -169,8 +186,7 @@ class FootballDataScoreProvider(ScoreProviderBase):
         # Shootout-decided matches need a resolvable winner. If neither
         # derivation nor the raw `penalty` field gave us unequal legs,
         # there's no way to advance whoever won — flag has_score=False so
-        # FallbackScoreProvider reaches for the ESPN backup resolver,
-        # which exposes shootoutScore per side directly.
+        # score_sync can route to alternate resolution.
         shootout_resolved = (
             pen_home is not None
             and pen_away is not None
@@ -206,15 +222,17 @@ class FootballDataScoreProvider(ScoreProviderBase):
 
 
 class EspnScoreProvider(ScoreProviderBase):
-    """Live in-play scores from ESPN's public scoreboard JSON.
+    """ESPN scoreboard + summary enrichment for knockout splits.
 
-    Emits only pre/in-play matches: a finished match is deliberately
-    dropped, which leaves its fixture untouched on that sync tick so the
-    Football-Data resolution pass fetches the authoritative final result.
+    Emits ALL events (pre/in-play/finished) with final_authoritative=False.
+    For matches past regulation, concurrently fetches the per-event summary
+    to overlay the authoritative per-period split and set final_authoritative=True.
+    score_sync uses final_authoritative to decide whether to route to the
+    Football-Data resolution pass (False → route, True → accept as final).
 
-    ExternalScore.external_id is left blank — ESPN event ids don't match
-    the Football-Data ids stored on fixtures, so matching goes through the
-    (home_team, away_team) name fallback with ESPN→canonical aliases.
+    ExternalScore.external_id is left blank — ESPN event ids don't match the
+    Football-Data ids stored on fixtures. Matching goes through (home_team,
+    away_team) name fallback with ESPN→canonical aliases.
     """
 
     def __init__(self, client: EspnClient | None = None) -> None:
@@ -222,8 +240,6 @@ class EspnScoreProvider(ScoreProviderBase):
 
     async def fetch_live_scores(self, competition_id: str) -> list[ExternalScore]:
         slug = LEAGUE_SLUGS.get(competition_id, "fifa.world")
-        # ESPN buckets events by US-Eastern calendar day; a ±1-day UTC window
-        # always covers anything currently in play (incl. 02:00Z kickoffs).
         now = utc_now()
         dates = (
             f"{(now - timedelta(days=1)).strftime('%Y%m%d')}"
@@ -231,11 +247,67 @@ class EspnScoreProvider(ScoreProviderBase):
         )
         events = await self._client.get_scoreboard(slug, dates)
         scores: list[ExternalScore] = []
+        to_enrich: list[ExternalScore] = []
+
         for event in events:
             ext = self._to_external_score(event)
-            if ext is not None:
-                scores.append(ext)
+            if ext is None:
+                continue
+            scores.append(ext)
+            # Enrich past-regulation events so score_sync gets the authoritative split
+            try:
+                comp = event["competitions"][0]
+            except (KeyError, IndexError, TypeError):
+                comp = {}
+            if ext.espn_event_id and competition_past_regulation(comp):
+                to_enrich.append(ext)
+
+        if to_enrich:
+            await self._enrich_knockout_splits(slug, to_enrich)
+
         return scores
+
+    async def _enrich_knockout_splits(
+        self, slug: str, scores: list[ExternalScore]
+    ) -> None:
+        """Overlay the authoritative per-period split onto each past-regulation score.
+
+        Fetches are concurrent. Any failure (HTTP error, malformed JSON, inconsistent
+        linescores, tied pens) leaves the base score untouched and logs a warning —
+        never breaks the tick.
+        """
+
+        async def overlay(ext: ExternalScore) -> None:
+            try:
+                summary = await self._client.get_summary(slug, ext.espn_event_id)  # type: ignore[arg-type]
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "espn summary fetch failed for event %s (%s vs %s): %s",
+                    ext.espn_event_id,
+                    ext.home_team,
+                    ext.away_team,
+                    exc,
+                )
+                return
+            split = parse_summary_split(summary)
+            if split is None:
+                logger.warning(
+                    "espn summary split unavailable/inconsistent for %s vs %s "
+                    "(event %s) — leaving base score for score_sync to handle",
+                    ext.home_team,
+                    ext.away_team,
+                    ext.espn_event_id,
+                )
+                return
+            ext.home_score = split.home_reg
+            ext.away_score = split.away_reg
+            ext.home_score_et = split.home_et
+            ext.away_score_et = split.away_et
+            ext.home_penalties = split.home_pen
+            ext.away_penalties = split.away_pen
+            ext.final_authoritative = True
+
+        await asyncio.gather(*(overlay(s) for s in scores))
 
     async def fetch_fixture_score(
         self,
@@ -244,59 +316,9 @@ class EspnScoreProvider(ScoreProviderBase):
         home_team: str | None = None,
         away_team: str | None = None,
     ) -> ExternalScore | None:
-        """Backup finisher: resolve a final result by TEAM NAMES from the
-        scoreboard's 'post' events (ESPN can't resolve Football-Data ids).
-
-        Only STATUS_FULL_TIME events qualify — abandoned/postponed posts
-        are not a result. Exists because Football-Data served
-        FINISHED-with-null-scores (then regressed to TIMED) at the WC2026
-        opener while ESPN's post event carried the correct 2-0.
-        """
-        if not home_team or not away_team:
-            return None
-        events = await self._client.get_scoreboard(*self._scoreboard_args())
-        for event in events:
-            ext = self._post_event_to_external_score(event)
-            if ext is not None and ext.home_team == home_team and ext.away_team == away_team:
-                return ext
+        # ESPN can't resolve by Football-Data external_id. Enrichment happens
+        # in the live loop; per-fixture resolution goes to Football-Data only.
         return None
-
-    @staticmethod
-    def _scoreboard_args() -> tuple[str, str]:
-        now = utc_now()
-        dates = (
-            f"{(now - timedelta(days=1)).strftime('%Y%m%d')}"
-            f"-{(now + timedelta(days=1)).strftime('%Y%m%d')}"
-        )
-        return ("fifa.world", dates)
-
-    @staticmethod
-    def _post_event_to_external_score(event: dict) -> ExternalScore | None:
-        """Map a finished (STATUS_FULL_TIME) event to a FINISHED ExternalScore."""
-        try:
-            comp = event["competitions"][0]
-            status_type = comp.get("status", {}).get("type", {})
-            if status_type.get("state") != "post" or status_type.get("name") != "STATUS_FULL_TIME":
-                return None
-            sides = {c.get("homeAway"): c for c in comp.get("competitors", [])}
-            home, away = sides.get("home"), sides.get("away")
-            if not home or not away or home.get("score") is None or away.get("score") is None:
-                return None
-            shootout_home = home.get("shootoutScore")
-            shootout_away = away.get("shootoutScore")
-            return ExternalScore(
-                external_id="",
-                home_team=canonical_team_name(home.get("team", {}).get("displayName", "")),
-                away_team=canonical_team_name(away.get("team", {}).get("displayName", "")),
-                home_score=int(home.get("score")),
-                away_score=int(away.get("score")),
-                status=MatchStatus.FINISHED,
-                minute=None,
-                home_penalties=int(shootout_home) if shootout_home is not None else None,
-                away_penalties=int(shootout_away) if shootout_away is not None else None,
-            )
-        except (KeyError, IndexError, TypeError, ValueError):
-            return None
 
     @staticmethod
     def _to_external_score(event: dict) -> ExternalScore | None:
@@ -304,13 +326,15 @@ class EspnScoreProvider(ScoreProviderBase):
             comp = event["competitions"][0]
             status = map_event_status(comp.get("status", {}).get("type", {}))
             if status is None:
-                return None  # finished/abandoned — Football-Data's job
+                return None  # abandoned/postponed — skip
             sides = {c.get("homeAway"): c for c in comp.get("competitors", [])}
             home, away = sides.get("home"), sides.get("away")
             if not home or not away:
                 return None
             shootout_home = home.get("shootoutScore")
             shootout_away = away.get("shootoutScore")
+            raw_period = comp.get("status", {}).get("period")
+            period = int(raw_period) if isinstance(raw_period, (int, float)) else None
             return ExternalScore(
                 external_id="",
                 home_team=canonical_team_name(home.get("team", {}).get("displayName", "")),
@@ -319,30 +343,32 @@ class EspnScoreProvider(ScoreProviderBase):
                 away_score=int(away.get("score") or 0),
                 status=status,
                 minute=parse_minute(comp.get("status", {}).get("displayClock")),
+                period=period,
                 home_penalties=int(shootout_home) if shootout_home is not None else None,
                 away_penalties=int(shootout_away) if shootout_away is not None else None,
+                final_authoritative=False,
+                espn_event_id=str(event.get("id")) if event.get("id") is not None else None,
             )
         except (KeyError, IndexError, TypeError, ValueError):
-            return None  # one malformed event shouldn't poison the tick
+            return None
 
 
 class FallbackScoreProvider(ScoreProviderBase):
-    """ESPN-first chain: live scores try each provider in order, falling
-    through on exceptions. Per-fixture resolution tries Football-Data
-    first (it owns the external ids and the FT/ET/pens split); when FD
-    has no usable final — null scores, lagging status, error — the
-    backup resolver (ESPN post events, matched by team names) finishes
-    the match instead."""
+    """ESPN-first live score chain with Football-Data as the sole per-fixture resolver.
+
+    Live scores try each provider in order, falling through on exceptions.
+    Per-fixture resolution goes to Football-Data only — ESPN can't resolve by
+    Football-Data external_id, and the summary enrichment loop handles all
+    knockout splits during the live phase.
+    """
 
     def __init__(
         self,
         live_providers: list[ScoreProviderBase],
         resolver: ScoreProviderBase,
-        backup_resolver: ScoreProviderBase | None = None,
     ) -> None:
         self._live_providers = live_providers
         self._resolver = resolver
-        self._backup_resolver = backup_resolver
 
     async def fetch_live_scores(self, competition_id: str) -> list[ExternalScore]:
         last_exc: Exception | None = None
@@ -365,56 +391,18 @@ class FallbackScoreProvider(ScoreProviderBase):
         home_team: str | None = None,
         away_team: str | None = None,
     ) -> ExternalScore | None:
-        primary: ExternalScore | None = None
-        try:
-            primary = await self._resolver.fetch_fixture_score(
-                fixture_id, home_team=home_team, away_team=away_team
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "resolver %s failed for %s, trying backup: %s",
-                type(self._resolver).__name__,
-                fixture_id,
-                exc,
-            )
-
-        # A usable final from FD wins — it carries the FT/ET/pens split.
-        if (
-            primary is not None
-            and primary.status == MatchStatus.FINISHED
-            and primary.has_score
-        ):
-            return primary
-
-        if self._backup_resolver is not None:
-            try:
-                backup = await self._backup_resolver.fetch_fixture_score(
-                    fixture_id, home_team=home_team, away_team=away_team
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("backup resolver failed for %s: %s", fixture_id, exc)
-                backup = None
-            if backup is not None:
-                logger.info(
-                    "backup resolver finished %s vs %s (primary had no usable final)",
-                    home_team,
-                    away_team,
-                )
-                return backup
-
-        return primary
+        return await self._resolver.fetch_fixture_score(
+            fixture_id, home_team=home_team, away_team=away_team
+        )
 
 
 def get_score_provider() -> ScoreProviderBase:
-    """ESPN paints live scores (Football-Data bulk as same-tick fallback);
-    Football-Data resolves finals with ESPN's post events as the backup
-    finisher. No configuration on purpose — nothing to wire into prod
-    env, and every fallback engages by itself per tick.
+    """ESPN paints live scores and enriches knockout splits via summary endpoint.
+    Football-Data resolves per-fixture finals (FT/ET/pens split) and is the
+    bulk live fallback if ESPN errors.
     """
-    espn = EspnScoreProvider()
     football_data = FootballDataScoreProvider()
     return FallbackScoreProvider(
-        live_providers=[espn, football_data],
+        live_providers=[EspnScoreProvider(), football_data],
         resolver=football_data,
-        backup_resolver=espn,
     )
