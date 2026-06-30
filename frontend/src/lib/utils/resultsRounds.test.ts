@@ -70,6 +70,7 @@ describe('buildRounds', () => {
 			'r2',
 			'r3',
 			'groups',
+			'bracket',
 			'r32',
 			'r16',
 			'qf',
@@ -82,6 +83,23 @@ describe('buildRounds', () => {
 		expect(rounds.find((r) => r.id === 'r32')?.fixtureIds).toEqual(['c']);
 		expect(rounds.find((r) => r.id === 'f')?.fixtureIds).toEqual(['d']);
 		expect(rounds.find((r) => r.id === 'winner')?.fixtureIds).toEqual([]);
+	});
+
+	it('Bracket tab sits between groups and r32, with no fixtures and "Knockout tree" label', () => {
+		const rounds = buildRounds([
+			fx({ id: 'a', stage: 'group', match_number: 50 }),
+			fx({ id: 'b', stage: 'round_of_32', kickoff: '2026-06-28T18:00:00+00:00' })
+		]);
+		const ids = rounds.map((r) => r.id);
+		const bracketIdx = ids.indexOf('bracket');
+		const groupsIdx = ids.indexOf('groups');
+		const r32Idx = ids.indexOf('r32');
+		expect(bracketIdx).toBeGreaterThan(groupsIdx);
+		expect(bracketIdx).toBeLessThan(r32Idx);
+		const b = rounds.find((r) => r.id === 'bracket');
+		expect(b?.fixtureIds).toEqual([]);
+		expect(b?.dates).toBe('Knockout tree');
+		expect(b?.isKnockout).toBe(false);
 	});
 
 	it('Group Standings tab sits between r3 and r32, with no fixtures and "Live tables" label', () => {
