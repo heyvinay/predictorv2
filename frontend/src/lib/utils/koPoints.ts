@@ -177,42 +177,61 @@ export function confirmedPicksForRound(
 }
 
 /** Picks that can be marked definitively ✗ missed when the round lineup
- *  is NOT yet fully seeded. A pick is "missed" if it is not confirmed in
- *  the current round AND is not still alive in an unfinished previous-round
- *  fixture (i.e. the team either failed to qualify or already lost).
+ *  is NOT yet fully seeded.
  *
- *  `prevRoundFixtures` = fixtures for the upstream round (e.g. R32 when
- *  computing partial R16 misses). Teams still appearing in an unfinished
- *  prev-round fixture are kept in the — pending bucket instead.
+ *  A team is missed if and only if they have been eliminated from the
+ *  tournament — i.e. they lost a finished KO fixture at any prior stage.
+ *  Checking only the immediate previous round was wrong: a team still in
+ *  R32 (not yet in any R16 fixture) was falling through as "not in inPlay"
+ *  and being wrongly marked ✗ on the QF/SF/Finals chip strips.
+ *
+ *  Two elimination signals:
+ *  1. Team appears as the LOSER in any finished KO fixture (any stage).
+ *  2. R32 is fully seeded (all group stage done) and the team is absent
+ *     from every R32 fixture — they didn't qualify from their group.
+ *
+ *  `allKoFixtures` = every KO-stage fixture (R32 through Final).
  */
 export function partialMissedPicksForRound(
 	roundPicks: Set<string>,
 	confirmed: Set<string>,
-	prevRoundFixtures: Fixture[]
+	allKoFixtures: Fixture[]
 ): string[] {
-	const inPlay = new Set<string>();
-	for (const f of prevRoundFixtures) {
+	// Build eliminated set: losers of finished KO fixtures.
+	const eliminated = new Set<string>();
+	for (const f of allKoFixtures) {
 		if (f.stage === 'third_place') continue;
-		if (f.status !== 'finished') {
-			// Both teams still competing — neither can be marked missed yet.
-			if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
-			if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
-		} else {
-			// Finished: only the winner advances into the next round.
-			// The loser falls out of inPlay and becomes ✗ missed.
-			// If score data is absent, keep both teams in play defensively.
-			const outcome = f.score?.outcome;
-			if (!outcome) {
-				if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
-				if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
-			} else if (outcome === '1' && f.home_team && !f.home_team.startsWith('slot:')) {
-				inPlay.add(f.home_team);
-			} else if (outcome === '2' && f.away_team && !f.away_team.startsWith('slot:')) {
-				inPlay.add(f.away_team);
-			}
-		}
+		if (f.status !== 'finished' || !f.score) continue;
+		const homeReal = !!f.home_team && !f.home_team.startsWith('slot:');
+		const awayReal = !!f.away_team && !f.away_team.startsWith('slot:');
+		if (f.score.outcome === '1' && awayReal) eliminated.add(f.away_team);
+		else if (f.score.outcome === '2' && homeReal) eliminated.add(f.home_team);
 	}
-	return [...roundPicks].filter((t) => !confirmed.has(t) && !inPlay.has(t)).sort();
+
+	// If R32 is fully seeded, teams absent from every R32 fixture missed
+	// the group stage entirely.
+	const r32 = allKoFixtures.filter((f) => f.stage === 'round_of_32');
+	const r32FullySeeded =
+		r32.length > 0 &&
+		r32.every(
+			(f) =>
+				!!f.home_team &&
+				!f.home_team.startsWith('slot:') &&
+				!!f.away_team &&
+				!f.away_team.startsWith('slot:')
+		);
+	const r32Teams = r32FullySeeded
+		? new Set(r32.flatMap((f) => [f.home_team, f.away_team]))
+		: null;
+
+	return [...roundPicks]
+		.filter((t) => {
+			if (confirmed.has(t)) return false;
+			if (eliminated.has(t)) return true;
+			if (r32Teams !== null && !r32Teams.has(t)) return true;
+			return false;
+		})
+		.sort();
 }
 
 /** @deprecated Use `missedPicksForRound`. Kept as an alias so existing

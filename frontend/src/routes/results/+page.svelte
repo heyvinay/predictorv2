@@ -246,27 +246,27 @@
 		? isRoundLineupSeeded(roundFixtures)
 		: true;
 
-	// Three-state partial pick status (v2.190.x) — when the round lineup
-	// is NOT yet fully seeded, derive per-pick confirmed/missed/pending
-	// status from the actual fixture data rather than showing all picks
-	// as neutral —. The previous-round stage map feeds prevRoundFixtures
-	// so we can tell whether a team's upstream match is still in play.
-	const PREV_STAGE_FOR_ROUND: Record<string, string> = {
-		r16: 'round_of_32',
-		qf: 'round_of_16',
-		sf: 'quarter_final',
-		f: 'semi_final'
-	};
-	$: prevRoundStage = PREV_STAGE_FOR_ROUND[selectedRound] ?? null;
-	$: prevRoundFixtures = prevRoundStage
-		? [...$fixtureById.values()].filter((f) => f.stage === prevRoundStage)
+	// Three-state partial pick status (v2.190.x, revised) — when the round
+	// lineup is NOT yet fully seeded, derive per-pick confirmed/missed/pending
+	// from ALL KO fixtures so the "still in R32" case is handled correctly.
+	// A team is missed only if they lost a finished KO match at any prior
+	// stage, or R32 is fully seeded and they're absent from it entirely.
+	const KO_STAGE_SET = new Set([
+		'round_of_32',
+		'round_of_16',
+		'quarter_final',
+		'semi_final',
+		'final'
+	]);
+	$: allKoFixtures = activeRound?.isKnockout
+		? [...$fixtureById.values()].filter((f) => KO_STAGE_SET.has(f.stage))
 		: [];
 	$: roundConfirmedTeams = activeRound?.isKnockout
 		? confirmedPicksForRound(roundFixtures, roundPicks)
 		: new Set<string>();
 	$: partialMissedTeams =
 		!roundLineupSeeded && activeRound?.isKnockout
-			? partialMissedPicksForRound(roundPicks, roundConfirmedTeams, prevRoundFixtures)
+			? partialMissedPicksForRound(roundPicks, roundConfirmedTeams, allKoFixtures)
 			: [];
 	// When lineup is fully seeded, use the authoritative missed list.
 	// When partial, use the per-pick partial computation above.
