@@ -9,18 +9,21 @@ Returns counts + errors as a dataclass (no FastAPI types here).
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models._datetime import utc_now
+from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score, ScoreSource
 from app.services.external_scores import ExternalScore, get_score_provider
 from app.services.leaderboard import expire_cache
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -221,6 +224,89 @@ _SCORE_BEARING_STATUSES = frozenset(
 )
 
 
+def _score_fields_for(
+    fixture: Fixture,
+    ext: ExternalScore,
+    existing: Score | None,
+) -> tuple[int | None, int | None, int | None, int | None, int | None, int | None]:
+    """Compute (home, away, home_et, away_et, home_pen, away_pen) to persist.
+
+    Applies the 90-minute freeze for knockout matches past regulation when
+    ESPN is the source. ESPN folds ET goals into the running home_score/
+    away_score total (period > 2), so we must NOT overwrite the stored 90'
+    score once ET starts — the freeze keeps the regulation values in
+    home_score/away_score and puts the running total into home_score_et.
+
+    This freeze only activates when ALL of these are true:
+      - fixture.stage != "group" (knockout match)
+      - ext.period > 2 (ESPN says match is past regulation)
+      - ext.home_score_et is None (provider has NOT already split it out)
+
+    If the provider already supplies a split (FD or ESPN summary enrichment),
+    pass through directly without freezing.
+    """
+    provider_split = ext.home_score_et is not None and ext.away_score_et is not None
+    past_regulation = (
+        fixture.stage != "group"
+        and not provider_split
+        and ext.period is not None
+        and ext.period > 2
+    )
+
+    if not past_regulation:
+        return (
+            ext.home_score,
+            ext.away_score,
+            ext.home_score_et,
+            ext.away_score_et,
+            ext.home_penalties,
+            ext.away_penalties,
+        )
+
+    # Past regulation with bare running total. Freeze at whatever was
+    # captured before ET started; the running total becomes home_score_et.
+    if existing is not None:
+        reg_home: int | None = existing.home_score
+        reg_away: int | None = existing.away_score
+    else:
+        # Polling gap — never saw this match during regulation.
+        reg_home = ext.home_score
+        reg_away = ext.away_score
+        logger.warning(
+            "score_sync: knockout fixture %s first seen past regulation "
+            "(period=%s) — no captured 90' score; using running total %s-%s, "
+            "admin should verify",
+            fixture.id,
+            ext.period,
+            ext.home_score,
+            ext.away_score,
+        )
+
+    # Running total IS the cumulative after-ET score for a bare provider.
+    home_et = ext.home_score
+    away_et = ext.away_score
+
+    # Self-heal: frozen reg score must never exceed the ET total (goals
+    # only accumulate). A reg score higher than ET means a corrupted live
+    # capture — clamp it back.
+    if home_et is not None and reg_home is not None and reg_home > home_et:
+        logger.warning(
+            "score_sync: fixture %s frozen 90' home %s > ET total %s "
+            "— healing to ET total",
+            fixture.id, reg_home, home_et,
+        )
+        reg_home = home_et
+    if away_et is not None and reg_away is not None and reg_away > away_et:
+        logger.warning(
+            "score_sync: fixture %s frozen 90' away %s > ET total %s "
+            "— healing to ET total",
+            fixture.id, reg_away, away_et,
+        )
+        reg_away = away_et
+
+    return (reg_home, reg_away, home_et, away_et, ext.home_penalties, ext.away_penalties)
+
+
 async def _apply_external_score(
     session: AsyncSession,
     competition_id,
@@ -257,6 +343,20 @@ async def _apply_external_score(
     if fixture.status == MatchStatus.FINISHED and ext.status != MatchStatus.FINISHED:
         return fixture.id
 
+    # Non-authoritative ESPN final on a KO fixture within the live window:
+    # treat as LIVE so the FD resolution pass can land the authoritative split
+    # (FT/ET/pens). Beyond the live window, accept as final to prevent the
+    # fixture staying LIVE forever if FD never resolves it.
+    needs_resolution = False
+    if (
+        ext.status == MatchStatus.FINISHED
+        and not ext.final_authoritative
+        and fixture.stage != "group"
+        and utc_now() < aware_utc(fixture.kickoff) + _LIVE_MATCH_WINDOW
+    ):
+        ext.status = MatchStatus.LIVE
+        needs_resolution = True
+
     # Null-score guard: a score-bearing status whose payload carried no
     # actual score values (has_score=False — nulls coerced to 0) must not
     # be applied. Writing it would fabricate a 0-0 FINISHED result; doing
@@ -277,19 +377,23 @@ async def _apply_external_score(
             fixture.updated_at = utc_now()
         return fixture.id
 
-    # Change detection: ESPN repaints the same in-play score every tick and
-    # the resolution pass can re-deliver a finished match. Identical data
-    # must be a no-op — otherwise each tick rewrites rows, bumps
-    # updated_at, and invalidates the leaderboard cache for nothing.
+    # Compute the fields to write (applies 90-min freeze when relevant).
+    home, away, home_et, away_et, home_pen, away_pen = _score_fields_for(
+        fixture, ext, score
+    )
+
+    # Change detection: identical data must be a no-op — otherwise each
+    # tick rewrites rows, bumps updated_at, and invalidates the leaderboard
+    # cache for nothing.
     unchanged = (
         fixture_unchanged
         and score is not None
-        and score.home_score == ext.home_score
-        and score.away_score == ext.away_score
-        and score.home_score_et == ext.home_score_et
-        and score.away_score_et == ext.away_score_et
-        and score.home_penalties == ext.home_penalties
-        and score.away_penalties == ext.away_penalties
+        and score.home_score == home
+        and score.away_score == away
+        and score.home_score_et == home_et
+        and score.away_score_et == away_et
+        and score.home_penalties == home_pen
+        and score.away_penalties == away_pen
     )
     if unchanged:
         return fixture.id
@@ -302,32 +406,32 @@ async def _apply_external_score(
         session.add(
             Score(
                 fixture_id=fixture.id,
-                home_score=ext.home_score,
-                away_score=ext.away_score,
-                home_score_et=ext.home_score_et,
-                away_score_et=ext.away_score_et,
-                home_penalties=ext.home_penalties,
-                away_penalties=ext.away_penalties,
+                home_score=home,
+                away_score=away,
+                home_score_et=home_et,
+                away_score_et=away_et,
+                home_penalties=home_pen,
+                away_penalties=away_pen,
                 source=ScoreSource.API,
             )
         )
         result.synced += 1
         if ext.status == MatchStatus.FINISHED:
             result.points_relevant += 1
-        return fixture.id
+        return None if needs_resolution else fixture.id
 
-    score.home_score = ext.home_score
-    score.away_score = ext.away_score
-    score.home_score_et = ext.home_score_et
-    score.away_score_et = ext.away_score_et
-    score.home_penalties = ext.home_penalties
-    score.away_penalties = ext.away_penalties
+    score.home_score = home
+    score.away_score = away
+    score.home_score_et = home_et
+    score.away_score_et = away_et
+    score.home_penalties = home_pen
+    score.away_penalties = away_pen
     score.source = ScoreSource.API
     score.updated_at = utc_now()
     result.updated += 1
     if ext.status == MatchStatus.FINISHED:
         result.points_relevant += 1
-    return fixture.id
+    return None if needs_resolution else fixture.id
 
 
 async def _find_fixture(
