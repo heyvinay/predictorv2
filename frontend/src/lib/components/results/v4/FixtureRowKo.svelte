@@ -78,7 +78,16 @@
 						: ''}"
 				>
 					<b class={homeLoses ? 'opacity-60' : ''}>{score.home_score}</b>
-					<span class="px-0.5 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
+					{#if score.home_penalties != null && score.away_penalties != null}
+						<span
+							class="px-1 text-[11px] font-semibold {isLive
+								? 'text-white/70'
+								: 'text-base-content/55'}"
+							title="Penalty shootout">({score.home_penalties}–{score.away_penalties})</span
+						>
+					{:else}
+						<span class="px-0.5 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
+					{/if}
 					<b class={awayLoses ? 'opacity-60' : ''}>{score.away_score}</b>
 				</span>
 			{:else}
@@ -149,6 +158,14 @@
 				{#if score}{score.home_score}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
+		{#if score?.home_penalties != null && score?.away_penalties != null}
+			<div class="flex justify-end">
+				<span
+					class="font-display text-[10px] font-semibold text-base-content/55"
+					title="Penalty shootout">({score.home_penalties}–{score.away_penalties})</span
+				>
+			</div>
+		{/if}
 		<div class="flex items-center justify-between gap-2">
 			<span class="flex items-center gap-2 {awayLoses ? 'opacity-60' : ''}">
 				{#if awaySeeded && hasFlag(fixture.away_team)}

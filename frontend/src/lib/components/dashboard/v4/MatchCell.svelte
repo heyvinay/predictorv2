@@ -1,8 +1,8 @@
 <script lang="ts">
 	/** Centre table cell: home name + flag · score / "vs" · flag + away
-	 *  name. Score shows whenever one exists (live or finished); a "p"
-	 *  marker flags penalty shootouts. Loser's name + flag + score digit
-	 *  dim once decided (pens → ET → regulation). */
+	 *  name. Score shows whenever one exists (live or finished); penalty
+	 *  games show "reg (pen_h–pen_a) reg" in place of the plain dash.
+	 *  Loser's name + flag + score digit dim once decided. */
 	import type { Fixture } from '$types';
 	import { scorelineOf } from '$lib/utils/dashboardV4';
 	import { isRealTeam } from '$lib/utils/leaderboardV4';
@@ -44,14 +44,11 @@
 				? 'inline-block rounded-md bg-success px-1 py-0.5 text-[12px] text-white sm:px-1.5 sm:text-[14px]'
 				: 'text-[14px] text-base-content'}"
 		>
-			<span class={homeLoses ? 'opacity-55' : ''}>{score.home}</span><span
-				class="px-px {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span
-			><span class={awayLoses ? 'opacity-55' : ''}>{score.away}</span>{#if score.pens}<span
-					class="pl-0.5 align-super text-[9px] font-bold {isLive
-						? 'text-white/70'
-						: 'text-base-content/55'}"
-					title="Decided on penalties">p</span
-				>{/if}
+			<span class={homeLoses ? 'opacity-55' : ''}>{score.home}</span>{#if score.pens && score.home_pen != null && score.away_pen != null}<span
+					class="px-1 text-[9px] font-semibold {isLive ? 'text-white/70' : 'text-base-content/55'}"
+					title="Penalty shootout">({score.home_pen}–{score.away_pen})</span
+				>{:else}<span class="px-px {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span
+				>{/if}<span class={awayLoses ? 'opacity-55' : ''}>{score.away}</span>
 		</span>
 	{:else}
 		<span class="px-0.5 text-[10.5px] font-bold uppercase text-base-content/30">vs</span>

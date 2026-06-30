@@ -2410,6 +2410,13 @@
       "type": "improvement",
       "summary": "Score sync now uses ESPN's match summary endpoint to get accurate penalty and extra-time splits for knockout matches, with Football-Data as a safety net. Stale penalty data from earlier rounds auto-heals on the next sync.",
       "commit": "pending"
+    },
+    {
+      "version": "2.186.1",
+      "date": "2026-06-30",
+      "type": "improvement",
+      "summary": "Knockout matches decided on penalties now show the shootout score in brackets between the regulation scores — e.g. 1 (3–4) 1 — on the leaderboard latest results and the results pages.",
+      "commit": "pending"
     }
   ]
 }

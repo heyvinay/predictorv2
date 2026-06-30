@@ -132,14 +132,18 @@ export function kickoffLabel(iso: string, now: Date): string {
 	return `${date} · ${time}`;
 }
 
-/** Scoreline + "p" marker when the tie went to penalties. Null before
+/** Scoreline + penalty values when the tie went to penalties. Null before
  *  any score exists. */
-export function scorelineOf(f: Fixture): { home: number; away: number; pens: boolean } | null {
+export function scorelineOf(
+	f: Fixture
+): { home: number; away: number; pens: boolean; home_pen: number | null; away_pen: number | null } | null {
 	if (!f.score) return null;
 	return {
 		home: f.score.home_score,
 		away: f.score.away_score,
-		pens: f.score.home_penalties != null && f.score.away_penalties != null
+		pens: f.score.home_penalties != null && f.score.away_penalties != null,
+		home_pen: f.score.home_penalties,
+		away_pen: f.score.away_penalties
 	};
 }
 
