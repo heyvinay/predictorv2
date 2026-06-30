@@ -191,14 +191,21 @@ async def _find_unresolved_fixtures(
     *,
     now: datetime | None = None,
 ) -> list[Fixture]:
-    """Fixtures that should be in the live response but weren't.
+    """Fixtures that need per-fixture resolution fetches.
 
-    Two shapes: (a) status LIVE/HALFTIME — almost certainly just finished;
-    (b) status SCHEDULED with a kickoff in the recent past — a transition
-    we missed entirely (e.g. the backend was down through the match).
+    Three shapes:
+    (A) status LIVE/HALFTIME — almost certainly just finished.
+    (B) status SCHEDULED with a kickoff in the recent past — a transition
+        we missed entirely (e.g. the backend was down through the match).
+    (C) status FINISHED, KO stage, null home_penalties, kicked off within
+        12h — a fixture whose pens data was stale when it finished (e.g.
+        NED-MAR: null pens written at FINISHED time, FD has since corrected).
+        Sorted last so A+B take priority in the 8-slot cap.
     """
     now = now or utc_now()
-    q = await session.execute(
+
+    # Shapes A + B
+    ab_q = await session.execute(
         select(Fixture).where(
             Fixture.competition_id == competition_id,
             Fixture.external_id.is_not(None),  # type: ignore[union-attr]
@@ -212,7 +219,25 @@ async def _find_unresolved_fixtures(
             ),
         )
     )
-    return [f for f in q.scalars().all() if f.id not in seen_fixture_ids]
+    ab = [f for f in ab_q.scalars().all() if f.id not in seen_fixture_ids]
+
+    # Shape C: FINISHED KO fixtures with null pens, kicked off within 12h
+    c_q = await session.execute(
+        select(Fixture)
+        .join(Score, Score.fixture_id == Fixture.id)
+        .where(
+            Fixture.competition_id == competition_id,
+            Fixture.external_id.is_not(None),  # type: ignore[union-attr]
+            Fixture.status == MatchStatus.FINISHED,
+            Fixture.stage != "group",
+            Fixture.kickoff >= now - timedelta(hours=12),
+            Score.home_penalties.is_(None),
+            Score.verified.is_(False),
+        )
+    )
+    c = [f for f in c_q.scalars().all() if f.id not in seen_fixture_ids]
+
+    return ab + c  # A+B first (higher priority within the 8-slot cap)
 
 
 # Statuses for which the provider's score payload is meaningful. For a
@@ -247,7 +272,7 @@ def _score_fields_for(
     """
     provider_split = ext.home_score_et is not None and ext.away_score_et is not None
     past_regulation = (
-        fixture.stage != "group"
+        fixture.stage not in ("group", "third_place")
         and not provider_split
         and ext.period is not None
         and ext.period > 2
@@ -351,7 +376,7 @@ async def _apply_external_score(
     if (
         ext.status == MatchStatus.FINISHED
         and not ext.final_authoritative
-        and fixture.stage != "group"
+        and fixture.stage not in ("group", "third_place")
         and utc_now() < aware_utc(fixture.kickoff) + _LIVE_MATCH_WINDOW
     ):
         ext.status = MatchStatus.LIVE
