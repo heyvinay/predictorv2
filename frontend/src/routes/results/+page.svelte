@@ -42,8 +42,10 @@
 	import { defaultRound, roundsWithLive } from '$lib/utils/roundsLive';
 	import {
 		bracketPicksForRound,
+		confirmedPicksForRound,
 		isRoundLineupSeeded,
 		missedPicksForRound,
+		partialMissedPicksForRound,
 		progressingSplit,
 		stagePointsForRound
 	} from '$lib/utils/koPoints';
@@ -243,6 +245,32 @@
 	$: roundLineupSeeded = activeRound?.isKnockout
 		? isRoundLineupSeeded(roundFixtures)
 		: true;
+
+	// Three-state partial pick status (v2.190.x) — when the round lineup
+	// is NOT yet fully seeded, derive per-pick confirmed/missed/pending
+	// status from the actual fixture data rather than showing all picks
+	// as neutral —. The previous-round stage map feeds prevRoundFixtures
+	// so we can tell whether a team's upstream match is still in play.
+	const PREV_STAGE_FOR_ROUND: Record<string, string> = {
+		r16: 'round_of_32',
+		qf: 'round_of_16',
+		sf: 'quarter_final',
+		f: 'semi_final'
+	};
+	$: prevRoundStage = PREV_STAGE_FOR_ROUND[selectedRound] ?? null;
+	$: prevRoundFixtures = prevRoundStage
+		? [...$fixtureById.values()].filter((f) => f.stage === prevRoundStage)
+		: [];
+	$: roundConfirmedTeams = activeRound?.isKnockout
+		? confirmedPicksForRound(roundFixtures, roundPicks)
+		: new Set<string>();
+	$: partialMissedTeams =
+		!roundLineupSeeded && activeRound?.isKnockout
+			? partialMissedPicksForRound(roundPicks, roundConfirmedTeams, prevRoundFixtures)
+			: [];
+	// When lineup is fully seeded, use the authoritative missed list.
+	// When partial, use the per-pick partial computation above.
+	$: effectiveMissedTeams = roundLineupSeeded ? missedTeams : partialMissedTeams;
 	$: finalFixture =
 		rounds
 			.find((r) => r.id === 'f')
@@ -421,7 +449,8 @@
 					<RoundPicksCard
 						roundLabel={activeRound.label}
 						picks={[...roundPicks]}
-						{missedTeams}
+						missedTeams={effectiveMissedTeams}
+						confirmedTeams={roundConfirmedTeams}
 						stagePoints={stagePts}
 						compactCodes={selectedRound === 'r32' || selectedRound === 'r16'}
 						lineupSeeded={roundLineupSeeded}

@@ -151,6 +151,54 @@ export function isRoundLineupSeeded(roundFixtures: Fixture[]): boolean {
 	return lineupSeeded(roundFixtures);
 }
 
+/** Teams from `roundPicks` already seeded into `roundFixtures` as a real
+ *  (non-slot) name on either side. Works per-side so partial-resolution
+ *  fixtures (one side real, one side slot:) still credit the confirmed half.
+ *
+ *  Used by RoundPicksCard's three-state pill renderer: ✓ confirmed,
+ *  ✗ missed, — pending. Only meaningful when `isRoundLineupSeeded` is false;
+ *  when true, `missedPicksForRound` already handles the full settled render.
+ */
+export function confirmedPicksForRound(
+	roundFixtures: Fixture[],
+	roundPicks: Set<string>
+): Set<string> {
+	const confirmed = new Set<string>();
+	for (const f of roundFixtures) {
+		if (f.stage === 'third_place') continue;
+		if (f.home_team && !f.home_team.startsWith('slot:') && roundPicks.has(f.home_team)) {
+			confirmed.add(f.home_team);
+		}
+		if (f.away_team && !f.away_team.startsWith('slot:') && roundPicks.has(f.away_team)) {
+			confirmed.add(f.away_team);
+		}
+	}
+	return confirmed;
+}
+
+/** Picks that can be marked definitively ✗ missed when the round lineup
+ *  is NOT yet fully seeded. A pick is "missed" if it is not confirmed in
+ *  the current round AND is not still alive in an unfinished previous-round
+ *  fixture (i.e. the team either failed to qualify or already lost).
+ *
+ *  `prevRoundFixtures` = fixtures for the upstream round (e.g. R32 when
+ *  computing partial R16 misses). Teams still appearing in an unfinished
+ *  prev-round fixture are kept in the — pending bucket instead.
+ */
+export function partialMissedPicksForRound(
+	roundPicks: Set<string>,
+	confirmed: Set<string>,
+	prevRoundFixtures: Fixture[]
+): string[] {
+	const inPlay = new Set<string>();
+	for (const f of prevRoundFixtures) {
+		if (f.status === 'finished') continue;
+		if (f.home_team && !f.home_team.startsWith('slot:')) inPlay.add(f.home_team);
+		if (f.away_team && !f.away_team.startsWith('slot:')) inPlay.add(f.away_team);
+	}
+	return [...roundPicks].filter((t) => !confirmed.has(t) && !inPlay.has(t)).sort();
+}
+
 /** @deprecated Use `missedPicksForRound`. Kept as an alias so existing
  *  tests + any straggler callers don't break — both delegate to the
  *  same implementation. */

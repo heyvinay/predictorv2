@@ -36,6 +36,9 @@
 	/** The subset of `picks` that didn't make the actual lineup. Output of
 	 *  `missedPicksForRound`. Should be `[]` when `lineupSeeded` is false. */
 	export let missedTeams: string[];
+	/** Teams already confirmed in the current round's lineup (non-slot names).
+	 *  Used for three-state pills when `lineupSeeded` is false. */
+	export let confirmedTeams: Set<string> = new Set();
 	/** Per-pick advancement payout (advancement[stage] from scoring rules). */
 	export let stagePoints: number;
 	/** True for R32/R16 → use 3-letter FIFA codes; false for QF/SF/F → use
@@ -58,6 +61,13 @@
 	$: aliveSorted = [...aliveTeams].sort();
 	$: missedSorted = [...missedTeams].sort();
 
+	// Three-state partial sets — used when lineupSeeded === false.
+	$: confirmedSortedPartial = [...picks].filter((t) => confirmedTeams.has(t)).sort();
+	$: missedSortedPartial = [...missedTeams].sort();
+	$: pendingSortedPartial = [...picks]
+		.filter((t) => !confirmedTeams.has(t) && !missedSet.has(t))
+		.sort();
+
 	function pillLabel(team: string): string {
 		return compactCodes ? teamCode(team) : displayTeamName(team);
 	}
@@ -76,10 +86,16 @@
 				{#if missedCount > 0}
 					<span class="ml-1 font-semibold text-error">· –{unrealised}</span>
 				{/if}
+			{:else if confirmedSortedPartial.length > 0 || missedSortedPartial.length > 0}
+				<strong class="text-base-content">{confirmedSortedPartial.length}</strong>/{total} confirmed
+				<span class="ml-1 font-bold text-success">+{confirmedSortedPartial.length * stagePoints}</span>
+				{#if missedSortedPartial.length > 0}
+					<span class="ml-1 font-semibold text-error">· {missedSortedPartial.length} out</span>
+				{/if}
 			{:else}
 				Lineup pending · banks
 				<span class="font-bold text-primary">+{stagePoints}</span>
-				per alive pick
+				per confirmed pick
 			{/if}
 		</div>
 	</div>
@@ -126,8 +142,46 @@
 				</span>
 			{/each}
 		{:else}
-			<!-- Pre-resolution: neutral pills with no claim either way. -->
-			{#each [...picks].sort() as team (team)}
+			<!-- Partial resolution: confirmed ✓, missed ✗, pending — -->
+			{#each confirmedSortedPartial as team (team)}
+				<span
+					class="inline-flex items-center gap-1 rounded-full border border-success/40 bg-base-300/20 px-2 py-0.5 text-[11px] font-semibold"
+				>
+					{#if hasFlag(team)}
+						<img
+							src={getFlagUrl(team, 'sm')}
+							alt=""
+							class="h-auto w-3.5 rounded-sm"
+							style="aspect-ratio: 4 / 3"
+						/>
+					{/if}
+					<span>{pillLabel(team)}</span>
+					<span
+						class="rounded-badge bg-success/15 px-1 text-[9px] font-bold text-success"
+						aria-label="confirmed">✓</span
+					>
+				</span>
+			{/each}
+			{#each missedSortedPartial as team (team)}
+				<span
+					class="inline-flex items-center gap-1 rounded-full border border-error/40 bg-base-300/20 px-2 py-0.5 text-[11px] font-semibold opacity-65"
+				>
+					{#if hasFlag(team)}
+						<img
+							src={getFlagUrl(team, 'sm')}
+							alt=""
+							class="h-auto w-3.5 rounded-sm"
+							style="aspect-ratio: 4 / 3"
+						/>
+					{/if}
+					<span class="line-through decoration-error/80 decoration-1">{pillLabel(team)}</span>
+					<span
+						class="rounded-badge bg-error/15 px-1 text-[9px] font-bold text-error"
+						aria-label="missed">✗</span
+					>
+				</span>
+			{/each}
+			{#each pendingSortedPartial as team (team)}
 				<span
 					class="inline-flex items-center gap-1 rounded-full border border-base-300/50 bg-base-300/20 px-2 py-0.5 text-[11px] font-semibold opacity-80"
 				>
