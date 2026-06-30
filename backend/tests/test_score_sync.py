@@ -12,11 +12,13 @@ from sqlmodel import SQLModel, select
 from app.models._datetime import utc_now
 from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
-from app.models.score import Score
+from app.models.score import Score, ScoreSource
 from app.services.external_scores import ExternalScore
 from app.services.score_sync import (
     ScoreSyncResult,
     _apply_external_score,
+    _find_unresolved_fixtures,
+    _score_fields_for,
     has_active_or_imminent_match,
     sync_scores_once,
 )
@@ -538,3 +540,181 @@ async def test_identical_finished_redelivery_is_not_points_relevant(session, liv
     await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=1, away=0), result2)
     assert result2.points_relevant == 0
     assert result2.synced == 0 and result2.updated == 0
+
+
+# ---------------------------------------------------------------------------
+# _score_fields_for: 90-minute freeze for ESPN past-regulation events
+# ---------------------------------------------------------------------------
+
+
+def test_score_fields_for_passthrough_when_provider_has_split() -> None:
+    """When the provider already carries an ET split, pass through without freeze."""
+    fixture = Fixture(stage="round_of_32", status=MatchStatus.FINISHED)
+    ext = ExternalScore(
+        external_id="1", home_team="A", away_team="B",
+        home_score=1, away_score=1,
+        home_score_et=2, away_score_et=1,
+        home_penalties=4, away_penalties=3,
+        status=MatchStatus.FINISHED,
+        period=5,
+    )
+    home, away, home_et, away_et, home_pen, away_pen = _score_fields_for(fixture, ext, None)
+    assert (home, away, home_et, away_et, home_pen, away_pen) == (1, 1, 2, 1, 4, 3)
+
+
+def test_score_fields_for_freeze_preserves_regulation_score() -> None:
+    """ESPN period > 2 with no split: freeze the DB regulation score,
+    put running total into home_score_et."""
+    fixture = Fixture(id=1, stage="round_of_32", status=MatchStatus.LIVE)
+    existing = Score(fixture_id=1, home_score=1, away_score=1)
+    ext = ExternalScore(
+        external_id="", home_team="A", away_team="B",
+        home_score=2, away_score=1,   # running total (ESPN folds ET goals in)
+        home_score_et=None, away_score_et=None,
+        status=MatchStatus.LIVE,
+        period=3,
+    )
+    home, away, home_et, away_et, home_pen, away_pen = _score_fields_for(
+        fixture, ext, existing
+    )
+    assert (home, away) == (1, 1)      # frozen regulation score from DB
+    assert (home_et, away_et) == (2, 1)  # running total → ET slot
+    assert (home_pen, away_pen) == (None, None)
+
+
+def test_score_fields_for_no_freeze_for_group_stage() -> None:
+    """Group stage fixtures never freeze — no ET/pens in group play."""
+    fixture = Fixture(stage="group", status=MatchStatus.LIVE)
+    ext = ExternalScore(
+        external_id="", home_team="A", away_team="B",
+        home_score=2, away_score=1,
+        status=MatchStatus.LIVE,
+        period=3,   # would trigger freeze for KO — group is excluded
+    )
+    home, away, home_et, away_et, _, _ = _score_fields_for(fixture, ext, None)
+    assert (home, away) == (2, 1)
+    assert home_et is None
+
+
+def test_score_fields_for_no_freeze_for_third_place() -> None:
+    """third_place is excluded from the freeze (unscored stage)."""
+    fixture = Fixture(stage="third_place", status=MatchStatus.LIVE)
+    ext = ExternalScore(
+        external_id="", home_team="A", away_team="B",
+        home_score=2, away_score=1,
+        status=MatchStatus.LIVE,
+        period=3,
+    )
+    home, away, home_et, away_et, _, _ = _score_fields_for(fixture, ext, None)
+    assert (home, away) == (2, 1)
+    assert home_et is None
+
+
+# ---------------------------------------------------------------------------
+# Shape C: FINISHED KO rows with null penalties auto-enter resolution pass
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_shape_c_finds_finished_ko_with_null_penalties(session, competition) -> None:
+    """Shape C: a FINISHED KO fixture with null home_penalties and a Score row
+    appears in _find_unresolved_fixtures results."""
+    kickoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537418",
+        home_team="Netherlands",
+        away_team="Morocco",
+        kickoff=kickoff,
+        stage="round_of_32",
+        status=MatchStatus.FINISHED,
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    score = Score(
+        fixture_id=fixture.id,
+        home_score=1,
+        away_score=1,
+        home_score_et=1,
+        away_score_et=1,
+        home_penalties=None,   # ← Shape C trigger
+        away_penalties=None,
+        source=ScoreSource.API,
+        verified=False,
+    )
+    session.add(score)
+    await session.flush()
+
+    unresolved = await _find_unresolved_fixtures(session, competition.id, set())
+    assert fixture.id in [f.id for f in unresolved]
+
+
+@pytest.mark.asyncio
+async def test_shape_c_excludes_verified_scores(session, competition) -> None:
+    """Shape C must not re-fetch admin-verified scores (verified=True)."""
+    kickoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537419",
+        home_team="Germany",
+        away_team="Paraguay",
+        kickoff=kickoff,
+        stage="round_of_32",
+        status=MatchStatus.FINISHED,
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    score = Score(
+        fixture_id=fixture.id,
+        home_score=1,
+        away_score=1,
+        home_penalties=None,
+        away_penalties=None,
+        source=ScoreSource.API,
+        verified=True,   # ← admin-locked, must be excluded
+    )
+    session.add(score)
+    await session.flush()
+
+    unresolved = await _find_unresolved_fixtures(session, competition.id, set())
+    assert fixture.id not in [f.id for f in unresolved]
+
+
+@pytest.mark.asyncio
+async def test_shape_c_excludes_old_fixtures(session, competition) -> None:
+    """Shape C only catches fixtures that kicked off within the last 12 hours."""
+    kickoff = datetime.now(timezone.utc) - timedelta(hours=24)  # too old
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537420",
+        home_team="Brazil",
+        away_team="Japan",
+        kickoff=kickoff,
+        stage="round_of_32",
+        status=MatchStatus.FINISHED,
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    score = Score(
+        fixture_id=fixture.id,
+        home_score=1,
+        away_score=1,
+        home_penalties=None,
+        away_penalties=None,
+        source=ScoreSource.API,
+        verified=False,
+    )
+    session.add(score)
+    await session.flush()
+
+    unresolved = await _find_unresolved_fixtures(session, competition.id, set())
+    assert fixture.id not in [f.id for f in unresolved]
