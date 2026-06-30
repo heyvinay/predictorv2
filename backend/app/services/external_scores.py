@@ -102,28 +102,105 @@ class FootballDataScoreProvider(ScoreProviderBase):
     def _to_external_score(match: dict) -> ExternalScore:
         score = match.get("score") or {}
         full_time = score.get("fullTime") or {}
+        regular_time = score.get("regularTime") or {}
         extra_time = score.get("extratime") or score.get("extraTime") or {}
         penalty = score.get("penalty") or score.get("penalties") or {}
         home_team = match.get("homeTeam") or {}
         away_team = match.get("awayTeam") or {}
 
+        # FD's `fullTime` is the COMBINED total for the whole match
+        # (regulation + ET + pen-shootout goals), NOT the 90-min result.
+        # On ET/pens KO games FD exposes the 90-min split separately via
+        # `regularTime` — our `home_score` IS regulation, so prefer it.
+        # On a normal 90-min match `regularTime` is absent and `fullTime`
+        # IS the 90-min score, so the fallback handles group matches too.
+        reg_home = regular_time.get("home")
+        reg_away = regular_time.get("away")
+        if reg_home is None:
+            reg_home = full_time.get("home")
+            reg_away = full_time.get("away")
+
+        # Our `home_score_et` is the cumulative score AFTER extra time,
+        # but FD's `extraTime` is the ET-PERIOD delta only — add to the
+        # regulation total to land the right cumulative. Only emit a
+        # cumulative when FD actually gave us both halves of the split.
+        cumulative_et_home: int | None = None
+        cumulative_et_away: int | None = None
+        if (
+            regular_time.get("home") is not None
+            and extra_time.get("home") is not None
+        ):
+            cumulative_et_home = regular_time["home"] + extra_time["home"]
+            cumulative_et_away = regular_time["away"] + extra_time["away"]
+
+        # Shootout reconstruction: FD's `penalty` field has been observed
+        # to misreport the shootout result for the 2026 WC R32 — Germany
+        # vs Paraguay served `penalties: 4-4, winner: None` and
+        # Netherlands vs Morocco served `penalties: 3-3, winner: None`
+        # despite duration=PENALTY_SHOOTOUT in both cases. BUT FD's
+        # `fullTime` is the COMBINED total (regulation + ET + shootout
+        # goals), so the shootout legs can be recovered exactly as
+        # `fullTime − (regularTime + extraTime)`. Use that as the
+        # primary source when the match was decided by pens; fall back
+        # to FD's reported `penalty` field if derivation isn't possible
+        # (e.g. fullTime or regularTime missing).
+        duration = score.get("duration") or ""
+        pen_home = penalty.get("home")
+        pen_away = penalty.get("away")
+        if duration == "PENALTY_SHOOTOUT":
+            ft_home = full_time.get("home")
+            ft_away = full_time.get("away")
+            et_delta_home = extra_time.get("home") or 0
+            et_delta_away = extra_time.get("away") or 0
+            if (
+                ft_home is not None
+                and ft_away is not None
+                and regular_time.get("home") is not None
+            ):
+                derived_home = ft_home - regular_time["home"] - et_delta_home
+                derived_away = ft_away - regular_time["away"] - et_delta_away
+                # Guard against bad arithmetic (negative legs, equal legs
+                # — a pen shootout NEVER ends level): fall through to FD's
+                # reported field if the math doesn't yield a winner.
+                if derived_home >= 0 and derived_away >= 0 and derived_home != derived_away:
+                    pen_home = derived_home
+                    pen_away = derived_away
+
+        # Shootout-decided matches need a resolvable winner. If neither
+        # derivation nor the raw `penalty` field gave us unequal legs,
+        # there's no way to advance whoever won — flag has_score=False so
+        # FallbackScoreProvider reaches for the ESPN backup resolver,
+        # which exposes shootoutScore per side directly.
+        shootout_resolved = (
+            pen_home is not None
+            and pen_away is not None
+            and pen_home != pen_away
+        )
+        shootout_payload_usable = (
+            duration != "PENALTY_SHOOTOUT" or shootout_resolved
+        )
+
         return ExternalScore(
             external_id=str(match.get("id", "")),
             home_team=home_team.get("name") or "",
             away_team=away_team.get("name") or "",
-            home_score=full_time.get("home") or 0,
-            away_score=full_time.get("away") or 0,
+            home_score=reg_home if reg_home is not None else 0,
+            away_score=reg_away if reg_away is not None else 0,
             status=map_status(match.get("status", "")),
             minute=match.get("minute"),
-            home_score_et=extra_time.get("home"),
-            away_score_et=extra_time.get("away"),
-            home_penalties=penalty.get("home"),
-            away_penalties=penalty.get("away"),
-            # Null fullTime means FD hasn't published a score — observed
-            # alongside status FINISHED at the WC2026 opener. 0-coerced
-            # values must not be mistaken for a real 0-0.
+            home_score_et=cumulative_et_home,
+            away_score_et=cumulative_et_away,
+            home_penalties=pen_home,
+            away_penalties=pen_away,
+            # Null regulation score means FD hasn't published a result —
+            # observed alongside status FINISHED at the WC2026 opener.
+            # 0-coerced values must not be mistaken for a real 0-0.
+            # Pen-shootout matches additionally need a resolvable winner,
+            # else the fallback chain takes over (see comment above).
             has_score=(
-                full_time.get("home") is not None and full_time.get("away") is not None
+                reg_home is not None
+                and reg_away is not None
+                and shootout_payload_usable
             ),
         )
 

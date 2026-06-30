@@ -36,6 +36,48 @@ export function sideOf(h: number, a: number): Side {
 	return 'draw';
 }
 
+/** Loser side of a KO fixture, resolving pens → ET → regulation (mirrors
+ *  the backend `Score.outcome` priority). Returns null when the result
+ *  is level on every leg the data carries (group-stage draws, or a KO
+ *  fixture not yet decided).
+ *
+ *  Used by every surface that needs to grey out the eliminated team —
+ *  match-detail hero, results round/KO row, dashboard latest-results
+ *  cell. Regulation-only comparison would leave both sides un-greyed
+ *  for any 1-1 → ET/pens result. */
+export type LoserSide = 'home' | 'away' | null;
+
+interface KoScoreLike {
+	home_score: number;
+	away_score: number;
+	home_score_et: number | null;
+	away_score_et: number | null;
+	home_penalties: number | null;
+	away_penalties: number | null;
+}
+
+export function koLoserSide(score: KoScoreLike | null | undefined): LoserSide {
+	if (!score) return null;
+	const ph = score.home_penalties;
+	const pa = score.away_penalties;
+	if (ph != null && pa != null && ph !== pa) return ph < pa ? 'home' : 'away';
+	const eh = score.home_score_et;
+	const ea = score.away_score_et;
+	if (eh != null && ea != null && eh !== ea) return eh < ea ? 'home' : 'away';
+	if (score.home_score < score.away_score) return 'home';
+	if (score.home_score > score.away_score) return 'away';
+	return null;
+}
+
+/** Winner side — inverse of koLoserSide. Distinct named function so call
+ *  sites read fluently ("dim the loser" vs "highlight the winner"). */
+export function koWinnerSide(score: KoScoreLike | null | undefined): LoserSide {
+	const loser = koLoserSide(score);
+	if (loser === 'home') return 'away';
+	if (loser === 'away') return 'home';
+	return null;
+}
+
 const SIDE_TO_OUTCOME: Record<Side, Outcome> = { home: '1', draw: 'X', away: '2' };
 
 /** Outcome split across the pool — counts + integer percentages. */

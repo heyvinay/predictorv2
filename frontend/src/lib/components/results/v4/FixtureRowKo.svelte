@@ -3,6 +3,7 @@
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { koLoserSide } from '$lib/utils/matchDetailV4';
 	import { track } from '$lib/analytics';
 	import BracketChip from './BracketChip.svelte';
 	import PointsCellKo from './PointsCellKo.svelte';
@@ -17,8 +18,13 @@
 
 	$: isLive = fixture.status === 'live' || fixture.status === 'halftime';
 	$: score = fixture.score;
-	$: homeLoses = !!score && score.home_score < score.away_score;
-	$: awayLoses = !!score && score.away_score < score.home_score;
+	// Loser-of-record at a KO fixture is decided by pens → ET → regulation
+	// (matches Score.outcome on the backend). Using regulation alone would
+	// mark BOTH teams un-greyed for a draw-then-pens result like Germany
+	// 1-1 Paraguay (Paraguay won 4-3 on pens), hiding the elimination.
+	$: koLoser = koLoserSide(score);
+	$: homeLoses = koLoser === 'home';
+	$: awayLoses = koLoser === 'away';
 	$: isThirdPlace = fixture.stage === 'third_place';
 	// PER-SIDE seeded check (v2.184.x — Q9 fix). The downstream lineup
 	// resolver can now partially resolve a fixture: e.g., the R16 home is

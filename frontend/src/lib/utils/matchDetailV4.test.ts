@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { CommunityPredictionWithRank, RoundDef, ScoringRules } from '$lib/types/results';
 import {
 	isUpset,
+	koLoserSide,
+	koWinnerSide,
 	outcomeOf,
 	outcomePayouts,
 	poolRows,
@@ -10,6 +12,75 @@ import {
 	sideCallers,
 	spreadGrid
 } from './matchDetailV4';
+
+function score(partial: Partial<{
+	home_score: number;
+	away_score: number;
+	home_score_et: number | null;
+	away_score_et: number | null;
+	home_penalties: number | null;
+	away_penalties: number | null;
+}>) {
+	return {
+		home_score: 0,
+		away_score: 0,
+		home_score_et: null,
+		away_score_et: null,
+		home_penalties: null,
+		away_penalties: null,
+		...partial
+	};
+}
+
+describe('koLoserSide / koWinnerSide', () => {
+	it('regulation-decided KO: loser is the side with fewer 90-min goals', () => {
+		expect(koLoserSide(score({ home_score: 0, away_score: 1 }))).toBe('home');
+		expect(koWinnerSide(score({ home_score: 0, away_score: 1 }))).toBe('away');
+	});
+
+	it('ET-decided KO: cumulative-after-ET takes priority over regulation draw', () => {
+		const s = score({ home_score: 1, away_score: 1, home_score_et: 2, away_score_et: 1 });
+		expect(koLoserSide(s)).toBe('away');
+		expect(koWinnerSide(s)).toBe('home');
+	});
+
+	it('pens-decided KO: penalty legs override a level ET cumulative', () => {
+		// Germany 1-1 Paraguay (1-1 AET) — Paraguay wins pens 4-3.
+		const s = score({
+			home_score: 1,
+			away_score: 1,
+			home_score_et: 1,
+			away_score_et: 1,
+			home_penalties: 3,
+			away_penalties: 4
+		});
+		expect(koLoserSide(s)).toBe('home');
+		expect(koWinnerSide(s)).toBe('away');
+	});
+
+	it('returns null for a fully level scoreline (no result yet)', () => {
+		expect(koLoserSide(score({ home_score: 1, away_score: 1 }))).toBeNull();
+		expect(koWinnerSide(score({ home_score: 1, away_score: 1 }))).toBeNull();
+	});
+
+	it('returns null when score is missing entirely', () => {
+		expect(koLoserSide(null)).toBeNull();
+		expect(koWinnerSide(undefined)).toBeNull();
+	});
+
+	it('ignores penalty legs that are tied (treats them as unresolved)', () => {
+		// Falls through to ET cumulative (also level) and then regulation.
+		const s = score({
+			home_score: 1,
+			away_score: 1,
+			home_score_et: 1,
+			away_score_et: 1,
+			home_penalties: 4,
+			away_penalties: 4
+		});
+		expect(koLoserSide(s)).toBeNull();
+	});
+});
 
 const RULES: ScoringRules = {
 	mode: 'logarithmic',

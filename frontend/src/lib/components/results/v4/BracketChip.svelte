@@ -1,6 +1,12 @@
 <script lang="ts">
 	/** ✓ MEX (green) when the team is in the entry's bracket for this
-	 *  round; muted otherwise. Label = FIFA three-letter code. */
+	 *  round; muted otherwise. Label = FIFA three-letter code.
+	 *
+	 *  Important: this chip means "did your pick make THIS round's lineup"
+	 *  — a permanent fact once the round starts. It does NOT reflect the
+	 *  match result. A team can be ✓ here (made R32) and still lose the
+	 *  R32 match — that loss is paid (or denied) in the NEXT row of the
+	 *  bracket (R16). Don't surface match outcome on this chip. */
 	import { teamCode } from '$lib/utils/teamCodes';
 
 	export let team: string;
