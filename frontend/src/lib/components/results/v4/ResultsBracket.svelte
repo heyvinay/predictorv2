@@ -162,7 +162,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row"
 						class:is-winner={loser === 'home'}
 						class:is-loser={loser === 'away'}
@@ -193,7 +193,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -221,7 +221,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -249,7 +249,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -278,7 +278,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(finalF.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(finalF.away_team ?? '')}
@@ -306,7 +306,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -334,7 +334,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -362,7 +362,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -390,7 +390,7 @@
 						{:else}<span class="flag flag-ph"></span>{/if}
 						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 					</div>
-					<div class="divider" aria-hidden="true"></div>
+					<div class="border-t border-base-content/15" aria-hidden="true"></div>
 					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 						{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -475,7 +475,7 @@
 									{:else}<span class="flag flag-ph"></span>{/if}
 									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 								</div>
-								<div class="divider" aria-hidden="true"></div>
+								<div class="border-t border-base-content/15" aria-hidden="true"></div>
 								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 									{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -501,7 +501,7 @@
 									{:else}<span class="flag flag-ph"></span>{/if}
 									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 								</div>
-								<div class="divider" aria-hidden="true"></div>
+								<div class="border-t border-base-content/15" aria-hidden="true"></div>
 								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 									{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -533,7 +533,7 @@
 									{:else}<span class="flag flag-ph"></span>{/if}
 									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 								</div>
-								<div class="divider" aria-hidden="true"></div>
+								<div class="border-t border-base-content/15" aria-hidden="true"></div>
 								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 									{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -559,7 +559,7 @@
 									{:else}<span class="flag flag-ph"></span>{/if}
 									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 								</div>
-								<div class="divider" aria-hidden="true"></div>
+								<div class="border-t border-base-content/15" aria-hidden="true"></div>
 								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 									{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -593,7 +593,7 @@
 										{:else}<span class="flag flag-ph"></span>{/if}
 										<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 									</div>
-									<div class="divider" aria-hidden="true"></div>
+									<div class="border-t border-base-content/15" aria-hidden="true"></div>
 									<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 										<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 										{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -622,7 +622,7 @@
 										{:else}<span class="flag flag-ph"></span>{/if}
 										<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
 									</div>
-									<div class="divider" aria-hidden="true"></div>
+									<div class="border-t border-base-content/15" aria-hidden="true"></div>
 									<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 										<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 										{#if awaySeeded && hasFlag(f.away_team ?? '')}
@@ -655,7 +655,7 @@
 								{:else}<span class="flag flag-ph"></span>{/if}
 								<span class="tname">{homeSeeded ? displayTeamName(finalF.home_team).toUpperCase() : 'TBD'}</span>
 							</div>
-							<div class="divider" aria-hidden="true"></div>
+							<div class="border-t border-base-content/15" aria-hidden="true"></div>
 							<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
 								<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
 								{#if awaySeeded && hasFlag(finalF.away_team ?? '')}
@@ -764,10 +764,6 @@
 	/* Unresolved slot */
 	.team-row.tbd {
 		opacity: 0.55;
-	}
-
-	.divider {
-		@apply border-t border-base-content/15;
 	}
 
 	/* ── Bullet column (reserved width so name text aligns) ───────────────── */
