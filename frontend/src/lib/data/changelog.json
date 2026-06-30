@@ -2438,6 +2438,13 @@
       "type": "fix",
       "summary": "Fixed bracket wallchart game ordering — columns now follow the correct FIFA wallchart structure derived from the source graph, not sequential match numbers.",
       "commit": "pending"
+    },
+    {
+      "version": "2.189.0",
+      "date": "2026-06-30",
+      "type": "feature",
+      "summary": "Bracket wallchart chips are now clickable (opens match detail) and show live scores with penalty shootout result in smaller italic text.",
+      "commit": "pending"
     }
   ]
 }

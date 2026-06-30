@@ -14,11 +14,9 @@
 	import type { BracketPrediction, Fixture } from '$types';
 	import type { ScoringRules } from '$lib/types/results';
 	import { bracketPicksForRound, fixtureKoHits, isRoundLineupSeeded } from '$lib/utils/koPoints';
-	import { koLoserSide } from '$lib/utils/matchDetailV4';
-	import { displayTeamName } from '$lib/utils/teamName';
 	import { buildMatchNumberIndex } from '$lib/utils/bracketGeometry';
-	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { SEMI_FINALS, QUARTER_FINALS, ROUND_OF_16 } from '$lib/config/bracketConfig';
+	import WallchartChip from '$lib/components/results/v4/WallchartChip.svelte';
 
 	export let fixtures: Fixture[];
 	export let bracketPrediction: BracketPrediction | null;
@@ -183,259 +181,63 @@
 		<!-- R32 Left -->
 		<div class="match-col">
 			{#each r32L as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row"
-						class:is-winner={loser === 'away'}
-						class:is-loser={loser === 'home'}
-						class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row"
-						class:is-winner={loser === 'home'}
-						class:is-loser={loser === 'away'}
-						class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={r32Picks} />
 			{/each}
 		</div>
 
 		<!-- R16 Left -->
 		<div class="match-col">
 			{#each r16L as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={r16Picks} />
 			{/each}
 		</div>
 
 		<!-- QF Left -->
 		<div class="match-col">
 			{#each qfL as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={qfPicks} />
 			{/each}
 		</div>
 
 		<!-- SF Left -->
 		<div class="match-col">
 			{#each sfL as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={sfPicks} />
 			{/each}
 		</div>
 
 		<!-- Final (centre, vertically centred) -->
 		<div class="match-col justify-center">
 			{#if finalF}
-				{@const loser = koLoserSide(finalF.score)}
-				{@const homeSeeded = !!finalF.home_team && !finalF.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!finalF.away_team && !finalF.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && fPicks.has(finalF.home_team ?? '')}
-				{@const awayHit = awaySeeded && fPicks.has(finalF.away_team ?? '')}
-				<div class="bracket-chip bracket-chip--final border border-primary/80 bg-base-200">
-					<div class="final-strip">Final</div>
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(finalF.home_team ?? '')}
-							<img src={getFlagUrl(finalF.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(finalF.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(finalF.away_team ?? '')}
-							<img src={getFlagUrl(finalF.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(finalF.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={finalF} picks={fPicks} isFinal={true} />
 			{/if}
 		</div>
 
 		<!-- SF Right -->
 		<div class="match-col">
 			{#each sfR as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={sfPicks} />
 			{/each}
 		</div>
 
 		<!-- QF Right -->
 		<div class="match-col">
 			{#each qfR as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={qfPicks} />
 			{/each}
 		</div>
 
 		<!-- R16 Right -->
 		<div class="match-col">
 			{#each r16R as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={r16Picks} />
 			{/each}
 		</div>
 
 		<!-- R32 Right -->
 		<div class="match-col">
 			{#each r32R as f (f.id)}
-				{@const loser = koLoserSide(f.score)}
-				{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-				{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-				{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
-				{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-				<div class="bracket-chip border border-base-content/15 bg-base-200">
-					<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-						<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-						{#if homeSeeded && hasFlag(f.home_team ?? '')}
-							<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-					</div>
-					<div class="border-t border-base-content/15" aria-hidden="true"></div>
-					<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-						<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-						{#if awaySeeded && hasFlag(f.away_team ?? '')}
-							<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-						{:else}<span class="flag flag-ph"></span>{/if}
-						<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-					</div>
-				</div>
+				<WallchartChip fixture={f} picks={r32Picks} />
 			{/each}
 		</div>
 	</div>
@@ -499,54 +301,12 @@
 				<div class="grid grid-cols-2 gap-2">
 					<div class="space-y-1.5">
 						{#each r32L as f (f.id)}
-							{@const loser = koLoserSide(f.score)}
-							{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-							{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
-							{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip border border-base-content/15 bg-base-200">
-								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-									{#if homeSeeded && hasFlag(f.home_team ?? '')}
-										<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-								</div>
-								<div class="border-t border-base-content/15" aria-hidden="true"></div>
-								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-									{#if awaySeeded && hasFlag(f.away_team ?? '')}
-										<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-								</div>
-							</div>
+							<WallchartChip fixture={f} picks={r32Picks} />
 						{/each}
 					</div>
 					<div class="space-y-1.5">
 						{#each r32R as f (f.id)}
-							{@const loser = koLoserSide(f.score)}
-							{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-							{@const homeHit = homeSeeded && r32Picks.has(f.home_team ?? '')}
-							{@const awayHit = awaySeeded && r32Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip border border-base-content/15 bg-base-200">
-								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-									{#if homeSeeded && hasFlag(f.home_team ?? '')}
-										<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-								</div>
-								<div class="border-t border-base-content/15" aria-hidden="true"></div>
-								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-									{#if awaySeeded && hasFlag(f.away_team ?? '')}
-										<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-								</div>
-							</div>
+							<WallchartChip fixture={f} picks={r32Picks} />
 						{/each}
 					</div>
 				</div>
@@ -557,54 +317,12 @@
 				<div class="grid grid-cols-2 gap-2">
 					<div class="space-y-2">
 						{#each r16L as f (f.id)}
-							{@const loser = koLoserSide(f.score)}
-							{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-							{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
-							{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip border border-base-content/15 bg-base-200">
-								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-									{#if homeSeeded && hasFlag(f.home_team ?? '')}
-										<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-								</div>
-								<div class="border-t border-base-content/15" aria-hidden="true"></div>
-								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-									{#if awaySeeded && hasFlag(f.away_team ?? '')}
-										<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-								</div>
-							</div>
+							<WallchartChip fixture={f} picks={r16Picks} />
 						{/each}
 					</div>
 					<div class="space-y-2">
 						{#each r16R as f (f.id)}
-							{@const loser = koLoserSide(f.score)}
-							{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-							{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-							{@const homeHit = homeSeeded && r16Picks.has(f.home_team ?? '')}
-							{@const awayHit = awaySeeded && r16Picks.has(f.away_team ?? '')}
-							<div class="bracket-chip border border-base-content/15 bg-base-200">
-								<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-									<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-									{#if homeSeeded && hasFlag(f.home_team ?? '')}
-										<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-								</div>
-								<div class="border-t border-base-content/15" aria-hidden="true"></div>
-								<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-									<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-									{#if awaySeeded && hasFlag(f.away_team ?? '')}
-										<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-									{:else}<span class="flag flag-ph"></span>{/if}
-									<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-								</div>
-							</div>
+							<WallchartChip fixture={f} picks={r16Picks} />
 						{/each}
 					</div>
 				</div>
@@ -617,28 +335,7 @@
 						<div class="section-label">QF</div>
 						<div class="space-y-2">
 							{#each qfAll as f (f.id)}
-								{@const loser = koLoserSide(f.score)}
-								{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-								{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-								{@const homeHit = homeSeeded && qfPicks.has(f.home_team ?? '')}
-								{@const awayHit = awaySeeded && qfPicks.has(f.away_team ?? '')}
-								<div class="bracket-chip border border-base-content/15 bg-base-200">
-									<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-										<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-										{#if homeSeeded && hasFlag(f.home_team ?? '')}
-											<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-										{:else}<span class="flag flag-ph"></span>{/if}
-										<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-									</div>
-									<div class="border-t border-base-content/15" aria-hidden="true"></div>
-									<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-										<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-										{#if awaySeeded && hasFlag(f.away_team ?? '')}
-											<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-										{:else}<span class="flag flag-ph"></span>{/if}
-										<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-									</div>
-								</div>
+								<WallchartChip fixture={f} picks={qfPicks} />
 							{/each}
 						</div>
 					</div>
@@ -646,28 +343,7 @@
 						<div class="section-label">SF</div>
 						<div class="space-y-2">
 							{#each sfAll as f (f.id)}
-								{@const loser = koLoserSide(f.score)}
-								{@const homeSeeded = !!f.home_team && !f.home_team.startsWith('slot:')}
-								{@const awaySeeded = !!f.away_team && !f.away_team.startsWith('slot:')}
-								{@const homeHit = homeSeeded && sfPicks.has(f.home_team ?? '')}
-								{@const awayHit = awaySeeded && sfPicks.has(f.away_team ?? '')}
-								<div class="bracket-chip border border-base-content/15 bg-base-200">
-									<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-										<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-										{#if homeSeeded && hasFlag(f.home_team ?? '')}
-											<img src={getFlagUrl(f.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-										{:else}<span class="flag flag-ph"></span>{/if}
-										<span class="tname">{homeSeeded ? displayTeamName(f.home_team).toUpperCase() : 'TBD'}</span>
-									</div>
-									<div class="border-t border-base-content/15" aria-hidden="true"></div>
-									<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-										<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-										{#if awaySeeded && hasFlag(f.away_team ?? '')}
-											<img src={getFlagUrl(f.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-										{:else}<span class="flag flag-ph"></span>{/if}
-										<span class="tname">{awaySeeded ? displayTeamName(f.away_team).toUpperCase() : 'TBD'}</span>
-									</div>
-								</div>
+								<WallchartChip fixture={f} picks={sfPicks} />
 							{/each}
 						</div>
 					</div>
@@ -678,28 +354,8 @@
 			<div class="min-w-full px-0.5">
 				<div class="flex flex-col items-center gap-4 py-2">
 					{#if finalF}
-						{@const loser = koLoserSide(finalF.score)}
-						{@const homeSeeded = !!finalF.home_team && !finalF.home_team.startsWith('slot:')}
-						{@const awaySeeded = !!finalF.away_team && !finalF.away_team.startsWith('slot:')}
-						{@const homeHit = homeSeeded && fPicks.has(finalF.home_team ?? '')}
-						{@const awayHit = awaySeeded && fPicks.has(finalF.away_team ?? '')}
-						<div class="bracket-chip bracket-chip--final border border-primary/80 bg-base-200 w-full max-w-xs">
-							<div class="final-strip">Final</div>
-							<div class="team-row" class:is-winner={loser === 'away'} class:is-loser={loser === 'home'} class:tbd={!homeSeeded}>
-								<span class="bullet" class:hit={homeHit}>{homeHit ? '✓' : ''}</span>
-								{#if homeSeeded && hasFlag(finalF.home_team ?? '')}
-									<img src={getFlagUrl(finalF.home_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-								{:else}<span class="flag flag-ph"></span>{/if}
-								<span class="tname">{homeSeeded ? displayTeamName(finalF.home_team).toUpperCase() : 'TBD'}</span>
-							</div>
-							<div class="border-t border-base-content/15" aria-hidden="true"></div>
-							<div class="team-row" class:is-winner={loser === 'home'} class:is-loser={loser === 'away'} class:tbd={!awaySeeded}>
-								<span class="bullet" class:hit={awayHit}>{awayHit ? '✓' : ''}</span>
-								{#if awaySeeded && hasFlag(finalF.away_team ?? '')}
-									<img src={getFlagUrl(finalF.away_team ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
-								{:else}<span class="flag flag-ph"></span>{/if}
-								<span class="tname">{awaySeeded ? displayTeamName(finalF.away_team).toUpperCase() : 'TBD'}</span>
-							</div>
+						<div class="w-full max-w-xs">
+							<WallchartChip fixture={finalF} picks={fPicks} isFinal={true} />
 						</div>
 					{/if}
 				</div>
@@ -750,108 +406,6 @@
 		justify-content: space-around;
 		gap: 6px;
 		min-height: 100%;
-	}
-
-	/* ── Bracket chip — layout only; surface tokens applied via Tailwind classes
-	       on the element so DaisyUI's rgb-channel variables resolve correctly ── */
-	.bracket-chip {
-		position: relative;
-		overflow: hidden;
-		border-radius: 6px;
-		box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
-	}
-
-	.bracket-chip--final {
-		box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
-	}
-
-	.final-strip {
-		text-align: center;
-		font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
-		font-size: 10px;
-		letter-spacing: 0.2em;
-		text-transform: uppercase;
-		@apply bg-primary text-primary-content;
-		padding: 2px 0;
-	}
-
-	/* ── Team row ──────────────────────────────────────────────────────────── */
-	.team-row {
-		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		padding: 0.25rem 0.5rem;
-		font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
-		font-size: 0.7rem;
-		line-height: 1;
-		transition: background 120ms ease, opacity 120ms ease;
-	}
-
-	/* Advancing team: literal green wash — same value as BracketMatch */
-	.team-row.is-winner {
-		font-weight: 700;
-		background: rgb(34 197 94 / 0.28);
-	}
-
-	/* Eliminated team: dim only (no line-through — matches BracketMatch) */
-	.team-row.is-loser {
-		opacity: 0.45;
-	}
-
-	/* Unresolved slot */
-	.team-row.tbd {
-		opacity: 0.55;
-	}
-
-	/* ── Bullet column (reserved width so name text aligns) ───────────────── */
-	.bullet {
-		width: 0.6rem;
-		flex-shrink: 0;
-		text-align: center;
-		font-size: 0.7rem;
-		font-weight: 900;
-		line-height: 1;
-		@apply text-success;
-	}
-
-	/* ── Flag ──────────────────────────────────────────────────────────────── */
-	.flag {
-		width: 14px;
-		height: 9px;
-		flex-shrink: 0;
-		border-radius: 1px;
-		box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent);
-		object-fit: cover;
-	}
-
-	.flag-ph {
-		display: inline-block;
-		width: 14px;
-		height: 9px;
-		background: color-mix(in srgb, currentColor 12%, transparent);
-		border-radius: 1px;
-	}
-
-	/* ── Team name ─────────────────────────────────────────────────────────── */
-	.tname {
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	/* ── Final chip: bigger rows (mirrors BracketMatch .bracket-chip-final) ── */
-	.bracket-chip--final .team-row {
-		font-size: 0.95rem;
-		padding: 0.5rem 0.75rem;
-	}
-
-	.bracket-chip--final .flag {
-		width: 20px;
-		height: 13px;
 	}
 
 	/* ── Mobile section label ──────────────────────────────────────────────── */
