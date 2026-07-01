@@ -2459,6 +2459,13 @@
       "type": "improvement",
       "summary": "Moved the Group Stage Champion card to below the main dashboard content, just above the news section.",
       "commit": "pending"
+    },
+    {
+      "version": "2.191.0",
+      "date": "2026-07-01",
+      "type": "feature",
+      "summary": "Admin can now toggle the announcement hero on/off from the announcements page \u2014 hides the section completely when off, including the welcome card.",
+      "commit": "pending"
     }
   ]
 }
