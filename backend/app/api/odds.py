@@ -11,7 +11,7 @@ durability contract.
 
 from fastapi import APIRouter
 
-from app.services.odds_cache import get_or_refresh_odds
+from app.services.odds_cache import get_or_refresh_odds, get_or_refresh_outrights
 
 router = APIRouter()
 
@@ -30,3 +30,16 @@ async def get_odds() -> dict:
     branching simple.
     """
     return await get_or_refresh_odds()
+
+
+@router.get("/outrights")
+async def get_outrights() -> dict:
+    """Return the current tournament-winner odds cache, refreshing if stale.
+
+    Always returns HTTP 200. The body contains either:
+      - {fetchedAt, remainingRequests, usedRequests, teams}  — success path,
+        `teams` is the top 10 by averaged de-vigged implied probability
+      - {error: 'not_configured', teams: []}                   — key unset
+      - {error: 'fetch_failed', teams: []}                     — cold-start + upstream failure
+    """
+    return await get_or_refresh_outrights()

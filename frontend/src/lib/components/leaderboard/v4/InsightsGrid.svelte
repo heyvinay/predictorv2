@@ -28,6 +28,7 @@
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
 	import YouTag from './YouTag.svelte';
+	import ChampionshipOddsCard from '$lib/components/ChampionshipOddsCard.svelte';
 
 	export let rows: LbEntryV4[];
 	export let rules: ScoringRules | null;
@@ -416,6 +417,10 @@
 	<div class="min-[860px]:col-span-2">
 		<ChampionSurvival />
 	</div>
+
+	<!-- 1c · Championship Odds — market-implied favourite to win it all,
+	     brings its own card chrome (same convention as Champion Survival) -->
+	<ChampionshipOddsCard />
 
 	<!-- 2 · Champion picks -->
 	<InsightCard

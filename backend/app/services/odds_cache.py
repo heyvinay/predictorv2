@@ -54,7 +54,21 @@ ODDS_URL = (
     "?regions=eu&markets=h2h&oddsFormat=decimal"
 )
 
+# Tournament-winner ("outrights") odds live under their own sport key on
+# The Odds API — NOT the h2h match-odds sport above with a different
+# `markets=` param. Separate cache file: the response shape (one row per
+# team, no fixture id) is unrelated to `matches`, and the two markets move
+# on different cadences (outrights barely change match-to-match, so
+# co-mingling cache-invalidation would be wasteful either direction).
+OUTRIGHTS_CACHE_PATH = Path("/app/data/odds_outrights_cache.json")
+OUTRIGHTS_TTL = timedelta(hours=4)
+OUTRIGHTS_URL = (
+    "https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup_winner/odds"
+    "?regions=eu&markets=outrights&oddsFormat=decimal"
+)
+
 _lock = asyncio.Lock()
+_outrights_lock = asyncio.Lock()
 log = logging.getLogger(__name__)
 
 
@@ -174,4 +188,122 @@ async def get_or_refresh_odds() -> dict[str, Any]:
             # If we can't write the cache, log + still serve the fresh
             # in-memory result this request. Next request will try again.
             log.warning("Failed to write odds cache file: %s", e)
+        return result
+
+
+# ---- Tournament-winner ("outrights") odds --------------------------------
+
+
+def _implied_probabilities(events: list[dict[str, Any]]) -> dict[str, float]:
+    """Average de-vigged implied win probability per team across bookmakers.
+
+    Each bookmaker's outright odds carry a built-in margin (implied
+    probabilities across all outcomes sum to >100%). Dividing each team's
+    1/price by that bookmaker's own total removes the margin before
+    averaging across bookmakers, so no single bookmaker's overround skews
+    the pool.
+    """
+    team_probs: dict[str, list[float]] = {}
+    for event in events:
+        for bookmaker in event.get("bookmakers", []):
+            market = next(
+                (m for m in bookmaker.get("markets", []) if m.get("key") == "outrights"),
+                None,
+            )
+            if not market:
+                continue
+            raw = [
+                (o.get("name"), o.get("price"))
+                for o in market.get("outcomes", [])
+                if o.get("name") and isinstance(o.get("price"), (int, float)) and o["price"] > 0
+            ]
+            if not raw:
+                continue
+            implied_total = sum(1.0 / price for _, price in raw)
+            if implied_total <= 0:
+                continue
+            for name, price in raw:
+                team_probs.setdefault(name, []).append((1.0 / price) / implied_total)
+
+    return {team: sum(probs) / len(probs) for team, probs in team_probs.items() if probs}
+
+
+async def _fetch_outrights_from_odds_api(api_key: str) -> dict[str, Any]:
+    """Hit The Odds API's outright-winner market and return the top 10 teams
+    by averaged de-vigged implied probability, plus quota headers.
+
+    Raises on any failure mode — the caller falls back to the existing
+    cache to honour the durability guarantee.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        url = f"{OUTRIGHTS_URL}&apiKey={api_key}"
+        r = await client.get(url)
+        r.raise_for_status()
+        events = r.json()
+    if not isinstance(events, list):
+        raise ValueError("Outrights API response is not a list")
+    probs = _implied_probabilities(events)
+    if not probs:
+        raise ValueError("No outright odds found in response")
+    ranked = sorted(probs.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    remaining = int(r.headers.get("x-requests-remaining", 0))
+    used = int(r.headers.get("x-requests-used", 0))
+    return {
+        "teams": [{"team": name, "probability": round(p, 4)} for name, p in ranked],
+        "remainingRequests": remaining,
+        "usedRequests": used,
+    }
+
+
+def _read_outrights_cache() -> dict[str, Any] | None:
+    if not OUTRIGHTS_CACHE_PATH.exists():
+        return None
+    try:
+        return json.loads(OUTRIGHTS_CACHE_PATH.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("Failed to read outrights cache file: %s", e)
+        return None
+
+
+def _write_outrights_atomic(data: dict[str, Any]) -> None:
+    OUTRIGHTS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = OUTRIGHTS_CACHE_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    os.rename(tmp, OUTRIGHTS_CACHE_PATH)
+
+
+async def get_or_refresh_outrights() -> dict[str, Any]:
+    """Read-through cache for tournament-winner odds.
+
+    Same durability contract as get_or_refresh_odds: any upstream failure
+    keeps serving the last-good cache untouched (or an error shape if
+    there's no cache yet at all — the cold-start case).
+    """
+    async with _outrights_lock:
+        current = _read_outrights_cache()
+        if current and not _is_stale(current.get("fetchedAt", "")):
+            return current
+
+        settings = get_settings()
+        api_key = settings.odds_api_key
+        if not api_key:
+            log.warning("ODDS_API_KEY not configured")
+            return current or {"error": "not_configured", "teams": []}
+
+        try:
+            fresh = await _fetch_outrights_from_odds_api(api_key)
+        except Exception as e:  # noqa: BLE001 — durability: catch everything
+            log.warning("Outrights API refresh failed: %s — keeping existing cache", e)
+            return current or {"error": "fetch_failed", "teams": []}
+
+        result = {
+            "fetchedAt": datetime.now(timezone.utc).isoformat(),
+            "remainingRequests": fresh["remainingRequests"],
+            "usedRequests": fresh["usedRequests"],
+            "teams": fresh["teams"],
+        }
+        try:
+            _write_outrights_atomic(result)
+        except OSError as e:
+            log.warning("Failed to write outrights cache file: %s", e)
         return result

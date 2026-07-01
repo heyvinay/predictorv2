@@ -59,6 +59,7 @@
 	import PoolDistribution from './PoolDistribution.svelte';
 	import GroupStageWinnerCard from './GroupStageWinnerCard.svelte';
 	import MatchdayStrip from './MatchdayStrip.svelte';
+	import ChampionshipOddsCard from '$lib/components/ChampionshipOddsCard.svelte';
 
 	let loading = true;
 	let rules: ScoringRules | null = null;
@@ -287,6 +288,7 @@
 					{totalEntries}
 					{lastResult}
 				/>
+				<ChampionshipOddsCard />
 				<PoolDistribution />
 			</div>
 		</div>
