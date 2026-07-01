@@ -718,3 +718,127 @@ async def test_shape_c_excludes_old_fixtures(session, competition) -> None:
 
     unresolved = await _find_unresolved_fixtures(session, competition.id, set())
     assert fixture.id not in [f.id for f in unresolved]
+
+
+# ---------------------------------------------------------------------------
+# Slot-placeholder team-name write-back (v2.191.1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fd_resolution_writes_real_team_names_back(session, competition) -> None:
+    """FD resolution pass writes real names to slot-placeholder fixture rows."""
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537426",
+        home_team="slot:round_of_32:537426:home",
+        away_team="slot:round_of_32:537426:away",
+        kickoff=datetime(2026, 7, 1, 18, 0, tzinfo=timezone.utc),
+        status=MatchStatus.SCHEDULED,
+        stage="round_of_32",
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    ext = ExternalScore(
+        external_id="537426",  # non-empty → came from FD
+        home_team="England",
+        away_team="Congo DR",
+        home_score=1,
+        away_score=0,
+        status=MatchStatus.LIVE,
+        minute=52,
+    )
+
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, ext, result)
+
+    assert fixture.home_team == "England"
+    assert fixture.away_team == "Congo DR"
+    assert result.synced == 1
+    assert fixture.status == MatchStatus.LIVE
+    assert fixture.minute == 52
+
+
+@pytest.mark.asyncio
+async def test_espn_event_cannot_match_slot_placeholder_fixture(session, competition) -> None:
+    """ESPN events (external_id='') cannot match slot-placeholder fixtures."""
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537426",
+        home_team="slot:round_of_32:537426:home",
+        away_team="slot:round_of_32:537426:away",
+        kickoff=datetime(2026, 7, 1, 18, 0, tzinfo=timezone.utc),
+        status=MatchStatus.SCHEDULED,
+        stage="round_of_32",
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    ext = ExternalScore(
+        external_id="",  # empty → ESPN, team-name match required
+        home_team="England",
+        away_team="Congo DR",
+        home_score=1,
+        away_score=0,
+        status=MatchStatus.LIVE,
+        minute=52,
+    )
+
+    result = ScoreSyncResult()
+    touched = await _apply_external_score(session, competition.id, ext, result)
+
+    # _find_fixture returns None (name mismatch) → nothing written
+    assert touched is None
+    assert result.synced == 0
+    assert fixture.home_team.startswith("slot:")
+
+
+@pytest.mark.asyncio
+async def test_fd_resolution_updates_team_names_even_when_score_verified(session, competition) -> None:
+    """Team-name write-back fires before the verified guard."""
+    fixture = Fixture(
+        competition_id=competition.id,
+        external_id="537426",
+        home_team="slot:round_of_32:537426:home",
+        away_team="slot:round_of_32:537426:away",
+        kickoff=datetime(2026, 7, 1, 18, 0, tzinfo=timezone.utc),
+        status=MatchStatus.FINISHED,
+        stage="round_of_32",
+        group=None,
+        match_number=None,
+    )
+    session.add(fixture)
+    await session.flush()
+
+    verified_score = Score(
+        fixture_id=fixture.id,
+        home_score=1,
+        away_score=0,
+        source=ScoreSource.MANUAL,
+        verified=True,
+    )
+    session.add(verified_score)
+    await session.flush()
+
+    ext = ExternalScore(
+        external_id="537426",
+        home_team="England",
+        away_team="Congo DR",
+        home_score=1,
+        away_score=0,
+        status=MatchStatus.FINISHED,
+    )
+
+    result = ScoreSyncResult()
+    await _apply_external_score(session, competition.id, ext, result)
+
+    # Score NOT overwritten (admin lock)
+    assert result.skipped_verified == 1
+    # Team names ARE updated despite the early return
+    assert fixture.home_team == "England"
+    assert fixture.away_team == "Congo DR"

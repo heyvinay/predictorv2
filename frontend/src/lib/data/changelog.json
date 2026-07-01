@@ -2466,6 +2466,13 @@
       "type": "feature",
       "summary": "Admin can now toggle the announcement hero on/off from the announcements page \u2014 hides the section completely when off, including the welcome card.",
       "commit": "pending"
+    },
+    {
+      "version": "2.191.1",
+      "date": "2026-07-01",
+      "type": "fix",
+      "summary": "Live scores and minute counters now appear immediately for knockout matches at kickoff.",
+      "commit": "pending"
     }
   ]
 }

@@ -347,6 +347,15 @@ async def _apply_external_score(
     if fixture is None:
         return None
 
+    # If this score came from Football-Data (non-empty external_id) and the
+    # fixture still holds slot-placeholder team names, write the real names
+    # back so ESPN's team-name fallback can match from the next tick onward.
+    if ext.external_id:
+        if fixture.home_team and fixture.home_team.startswith("slot:") and ext.home_team:
+            fixture.home_team = ext.home_team
+        if fixture.away_team and fixture.away_team.startswith("slot:") and ext.away_team:
+            fixture.away_team = ext.away_team
+
     score_q = await session.execute(select(Score).where(Score.fixture_id == fixture.id))
     score = score_q.scalar_one_or_none()
 
