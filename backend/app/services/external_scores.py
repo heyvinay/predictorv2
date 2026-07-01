@@ -261,6 +261,13 @@ class EspnScoreProvider(ScoreProviderBase):
                 comp = {}
             if ext.espn_event_id and competition_past_regulation(comp):
                 to_enrich.append(ext)
+            else:
+                # Regulation-time finish: ESPN's FT score is authoritative — no
+                # ET/pens split to fetch. Mark it so score_sync doesn't defer to
+                # FD resolution (which may be 403 on free-tier subscriptions).
+                stype = comp.get("status", {}).get("type", {})
+                if stype.get("state") == "post" and stype.get("completed"):
+                    ext.final_authoritative = True
 
         if to_enrich:
             await self._enrich_knockout_splits(slug, to_enrich)

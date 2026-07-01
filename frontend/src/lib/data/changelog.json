@@ -2480,6 +2480,13 @@
       "type": "fix",
       "summary": "Leaderboard insights now correctly shows Germany and Netherlands as eliminated from the champion picks tracker.",
       "commit": "pending"
+    },
+    {
+      "version": "2.191.3",
+      "date": "2026-07-01",
+      "type": "fix",
+      "summary": "Fixed live game cards staying stuck as ongoing after the final whistle for knockout matches.",
+      "commit": "pending"
     }
   ]
 }
