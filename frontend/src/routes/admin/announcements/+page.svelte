@@ -9,6 +9,8 @@
 		createAnnouncement,
 		deleteAnnouncement,
 		getAllAnnouncements,
+		getAnnouncements,
+		setAnnouncementHeroEnabled,
 		updateAnnouncement
 	} from '$api/announcements';
 	import type { Announcement, AnnouncementTone, AnnouncementWrite } from '$lib/types/dashboard';
@@ -16,6 +18,8 @@
 	let announcements: Announcement[] = [];
 	let loading = true;
 	let error: string | null = null;
+	let heroEnabled = true;
+	let heroToggling = false;
 
 	// ── Form state (create or edit — editingId null = create) ──
 	const TONES: { value: AnnouncementTone; label: string; hint: string }[] = [
@@ -44,11 +48,25 @@
 		loading = true;
 		error = null;
 		try {
-			announcements = await getAllAnnouncements();
+			const [all, resp] = await Promise.all([getAllAnnouncements(), getAnnouncements()]);
+			announcements = all;
+			heroEnabled = resp.hero_enabled;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load announcements';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function handleHeroToggle() {
+		heroToggling = true;
+		try {
+			await setAnnouncementHeroEnabled(heroEnabled);
+		} catch (e) {
+			heroEnabled = !heroEnabled;
+			error = e instanceof Error ? e.message : 'Failed to update hero visibility';
+		} finally {
+			heroToggling = false;
 		}
 	}
 
@@ -139,6 +157,31 @@
 </svelte:head>
 
 <div class="container mx-auto mobile-padding py-6 space-y-6">
+	<!-- Hero visibility toggle -->
+	<section class="rounded-xl border border-base-300/60 bg-base-200 shadow-card p-5">
+		<div class="flex items-center justify-between gap-4">
+			<div>
+				<div class="font-semibold">Show announcement hero on dashboard</div>
+				<div class="mt-0.5 text-xs text-base-content/55">
+					When off, the hero section is completely hidden for all signed-in users —
+					including the welcome card.
+				</div>
+			</div>
+			<label class="label cursor-pointer gap-3 py-0">
+				{#if heroToggling}
+					<span class="loading loading-spinner loading-xs text-primary"></span>
+				{/if}
+				<input
+					type="checkbox"
+					class="toggle toggle-primary"
+					bind:checked={heroEnabled}
+					disabled={heroToggling}
+					on:change={handleHeroToggle}
+				/>
+			</label>
+		</div>
+	</section>
+
 	<!-- Composer -->
 	<section class="rounded-xl border border-base-300/60 bg-base-200 shadow-card p-5">
 		<h2 class="text-lg font-display tracking-wide mb-1">

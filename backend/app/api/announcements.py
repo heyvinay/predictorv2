@@ -16,11 +16,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.dependencies import AdminUser, CurrentUser, DbSession
 from app.models._datetime import utc_now
 from app.models.announcement import Announcement
+from app.models.competition import Competition
 from app.models.entry import ActorRole
 from app.schemas.announcement import (
     AnnouncementCreate,
@@ -39,18 +41,32 @@ AuditCtx = Annotated[AuditContext, Depends(audit_context)]
 FEED_LIMIT = 10
 
 
-@user_router.get("/", response_model=list[AnnouncementRead])
+class AnnouncementsResponse(BaseModel):
+    """Wrapper returned by the public announcements endpoint."""
+
+    hero_enabled: bool
+    items: list[AnnouncementRead]
+
+
+@user_router.get("/", response_model=AnnouncementsResponse)
 async def list_published_announcements(
     session: DbSession, user: CurrentUser
-) -> list[Announcement]:
-    """Published announcements, newest first, for the dashboard hero."""
+) -> AnnouncementsResponse:
+    """Published announcements + hero visibility flag, newest first."""
+    comp_result = await session.execute(
+        select(Competition).where(Competition.is_active.is_(True))
+    )
+    competition = comp_result.scalar_one_or_none()
+    hero_enabled = competition.announcement_hero_enabled if competition else True
+
     rows = await session.execute(
         select(Announcement)
         .where(Announcement.published.is_(True))
         .order_by(Announcement.created_at.desc())
         .limit(FEED_LIMIT)
     )
-    return list(rows.scalars().all())
+    items = list(rows.scalars().all())
+    return AnnouncementsResponse(hero_enabled=hero_enabled, items=items)
 
 
 @admin_router.get("/", response_model=list[AnnouncementRead])

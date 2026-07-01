@@ -62,6 +62,12 @@ class Competition(SQLModel, table=True):
     # admin can announce the champion without committing the engine.
     knockout_scoring_enabled: bool = Field(default=False)
 
+    # Announcement hero visibility (v2.191.0): admin-controlled toggle that
+    # hides the dashboard AnnouncementHero entirely — even the fallback
+    # welcome card — when set to False. Defaults True so the hero shows on
+    # all existing competitions without a migration data patch.
+    announcement_hero_enabled: bool = Field(default=True)
+
     # Configuration reference
     config_file: str | None = None
 

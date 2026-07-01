@@ -65,6 +65,7 @@
 	let lbRows: LbEntryV4[] = [];
 	let totalEntries = 0;
 	let announcements: Announcement[] = [];
+	let announcementHeroEnabled = true;
 	let now = new Date();
 	// v2.181.0 — Group Stage Winner card (v2.183.x: upgraded to top-3
 	// podium). Null until the admin flips the release flag on /admin;
@@ -81,15 +82,16 @@
 	}
 
 	async function loadCore() {
-		const [, lb, scoringRules, news, gsw] = await Promise.all([
+		const [, lb, scoringRules, announcementsData, gsw] = await Promise.all([
 			fetchAllFixtures(),
 			getLeaderboardV4().catch(() => null),
 			getScoringRules(),
-			getAnnouncements().catch(() => [] as Announcement[]),
+			getAnnouncements().catch(() => ({ hero_enabled: true, items: [] as Announcement[] })),
 			getGroupStagePodium().catch(() => null)
 		]);
 		rules = scoringRules;
-		announcements = news;
+		announcements = announcementsData.items;
+		announcementHeroEnabled = announcementsData.hero_enabled;
 		if (lb) {
 			lbRows = lb.entries;
 			totalEntries = lb.entries.length;
@@ -251,7 +253,9 @@
 					<GroupStageWinnerCard podium={groupStagePodium} />
 				{/if}
 
+				{#if announcementHeroEnabled}
 				<AnnouncementHero {announcements} />
+			{/if}
 
 				<!-- Matchday FixturesTable removed in v2.181.0 — replaced
 				     by the full-width MatchdayStrip above the 2-col grid.

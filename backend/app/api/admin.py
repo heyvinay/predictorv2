@@ -784,6 +784,54 @@ async def set_knockout_scoring_enabled(
 
 
 # ---------------------------------------------------------------------------
+# Announcement hero visibility toggle (v2.191.0)
+# ---------------------------------------------------------------------------
+class AnnouncementHeroRequest(BaseModel):
+    """Toggle the dashboard announcement hero on/off."""
+
+    enabled: bool
+
+
+@router.post("/competition/announcement-hero")
+async def set_announcement_hero_enabled(
+    request: AnnouncementHeroRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Show or hide the dashboard AnnouncementHero for all signed-in users.
+
+    When `enabled=false` the hero is completely hidden — even the fallback
+    welcome card won't show. Auditable, idempotent.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.announcement_hero_enabled
+    competition.announcement_hero_enabled = request.enabled
+    competition.updated_at = utc_now()
+    if previous != request.enabled:
+        record_audit_event(
+            session,
+            event_type="competition.announcement_hero_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.enabled},
+        )
+    await session.commit()
+
+    return {"status": "ok", "announcement_hero_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
 # Standings drift verification (v2.182.0)
 # ---------------------------------------------------------------------------
 class DriftCheckResult(BaseModel):

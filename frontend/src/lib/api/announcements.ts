@@ -5,9 +5,19 @@
 import { api } from './client';
 import type { Announcement, AnnouncementWrite } from '$lib/types/dashboard';
 
-/** Published announcements, newest first (signed-in users). */
-export async function getAnnouncements(): Promise<Announcement[]> {
-	return api.get<Announcement[]>('/announcements/');
+export interface AnnouncementsResponse {
+	hero_enabled: boolean;
+	items: Announcement[];
+}
+
+/** Published announcements + hero visibility flag, newest first (signed-in users). */
+export async function getAnnouncements(): Promise<AnnouncementsResponse> {
+	return api.get<AnnouncementsResponse>('/announcements/');
+}
+
+/** Toggle the dashboard announcement hero on/off (admin). */
+export async function setAnnouncementHeroEnabled(enabled: boolean): Promise<void> {
+	await api.post('/admin/competition/announcement-hero', { enabled });
 }
 
 /** Every announcement including unpublished drafts (admin). */
