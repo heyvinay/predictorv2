@@ -1,7 +1,7 @@
 {
   "baseline": "2.0.0",
   "generated_from": "git log --since=2026-05-01 --until=2026-06-01",
-  "_convention": "entries[] is stored OLDEST-FIRST (semver-ascending). The admin Release Notes panel reverses this for display. APPEND new entries to the end; never prepend. Each entry's commit field should be the real SHA; \"pending\" is tolerated as a placeholder but fill in soon. Invariants enforced by src/lib/data/changelog.test.ts — run `npx vitest run src/lib/data/changelog.test.ts` to verify.",
+  "_convention": "entries[] is stored OLDEST-FIRST (semver-ascending). The admin Release Notes panel reverses this for display. APPEND new entries to the end; never prepend. Each entry's commit field should be the real SHA; \"pending\" is tolerated as a placeholder but fill in soon. Invariants enforced by src/lib/data/changelog.test.ts \u2014 run `npx vitest run src/lib/data/changelog.test.ts` to verify.",
   "entries": [
     {
       "version": "2.0.0",
@@ -42,7 +42,7 @@
       "version": "2.3.1",
       "date": "2026-05-09",
       "type": "fix",
-      "summary": "Rename Football-Data env var: API_FOOTBALL_DATA â†’ FOOTBALL_DATA_TOKEN.",
+      "summary": "Rename Football-Data env var: API_FOOTBALL_DATA \u00e2\u2020\u2019 FOOTBALL_DATA_TOKEN.",
       "commit": "33dbe02"
     },
     {
@@ -196,14 +196,14 @@
       "version": "2.17.2",
       "date": "2026-05-10",
       "type": "feature",
-      "summary": "Unsaved predictions now survive page refresh — drafts mirror to your browser's local storage.",
+      "summary": "Unsaved predictions now survive page refresh \u2014 drafts mirror to your browser's local storage.",
       "commit": "fc65ebf"
     },
     {
       "version": "2.18.0",
       "date": "2026-05-10",
       "type": "internal",
-      "summary": "Internal: every date/time across the app is now timezone-aware UTC — eliminates a class of off-by-N-hours bugs.",
+      "summary": "Internal: every date/time across the app is now timezone-aware UTC \u2014 eliminates a class of off-by-N-hours bugs.",
       "commit": "c6089cc"
     },
     {
@@ -266,7 +266,7 @@
       "version": "2.21.2",
       "date": "2026-05-13",
       "type": "feature",
-      "summary": "Search engines no longer index the site — your pool stays private.",
+      "summary": "Search engines no longer index the site \u2014 your pool stays private.",
       "commit": "a394d92"
     },
     {
@@ -455,7 +455,7 @@
       "version": "2.39.1",
       "date": "2026-05-15",
       "type": "internal",
-      "summary": "Pre-merge â€” CLAUDE.md Panini UI guidelines + compose tidy.",
+      "summary": "Pre-merge \u00e2\u20ac\u201d CLAUDE.md Panini UI guidelines + compose tidy.",
       "commit": "f5cdc9d"
     },
     {
@@ -525,7 +525,7 @@
       "version": "2.46.1",
       "date": "2026-05-15",
       "type": "improvement",
-      "summary": "Rules page: currency to â‚¬ (Euros).",
+      "summary": "Rules page: currency to \u00e2\u201a\u00ac (Euros).",
       "commit": "df51755"
     },
     {
@@ -693,7 +693,7 @@
       "version": "2.58.2",
       "date": "2026-05-16",
       "type": "fix",
-      "summary": "Predictions wizard: tone down editing-state â€” sticker chip + shadow-only highlight.",
+      "summary": "Predictions wizard: tone down editing-state \u00e2\u20ac\u201d sticker chip + shadow-only highlight.",
       "commit": "61054e5"
     },
     {
@@ -707,7 +707,7 @@
       "version": "2.58.4",
       "date": "2026-05-16",
       "type": "fix",
-      "summary": "Predictions wizard: slim editing chip â€” drop paper outline, smaller size.",
+      "summary": "Predictions wizard: slim editing chip \u00e2\u20ac\u201d drop paper outline, smaller size.",
       "commit": "df5b081"
     },
     {
@@ -721,7 +721,7 @@
       "version": "2.58.6",
       "date": "2026-05-16",
       "type": "fix",
-      "summary": "Predictions wizard: close hero dead-zone â€” middle column stretches, not the title.",
+      "summary": "Predictions wizard: close hero dead-zone \u00e2\u20ac\u201d middle column stretches, not the title.",
       "commit": "a26dbd9"
     },
     {
@@ -763,7 +763,7 @@
       "version": "2.61.0",
       "date": "2026-05-16",
       "type": "feature",
-      "summary": "Predictions wizard: structural pill nav â€” divisor-of-12 grid + mobile dropdown.",
+      "summary": "Predictions wizard: structural pill nav \u00e2\u20ac\u201d divisor-of-12 grid + mobile dropdown.",
       "commit": "d9cd292"
     },
     {
@@ -840,7 +840,7 @@
       "version": "2.68.0",
       "date": "2026-05-17",
       "type": "feature",
-      "summary": "Multi-entry: lifecycle actions wired — Mark Ready, Submit, Reopen, Withdraw + bonus gate.",
+      "summary": "Multi-entry: lifecycle actions wired \u2014 Mark Ready, Submit, Reopen, Withdraw + bonus gate.",
       "commit": "675fb76"
     },
     {
@@ -938,7 +938,7 @@
       "version": "2.72.0",
       "date": "2026-05-20",
       "type": "feature",
-      "summary": "Theme: add 'premium' theme â€” editorial dark + champagne gold.",
+      "summary": "Theme: add 'premium' theme \u00e2\u20ac\u201d editorial dark + champagne gold.",
       "commit": "c56bee6"
     },
     {
@@ -987,7 +987,7 @@
       "version": "2.78.0",
       "date": "2026-05-21",
       "type": "feature",
-      "summary": "Theme: premium polish â€” navy navbar, deeper amber, bold team titles.",
+      "summary": "Theme: premium polish \u00e2\u20ac\u201d navy navbar, deeper amber, bold team titles.",
       "commit": "1ab6116"
     },
     {
@@ -1015,7 +1015,7 @@
       "version": "2.81.1",
       "date": "2026-05-21",
       "type": "internal",
-      "summary": "Database migrations: simplify entrystatus enum â€” 6 values â†’ 3.",
+      "summary": "Database migrations: simplify entrystatus enum \u00e2\u20ac\u201d 6 values \u00e2\u2020\u2019 3.",
       "commit": "63b2bd5"
     },
     {
@@ -1232,7 +1232,7 @@
       "version": "2.103.3",
       "date": "2026-05-22",
       "type": "fix",
-      "summary": "Predictions wizard: bonus questions render â€” point client at entry-scoped endpoints.",
+      "summary": "Predictions wizard: bonus questions render \u00e2\u20ac\u201d point client at entry-scoped endpoints.",
       "commit": "8085ab5"
     },
     {
@@ -1274,7 +1274,7 @@
       "version": "2.107.1",
       "date": "2026-05-22",
       "type": "fix",
-      "summary": "Predictions wizard: segments fill partially â€” not solid color.",
+      "summary": "Predictions wizard: segments fill partially \u00e2\u20ac\u201d not solid color.",
       "commit": "2b5f281"
     },
     {
@@ -1288,7 +1288,7 @@
       "version": "2.109.0",
       "date": "2026-05-24",
       "type": "feature",
-      "summary": "Predictions wizard: wizard redesign â€” fixture cards, mobile standings drawer, third-place accordion.",
+      "summary": "Predictions wizard: wizard redesign \u00e2\u20ac\u201d fixture cards, mobile standings drawer, third-place accordion.",
       "commit": "1737535"
     },
     {
@@ -1302,7 +1302,7 @@
       "version": "2.111.0",
       "date": "2026-05-24",
       "type": "improvement",
-      "summary": "/entries: visual redesign — clean table, naming dialog, inline edit, completion chips, kebab menu.",
+      "summary": "/entries: visual redesign \u2014 clean table, naming dialog, inline edit, completion chips, kebab menu.",
       "commit": "9c7a230"
     },
     {
@@ -1323,7 +1323,7 @@
       "version": "2.112.2",
       "date": "2026-05-24",
       "type": "fix",
-      "summary": "Entries: remove dead zone in name cell â€” entire row now clickable.",
+      "summary": "Entries: remove dead zone in name cell \u00e2\u20ac\u201d entire row now clickable.",
       "commit": "50d0b83"
     },
     {
@@ -1351,14 +1351,14 @@
       "version": "2.114.0",
       "date": "2026-05-24",
       "type": "internal",
-      "summary": "Knockout bracket: use DaisyUI theme tokens â€” wallchart now follows theme.",
+      "summary": "Knockout bracket: use DaisyUI theme tokens \u00e2\u20ac\u201d wallchart now follows theme.",
       "commit": "078a2c0"
     },
     {
       "version": "2.115.0",
       "date": "2026-05-24",
       "type": "internal",
-      "summary": "Knockout bracket: remap to neutral base tokens â€” quiet chart + vibrant accents.",
+      "summary": "Knockout bracket: remap to neutral base tokens \u00e2\u20ac\u201d quiet chart + vibrant accents.",
       "commit": "fd02d51"
     },
     {
@@ -1386,7 +1386,7 @@
       "version": "2.115.4",
       "date": "2026-05-25",
       "type": "improvement",
-      "summary": "Knockout bracket: remove desktop champion strip â€” champion already in header.",
+      "summary": "Knockout bracket: remove desktop champion strip \u00e2\u20ac\u201d champion already in header.",
       "commit": "b2bf967"
     },
     {
@@ -1449,14 +1449,14 @@
       "version": "2.119.0",
       "date": "2026-05-25",
       "type": "feature",
-      "summary": "results,rules: phase B â€” DaisyUI port of c2af978 breakdown cards + 394f54c rarity table.",
+      "summary": "results,rules: phase B \u00e2\u20ac\u201d DaisyUI port of c2af978 breakdown cards + 394f54c rarity table.",
       "commit": "5b67788"
     },
     {
       "version": "2.120.0",
       "date": "2026-05-25",
       "type": "feature",
-      "summary": "Results page: phase C â€” DaisyUI port of 75597e2 match-detail drill-down.",
+      "summary": "Results page: phase C \u00e2\u20ac\u201d DaisyUI port of 75597e2 match-detail drill-down.",
       "commit": "9d1edb2"
     },
     {
@@ -1778,7 +1778,7 @@
       "version": "2.147.4",
       "date": "2026-05-30",
       "type": "fix",
-      "summary": "Rules page: restructure rarity table â€” Inter font, tighter columns, novice intro on top, nerd footnote with formula.",
+      "summary": "Rules page: restructure rarity table \u00e2\u20ac\u201d Inter font, tighter columns, novice intro on top, nerd footnote with formula.",
       "commit": "99476b9"
     },
     {
@@ -1806,7 +1806,7 @@
       "version": "2.147.8",
       "date": "2026-05-31",
       "type": "fix",
-      "summary": "Predictions wizard: drafts isolated per tab — sibling tabs no longer overwrite each other.",
+      "summary": "Predictions wizard: drafts isolated per tab \u2014 sibling tabs no longer overwrite each other.",
       "commit": "fc552e2"
     },
     {
@@ -1897,14 +1897,14 @@
       "version": "2.153.0",
       "date": "2026-06-01",
       "type": "feature",
-      "summary": "You can now contact support directly from inside the app — tap the Help icon at the top (or in the mobile bottom nav) to open a quick message form, and your reply address comes through automatically so we can get back to you.",
+      "summary": "You can now contact support directly from inside the app \u2014 tap the Help icon at the top (or in the mobile bottom nav) to open a quick message form, and your reply address comes through automatically so we can get back to you.",
       "commit": "pending"
     },
     {
       "version": "2.154.0",
       "date": "2026-06-02",
       "type": "feature",
-      "summary": "The home-page welcome card now adapts to where you are in the competition — celebrates a submitted entry and invites a second, or loudly flags a fully-picked draft that hasn't been submitted yet so a completed entry can't slip through unsubmitted. Plus the homepage's 'a cut to charity' line now uses the brand gold for visual consistency.",
+      "summary": "The home-page welcome card now adapts to where you are in the competition \u2014 celebrates a submitted entry and invites a second, or loudly flags a fully-picked draft that hasn't been submitted yet so a completed entry can't slip through unsubmitted. Plus the homepage's 'a cut to charity' line now uses the brand gold for visual consistency.",
       "commit": "pending"
     },
     {
@@ -1918,35 +1918,35 @@
       "version": "2.154.2",
       "date": "2026-06-02",
       "type": "internal",
-      "summary": "If an admin disables an entry, it now disappears completely from the player's view — no leftover badges, drafts, or stale rows. The data is preserved internally and the change is reversible.",
+      "summary": "If an admin disables an entry, it now disappears completely from the player's view \u2014 no leftover badges, drafts, or stale rows. The data is preserved internally and the change is reversible.",
       "commit": "pending"
     },
     {
       "version": "2.154.3",
       "date": "2026-06-03",
       "type": "improvement",
-      "summary": "Several wizard polish wins: the SmartFill auto-fill button and the knockout-bracket interaction tip are now far easier to spot; the SmartFill modal's checkboxes read clearly on the light theme; creating a new entry — whether you're a first-time user finishing onboarding, an existing user picking 'Add new entry' on the home page, or hitting '+ New Entry' on a just-submitted card — always lands you straight on the picks screen, while still letting you cancel safely back to the entries list; the rare 'Couldn't save your edits' error when unlocking a submitted entry no longer surfaces; and the admin Entries search now matches by either user email or entry reference.",
+      "summary": "Several wizard polish wins: the SmartFill auto-fill button and the knockout-bracket interaction tip are now far easier to spot; the SmartFill modal's checkboxes read clearly on the light theme; creating a new entry \u2014 whether you're a first-time user finishing onboarding, an existing user picking 'Add new entry' on the home page, or hitting '+ New Entry' on a just-submitted card \u2014 always lands you straight on the picks screen, while still letting you cancel safely back to the entries list; the rare 'Couldn't save your edits' error when unlocking a submitted entry no longer surfaces; and the admin Entries search now matches by either user email or entry reference.",
       "commit": "pending"
     },
     {
       "version": "2.154.4",
       "date": "2026-06-03",
       "type": "fix",
-      "summary": "Four fixes to v2.154.3: the SmartFill tooltip on the picks-wizard toolbar no longer cuts off mid-sentence or bleeds into the section below; the 'Overwrite existing picks' checkbox in the SmartFill modal now reads clearly on the dark theme; the SmartFill button itself stands out properly on the light theme instead of fading into the card background; and once you submit an entry, the bracket and bonus questions are now properly read-only (matching the groups step) — they unlock again only if you click 'Edit entry' before the deadline.",
+      "summary": "Four fixes to v2.154.3: the SmartFill tooltip on the picks-wizard toolbar no longer cuts off mid-sentence or bleeds into the section below; the 'Overwrite existing picks' checkbox in the SmartFill modal now reads clearly on the dark theme; the SmartFill button itself stands out properly on the light theme instead of fading into the card background; and once you submit an entry, the bracket and bonus questions are now properly read-only (matching the groups step) \u2014 they unlock again only if you click 'Edit entry' before the deadline.",
       "commit": "pending"
     },
     {
       "version": "2.155.0",
       "date": "2026-06-03",
       "type": "internal",
-      "summary": "Behind-the-scenes analytics consolidation. We can now see which buttons and menu paths get used most across the site — including which footer links, rail items, and mobile-nav tabs people click — and visualise click hotspots on each screen. Session video recording is explicitly disabled and the pool-treasurer reference field is masked, so no typed content ever leaves your browser. Do-Not-Track is honoured. Cloudflare's performance reporting (Core Web Vitals) stays separate; everything else now lands in one dashboard.",
+      "summary": "Behind-the-scenes analytics consolidation. We can now see which buttons and menu paths get used most across the site \u2014 including which footer links, rail items, and mobile-nav tabs people click \u2014 and visualise click hotspots on each screen. Session video recording is explicitly disabled and the pool-treasurer reference field is masked, so no typed content ever leaves your browser. Do-Not-Track is honoured. Cloudflare's performance reporting (Core Web Vitals) stays separate; everything else now lands in one dashboard.",
       "commit": "pending"
     },
     {
       "version": "2.156.0",
       "date": "2026-06-09",
       "type": "feature",
-      "summary": "Admin console redesigned — dedicated Users, Entries, and Audit pages with a slide-over entry-detail panel, plus three-cohort filtering (Active / Signed-up-only / Verified-only) so the admins can identify and re-engage users who started signup but never finished. New: Engagement card on user-detail (last seen, last page, sessions, avg duration, 14-day sparkline — read from PostHog); reason-required confirmation modal on every destructive admin action with the reason captured in the audit log; clickable stat cards that filter the table below; local-time everywhere in the admin UI (storage stays UTC). Magic-link verifies and profile edits now fire audit events too, so 'Last activity' on the Users list is meaningful end-to-end.",
+      "summary": "Admin console redesigned \u2014 dedicated Users, Entries, and Audit pages with a slide-over entry-detail panel, plus three-cohort filtering (Active / Signed-up-only / Verified-only) so the admins can identify and re-engage users who started signup but never finished. New: Engagement card on user-detail (last seen, last page, sessions, avg duration, 14-day sparkline \u2014 read from PostHog); reason-required confirmation modal on every destructive admin action with the reason captured in the audit log; clickable stat cards that filter the table below; local-time everywhere in the admin UI (storage stays UTC). Magic-link verifies and profile edits now fire audit events too, so 'Last activity' on the Users list is meaningful end-to-end.",
       "commit": "pending"
     },
     {
@@ -1960,7 +1960,7 @@
       "version": "2.157.0",
       "date": "2026-06-04",
       "type": "feature",
-      "summary": "Admin Entries page now shows the entry's owner (name + email), who they paid the fee to, and a Prize chip (Eligible / Pending payment / Excluded) on every row — no more clicking through each entry to see who it belongs to. Four entries-page filter bugs fixed: Draft filter no longer matches every entry (was leaking through the dormant Phase 2 rows), Withdrawn filter now follows withdrawn_at instead of phase rows, the Disabled stat card now actually filters (previously silently failed with a 422), and the Modified-within dropdown is now wired end-to-end. The slide-over Group / Knockout / Bonus tabs now render the user's real predictions on behalf of any admin viewer — same data as the entry owner sees on /entries, but inert (no editing). User-detail page entry cards now show the correct status pill (was hardcoded to 'Submitted'), the Paid pill is alongside the reference badge, and the KPI summary reads 'Submitted: X/Y' instead of 'X sub · Y draft'.",
+      "summary": "Admin Entries page now shows the entry's owner (name + email), who they paid the fee to, and a Prize chip (Eligible / Pending payment / Excluded) on every row \u2014 no more clicking through each entry to see who it belongs to. Four entries-page filter bugs fixed: Draft filter no longer matches every entry (was leaking through the dormant Phase 2 rows), Withdrawn filter now follows withdrawn_at instead of phase rows, the Disabled stat card now actually filters (previously silently failed with a 422), and the Modified-within dropdown is now wired end-to-end. The slide-over Group / Knockout / Bonus tabs now render the user's real predictions on behalf of any admin viewer \u2014 same data as the entry owner sees on /entries, but inert (no editing). User-detail page entry cards now show the correct status pill (was hardcoded to 'Submitted'), the Paid pill is alongside the reference badge, and the KPI summary reads 'Submitted: X/Y' instead of 'X sub \u00b7 Y draft'.",
       "commit": "pending"
     },
     {
@@ -1974,49 +1974,49 @@
       "version": "2.158.0",
       "date": "2026-06-05",
       "type": "improvement",
-      "summary": "Smart Fill is more accurate and more current. Betting Odds Smart Fill now picks the market favourite for every match instead of occasionally sampling an upset — no more weird predictions like New Zealand beating Belgium. FIFA Smart Fill rankings have been refreshed to current values (Germany, Morocco, Senegal and Mexico moved up notably since the previous snapshot). Behind the scenes, the odds data is now cached server-side for 4 hours and shared across all users — fresher fixture coverage with a small fraction of the previous API budget.",
+      "summary": "Smart Fill is more accurate and more current. Betting Odds Smart Fill now picks the market favourite for every match instead of occasionally sampling an upset \u2014 no more weird predictions like New Zealand beating Belgium. FIFA Smart Fill rankings have been refreshed to current values (Germany, Morocco, Senegal and Mexico moved up notably since the previous snapshot). Behind the scenes, the odds data is now cached server-side for 4 hours and shared across all users \u2014 fresher fixture coverage with a small fraction of the previous API budget.",
       "commit": "pending"
     },
     {
       "version": "2.159.0",
       "date": "2026-06-06",
       "type": "feature",
-      "summary": "Landing page gets a sponsor prize hero — Atlas Insurance is donating an official Adidas TRIONDA FIFA World Cup 2026 match ball to a drawn entry. Submission-confirmation emails now include a monospace recap of your group scores, knockout picks and bonus answers — a one-look receipt you can scroll, search, or forward to a friend. New 'your entry is back in draft' email fires whenever a submitted entry is unlocked, so you can't accidentally close the tab and miss scoring. Admin shortcut is now a dedicated item in the side rail (and the mobile bottom nav for admins) instead of buried in the avatar menu. Dark theme is the default again. Mobile polish: page-title text on landing no longer clips into the countdown pill, group accordions now expand by default in the prediction wizard, scoring cards on the rules page no longer crowd their titles, and the avatar dropdown panel fits inside the rail instead of bleeding out.",
+      "summary": "Landing page gets a sponsor prize hero \u2014 Atlas Insurance is donating an official Adidas TRIONDA FIFA World Cup 2026 match ball to a drawn entry. Submission-confirmation emails now include a monospace recap of your group scores, knockout picks and bonus answers \u2014 a one-look receipt you can scroll, search, or forward to a friend. New 'your entry is back in draft' email fires whenever a submitted entry is unlocked, so you can't accidentally close the tab and miss scoring. Admin shortcut is now a dedicated item in the side rail (and the mobile bottom nav for admins) instead of buried in the avatar menu. Dark theme is the default again. Mobile polish: page-title text on landing no longer clips into the countdown pill, group accordions now expand by default in the prediction wizard, scoring cards on the rules page no longer crowd their titles, and the avatar dropdown panel fits inside the rail instead of bleeding out.",
       "commit": "pending"
     },
     {
       "version": "2.159.1",
       "date": "2026-06-06",
       "type": "fix",
-      "summary": "Right-hand Group Standings panel now opens to the all-groups stacked view by default when you enter the prediction wizard — matching the all-accordions-expanded default. Previously you had to click Collapse all then Expand all to flip the standings panel into 'all' mode.",
+      "summary": "Right-hand Group Standings panel now opens to the all-groups stacked view by default when you enter the prediction wizard \u2014 matching the all-accordions-expanded default. Previously you had to click Collapse all then Expand all to flip the standings panel into 'all' mode.",
       "commit": "pending"
     },
     {
       "version": "2.160.0",
       "date": "2026-06-07",
       "type": "feature",
-      "summary": "Admin can now broadcast nudge emails to three audience segments — players who've already submitted (thank-you + add another), players who signed up but haven't started (come back and play), and players sitting on draft entries (finish and submit before the deadline). Each row has a 'send test to me' button that fires one email to the admin's own inbox so you can eyeball the rendering before sending for real. Admin Console slimmed down from a kitchen-sink page into focused sub-tabs — Sync (full fixtures list + sync button), Bonus, and Notes are now dedicated tabs alongside Overview, Users, Entries, and Audit. Sub-nav becomes horizontally-scrollable pills on mobile so all seven tabs are reachable from a 375px screen. Overview stats cards swapped from Users/Fixtures/Predictions/Live to Users/Entries/Prize money. Admin nav bug fixed: clicking the Admin link from the side rail or 'Overview' from a user-detail page used to occasionally bounce to the home page during a brief auth-store hydration window — that race is gone. Bottlers bonus question wording clarified to spell out that group-stage exits count, not just knockout-stage eliminations. Landing page now greets returning members with cohort-aware copy — one entry submitted? Primary CTA pushes you toward a second. Got drafts in flight? It says 'continue and finish' instead. New social-proof card above the welcome card shows how many predictors are in the pool with a cohort-aware tagline. On mobile the welcome card jumps to the top of the page so the CTA is the first thing you see.",
+      "summary": "Admin can now broadcast nudge emails to three audience segments \u2014 players who've already submitted (thank-you + add another), players who signed up but haven't started (come back and play), and players sitting on draft entries (finish and submit before the deadline). Each row has a 'send test to me' button that fires one email to the admin's own inbox so you can eyeball the rendering before sending for real. Admin Console slimmed down from a kitchen-sink page into focused sub-tabs \u2014 Sync (full fixtures list + sync button), Bonus, and Notes are now dedicated tabs alongside Overview, Users, Entries, and Audit. Sub-nav becomes horizontally-scrollable pills on mobile so all seven tabs are reachable from a 375px screen. Overview stats cards swapped from Users/Fixtures/Predictions/Live to Users/Entries/Prize money. Admin nav bug fixed: clicking the Admin link from the side rail or 'Overview' from a user-detail page used to occasionally bounce to the home page during a brief auth-store hydration window \u2014 that race is gone. Bottlers bonus question wording clarified to spell out that group-stage exits count, not just knockout-stage eliminations. Landing page now greets returning members with cohort-aware copy \u2014 one entry submitted? Primary CTA pushes you toward a second. Got drafts in flight? It says 'continue and finish' instead. New social-proof card above the welcome card shows how many predictors are in the pool with a cohort-aware tagline. On mobile the welcome card jumps to the top of the page so the CTA is the first thing you see.",
       "commit": "pending"
     },
     {
       "version": "2.160.1",
       "date": "2026-06-10",
       "type": "fix",
-      "summary": "The 'Updated' column on the Entries list now shows your real last activity — last prediction edit, submit, withdraw, or admin change — instead of the entry's creation time. Previously, entries created in quick succession all showed the same near-identical timestamp because the column only ticked for a narrow set of admin actions and never for prediction edits or submits.",
+      "summary": "The 'Updated' column on the Entries list now shows your real last activity \u2014 last prediction edit, submit, withdraw, or admin change \u2014 instead of the entry's creation time. Previously, entries created in quick succession all showed the same near-identical timestamp because the column only ticked for a narrow set of admin actions and never for prediction edits or submits.",
       "commit": "pending"
     },
     {
       "version": "2.160.2",
       "date": "2026-06-10",
       "type": "improvement",
-      "summary": "Landing page polish. The 'Who's in' card on the right of the prize hero now sits alongside a new 'Pot so far' stat showing the indicative prize pool — submitted entries × entry fee — with fine print explaining the figure firms up once fees are collected. The Welcome Back card now wears a gold outline and gold halo shadow so it pops as the primary action panel. The body countdown timer's headline label and subline now escalate dynamically with time remaining — 'Last week' through 'Final days' through 'Last day' through 'Final hours' through 'Minutes left' — instead of a static 'Last week' that stayed put for the entire heads-up window. Color escalation moved to red 48 hours out (was 24) so the navbar pill turns urgent earlier too.",
+      "summary": "Landing page polish. The 'Who's in' card on the right of the prize hero now sits alongside a new 'Pot so far' stat showing the indicative prize pool \u2014 submitted entries \u00d7 entry fee \u2014 with fine print explaining the figure firms up once fees are collected. The Welcome Back card now wears a gold outline and gold halo shadow so it pops as the primary action panel. The body countdown timer's headline label and subline now escalate dynamically with time remaining \u2014 'Last week' through 'Final days' through 'Last day' through 'Final hours' through 'Minutes left' \u2014 instead of a static 'Last week' that stayed put for the entire heads-up window. Color escalation moved to red 48 hours out (was 24) so the navbar pill turns urgent earlier too.",
       "commit": "pending"
     },
     {
       "version": "2.160.3",
       "date": "2026-06-10",
       "type": "fix",
-      "summary": "Landing 'Pot so far' now matches the Submitted count on the admin Entries page. Previously the pot was inflated because the underlying count included withdrawn and disabled entries (whose phase status remained 'submitted' after the lifecycle change) and counted entries with any phase row submitted instead of just phase 1. Now the count is scoped to actively eligible phase-1 submissions only — the same definition the admin Entries page already uses.",
+      "summary": "Landing 'Pot so far' now matches the Submitted count on the admin Entries page. Previously the pot was inflated because the underlying count included withdrawn and disabled entries (whose phase status remained 'submitted' after the lifecycle change) and counted entries with any phase row submitted instead of just phase 1. Now the count is scoped to actively eligible phase-1 submissions only \u2014 the same definition the admin Entries page already uses.",
       "commit": "pending"
     },
     {
@@ -2030,7 +2030,7 @@
       "version": "2.160.5",
       "date": "2026-06-10",
       "type": "fix",
-      "summary": "Admin Entries page stat cards (Total / Submitted / Paid / Disabled-Withdrawn) now show the true global count for the active competition. Previously the cards were computed by filtering the visible table — which is paginated at 100 rows — so they undercounted whenever the pool grew beyond a page (e.g. showed 60 submitted when 89 actually exist). The Submitted figure now comes from the same shared helper that powers the landing 'Pot so far' and the admin overview prize pool, so all three views always agree. Admin overview prize pool gets the same fix in the same release.",
+      "summary": "Admin Entries page stat cards (Total / Submitted / Paid / Disabled-Withdrawn) now show the true global count for the active competition. Previously the cards were computed by filtering the visible table \u2014 which is paginated at 100 rows \u2014 so they undercounted whenever the pool grew beyond a page (e.g. showed 60 submitted when 89 actually exist). The Submitted figure now comes from the same shared helper that powers the landing 'Pot so far' and the admin overview prize pool, so all three views always agree. Admin overview prize pool gets the same fix in the same release.",
       "commit": "pending"
     },
     {
@@ -2044,21 +2044,21 @@
       "version": "2.160.7",
       "date": "2026-06-10",
       "type": "internal",
-      "summary": "Internal: the 'last activity' rollup that powers the entries-list 'Updated' column and the CSV export's 'Last Modified' column now strictly filters to phase-1 contributions, in line with the elevated single-phase rule in CLAUDE.md. In practice the visible output is unchanged because phase-2 timestamps are pinned to entry creation and never won the max anyway — but the code path no longer depends on that happenstance. Regression test added to pin the rule.",
+      "summary": "Internal: the 'last activity' rollup that powers the entries-list 'Updated' column and the CSV export's 'Last Modified' column now strictly filters to phase-1 contributions, in line with the elevated single-phase rule in CLAUDE.md. In practice the visible output is unchanged because phase-2 timestamps are pinned to entry creation and never won the max anyway \u2014 but the code path no longer depends on that happenstance. Regression test added to pin the rule.",
       "commit": "pending"
     },
     {
       "version": "2.161.0",
       "date": "2026-06-10",
       "type": "fix",
-      "summary": "Knockout-bracket picks for the quarter-finals and semi-finals now score correctly — a naming mismatch meant those rounds were silently worth 0 points. Knockout points also unlock as soon as a team is officially seeded into a round, instead of waiting for that match to finish. Submission-recap emails include those rounds again. Leaderboard loads are much faster under load, only submitted entries count toward the rarity-bonus maths, and leaderboard cache controls are admin-only.",
+      "summary": "Knockout-bracket picks for the quarter-finals and semi-finals now score correctly \u2014 a naming mismatch meant those rounds were silently worth 0 points. Knockout points also unlock as soon as a team is officially seeded into a round, instead of waiting for that match to finish. Submission-recap emails include those rounds again. Leaderboard loads are much faster under load, only submitted entries count toward the rarity-bonus maths, and leaderboard cache controls are admin-only.",
       "commit": "pending"
     },
     {
       "version": "2.162.0",
       "date": "2026-06-10",
       "type": "feature",
-      "summary": "Admins can now enter match results and seed knockout teams directly from the Score Sync page — an escape hatch for when the live-score feed fails or lags. Manually verified scores are protected from being overwritten by the automatic sync, every manual edit is recorded in the audit log, and a confirmation step guards against accidental saves.",
+      "summary": "Admins can now enter match results and seed knockout teams directly from the Score Sync page \u2014 an escape hatch for when the live-score feed fails or lags. Manually verified scores are protected from being overwritten by the automatic sync, every manual edit is recorded in the audit log, and a confirmation step guards against accidental saves.",
       "commit": "pending"
     },
     {
@@ -2072,14 +2072,14 @@
       "version": "2.164.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "Brand-new Leaderboard and revamped Results: live standings with search, pool filters, sparkline trend column, race chart and insights cards; the Match Detail page now shows the pool split, predicted-scoreline bubble grid and who picked what — for both played and upcoming matches. Both pages are admin-only for a final taste-check before opening to the whole pool.",
+      "summary": "Brand-new Leaderboard and revamped Results: live standings with search, pool filters, sparkline trend column, race chart and insights cards; the Match Detail page now shows the pool split, predicted-scoreline bubble grid and who picked what \u2014 for both played and upcoming matches. Both pages are admin-only for a final taste-check before opening to the whole pool.",
       "commit": "pending"
     },
     {
       "version": "2.165.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "Your new home page: a personal dashboard with rotating announcements from the organisers, today's and upcoming matches with your picks, the latest results with points earned, a mini leaderboard and the day's biggest movers — all switchable between your entries.",
+      "summary": "Your new home page: a personal dashboard with rotating announcements from the organisers, today's and upcoming matches with your picks, the latest results with points earned, a mini leaderboard and the day's biggest movers \u2014 all switchable between your entries.",
       "commit": "pending"
     },
     {
@@ -2093,14 +2093,14 @@
       "version": "2.167.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "Organiser tooling: a one-click post-deadline clean-up that retires accounts which never submitted an entry — with a preview of exactly what it will do before anything happens.",
+      "summary": "Organiser tooling: a one-click post-deadline clean-up that retires accounts which never submitted an entry \u2014 with a preview of exactly what it will do before anything happens.",
       "commit": "pending"
     },
     {
       "version": "2.168.0",
       "date": "2026-06-11",
       "type": "improvement",
-      "summary": "Standings polish: sort the table by entry name, group, knockout or total points (highest total first by default, ties alphabetical), and the page now appears noticeably faster — trend sparklines fill in a moment later instead of holding everything up.",
+      "summary": "Standings polish: sort the table by entry name, group, knockout or total points (highest total first by default, ties alphabetical), and the page now appears noticeably faster \u2014 trend sparklines fill in a moment later instead of holding everything up.",
       "commit": "pending"
     },
     {
@@ -2121,14 +2121,14 @@
       "version": "2.171.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "A site-wide notice now explains launch-week status: the rarity bonus arrives once entries are verified and fees collected, and live scoring is being brought online — with a one-click link to Help & Support.",
+      "summary": "A site-wide notice now explains launch-week status: the rarity bonus arrives once entries are verified and fees collected, and live scoring is being brought online \u2014 with a one-click link to Help & Support.",
       "commit": "pending"
     },
     {
       "version": "2.172.0",
       "date": "2026-06-11",
       "type": "feature",
-      "summary": "Live scores got a major reliability upgrade: in-play scores now update in near real time, and full-time results land automatically the moment a match ends — no admin action needed.",
+      "summary": "Live scores got a major reliability upgrade: in-play scores now update in near real time, and full-time results land automatically the moment a match ends \u2014 no admin action needed.",
       "commit": "pending"
     },
     {
@@ -2149,7 +2149,7 @@
       "version": "2.172.3",
       "date": "2026-06-11",
       "type": "improvement",
-      "summary": "The rarity bonus is paused while entries are verified and fees collected — base match and bracket points are unaffected, and rarity will be applied to every finished game in one go once the pool is confirmed.",
+      "summary": "The rarity bonus is paused while entries are verified and fees collected \u2014 base match and bracket points are unaffected, and rarity will be applied to every finished game in one go once the pool is confirmed.",
       "commit": "pending"
     },
     {
@@ -2191,21 +2191,21 @@
       "version": "2.174.0",
       "date": "2026-06-12",
       "type": "feature",
-      "summary": "Leaderboard now shows when it was last updated, which match it includes, and a Provisional pill explaining that standings are finalised by hand after the tournament — with a matching new section on the rules page. Plus accessibility polish across the app: finalist picks read clearly without colour, the support panel handles keyboard focus correctly, and arrow keys now navigate the pool filters.",
+      "summary": "Leaderboard now shows when it was last updated, which match it includes, and a Provisional pill explaining that standings are finalised by hand after the tournament \u2014 with a matching new section on the rules page. Plus accessibility polish across the app: finalist picks read clearly without colour, the support panel handles keyboard focus correctly, and arrow keys now navigate the pool filters.",
       "commit": "pending"
     },
     {
       "version": "2.174.1",
       "date": "2026-06-12",
       "type": "improvement",
-      "summary": "Your own entries are now pinned at the top of the standings table — no more scrolling through 183 rows to find yourself.",
+      "summary": "Your own entries are now pinned at the top of the standings table \u2014 no more scrolling through 183 rows to find yourself.",
       "commit": "pending"
     },
     {
       "version": "2.175.0",
       "date": "2026-06-12",
       "type": "feature",
-      "summary": "The rarity bonus is now live. With the entry pool confirmed, rarity has been applied retroactively to every finished match — leaderboard totals jumped up once across the pool. The rules page now shows the actual bands for the confirmed pool size, and the rarity column is back on every match's points breakdown.",
+      "summary": "The rarity bonus is now live. With the entry pool confirmed, rarity has been applied retroactively to every finished match \u2014 leaderboard totals jumped up once across the pool. The rules page now shows the actual bands for the confirmed pool size, and the rarity column is back on every match's points breakdown.",
       "commit": "pending"
     },
     {
@@ -2226,7 +2226,7 @@
       "version": "2.176.0",
       "date": "2026-06-13",
       "type": "feature",
-      "summary": "Two new admin nudge cohorts — \"Wake up Pool Ghosts\" emails everyone who hasn't been on the site since kickoff, and \"Pull back lapsing players\" catches anyone who's slipped to 3-7 days dormant. Plus a new \"Site Pulse\" panel at the top of /admin showing daily active users, top pages and events with week-over-week trend, and the last 20 logins.",
+      "summary": "Two new admin nudge cohorts \u2014 \"Wake up Pool Ghosts\" emails everyone who hasn't been on the site since kickoff, and \"Pull back lapsing players\" catches anyone who's slipped to 3-7 days dormant. Plus a new \"Site Pulse\" panel at the top of /admin showing daily active users, top pages and events with week-over-week trend, and the last 20 logins.",
       "commit": "pending"
     },
     {
@@ -2240,168 +2240,168 @@
       "version": "2.176.2",
       "date": "2026-06-13",
       "type": "improvement",
-      "summary": "Track two new feature-usage signals — every click on a match card to open match detail, and every switch between the Leaderboard's Standings / The Race / Insights tabs. Both will surface in the admin Site Pulse \"Top events\" widget as data accumulates.",
+      "summary": "Track two new feature-usage signals \u2014 every click on a match card to open match detail, and every switch between the Leaderboard's Standings / The Race / Insights tabs. Both will surface in the admin Site Pulse \"Top events\" widget as data accumulates.",
       "commit": "pending"
     },
     {
       "version": "2.176.3",
       "date": "2026-06-14",
       "type": "fix",
-      "summary": "Per-user Engagement card on /admin/users/[id] now populates with PostHog data — it was silently falling back to the \"PostHog not configured\" placeholder because of a latent type-coercion bug in the summary HogQL query, exposed when we wired PostHog read access in v2.176.x.",
+      "summary": "Per-user Engagement card on /admin/users/[id] now populates with PostHog data \u2014 it was silently falling back to the \"PostHog not configured\" placeholder because of a latent type-coercion bug in the summary HogQL query, exposed when we wired PostHog read access in v2.176.x.",
       "commit": "pending"
     },
     {
       "version": "2.176.4",
       "date": "2026-06-15",
       "type": "fix",
-      "summary": "Security hardening — the backend now refuses to boot in production if the JWT signing secret is missing, too short, or a placeholder. The signing key is the entire trust anchor for sign-in and admin access, so a weak value silently let any token be forged; failing closed at startup makes that impossible.",
+      "summary": "Security hardening \u2014 the backend now refuses to boot in production if the JWT signing secret is missing, too short, or a placeholder. The signing key is the entire trust anchor for sign-in and admin access, so a weak value silently let any token be forged; failing closed at startup makes that impossible.",
       "commit": "pending"
     },
     {
       "version": "2.177.0",
       "date": "2026-06-15",
       "type": "feature",
-      "summary": "Predictions and live standings now mirror into a shared, read-only Google Sheet — three tabs (Standings, Predictions, History) refreshed automatically after every game. Predictions combines each entry's picks side-by-side with the points they're earning, color-banded for at-a-glance reading; History plots every entry's rank trajectory across the tournament. Timestamps render in Malta time; entries grouped by owner so multiple entries appear together. Stays dormant until the Google credentials are configured.",
+      "summary": "Predictions and live standings now mirror into a shared, read-only Google Sheet \u2014 three tabs (Standings, Predictions, History) refreshed automatically after every game. Predictions combines each entry's picks side-by-side with the points they're earning, color-banded for at-a-glance reading; History plots every entry's rank trajectory across the tournament. Timestamps render in Malta time; entries grouped by owner so multiple entries appear together. Stays dormant until the Google credentials are configured.",
       "commit": "pending"
     },
     {
       "version": "2.178.0",
       "date": "2026-06-17",
       "type": "feature",
-      "summary": "New 'Group Stage Round 1 recap' broadcast template — admin one-click send that thanks every entrant, links to the live standings and the shared Google Sheet, and spells out the €595 / €183 / €150 prize breakdown plus the Atlas €500 Soup Kitchen top-up. The 'View All Entries' button on /leaderboard now records click-tracking events so we can see how often the sheet gets opened from inside the app.",
+      "summary": "New 'Group Stage Round 1 recap' broadcast template \u2014 admin one-click send that thanks every entrant, links to the live standings and the shared Google Sheet, and spells out the \u20ac595 / \u20ac183 / \u20ac150 prize breakdown plus the Atlas \u20ac500 Soup Kitchen top-up. The 'View All Entries' button on /leaderboard now records click-tracking events so we can see how often the sheet gets opened from inside the app.",
       "commit": "pending"
     },
     {
       "version": "2.178.1",
       "date": "2026-06-20",
       "type": "improvement",
-      "summary": "Leaderboard standings now show your entries both pinned at the top AND in their natural rank position, so you can see how you stack against your immediate neighbours. The entry-detail drawer reorders matchday picks by latest played first, and hides the knockout bracket section until any team is actually seeded. Rules page now documents the Adidas Trionda match ball — awarded at end of tournament to the runner-up, with the group-stage cash winner ineligible — and clarifies that cash prizes are split equally when entries tie on points.",
+      "summary": "Leaderboard standings now show your entries both pinned at the top AND in their natural rank position, so you can see how you stack against your immediate neighbours. The entry-detail drawer reorders matchday picks by latest played first, and hides the knockout bracket section until any team is actually seeded. Rules page now documents the Adidas Trionda match ball \u2014 awarded at end of tournament to the runner-up, with the group-stage cash winner ineligible \u2014 and clarifies that cash prizes are split equally when entries tie on points.",
       "commit": "pending"
     },
     {
       "version": "2.178.2",
       "date": "2026-06-20",
       "type": "improvement",
-      "summary": "Rules page now shows the actual prize amounts for this tournament — €595 to the Overall Winner, €183 to the Group Stage Winner, and €137 from the pool to the Soup Kitchen — plus a thank-you callout for Atlas Insurance, whose top-up brings the total charitable contribution to €650.",
+      "summary": "Rules page now shows the actual prize amounts for this tournament \u2014 \u20ac595 to the Overall Winner, \u20ac183 to the Group Stage Winner, and \u20ac137 from the pool to the Soup Kitchen \u2014 plus a thank-you callout for Atlas Insurance, whose top-up brings the total charitable contribution to \u20ac650.",
       "commit": "pending"
     },
     {
       "version": "2.179.0",
       "date": "2026-06-23",
       "type": "feature",
-      "summary": "The Race tab on /leaderboard is redesigned. Story cards surface the day's biggest climbers, falls, closest races and hottest streaks. A Champion Survival gauge shows how much of the pool still has a live winner pick. The chart now focuses on entries around your rank by default — with match-result markers pinned along the date axis — and a new cohort race plots Atlas vs JMFA vs Guests over time. The dashboard also gains three new widgets below the existing grid: Daily MVP highlights the top scorer for each of the last five days, Personal Trail charts your points against the pool average over thirty days, and Pool Distribution shows where you sit in a histogram of nearby points totals.",
+      "summary": "The Race tab on /leaderboard is redesigned. Story cards surface the day's biggest climbers, falls, closest races and hottest streaks. A Champion Survival gauge shows how much of the pool still has a live winner pick. The chart now focuses on entries around your rank by default \u2014 with match-result markers pinned along the date axis \u2014 and a new cohort race plots Atlas vs JMFA vs Guests over time. The dashboard also gains three new widgets below the existing grid: Daily MVP highlights the top scorer for each of the last five days, Personal Trail charts your points against the pool average over thirty days, and Pool Distribution shows where you sit in a histogram of nearby points totals.",
       "commit": "pending"
     },
     {
       "version": "2.180.0",
       "date": "2026-06-24",
       "type": "feature",
-      "summary": "Dashboard polish for Round 2 wrap-up. The Daily MVP card now sits at the very top of the landing page so yesterday's hero is the first thing you see. Pool Distribution gets readable axis labels with five tick marks, hover tooltips on every bar showing points-delta and entry count, and a 'pts vs you' caption. Live-game team names on the dashboard matchday section now show three-letter codes at every screen size so they no longer truncate to a single 'C…' on narrow viewports. Admin also gains a Group Stage Round 2 recap email template — same audience as the R1 recap, body leads on standings highlights and the Sunday 28 close. R2 ships with spam-filter tuning that the R1 recap lacked: CTA URLs no longer carry UTM tracking parameters, and the wording avoids 'winner / prize / paid / announced' co-occurrences that historically pushed R1 into Gmail's promotional bin.",
+      "summary": "Dashboard polish for Round 2 wrap-up. The Daily MVP card now sits at the very top of the landing page so yesterday's hero is the first thing you see. Pool Distribution gets readable axis labels with five tick marks, hover tooltips on every bar showing points-delta and entry count, and a 'pts vs you' caption. Live-game team names on the dashboard matchday section now show three-letter codes at every screen size so they no longer truncate to a single 'C\u2026' on narrow viewports. Admin also gains a Group Stage Round 2 recap email template \u2014 same audience as the R1 recap, body leads on standings highlights and the Sunday 28 close. R2 ships with spam-filter tuning that the R1 recap lacked: CTA URLs no longer carry UTM tracking parameters, and the wording avoids 'winner / prize / paid / announced' co-occurrences that historically pushed R1 into Gmail's promotional bin.",
       "commit": "pending"
     },
     {
       "version": "2.180.1",
       "date": "2026-06-24",
       "type": "fix",
-      "summary": "Round 2 recap email now auto-fills leaderboard highlights at send time — top 3, runners-up gap, top-5 chasers, Round 2 standout, and biggest climb are pulled live from the standings + race stories. v2.180.0 shipped the template with literal placeholder tokens expected to be hand-filled in code before each send, which surfaced as visible '{{TOP_1}}' text in the first test email. The token interpolation runs once per broadcast (not per recipient), so the per-send cost is unchanged.",
+      "summary": "Round 2 recap email now auto-fills leaderboard highlights at send time \u2014 top 3, runners-up gap, top-5 chasers, Round 2 standout, and biggest climb are pulled live from the standings + race stories. v2.180.0 shipped the template with literal placeholder tokens expected to be hand-filled in code before each send, which surfaced as visible '{{TOP_1}}' text in the first test email. The token interpolation runs once per broadcast (not per recipient), so the per-send cost is unchanged.",
       "commit": "pending"
     },
     {
       "version": "2.180.2",
       "date": "2026-06-24",
       "type": "improvement",
-      "summary": "Clicking a Daily MVP chip on the dashboard now opens that entry's detail drawer on the Leaderboard page, just like clicking a leaderboard row. The dashboard already navigated to /leaderboard?entry=<id>, but the leaderboard page didn't honour the URL parameter so the drawer never opened. Now it does — and refreshing the page won't re-open the drawer because the parameter is stripped after one consumption.",
+      "summary": "Clicking a Daily MVP chip on the dashboard now opens that entry's detail drawer on the Leaderboard page, just like clicking a leaderboard row. The dashboard already navigated to /leaderboard?entry=<id>, but the leaderboard page didn't honour the URL parameter so the drawer never opened. Now it does \u2014 and refreshing the page won't re-open the drawer because the parameter is stripped after one consumption.",
       "commit": "pending"
     },
     {
       "version": "2.181.0",
       "date": "2026-06-26",
       "type": "feature",
-      "summary": "Group Stage champion announcement — admin-released card + broadcast email. After Round 3 settles, admins flip a release switch on /admin and a celebratory card appears at the very top of every signed-in dashboard, showing the winner's name, total points, and a four-part breakdown: points from correct match outcomes, extra from exact scores, extra from rarity, and points from bonus questions. A matching champion-announcement broadcast email goes to every submitter with the same numbers and a narrative story line (5 templates by lead pattern, margin clause vs runner-up, bracket sentence). The card and the email share one backend service so they're guaranteed to agree. Dashboard also gets an ESPN-style Matchday scoreboard — six fixture pills across desktop, horizontal-scroll on mobile — that sits above everything so time-sensitive matches are the first thing on the page. Daily MVP moves into the side column above the leaderboard as three compact chips (was five wide chips at top-of-page). Plus polish: live-row team names on tighter viewports stop truncating to single letters; live-match scores on the results page now both wear the green chip (was asymmetric); group-stage winner card click opens that entry's full picks via the entry drawer.",
+      "summary": "Group Stage champion announcement \u2014 admin-released card + broadcast email. After Round 3 settles, admins flip a release switch on /admin and a celebratory card appears at the very top of every signed-in dashboard, showing the winner's name, total points, and a four-part breakdown: points from correct match outcomes, extra from exact scores, extra from rarity, and points from bonus questions. A matching champion-announcement broadcast email goes to every submitter with the same numbers and a narrative story line (5 templates by lead pattern, margin clause vs runner-up, bracket sentence). The card and the email share one backend service so they're guaranteed to agree. Dashboard also gets an ESPN-style Matchday scoreboard \u2014 six fixture pills across desktop, horizontal-scroll on mobile \u2014 that sits above everything so time-sensitive matches are the first thing on the page. Daily MVP moves into the side column above the leaderboard as three compact chips (was five wide chips at top-of-page). Plus polish: live-row team names on tighter viewports stop truncating to single letters; live-match scores on the results page now both wear the green chip (was asymmetric); group-stage winner card click opens that entry's full picks via the entry drawer.",
       "commit": "pending"
     },
     {
       "version": "2.181.1",
       "date": "2026-06-28",
       "type": "improvement",
-      "summary": "Group Standings page (/standings) — live group tables for all twelve groups (A–L) plus the best-eight third-placed qualifying table, derived server-side from finished match results with the full FIFA Article 13 tiebreaker chain applied. Pre-release shows a 'Standings open at kickoff' stub; admins always see the page. Refreshes every minute while the tab is visible. Also adds a new admin toggle, 'Knockout scoring', that gates every advancement payout in the scoring engine — group_advance / group_position bracket credits AND every reached-stage credit from Round of 32 through winner. Defaults OFF so the pool's standings stay on group-stage match points only until admin verifies the group standings and bracket seeding, then flips the switch. The leaderboard hard-rebuilds on the flip so every entry's score recomputes immediately.",
+      "summary": "Group Standings page (/standings) \u2014 live group tables for all twelve groups (A\u2013L) plus the best-eight third-placed qualifying table, derived server-side from finished match results with the full FIFA Article 13 tiebreaker chain applied. Pre-release shows a 'Standings open at kickoff' stub; admins always see the page. Refreshes every minute while the tab is visible. Also adds a new admin toggle, 'Knockout scoring', that gates every advancement payout in the scoring engine \u2014 group_advance / group_position bracket credits AND every reached-stage credit from Round of 32 through winner. Defaults OFF so the pool's standings stay on group-stage match points only until admin verifies the group standings and bracket seeding, then flips the switch. The leaderboard hard-rebuilds on the flip so every entry's score recomputes immediately.",
       "commit": "pending"
     },
     {
       "version": "2.181.2",
       "date": "2026-06-28",
       "type": "improvement",
-      "summary": "Group Standings now also surfaces as a tab on the Results page, sitting between Round 3 and Round of 32. Same live group tables and best-third-placed view as the standalone /standings page — they share one underlying view component, so they always render identically. The tab is labelled 'Live tables' instead of a date range because the standings update reactively as group matches finish, not on a fixed window. Tab data loads lazily the first time it's selected and refreshes every minute thereafter via the same poll cadence as the rest of the page.",
+      "summary": "Group Standings now also surfaces as a tab on the Results page, sitting between Round 3 and Round of 32. Same live group tables and best-third-placed view as the standalone /standings page \u2014 they share one underlying view component, so they always render identically. The tab is labelled 'Live tables' instead of a date range because the standings update reactively as group matches finish, not on a fixed window. Tab data loads lazily the first time it's selected and refreshes every minute thereafter via the same poll cadence as the rest of the page.",
       "commit": "pending"
     },
     {
       "version": "2.182.0",
       "date": "2026-06-28",
       "type": "feature",
-      "summary": "Standings drift verifier — admin can now cross-check our computed group standings against Football-Data's official standings endpoint. New 'Standings drift verifier' card on /admin with a Verify standings now button; press it any time after a group's six matches are all FINISHED and the system compares team-by-team. If everything matches, a green confirmation. If there's drift, an event opens that the admin reviews and dismisses (either 'ours is correct' with a note, or 'transient' if the trusted source was briefly stale). The verifier is detect-only and never overwrites the live /standings page — the admin's reaction is to either fix a score via /admin/sync (which causes the next compute to agree) or dismiss the alert. Only fully-finished groups are compared to avoid false positives during in-play matches, since Football-Data's standings include live scores and ours don't. Source chain extends in 2.182.1 with ESPN secondary + Wikipedia tertiary fallbacks and an auto-trigger on match-FINISHED transitions.",
+      "summary": "Standings drift verifier \u2014 admin can now cross-check our computed group standings against Football-Data's official standings endpoint. New 'Standings drift verifier' card on /admin with a Verify standings now button; press it any time after a group's six matches are all FINISHED and the system compares team-by-team. If everything matches, a green confirmation. If there's drift, an event opens that the admin reviews and dismisses (either 'ours is correct' with a note, or 'transient' if the trusted source was briefly stale). The verifier is detect-only and never overwrites the live /standings page \u2014 the admin's reaction is to either fix a score via /admin/sync (which causes the next compute to agree) or dismiss the alert. Only fully-finished groups are compared to avoid false positives during in-play matches, since Football-Data's standings include live scores and ours don't. Source chain extends in 2.182.1 with ESPN secondary + Wikipedia tertiary fallbacks and an auto-trigger on match-FINISHED transitions.",
       "commit": "pending"
     },
     {
       "version": "2.182.1",
       "date": "2026-06-28",
       "type": "fix",
-      "summary": "Round of 32 fixtures now show real team names as soon as the relevant group stage finishes — no more TBD vs TBD for confirmed qualifiers. Before, the Results page Round of 32 tab (and Match Detail pages, and bracket-pick views) kept showing TBD until Football-Data's API ingested FIFA's lineup announcement, which can lag by hours. Now the backend resolves the slot placeholders at read time using our own computed group standings and the official 2026 bracket seeding map. Resolution only kicks in for groups whose six matches are all FINISHED (so a confirmed group winner can't be wrong on the last day), and Football-Data's eventual official lineup still wins once it lands — our resolver becomes a no-op for those rows. Database is never written. Both the home and away of each R32 fixture resolve independently: if Group A and Group L are settled but Group K isn't, A's qualifier shows up while K's slot stays TBD.",
+      "summary": "Round of 32 fixtures now show real team names as soon as the relevant group stage finishes \u2014 no more TBD vs TBD for confirmed qualifiers. Before, the Results page Round of 32 tab (and Match Detail pages, and bracket-pick views) kept showing TBD until Football-Data's API ingested FIFA's lineup announcement, which can lag by hours. Now the backend resolves the slot placeholders at read time using our own computed group standings and the official 2026 bracket seeding map. Resolution only kicks in for groups whose six matches are all FINISHED (so a confirmed group winner can't be wrong on the last day), and Football-Data's eventual official lineup still wins once it lands \u2014 our resolver becomes a no-op for those rows. Database is never written. Both the home and away of each R32 fixture resolve independently: if Group A and Group L are settled but Group K isn't, A's qualifier shows up while K's slot stays TBD.",
       "commit": "pending"
     },
     {
       "version": "2.182.2",
       "date": "2026-06-28",
       "type": "fix",
-      "summary": "Round of 32 third-place slots now correctly stay as TBD until FIFA's official assignment lands, instead of showing a confidently-wrong team name. Previous release used a greedy 'first eligible' algorithm to pick which third-placed team goes into each third-place R32 slot — but FIFA's actual assignment comes from a 495-row lookup table (Annex C of the tournament regulations) that depends on which 4 of the 12 groups don't have a third-placer qualifying. The greedy guess landed Sweden and Paraguay on the wrong sides of Germany vs Paraguay and France vs Sweden. Now the resolver only fills in group-position sources (1A, 2B, etc.), which are deterministic and correct. Third-place sources show TBD until the proper Wikipedia-backed resolver ships in 2.183.0.",
+      "summary": "Round of 32 third-place slots now correctly stay as TBD until FIFA's official assignment lands, instead of showing a confidently-wrong team name. Previous release used a greedy 'first eligible' algorithm to pick which third-placed team goes into each third-place R32 slot \u2014 but FIFA's actual assignment comes from a 495-row lookup table (Annex C of the tournament regulations) that depends on which 4 of the 12 groups don't have a third-placer qualifying. The greedy guess landed Sweden and Paraguay on the wrong sides of Germany vs Paraguay and France vs Sweden. Now the resolver only fills in group-position sources (1A, 2B, etc.), which are deterministic and correct. Third-place sources show TBD until the proper Wikipedia-backed resolver ships in 2.183.0.",
       "commit": "pending"
     },
     {
       "version": "2.183.0",
       "date": "2026-06-28",
       "type": "improvement",
-      "summary": "Round of 32 third-place opponents now resolve correctly via FIFA's official Annex C assignment table — the same 495-row lookup the entry wizard already uses to seed predicted brackets. Once all twelve group-stage groups settle, the Results page Round of 32 tab shows real team names for the eight third-place slots (Germany vs Paraguay, France vs Sweden, etc.) instead of TBD. The backend now reads from a copy of frontend/src/lib/config/thirdPlaceMapping.json — same source of truth so the wizard's predicted bracket and the live results bracket are guaranteed to agree on assignments. While the group stage is still in progress, third-place slots stay TBD until the final eight qualifying groups are known; FIFA can sometimes announce specific matches earlier when all plausible Annex C keys agree (e.g. Germany vs Paraguay), and that early-announcement behaviour is a planned follow-up.",
+      "summary": "Round of 32 third-place opponents now resolve correctly via FIFA's official Annex C assignment table \u2014 the same 495-row lookup the entry wizard already uses to seed predicted brackets. Once all twelve group-stage groups settle, the Results page Round of 32 tab shows real team names for the eight third-place slots (Germany vs Paraguay, France vs Sweden, etc.) instead of TBD. The backend now reads from a copy of frontend/src/lib/config/thirdPlaceMapping.json \u2014 same source of truth so the wizard's predicted bracket and the live results bracket are guaranteed to agree on assignments. While the group stage is still in progress, third-place slots stay TBD until the final eight qualifying groups are known; FIFA can sometimes announce specific matches earlier when all plausible Annex C keys agree (e.g. Germany vs Paraguay), and that early-announcement behaviour is a planned follow-up.",
       "commit": "pending"
     },
     {
       "version": "2.183.1",
       "date": "2026-06-28",
       "type": "fix",
-      "summary": "Critical fix: Round of 32 fixtures were displaying the wrong matchups for every single match. An earlier release used a formula to map Football-Data's external IDs to FIFA's official match numbers (537415 = M73, 537416 = M74, ...), but those IDs don't correspond linearly to FIFA numbers — Football-Data's order is internal, not FIFA's. The first R32 match was showing 'Netherlands vs Morocco' when FIFA's schedule has it as 'South Africa vs Canada' (the Netherlands match is actually two days later). Every R32 fixture in the Results page bracket was off. Now the mapping is built from kickoff-time cross-reference against Wikipedia's published schedule (with a pinned regression test) and the bracket displays match FIFA exactly. Also adds a user-facing note on the Results page Round of 32 / Round of 16 / Quarter-Finals / Semi-Finals / Finals / Winner tabs explaining that knockout points haven't been released yet — they'll be allocated after every group-stage match finishes and the group-stage champion is verified and announced.",
+      "summary": "Critical fix: Round of 32 fixtures were displaying the wrong matchups for every single match. An earlier release used a formula to map Football-Data's external IDs to FIFA's official match numbers (537415 = M73, 537416 = M74, ...), but those IDs don't correspond linearly to FIFA numbers \u2014 Football-Data's order is internal, not FIFA's. The first R32 match was showing 'Netherlands vs Morocco' when FIFA's schedule has it as 'South Africa vs Canada' (the Netherlands match is actually two days later). Every R32 fixture in the Results page bracket was off. Now the mapping is built from kickoff-time cross-reference against Wikipedia's published schedule (with a pinned regression test) and the bracket displays match FIFA exactly. Also adds a user-facing note on the Results page Round of 32 / Round of 16 / Quarter-Finals / Semi-Finals / Finals / Winner tabs explaining that knockout points haven't been released yet \u2014 they'll be allocated after every group-stage match finishes and the group-stage champion is verified and announced.",
       "commit": "pending"
     },
     {
       "version": "2.183.2",
       "date": "2026-06-28",
       "type": "fix",
-      "summary": "Knockout fixtures whose teams aren't determined yet now consistently display 'TBD' instead of leaking the raw 'slot:round_of_32:...' placeholder string anywhere in the UI. The dashboard 'Upcoming matches' panel was showing the raw slot text (and BracketChip rendered 'SLO' from the first three letters of the slot string) — both now show TBD. Fix is at the lowest level (the displayTeamName helper and teamCode helper) so every surface that renders a team name gets it for free: dashboard scoreboards, results page bracket, match detail headers, leaderboard pick chips, everywhere.",
+      "summary": "Knockout fixtures whose teams aren't determined yet now consistently display 'TBD' instead of leaking the raw 'slot:round_of_32:...' placeholder string anywhere in the UI. The dashboard 'Upcoming matches' panel was showing the raw slot text (and BracketChip rendered 'SLO' from the first three letters of the slot string) \u2014 both now show TBD. Fix is at the lowest level (the displayTeamName helper and teamCode helper) so every surface that renders a team name gets it for free: dashboard scoreboards, results page bracket, match detail headers, leaderboard pick chips, everywhere.",
       "commit": "pending"
     },
     {
       "version": "2.183.3",
       "date": "2026-06-28",
       "type": "fix",
-      "summary": "Two fixes on the Results page knockout rounds. First: while knockout scoring is still pending release, the per-fixture points cells and the Round Total are now fully hidden (was: showing speculative 'banked' points based on the user's bracket picks despite the admin gate saying not to score). Pool members see the 'Knockout points pending release' note plus dash placeholders, and totals stay at 0 until the admin enables knockout scoring on /admin. Second: the Round Total was being computed wrong even on its own terms — fixtures where only one side was resolved (Germany vs TBD, France vs TBD) had Germany/France's bracket hit silently added to the subtotal while the row displayed as TBD with no points, double-counting against the visible rows (200 visible became 400 in the total). Now the per-fixture hit counter returns zero whenever either side carries a slot placeholder, matching the row display and the summary card consistently. Regression-pinned in koPoints.test.ts so the doubling can't sneak back.",
+      "summary": "Two fixes on the Results page knockout rounds. First: while knockout scoring is still pending release, the per-fixture points cells and the Round Total are now fully hidden (was: showing speculative 'banked' points based on the user's bracket picks despite the admin gate saying not to score). Pool members see the 'Knockout points pending release' note plus dash placeholders, and totals stay at 0 until the admin enables knockout scoring on /admin. Second: the Round Total was being computed wrong even on its own terms \u2014 fixtures where only one side was resolved (Germany vs TBD, France vs TBD) had Germany/France's bracket hit silently added to the subtotal while the row displayed as TBD with no points, double-counting against the visible rows (200 visible became 400 in the total). Now the per-fixture hit counter returns zero whenever either side carries a slot placeholder, matching the row display and the summary card consistently. Regression-pinned in koPoints.test.ts so the doubling can't sneak back.",
       "commit": "pending"
     },
     {
       "version": "2.184.0",
       "date": "2026-06-29",
       "type": "feature",
-      "summary": "Big knockout-stage upgrade. Click any knockout fixture from the Results page and you now land on a redesigned 'Match Detail' view: a 'Your Stake' card that names your pick explicitly ('Your Round of 16 pick: Canada. Banks +30 if Canada advances') with a path strip showing every downstream stage where the team is still alive in your bracket. Picked both teams in the same match? You see a green 'Guaranteed — you bank +30 either way' banner above two side-by-side team cards, with a 'Deeper stake' pill highlighting whichever side carries more potential points if they keep winning. The 'Pool's bet' card shows the home/away advancement split with a small overlap line ('15 picked both · 26 picked neither'). A new bracket-position sidebar SVG shows your fixture's local 4-match quadrant in FIFA's published wallchart order. Behind the scenes, knockout team names now propagate forward automatically: once an R32 match finishes, the winner appears in the corresponding R16 fixture immediately — the Round of 16 tab no longer shows 'TBD vs TBD' for matches whose feeding R32 has completed, and your banked R16 advancement points roll up into the Round Total and Summary correctly. Removed clutter: the 'Most exposed entries' and 'Who picked what' sections that crowded the page are gone, and the Atlas/JMFA/Guests cohort row beneath the Pool's Bet bars is hidden by default. The dashboard's Group Stage Champion card is now smaller and slots into the main column on desktop so Daily MVP + Mini Leaderboard sit beside it; on mobile it switches to stacked podium cards so the winner names don't truncate.",
+      "summary": "Big knockout-stage upgrade. Click any knockout fixture from the Results page and you now land on a redesigned 'Match Detail' view: a 'Your Stake' card that names your pick explicitly ('Your Round of 16 pick: Canada. Banks +30 if Canada advances') with a path strip showing every downstream stage where the team is still alive in your bracket. Picked both teams in the same match? You see a green 'Guaranteed \u2014 you bank +30 either way' banner above two side-by-side team cards, with a 'Deeper stake' pill highlighting whichever side carries more potential points if they keep winning. The 'Pool's bet' card shows the home/away advancement split with a small overlap line ('15 picked both \u00b7 26 picked neither'). A new bracket-position sidebar SVG shows your fixture's local 4-match quadrant in FIFA's published wallchart order. Behind the scenes, knockout team names now propagate forward automatically: once an R32 match finishes, the winner appears in the corresponding R16 fixture immediately \u2014 the Round of 16 tab no longer shows 'TBD vs TBD' for matches whose feeding R32 has completed, and your banked R16 advancement points roll up into the Round Total and Summary correctly. Removed clutter: the 'Most exposed entries' and 'Who picked what' sections that crowded the page are gone, and the Atlas/JMFA/Guests cohort row beneath the Pool's Bet bars is hidden by default. The dashboard's Group Stage Champion card is now smaller and slots into the main column on desktop so Daily MVP + Mini Leaderboard sit beside it; on mobile it switches to stacked podium cards so the winner names don't truncate.",
       "commit": "pending"
     },
     {
       "version": "2.185.0",
       "date": "2026-06-29",
       "type": "feature",
-      "summary": "Results page redesign — every knockout round now opens with a single combined picks card that shows your full bracket for that round in one read: alive picks marked ✓, missed picks marked ✗ with strike-through, summary header reading e.g. 'Your Round of 32 bracket · 26/32 through · +520 · –120'. Replaces the old red 'picks that didn't make it' banner which only told half the story. The Progressing card at the bottom of each round was tightened to match — same pill geometry, same 3-letter codes at R32/R16. On the fixtures table itself, desktop (≥1024px wide) now renders two fixtures per visual row instead of one — so you can see all 16 R32 matches or all 24 group-stage matches without scrolling. Each fixture becomes its own discrete card with a clear border and lifted background. Mobile and smaller laptops keep the existing single-column layout. Same compactness treatment applies to all knockout rounds (R32 → Final) and to the group-stage rounds (R1/R2/R3).",
+      "summary": "Results page redesign \u2014 every knockout round now opens with a single combined picks card that shows your full bracket for that round in one read: alive picks marked \u2713, missed picks marked \u2717 with strike-through, summary header reading e.g. 'Your Round of 32 bracket \u00b7 26/32 through \u00b7 +520 \u00b7 \u2013120'. Replaces the old red 'picks that didn't make it' banner which only told half the story. The Progressing card at the bottom of each round was tightened to match \u2014 same pill geometry, same 3-letter codes at R32/R16. On the fixtures table itself, desktop (\u22651024px wide) now renders two fixtures per visual row instead of one \u2014 so you can see all 16 R32 matches or all 24 group-stage matches without scrolling. Each fixture becomes its own discrete card with a clear border and lifted background. Mobile and smaller laptops keep the existing single-column layout. Same compactness treatment applies to all knockout rounds (R32 \u2192 Final) and to the group-stage rounds (R1/R2/R3).",
       "commit": "pending"
     },
     {
       "version": "2.185.1",
       "date": "2026-06-30",
       "type": "fix",
-      "summary": "Knockout scoreline fixes after Germany vs Paraguay and Netherlands vs Morocco went to penalties. Two layers were wrong. First: the score-sync mapping was pulling Football-Data's combined-total (regulation + extra time + penalty-shootout goals) into the regulation column, and its extra-time-period delta into the after-ET column — so Netherlands–Morocco landed as '1–1 with ET 0–0 and no pens' (the system thought it ended as a draw, with no clear winner). Now regulation, after-ET and penalties each land in the right column. Second: when Football-Data misreports the penalty shootout itself (it served '4–4 with no winner' for Germany–Paraguay and '3–3 with no winner' for Netherlands–Morocco, both wrong), the shootout result is now derived from the combined fullTime score, which encodes the truth correctly. Result: Netherlands–Morocco self-heals on the next sync tick to 1–1 (Morocco won pens 3–2). Visually: the eliminated team is now greyed out on the home dashboard Latest Results row, on the Results page knockout rows, and on the per-match detail hero — which also now shows three score lines (regulation, After Extra Time, Pens) and an 'AFTER PENALTIES' badge when applicable.",
+      "summary": "Knockout scoreline fixes after Germany vs Paraguay and Netherlands vs Morocco went to penalties. Two layers were wrong. First: the score-sync mapping was pulling Football-Data's combined-total (regulation + extra time + penalty-shootout goals) into the regulation column, and its extra-time-period delta into the after-ET column \u2014 so Netherlands\u2013Morocco landed as '1\u20131 with ET 0\u20130 and no pens' (the system thought it ended as a draw, with no clear winner). Now regulation, after-ET and penalties each land in the right column. Second: when Football-Data misreports the penalty shootout itself (it served '4\u20134 with no winner' for Germany\u2013Paraguay and '3\u20133 with no winner' for Netherlands\u2013Morocco, both wrong), the shootout result is now derived from the combined fullTime score, which encodes the truth correctly. Result: Netherlands\u2013Morocco self-heals on the next sync tick to 1\u20131 (Morocco won pens 3\u20132). Visually: the eliminated team is now greyed out on the home dashboard Latest Results row, on the Results page knockout rows, and on the per-match detail hero \u2014 which also now shows three score lines (regulation, After Extra Time, Pens) and an 'AFTER PENALTIES' badge when applicable.",
       "commit": "pending"
     },
     {
@@ -2415,7 +2415,7 @@
       "version": "2.186.1",
       "date": "2026-06-30",
       "type": "improvement",
-      "summary": "Knockout matches decided on penalties now show the shootout score in brackets between the regulation scores — e.g. 1 (3–4) 1 — on the leaderboard latest results and the results pages.",
+      "summary": "Knockout matches decided on penalties now show the shootout score in brackets between the regulation scores \u2014 e.g. 1 (3\u20134) 1 \u2014 on the leaderboard latest results and the results pages.",
       "commit": "7f933a5"
     },
     {
@@ -2436,7 +2436,7 @@
       "version": "2.188.1",
       "date": "2026-06-30",
       "type": "fix",
-      "summary": "Fixed bracket wallchart game ordering — columns now follow the correct FIFA wallchart structure derived from the source graph, not sequential match numbers.",
+      "summary": "Fixed bracket wallchart game ordering \u2014 columns now follow the correct FIFA wallchart structure derived from the source graph, not sequential match numbers.",
       "commit": "pending"
     },
     {
@@ -2450,8 +2450,15 @@
       "version": "2.190.0",
       "date": "2026-06-30",
       "type": "feature",
-      "summary": "R16 (and later KO rounds) bracket chip strip now shows three states — confirmed ✓ for teams already through, missed ✗ for teams eliminated, and pending — for R32 matches not yet played.",
+      "summary": "R16 (and later KO rounds) bracket chip strip now shows three states \u2014 confirmed \u2713 for teams already through, missed \u2717 for teams eliminated, and pending \u2014 for R32 matches not yet played.",
       "commit": "9539014"
+    },
+    {
+      "version": "2.190.1",
+      "date": "2026-07-01",
+      "type": "improvement",
+      "summary": "Moved the Group Stage Champion card to below the main dashboard content, just above the news section.",
+      "commit": "pending"
     }
   ]
 }
