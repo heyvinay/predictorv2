@@ -243,19 +243,9 @@
 		<div class="grid grid-cols-1 items-start gap-5 min-[920px]:grid-cols-[1.55fr_1fr]">
 			<!-- Main column -->
 			<div class="flex min-w-0 flex-col gap-5">
-				<!-- Group Stage Winner card (v2.181.0, upgraded to top-3
-				     podium in v2.183.x, moved into main column in
-				     v2.184.x) — admin-gated via
-				     competitions.group_stage_winner_released. Backend
-				     returns null until the flag flips; we hide
-				     unconditionally here. -->
-				{#if groupStagePodium && groupStagePodium.entries.length > 0}
-					<GroupStageWinnerCard podium={groupStagePodium} />
+					{#if announcementHeroEnabled}
+					<AnnouncementHero {announcements} />
 				{/if}
-
-				{#if announcementHeroEnabled}
-				<AnnouncementHero {announcements} />
-			{/if}
 
 				<!-- Matchday FixturesTable removed in v2.181.0 — replaced
 				     by the full-width MatchdayStrip above the 2-col grid.
@@ -304,6 +294,11 @@
 		<div class="my-5 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-60"></div>
 		<div class="flex flex-col gap-4">
 			<PersonalTrailStrip />
+			{#if groupStagePodium && groupStagePodium.entries.length > 0}
+				<div class="mt-5">
+					<GroupStageWinnerCard podium={groupStagePodium} />
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>
