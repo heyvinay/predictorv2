@@ -2473,6 +2473,13 @@
       "type": "fix",
       "summary": "Live scores and minute counters now appear immediately for knockout matches at kickoff.",
       "commit": "c577ce3"
+    },
+    {
+      "version": "2.191.2",
+      "date": "2026-07-01",
+      "type": "fix",
+      "summary": "Leaderboard insights now correctly shows Germany and Netherlands as eliminated from the champion picks tracker.",
+      "commit": "pending"
     }
   ]
 }

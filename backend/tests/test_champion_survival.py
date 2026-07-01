@@ -208,6 +208,49 @@ async def test_only_phase1_picks_counted(session: AsyncSession):
     assert brazil.count == 1
 
 
+async def test_slot_placeholder_names_not_treated_as_eliminated(session: AsyncSession):
+    """Regression: slot-placeholder home/away team names must not leak into the
+    eliminated set. Before the resolver fix, a finished R16 fixture with
+    home_team='slot:round_of_32:537426:home' and outcome='2' (away wins) would
+    add the literal placeholder string to eliminated — meaning no real team was
+    ever marked out, and Germany/Netherlands appeared alive forever.
+
+    With the fix, resolve_ko_pair returns (None, None) when the slot can't
+    be resolved (no group data in this minimal fixture set), so the placeholder
+    never enters the eliminated set. Germany's 2 champion picks stay (correctly)
+    unaffected by phantom placeholder strings.
+    """
+    comp = await _seed_winners(session, {"Germany": 2, "Brazil": 3})
+
+    # Simulate a KO fixture whose DB row still holds a slot placeholder because
+    # the score-sync write-back (v2.191.1) hadn't fired when the match finished.
+    fixture = Fixture(
+        competition_id=comp.id,
+        home_team="slot:round_of_32:537426:home",
+        away_team="slot:round_of_32:537426:away",
+        kickoff=datetime.now(tz=timezone.utc) - timedelta(days=1),
+        stage="round_of_16",
+        status=MatchStatus.FINISHED,
+    )
+    session.add(fixture)
+    await session.flush()
+    # outcome "2" → away wins → home team eliminated. With placeholder home_team,
+    # old code added "slot:round_of_32:..." to eliminated (useless). New code
+    # resolves to (None, None) and skips the add.
+    session.add(Score(fixture_id=fixture.id, home_score=1, away_score=2))
+    await session.commit()
+
+    result = await champion_survival(session=session, user=_dummy_user())
+    # Placeholder must not appear in the teams list at all.
+    team_codes = {t.team_code for t in result.teams}
+    assert not any(tc.startswith("slot:") for tc in team_codes)
+    # Germany is still alive (resolver couldn't match the slot without group data,
+    # so Germany wasn't eliminated — conservative, correct).
+    germany = next((t for t in result.teams if t.team_code == "Germany"), None)
+    assert germany is not None
+    assert germany.alive is True
+
+
 async def test_generated_at_is_aware_utc(session: AsyncSession):
     """generated_at must be timezone-aware (explicit UTC offset per CLAUDE.md)."""
     await _seed_winners(session, {"Brazil": 1})

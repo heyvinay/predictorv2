@@ -36,6 +36,7 @@ from app.models.prediction import PredictionPhase, TeamPrediction
 from app.models.score import Score
 from app.services.bonus import answer_in, get_questions
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
+from app.services.ko_lineup_resolver import build_ko_lineup_resolver, resolve_ko_pair
 from app.services.scoring import (
     calculate_entry_points,
     get_actual_advancement,
@@ -335,7 +336,13 @@ async def get_eliminated_teams(session: AsyncSession) -> set[str]:
        team we saw in a group fixture — Football-Data placeholders like
        "Winner of Match 32" don't qualify, which keeps a half-seeded round
        from wrongly eliminating qualified teams).
+
+    Uses the KO lineup resolver to resolve slot-placeholder team names at
+    read time. This handles KO fixtures whose DB rows still carry placeholder
+    values (e.g. played before the score-sync write-back was deployed).
     """
+    resolver = await build_ko_lineup_resolver(session)
+
     result = await session.execute(
         select(Fixture, Score).outerjoin(Score, Fixture.id == Score.fixture_id)
     )
@@ -344,32 +351,38 @@ async def get_eliminated_teams(session: AsyncSession) -> set[str]:
     group_teams: set[str] = set()
     ko_lineup_teams: set[str] = set()
     eliminated: set[str] = set()
-    r32_fixtures: list[Fixture] = []
+    r32_resolved: list[tuple[str | None, str | None]] = []
 
     for fixture, score in rows:
-        teams = [t for t in (fixture.home_team, fixture.away_team) if t]
         if fixture.stage == "group":
-            group_teams.update(teams)
+            for t in (fixture.home_team, fixture.away_team):
+                if t:
+                    group_teams.add(t)
             continue
 
-        ko_lineup_teams.update(teams)
+        # Resolve slot-placeholder names before any elimination logic.
+        home, away = resolve_ko_pair(resolver, fixture)
+        for t in (home, away):
+            if t:
+                ko_lineup_teams.add(t)
+
         if fixture.stage == "round_of_32":
-            r32_fixtures.append(fixture)
+            r32_resolved.append((home, away))
 
         # Path 1: loser of a finished knockout match is out.
         if fixture.status == MatchStatus.FINISHED and score:
-            if score.outcome == "1" and fixture.away_team:
-                eliminated.add(fixture.away_team)
-            elif score.outcome == "2" and fixture.home_team:
-                eliminated.add(fixture.home_team)
+            if score.outcome == "1" and away:
+                eliminated.add(away)
+            elif score.outcome == "2" and home:
+                eliminated.add(home)
 
     # Path 2: group-stage non-qualifiers, once the R32 lineup is real.
-    r32_fully_seeded = bool(r32_fixtures) and all(
-        f.home_team
-        and f.away_team
-        and f.home_team in group_teams
-        and f.away_team in group_teams
-        for f in r32_fixtures
+    r32_fully_seeded = bool(r32_resolved) and all(
+        home
+        and away
+        and home in group_teams
+        and away in group_teams
+        for home, away in r32_resolved
     )
     if r32_fully_seeded:
         eliminated.update(group_teams - ko_lineup_teams)
