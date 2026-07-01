@@ -2472,7 +2472,7 @@
       "date": "2026-07-01",
       "type": "fix",
       "summary": "Live scores and minute counters now appear immediately for knockout matches at kickoff.",
-      "commit": "pending"
+      "commit": "c577ce3"
     }
   ]
 }
