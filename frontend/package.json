@@ -1,6 +1,6 @@
 {
   "name": "predictor-frontend",
-  "version": "2.192.1",
+  "version": "2.193.0",
   "private": true,
   "scripts": {
     "dev": "vite dev",

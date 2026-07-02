@@ -2501,6 +2501,13 @@
       "type": "improvement",
       "summary": "Finished knockout fixtures now use a slightly softer card background on the results page, so completed games read as \"settled\" vs the fully-lit cards still to be played.",
       "commit": "pending"
+    },
+    {
+      "version": "2.193.0",
+      "date": "2026-07-02",
+      "type": "feature",
+      "summary": "The Group Standings tab now shows how your picked qualifiers compare to the live tables — see at a glance which of your picks are locked in, which have slipped, and how your predicted Round of 32 bracket has shifted. The Winner tab also gained live status cards for your Dark Horse and Bottlers bonus picks.",
+      "commit": "pending"
     }
   ]
 }
