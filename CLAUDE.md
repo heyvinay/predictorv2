@@ -38,7 +38,23 @@ ssh root@167.235.145.76 'cd /opt/predictor && git pull && docker compose --profi
 
 → https://wc26.heyvinay.com. Production lives at `/opt/predictor` on
 the VPS; nginx config is bind-mounted from `nginx/nginx.conf` in the
-repo. **When the release touches `nginx/nginx.conf`, append
+repo.
+
+**★ Never ship without an explicit instruction (mandatory rule).** Do
+NOT run the SSH deploy command above, do NOT `git push origin main`
+that triggers a deploy, and do NOT bump versions in anticipation of
+shipping — unless the user has said "ship it" / "deploy" / "push it
+to prod" / an unambiguous equivalent in the CURRENT message.
+"Implement the plan," "fix that," "yes do it," or any other
+implementation instruction is authorization to write code, run tests,
+and commit locally — NOT to deploy. Design approval ≠ deploy approval.
+When implementation completes, STOP and summarise what's ready; then
+wait for the ship signal. If in genuine doubt about intent, ask —
+one clarifying question is cheaper than an unwanted production
+release. This rule overrides any "keep moving" heuristic; the cost of
+a wrong deploy (leaderboard cache invalidation, cold-cache latency
+spike, potential regressions for ~180 users mid-tournament) is
+strictly greater than the friction of one more confirmation. **When the release touches `nginx/nginx.conf`, append
 `&& docker compose --profile prod up -d --force-recreate nginx`** —
 `up -d --build` does not restart `image:`-only services, so the
 bind-mounted edit never reaches the running nginx process. The
