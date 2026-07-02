@@ -17,6 +17,7 @@
 	export let pointsVisible = true;
 
 	$: isLive = fixture.status === 'live' || fixture.status === 'halftime';
+	$: isFinished = fixture.status === 'finished';
 	$: score = fixture.score;
 	// Loser-of-record at a KO fixture is decided by pens → ET → regulation
 	// (matches Score.outcome on the backend). Using regulation alone would
@@ -53,12 +54,20 @@
 	})}`;
 </script>
 
+<!-- Finished-card tone (v2.192.1): finished rows get a softer card background
+     at lg+ so they read as "settled" vs the fully-saturated upcoming cards. The
+     `!` on `lg:!bg-base-200/70` is intentional — KnockoutRoundTable sets every
+     row card's bg via `[&>a]:bg-base-200`, a child-combinator selector that
+     out-specifies a plain class on this <a>. Below lg the wrapper doesn't paint
+     per-row backgrounds, so the class is inert there (mobile striping already
+     provides row rhythm). -->
 <a
 	href={`/results/${fixture.id}`}
 	on:click={() => track('match_detail_opened', { fixture_id: fixture.id, source: 'results_ko_row' })}
 	class="block border-t border-base-300/45 transition-colors first:border-t-0 hover:bg-primary/5
 		{striped && !isLive ? 'bg-base-300/15 lg:bg-transparent' : ''}
-		{isLive ? 'border-l-4 border-l-success bg-success/5' : ''}"
+		{isLive ? 'border-l-4 border-l-success bg-success/5' : ''}
+		{isFinished && !isLive ? 'lg:!bg-base-200/70' : ''}"
 	aria-label={`Open match detail for ${displayTeamName(fixture.home_team)} vs ${displayTeamName(fixture.away_team)}`}
 >
 	<!-- Desktop grid -->

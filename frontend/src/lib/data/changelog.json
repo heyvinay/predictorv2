@@ -2494,6 +2494,13 @@
       "type": "improvement",
       "summary": "Knockout matches decided in extra time now show the extra-time score as the result everywhere (dashboard, results page, match detail). The home page matchday scoreboard is more compact, shows every game being played today, and now includes the last result and tomorrow's kickoffs when there's room. Also added kickoff times to the results page and cleaned up the leaderboard totals column.",
       "commit": "pending"
+    },
+    {
+      "version": "2.192.1",
+      "date": "2026-07-02",
+      "type": "improvement",
+      "summary": "Finished knockout fixtures now use a slightly softer card background on the results page, so completed games read as \"settled\" vs the fully-lit cards still to be played.",
+      "commit": "pending"
     }
   ]
 }
