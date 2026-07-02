@@ -2508,6 +2508,13 @@
       "type": "feature",
       "summary": "The Group Standings tab now shows how your picked qualifiers compare to the live tables — see at a glance which of your picks are locked in, which have slipped, and how your predicted Round of 32 bracket has shifted. The Winner tab also gained live status cards for your Dark Horse and Bottlers bonus picks.",
       "commit": "pending"
+    },
+    {
+      "version": "2.193.1",
+      "date": "2026-07-02",
+      "type": "fix",
+      "summary": "Polish pass on the new Group Standings overlay: the show/hide switch no longer disappears when turned off, the pick markers on the third-place table no longer wrap awkwardly, card backgrounds now match the rest of the app, and the Dark Horse / Bottlers cards on the Winner tab show the full field of live contenders.",
+      "commit": "pending"
     }
   ]
 }
