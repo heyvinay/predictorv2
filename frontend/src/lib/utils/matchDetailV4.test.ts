@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CommunityPredictionWithRank, RoundDef, ScoringRules } from '$lib/types/results';
 import {
 	isUpset,
+	koFinalScore,
 	koLoserSide,
 	koWinnerSide,
 	outcomeOf,
@@ -79,6 +80,36 @@ describe('koLoserSide / koWinnerSide', () => {
 			away_penalties: 4
 		});
 		expect(koLoserSide(s)).toBeNull();
+	});
+});
+
+describe('koFinalScore', () => {
+	it('returns regulation score when no ET split exists', () => {
+		expect(koFinalScore(score({ home_score: 2, away_score: 2 }))).toEqual({ home: 2, away: 2 });
+	});
+
+	it('returns the AET score when the match went to extra time', () => {
+		// Belgium 2-2 Senegal (regulation), Belgium win 3-2 after extra time.
+		const s = score({ home_score: 2, away_score: 2, home_score_et: 3, away_score_et: 2 });
+		expect(koFinalScore(s)).toEqual({ home: 3, away: 2 });
+	});
+
+	it('returns the ET score (equal to regulation) for a pens-decided match', () => {
+		// Germany 1-1 Paraguay (1-1 AET) — Paraguay wins on penalties.
+		const s = score({
+			home_score: 1,
+			away_score: 1,
+			home_score_et: 1,
+			away_score_et: 1,
+			home_penalties: 3,
+			away_penalties: 4
+		});
+		expect(koFinalScore(s)).toEqual({ home: 1, away: 1 });
+	});
+
+	it('returns null when score is missing entirely', () => {
+		expect(koFinalScore(null)).toBeNull();
+		expect(koFinalScore(undefined)).toBeNull();
 	});
 });
 

@@ -78,6 +78,23 @@ export function koWinnerSide(score: KoScoreLike | null | undefined): LoserSide {
 	return null;
 }
 
+/** Primary displayed score for a KO fixture — the AET score when an ET
+ *  split exists, else the regulation score. A pens-decided match has an
+ *  ET score equal to regulation (both level after 90+30), so this never
+ *  changes the number shown alongside a "(h–a)" penalty bracket — it only
+ *  promotes the headline number for matches actually won in extra time
+ *  (e.g. Belgium 3–2 Senegal AET, previously shown as the misleading 2–2
+ *  regulation score everywhere but the match-detail hero's small AET line). */
+export function koFinalScore(
+	score: KoScoreLike | null | undefined
+): { home: number; away: number } | null {
+	if (!score) return null;
+	if (score.home_score_et != null && score.away_score_et != null) {
+		return { home: score.home_score_et, away: score.away_score_et };
+	}
+	return { home: score.home_score, away: score.away_score };
+}
+
 const SIDE_TO_OUTCOME: Record<Side, Outcome> = { home: '1', draw: 'X', away: '2' };
 
 /** Outcome split across the pool — counts + integer percentages. */

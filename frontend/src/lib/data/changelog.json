@@ -2487,6 +2487,13 @@
       "type": "fix",
       "summary": "Fixed live game cards staying stuck as ongoing after the final whistle for knockout matches.",
       "commit": "pending"
+    },
+    {
+      "version": "2.192.0",
+      "date": "2026-07-02",
+      "type": "improvement",
+      "summary": "Knockout matches decided in extra time now show the extra-time score as the result everywhere (dashboard, results page, match detail). The home page matchday scoreboard is more compact, shows every game being played today, and now includes the last result and tomorrow's kickoffs when there's room. Also added kickoff times to the results page and cleaned up the leaderboard totals column.",
+      "commit": "pending"
     }
   ]
 }

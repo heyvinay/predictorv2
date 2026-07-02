@@ -37,11 +37,14 @@
 	<!-- lg+ section header: round label only, no container chrome.
 	     The sm-to-lg-1 grid header below has lg:hidden because its column
 	     labels won't align with the 2-col card layout at lg+. -->
-	<div class="hidden items-center justify-between px-1 pb-2 lg:flex">
+	<div class="hidden items-center justify-between gap-3 px-1 pb-2 lg:flex">
 		<span class="text-[12px] font-extrabold uppercase tracking-[0.12em] text-base-content/70">
 			{round.label}
 		</span>
 		{#if pointsVisible}
+			<span class="flex-1 text-center text-[11px] font-medium normal-case tracking-normal text-base-content/70">
+				Earn +{stagePoints} for each team in your bracket that reaches this round
+			</span>
 			<div class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-base-content/55">
 				<span>Points</span>
 				<PointsHelpButton roundId={round.id} {rules} />

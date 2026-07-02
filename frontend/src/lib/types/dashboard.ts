@@ -6,6 +6,8 @@
  * Import directly: `from '$lib/types/dashboard'`.
  */
 
+import type { Fixture } from '$types';
+
 /** Tag-pill tone for announcement cards (frontend colour mapping). */
 export type AnnouncementTone = 'gold' | 'green' | 'mute';
 
@@ -57,4 +59,13 @@ export interface MoverRow {
 	entry_id: string;
 	label: string;
 	move: number;
+}
+
+/** One pill in the Matchday strip. 'today' = live/scheduled/finished-earlier
+ *  fixture on today's local calendar day (full emphasis). 'context' = a
+ *  flanking fixture — the most recent finished game before today, or one of
+ *  tomorrow's scheduled games — rendered dimmed to signal it's not "now". */
+export interface MatchdayStripItem {
+	fixture: Fixture;
+	variant: 'today' | 'context';
 }

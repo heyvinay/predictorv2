@@ -225,10 +225,12 @@
 		     container width. Promoted above the GSW card in v2.183.x —
 		     during knockouts, today's fixtures are the most time-
 		     sensitive content and should sit at the top of the page.
+		     v2.191.4: flanked by the most recent finished game and
+		     tomorrow's fixtures when there's room (buckets.strip).
 		     Self-collapsing on empty days. -->
-		{#if buckets.matchday.length > 0}
+		{#if buckets.strip.length > 0}
 			<div class="mb-5">
-				<MatchdayStrip fixtures={buckets.matchday} />
+				<MatchdayStrip items={buckets.strip} />
 			</div>
 		{/if}
 

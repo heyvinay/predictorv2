@@ -3,7 +3,7 @@
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
-	import { koLoserSide } from '$lib/utils/matchDetailV4';
+	import { koFinalScore, koLoserSide } from '$lib/utils/matchDetailV4';
 	import { track } from '$lib/analytics';
 	import BracketChip from './BracketChip.svelte';
 	import PointsCellKo from './PointsCellKo.svelte';
@@ -25,6 +25,10 @@
 	$: koLoser = koLoserSide(score);
 	$: homeLoses = koLoser === 'home';
 	$: awayLoses = koLoser === 'away';
+	// Primary displayed score is AET-inclusive — a match won in extra time
+	// shows the AET score (e.g. 3–2), not the misleading 90-min regulation
+	// score. Pens-decided matches are unaffected (ET score == regulation).
+	$: finalScore = koFinalScore(score);
 	$: isThirdPlace = fixture.stage === 'third_place';
 	// PER-SIDE seeded check (v2.184.x — Q9 fix). The downstream lineup
 	// resolver can now partially resolve a fixture: e.g., the R16 home is
@@ -39,10 +43,14 @@
 	$: homePicked = homeSeeded && !isThirdPlace && roundPicks.has(fixture.home_team);
 	$: awayPicked = awaySeeded && !isThirdPlace && roundPicks.has(fixture.away_team);
 	$: hits = (homePicked ? 1 : 0) + (awayPicked ? 1 : 0);
-	$: dateLabel = new Date(fixture.kickoff).toLocaleDateString('en-GB', {
+	$: dateLabel = `${new Date(fixture.kickoff).toLocaleDateString('en-GB', {
 		day: 'numeric',
 		month: 'short'
-	});
+	})} · ${new Date(fixture.kickoff).toLocaleTimeString('en-GB', {
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false
+	})}`;
 </script>
 
 <a
@@ -77,7 +85,7 @@
 						? 'inline-block rounded-md bg-success px-1.5 py-0.5 text-white'
 						: ''}"
 				>
-					<b class={homeLoses ? 'opacity-60' : ''}>{score.home_score}</b>
+					<b class={homeLoses ? 'opacity-60' : ''}>{finalScore?.home}</b>
 					{#if score.home_penalties != null && score.away_penalties != null}
 						<span
 							class="px-1 text-[11px] font-semibold {isLive
@@ -88,7 +96,7 @@
 					{:else}
 						<span class="px-0.5 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
 					{/if}
-					<b class={awayLoses ? 'opacity-60' : ''}>{score.away_score}</b>
+					<b class={awayLoses ? 'opacity-60' : ''}>{finalScore?.away}</b>
 				</span>
 			{:else}
 				<span class="text-base-content/30">———</span>
@@ -155,7 +163,7 @@
 					? 'inline-block min-w-[1.5rem] rounded-md bg-success px-1.5 py-0.5 text-center text-white'
 					: ''}"
 			>
-				{#if score}{score.home_score}{:else}<span class="text-base-content/30">—</span>{/if}
+				{#if finalScore}{finalScore.home}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
 		{#if score?.home_penalties != null && score?.away_penalties != null}
@@ -180,7 +188,7 @@
 					? 'inline-block min-w-[1.5rem] rounded-md bg-success px-1.5 py-0.5 text-center text-white'
 					: ''}"
 			>
-				{#if score}{score.away_score}{:else}<span class="text-base-content/30">—</span>{/if}
+				{#if finalScore}{finalScore.away}{:else}<span class="text-base-content/30">—</span>{/if}
 			</span>
 		</div>
 		<div

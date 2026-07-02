@@ -103,12 +103,14 @@ describe('bucketDashboardFixtures', () => {
 	it('splits live/today vs upcoming vs recent', () => {
 		const live = fx({ id: 'live', status: 'live', kickoff: '2026-06-28T11:00:00+00:00' });
 		const tonight = fx({ id: 'tonight', kickoff: '2026-06-28T19:00:00+00:00' });
-		const tomorrow = fx({ id: 'tomorrow', kickoff: '2026-06-29T18:00:00+00:00' });
+		// Two days out (not "tomorrow") so it lands in `upcoming`, not the
+		// strip's next-day flank — that promotion is covered separately below.
+		const laterThisWeek = fx({ id: 'later', kickoff: '2026-06-30T18:00:00+00:00' });
 		const done = finished({ id: 'done', kickoff: '2026-06-27T18:00:00+00:00' }, 2, 1);
 
-		const b = bucketDashboardFixtures([tomorrow, done, tonight, live], NOW);
+		const b = bucketDashboardFixtures([laterThisWeek, done, tonight, live], NOW);
 		expect(b.matchday.map((f) => f.id)).toEqual(['live', 'tonight']);
-		expect(b.upcoming.map((f) => f.id)).toEqual(['tomorrow']);
+		expect(b.upcoming.map((f) => f.id)).toEqual(['later']);
 		expect(b.recent.map((f) => f.id)).toEqual(['done']);
 	});
 
@@ -148,6 +150,56 @@ describe('bucketDashboardFixtures', () => {
 		const stale = fx({ id: 'stale', kickoff: '2026-06-27T10:00:00+00:00' });
 		const b = bucketDashboardFixtures([stale], NOW);
 		expect(b.upcoming).toEqual([]);
+	});
+
+	// ── strip ──────────────────────────────────────────────────────────────
+
+	it('strip is today-only when there is no recent or next-day context (day 1)', () => {
+		const live = fx({ id: 'live', status: 'live', kickoff: '2026-06-28T11:00:00+00:00' });
+		const tonight = fx({ id: 'tonight', kickoff: '2026-06-28T19:00:00+00:00' });
+		const b = bucketDashboardFixtures([live, tonight], NOW);
+		expect(b.strip).toEqual([
+			{ fixture: live, variant: 'today' },
+			{ fixture: tonight, variant: 'today' }
+		]);
+	});
+
+	it('strip prepends the most recent finished game from before today', () => {
+		const yesterday = finished({ id: 'yesterday', kickoff: '2026-06-27T18:00:00+00:00' }, 2, 1);
+		const olderStill = finished({ id: 'older', kickoff: '2026-06-25T18:00:00+00:00' }, 1, 0);
+		const tonight = fx({ id: 'tonight', kickoff: '2026-06-28T19:00:00+00:00' });
+		const b = bucketDashboardFixtures([olderStill, yesterday, tonight], NOW);
+		// Only the MOST RECENT before-today game is promoted, not every past result.
+		expect(b.strip).toEqual([
+			{ fixture: yesterday, variant: 'context' },
+			{ fixture: tonight, variant: 'today' }
+		]);
+	});
+
+	it('strip appends up to 2 of tomorrow\'s scheduled games, capped', () => {
+		const tonight = fx({ id: 'tonight', kickoff: '2026-06-28T19:00:00+00:00' });
+		const tmrw1 = fx({ id: 'tmrw1', kickoff: '2026-06-29T14:00:00+00:00' });
+		const tmrw2 = fx({ id: 'tmrw2', kickoff: '2026-06-29T18:00:00+00:00' });
+		const tmrw3 = fx({ id: 'tmrw3', kickoff: '2026-06-29T21:00:00+00:00' });
+		const b = bucketDashboardFixtures([tonight, tmrw1, tmrw2, tmrw3], NOW);
+		expect(b.strip).toEqual([
+			{ fixture: tonight, variant: 'today' },
+			{ fixture: tmrw1, variant: 'context' },
+			{ fixture: tmrw2, variant: 'context' }
+		]);
+	});
+
+	it('excludes the next-day strip flank from the Upcoming table (dedupe)', () => {
+		const tmrw1 = fx({ id: 'tmrw1', kickoff: '2026-06-29T14:00:00+00:00' });
+		const tmrw2 = fx({ id: 'tmrw2', kickoff: '2026-06-29T18:00:00+00:00' });
+		const dayAfter = fx({ id: 'day-after', kickoff: '2026-06-30T18:00:00+00:00' });
+		const b = bucketDashboardFixtures([tmrw1, tmrw2, dayAfter], NOW);
+		expect(b.strip.filter((s) => s.variant === 'context').map((s) => s.fixture.id)).toEqual([
+			'tmrw1',
+			'tmrw2'
+		]);
+		// tmrw1/tmrw2 are promoted into the strip — Upcoming only has the rest.
+		expect(b.upcoming.map((f) => f.id)).toEqual(['day-after']);
 	});
 });
 
@@ -205,7 +257,7 @@ describe('scorelineOf / winnerOf', () => {
 
 	it('marks penalty shootouts', () => {
 		const f = finished({ home_team: 'France', away_team: 'Germany' }, 1, 1, true);
-		expect(scorelineOf(f)).toEqual({ home: 1, away: 1, pens: true });
+		expect(scorelineOf(f)).toEqual({ home: 1, away: 1, pens: true, home_pen: 4, away_pen: 3 });
 		expect(winnerOf(f)).toBe('France'); // outcome '1' via pens
 	});
 

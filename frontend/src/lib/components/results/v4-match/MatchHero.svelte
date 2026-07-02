@@ -3,7 +3,7 @@
 	 *  mode='upcoming': LOCKED badge + big VS + kickoff countdown. */
 	import type { Fixture } from '$types';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
-	import { koWinnerSide } from '$lib/utils/matchDetailV4';
+	import { koFinalScore, koWinnerSide } from '$lib/utils/matchDetailV4';
 	import TeamName from '$lib/components/TeamName.svelte';
 
 	export let fixture: Fixture;
@@ -19,6 +19,10 @@
 	$: koWinner = koWinnerSide(score);
 	$: homeWin = koWinner === 'home';
 	$: awayWin = koWinner === 'away';
+	// Headline score is AET-inclusive — a match won in extra time shows the
+	// AET score (e.g. 3–2) as the primary number, not the 90-min regulation
+	// score. The line below duplicates it labelled "AET" for wentToEt cases.
+	$: finalScore = koFinalScore(score);
 	// Pens-decided / ET-decided flags drive the secondary scoreline below
 	// the regulation score and the badge upgrade ("AFTER PENALTIES" etc).
 	$: wentToPens =
@@ -98,14 +102,16 @@
 						? 'inline-block rounded-md bg-success px-2 py-0.5 text-white'
 						: ''}"
 				>
-					<b class={isLive ? '' : homeWin ? '' : 'opacity-50'}>{score?.home_score ?? '–'}</b>
+					<b class={isLive ? '' : homeWin ? '' : 'opacity-50'}>{finalScore?.home ?? '–'}</b>
 					<span class="px-1 {isLive ? 'text-white/70' : 'text-base-content/40'}">–</span>
-					<b class={isLive ? '' : awayWin ? '' : 'opacity-50'}>{score?.away_score ?? '–'}</b>
+					<b class={isLive ? '' : awayWin ? '' : 'opacity-50'}>{finalScore?.away ?? '–'}</b>
 				</div>
 				{#if !isLive && wentToEt}
-					<!-- After-ET cumulative score on its own line; muted because the
-					     headline above is the regulation 90-min result. Only renders
-					     when FD (or admin) gave us an ET split. -->
+					<!-- Redundant confirmation line labelling the headline as AET —
+					     the headline above already shows the AET-inclusive score
+					     (via koFinalScore), so this repeats the same numbers with
+					     an explicit "AET" tag for clarity. Only renders when FD (or
+					     admin) gave us an ET split. -->
 					<div class="font-mono text-[11px] tabular-nums text-base-content/55 max-sm:text-[10px]">
 						<span class="text-[8.5px] font-bold uppercase tracking-[0.08em] text-base-content/45">AET</span>
 						<b class={homeWin ? '' : 'opacity-50'}>{score?.home_score_et}</b>

@@ -13,7 +13,13 @@
 import type { BracketPrediction, Fixture } from '$types';
 import type { MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
 import type { LbEntryV4 } from '$lib/types/leaderboard';
-import type { DashCall, DashPick, DashRoundChip, MoverRow } from '$lib/types/dashboard';
+import type {
+	DashCall,
+	DashPick,
+	DashRoundChip,
+	MatchdayStripItem,
+	MoverRow
+} from '$lib/types/dashboard';
 import {
 	NEXT_ROUND,
 	ROUND_STAGE,
@@ -22,6 +28,7 @@ import {
 } from './resultsRounds';
 import { bracketPicksForRound } from './koPoints';
 import { isRealTeam, multiEntryUserIds, rowDisplayName } from './leaderboardV4';
+import { koFinalScore } from './matchDetailV4';
 import { teamCode } from './teamCodes';
 
 // ── Fixture bucketing ────────────────────────────────────────────────────
@@ -33,6 +40,11 @@ export interface DashBuckets {
 	upcoming: Fixture[];
 	/** Finished, most recent kickoff first, capped. */
 	recent: Fixture[];
+	/** Matchday strip contents: up to 1 most-recent finished game from
+	 *  before today ('context'), all of today's fixtures ('today'), then
+	 *  up to 2 of tomorrow's scheduled fixtures ('context'). Kickoff asc
+	 *  within each flank. Empty when there's nothing to show at all. */
+	strip: MatchdayStripItem[];
 }
 
 function isLive(f: Fixture): boolean {
@@ -47,8 +59,14 @@ function sameLocalDay(a: Date, b: Date): boolean {
 	);
 }
 
-/** Split fixtures into the three dashboard tables. `now` is a parameter
- *  (not Date.now()) so tests are deterministic. */
+/** Local midnight for `d`, optionally offset by whole days — used to bound
+ *  "strictly before today" / "tomorrow" windows for the Matchday strip. */
+function startOfLocalDay(d: Date, offsetDays = 0): Date {
+	return new Date(d.getFullYear(), d.getMonth(), d.getDate() + offsetDays);
+}
+
+/** Split fixtures into the three dashboard tables plus the Matchday strip.
+ *  `now` is a parameter (not Date.now()) so tests are deterministic. */
 export function bucketDashboardFixtures(
 	fixtures: Fixture[],
 	now: Date,
@@ -61,15 +79,49 @@ export function bucketDashboardFixtures(
 		(a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
 	);
 
+	// "Today" now includes finished-earlier-today matches too — the strip
+	// gives users context on what already happened today, not just what's
+	// live/upcoming.
 	const matchday = asc.filter(
-		(f) => isLive(f) || (f.status === 'scheduled' && sameLocalDay(new Date(f.kickoff), now))
+		(f) =>
+			isLive(f) ||
+			((f.status === 'scheduled' || f.status === 'finished') &&
+				sameLocalDay(new Date(f.kickoff), now))
 	);
 	const matchdayIds = new Set(matchday.map((f) => f.id));
+
+	// Left flank: the single most recent finished game from BEFORE today
+	// (strictly, to avoid double-showing a finished-today match that's
+	// already in `matchday`).
+	const todayStart = startOfLocalDay(now);
+	const recentBeforeToday = asc.filter(
+		(f) => f.status === 'finished' && new Date(f.kickoff) < todayStart
+	);
+	const recentContext = recentBeforeToday.length
+		? recentBeforeToday[recentBeforeToday.length - 1]
+		: null;
+
+	// Right flank: up to 2 of tomorrow's scheduled games, kickoff asc.
+	const tomorrowStart = startOfLocalDay(now, 1);
+	const nextDayContext = asc
+		.filter((f) => f.status === 'scheduled' && sameLocalDay(new Date(f.kickoff), tomorrowStart))
+		.slice(0, 2);
+	const nextDayIds = new Set(nextDayContext.map((f) => f.id));
+
+	const strip: MatchdayStripItem[] = [
+		...(recentContext ? [{ fixture: recentContext, variant: 'context' as const }] : []),
+		...matchday.map((f) => ({ fixture: f, variant: 'today' as const })),
+		...nextDayContext.map((f) => ({ fixture: f, variant: 'context' as const }))
+	];
+
+	// Upcoming table excludes anything already promoted into the strip
+	// (today's own fixtures, and the tomorrow flank) to avoid double-listing.
 	const upcoming = asc
 		.filter(
 			(f) =>
 				f.status === 'scheduled' &&
 				!matchdayIds.has(f.id) &&
+				!nextDayIds.has(f.id) &&
 				new Date(f.kickoff).getTime() > now.getTime()
 		)
 		.slice(0, upcomingCap);
@@ -78,7 +130,7 @@ export function bucketDashboardFixtures(
 		.reverse()
 		.slice(0, recentCap);
 
-	return { matchday, upcoming, recent };
+	return { matchday, upcoming, recent, strip };
 }
 
 // ── Row chrome ───────────────────────────────────────────────────────────
@@ -133,14 +185,18 @@ export function kickoffLabel(iso: string, now: Date): string {
 }
 
 /** Scoreline + penalty values when the tie went to penalties. Null before
- *  any score exists. */
+ *  any score exists. Primary home/away numbers are AET-inclusive (via
+ *  koFinalScore) — a match won in extra time shows the AET score (e.g.
+ *  3–2) rather than the misleading 90-min regulation score (2–2). */
 export function scorelineOf(
 	f: Fixture
 ): { home: number; away: number; pens: boolean; home_pen: number | null; away_pen: number | null } | null {
 	if (!f.score) return null;
+	const final = koFinalScore(f.score);
+	if (!final) return null;
 	return {
-		home: f.score.home_score,
-		away: f.score.away_score,
+		home: final.home,
+		away: final.away,
 		pens: f.score.home_penalties != null && f.score.away_penalties != null,
 		home_pen: f.score.home_penalties,
 		away_pen: f.score.away_penalties
