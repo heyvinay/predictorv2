@@ -1,15 +1,29 @@
 <script lang="ts">
 	/** Champion card — your pick vs actual champion. +N values template
 	 *  from rules.advancement.winner (C.1). The champion resolves from the
-	 *  FINISHED final fixture only (winner credit requires final whistle). */
+	 *  FINISHED final fixture only (winner credit requires final whistle).
+	 *
+	 *  Bonus Q3 (Dark Horse) + Q4 (Bottlers) cards (v2.19x) sit below the
+	 *  Champion card — same tab, no tab-label change. They settle during
+	 *  knockouts, same lifecycle as Champion, so they belong here rather
+	 *  than on the group-stage reality-check tab. Candidate-field logic is
+	 *  shared with the Insights tab via knockoutBonusCandidates.ts — do
+	 *  not duplicate that derivation here. */
 	import type { BracketPrediction, Fixture } from '$types';
 	import type { ScoringRules } from '$lib/types/results';
+	import type { BonusQuestion, BonusMeta } from '$api/bonus';
+	import type { BonusPredictionRead } from '$lib/types/leaderboard';
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
+	import { knockoutBonusCandidates } from '$lib/utils/knockoutBonusCandidates';
 
 	export let bracket: BracketPrediction | null;
 	export let finalFixture: Fixture | null;
 	export let rules: ScoringRules;
+	export let bonusQuestions: BonusQuestion[] = [];
+	export let bonusAnswers: BonusPredictionRead[] = [];
+	export let bonusMeta: BonusMeta | null = null;
+	export let fixtures: Fixture[] = [];
 
 	$: pick = bracket?.winner || null;
 	$: champion =
@@ -22,6 +36,50 @@
 			: null;
 	$: correct = !!champion && !!pick && champion === pick;
 	$: winnerPts = rules.advancement.winner;
+
+	// ── Bonus Q3 (Dark Horse) / Q4 (Bottlers) ──
+	$: topFlopQuestions = bonusQuestions.filter((q) => q.category === 'top_flop');
+	$: darkHorseQuestion =
+		topFlopQuestions.find((q) => q.input_type === 'team_outside_top_n') ?? topFlopQuestions[0] ?? null;
+	$: bottlersQuestion =
+		topFlopQuestions.find((q) => q.input_type === 'team_in_top_n') ?? topFlopQuestions[1] ?? null;
+
+	$: darkHorsePick = darkHorseQuestion
+		? (bonusAnswers.find((a) => a.question_id === darkHorseQuestion!.id)?.answer ?? null)
+		: null;
+	$: bottlersPick = bottlersQuestion
+		? (bonusAnswers.find((a) => a.question_id === bottlersQuestion!.id)?.answer ?? null)
+		: null;
+
+	$: kb = knockoutBonusCandidates(fixtures, bonusMeta);
+
+	type BonusStatus = 'alive' | 'fading' | 'leading' | 'pending' | 'dead';
+
+	$: darkHorseStatus = ((): BonusStatus => {
+		if (!kb.groupStageComplete || !kb.darkHorse) return 'pending';
+		if (!darkHorsePick) return 'pending';
+		return kb.darkHorse.candidates.includes(darkHorsePick) ? 'alive' : 'dead';
+	})();
+	$: bottlersStatus = ((): BonusStatus => {
+		if (!kb.groupStageComplete || !kb.bottlers) return 'pending';
+		if (!bottlersPick) return 'pending';
+		return kb.bottlers.candidates.includes(bottlersPick) ? 'leading' : 'fading';
+	})();
+
+	const STATUS_LABEL: Record<BonusStatus, string> = {
+		alive: 'Alive',
+		fading: 'Fading',
+		leading: 'Leading',
+		pending: 'Pending',
+		dead: 'Dead'
+	};
+	const STATUS_CLASS: Record<BonusStatus, string> = {
+		alive: 'bg-success/20 text-success',
+		leading: 'bg-success/20 text-success',
+		fading: 'bg-warning/20 text-warning-text',
+		pending: 'bg-base-300/40 text-base-content/55',
+		dead: 'bg-error/20 text-error'
+	};
 </script>
 
 <div
@@ -103,3 +161,77 @@
 		</div>
 	</div>
 </div>
+
+{#if darkHorseQuestion || bottlersQuestion}
+	<div class="mx-auto mt-6 max-w-2xl">
+		<header class="mb-3 text-center">
+			<h2 class="font-display text-lg tracking-wide">
+				Bonus questions · <span class="text-primary">Q3 &amp; Q4</span>
+			</h2>
+			<p class="mt-1 text-xs text-base-content/55">
+				Two more picks that settle as the knockouts progress.
+			</p>
+		</header>
+		<div class="grid gap-4 sm:grid-cols-2">
+			{#if darkHorseQuestion}
+				<div class="stadium-card flex flex-col gap-2.5 p-4">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-bold uppercase tracking-wide text-base-content/45">
+							🐴 Q3 · Dark horse
+						</span>
+						<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {STATUS_CLASS[darkHorseStatus]}">
+							{STATUS_LABEL[darkHorseStatus]}
+						</span>
+					</div>
+					<h3 class="font-display text-sm font-semibold">{darkHorseQuestion.label}</h3>
+					{#if darkHorsePick}
+						<div class="flex items-center gap-2 rounded-lg bg-base-300/40 px-3 py-2">
+							{#if hasFlag(darkHorsePick)}
+								<img src={getFlagUrl(darkHorsePick, 'sm')} alt="" class="h-4 w-6 rounded-sm" />
+							{/if}
+							<span class="font-semibold">{displayTeamName(darkHorsePick)}</span>
+						</div>
+						{#if kb.darkHorse}
+							<p class="text-xs text-base-content/55">
+								{kb.darkHorse.candidates.length}
+								{kb.darkHorse.candidates.length === 1 ? 'outsider' : 'outsiders'} still in contention.
+							</p>
+						{:else}
+							<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
+						{/if}
+					{:else}
+						<p class="text-xs text-base-content/55">No pick on this entry.</p>
+					{/if}
+				</div>
+			{/if}
+			{#if bottlersQuestion}
+				<div class="stadium-card flex flex-col gap-2.5 p-4">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-bold uppercase tracking-wide text-base-content/45">
+							💥 Q4 · Bottlers
+						</span>
+						<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {STATUS_CLASS[bottlersStatus]}">
+							{STATUS_LABEL[bottlersStatus]}
+						</span>
+					</div>
+					<h3 class="font-display text-sm font-semibold">{bottlersQuestion.label}</h3>
+					{#if bottlersPick}
+						<div class="flex items-center gap-2 rounded-lg bg-base-300/40 px-3 py-2">
+							{#if hasFlag(bottlersPick)}
+								<img src={getFlagUrl(bottlersPick, 'sm')} alt="" class="h-4 w-6 rounded-sm" />
+							{/if}
+							<span class="font-semibold">{displayTeamName(bottlersPick)}</span>
+						</div>
+						{#if kb.bottlers}
+							<p class="text-xs text-base-content/55">{kb.bottlers.note}.</p>
+						{:else}
+							<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
+						{/if}
+					{:else}
+						<p class="text-xs text-base-content/55">No pick on this entry.</p>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}

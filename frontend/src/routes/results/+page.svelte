@@ -28,8 +28,11 @@
 	} from '$stores/entries';
 	import { postDeadlineLive, knockoutScoringEnabled } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
-	import { getLeaderboard, getScoringRules } from '$api/leaderboard';
+	import { getLeaderboard, getScoringRules, getEntryBonusReads } from '$api/leaderboard';
 	import { getActualStandings } from '$api/fixtures';
+	import { getBonusQuestions, getBonusMeta, type BonusQuestion, type BonusMeta } from '$api/bonus';
+	import type { BonusPredictionRead } from '$lib/types/leaderboard';
+	import { anyGroupIncomplete } from '$lib/utils/groupTracker';
 	import type { ActualStandingsResponse } from '$types';
 	import type {
 		EntryRankInfo,
@@ -107,7 +110,13 @@
 		const [, leaderboard, scoringRules] = await Promise.all([
 			fetchAllFixtures(),
 			getLeaderboard().catch(() => null),
-			getScoringRules()
+			getScoringRules(),
+			getBonusQuestions()
+				.then((qs) => (bonusQuestions = qs))
+				.catch(() => undefined),
+			getBonusMeta()
+				.then((m) => (bonusMeta = m))
+				.catch(() => undefined)
 		]);
 		rules = scoringRules;
 		applyLeaderboard(leaderboard);
@@ -122,9 +131,10 @@
 			void getLeaderboard()
 				.then(applyLeaderboard)
 				.catch(() => undefined);
-			// Refresh standings only when its tab is selected — avoids
-			// burning the request on every tick when the user is on /r3.
-			if (selectedRound === 'groups' && standingsRequested) {
+			// Refresh standings only when its tab is selected AND the group
+			// stage hasn't settled yet — once every group has played all 3
+			// matchdays nothing there can change, so stop polling it.
+			if (selectedRound === 'groups' && standingsRequested && !standingsSettled) {
 				void loadStandings();
 			}
 		});
@@ -171,6 +181,35 @@
 		void loadStandings();
 	}
 
+	// Group-tracker reality-check overlay (v2.19x). Persisted across visits
+	// so a user's off/on choice sticks; defaults on since the feature exists
+	// specifically because someone asked for it.
+	const OVERLAY_STORAGE_KEY = 'predictor:group-tracker-overlay';
+	let overlayOn = true;
+	onMount(() => {
+		const stored = localStorage.getItem(OVERLAY_STORAGE_KEY);
+		if (stored !== null) overlayOn = stored === 'on';
+	});
+	function toggleOverlay() {
+		overlayOn = !overlayOn;
+		localStorage.setItem(OVERLAY_STORAGE_KEY, overlayOn ? 'on' : 'off');
+	}
+
+	// Once every group has played all 3 matchdays, nothing on this tab can
+	// change — stop polling the standings endpoint (see anyGroupIncomplete
+	// gate in the poll loop below) and freeze the "Updated ..." copy.
+	$: standingsSettled = standingsPayload !== null && !anyGroupIncomplete(standingsPayload.standings);
+
+	// Bonus questions (competition-wide, fetched once) + the active entry's
+	// answers (re-fetched on entry switch) — feed both the group-tracker's
+	// Q1/Q2 mirror and the Winner tab's Q3/Q4 cards.
+	let bonusQuestions: BonusQuestion[] = [];
+	let bonusAnswers: BonusPredictionRead[] = [];
+	let bonusMeta: BonusMeta | null = null;
+	async function loadBonusAnswers(entryId: string) {
+		bonusAnswers = await getEntryBonusReads(entryId).catch(() => []);
+	}
+
 	// Entries + predictions load reactively once the user store hydrates —
 	// at onMount time $user is usually still null (auth/me resolves in the
 	// layout after this page mounts), so a one-shot read silently skips
@@ -191,7 +230,9 @@
 			const candidate = visible[0];
 			if (candidate) setActiveEntry(candidate.id);
 		}
-		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
+		const proms: Promise<unknown>[] = [fetchMatchPredictions(), fetchBracketPredictions()];
+		if ($activeEntryId) proms.push(loadBonusAnswers($activeEntryId));
+		await Promise.all(proms);
 	}
 
 	// ── Round selection: URL param → default logic (D.1) ──
@@ -217,7 +258,7 @@
 		if (entryId === $activeEntryId) return;
 		setActiveEntry(entryId);
 		resetPredictions();
-		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions()]);
+		await Promise.all([fetchMatchPredictions(), fetchBracketPredictions(), loadBonusAnswers(entryId)]);
 	}
 
 	// ── Derived view data ──
@@ -411,13 +452,28 @@
 					onJump={selectRound}
 				/>
 			{:else if selectedRound === 'winner'}
-				<WinnerView bracket={$bracketPrediction} {finalFixture} {rules} />
+				<WinnerView
+					bracket={$bracketPrediction}
+					{finalFixture}
+					{rules}
+					{bonusQuestions}
+					{bonusAnswers}
+					{bonusMeta}
+					fixtures={$fixtures}
+				/>
 			{:else if selectedRound === 'groups'}
 				<GroupStandingsView
 					payload={standingsPayload}
 					loading={standingsLoading}
 					error={standingsError}
 					lastUpdatedAt={standingsLastUpdated}
+					{overlayOn}
+					onToggleOverlay={toggleOverlay}
+					entryFixtures={$fixtures}
+					entryMatchPredictions={$matchPredictions}
+					entryBracketPrediction={$bracketPrediction}
+					{bonusQuestions}
+					{bonusAnswers}
 				/>
 			{:else if selectedRound === 'bracket'}
 				<ResultsBracket
