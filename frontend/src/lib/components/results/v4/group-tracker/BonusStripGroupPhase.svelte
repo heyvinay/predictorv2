@@ -35,7 +35,7 @@
 		<div class="grid gap-4 sm:grid-cols-2">
 			{#each [{ title: 'Which team scores the most goals in the group stage?', state: mostScored, unit: 'scored' }, { title: 'Which team concedes the most goals in the group stage?', state: mostConceded, unit: 'conceded' }] as card}
 				{#if card.state}
-					<div class="stadium-card flex flex-col gap-2.5 p-4">
+					<div class="stadium-card no-glow flex flex-col gap-2.5 p-4">
 						<div class="flex items-center justify-between">
 							<span class="text-[10px] font-bold uppercase tracking-wide text-base-content/45">
 								Bonus question

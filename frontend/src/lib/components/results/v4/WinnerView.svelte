@@ -16,6 +16,25 @@
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { knockoutBonusCandidates } from '$lib/utils/knockoutBonusCandidates';
+	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
+
+	const CANDIDATE_LIMIT = 5;
+
+	/** Same shape as the Insights tab's superlative pill row (shown + extra),
+	 *  but the entry's own pick is always pinned into the visible slice —
+	 *  otherwise a pick past the Nth candidate would silently vanish from
+	 *  its own bonus card. */
+	function shownCandidates(
+		candidates: string[],
+		pick: string | null
+	): { shown: string[]; extra: number } {
+		if (candidates.length <= CANDIDATE_LIMIT) return { shown: candidates, extra: 0 };
+		if (pick && candidates.includes(pick)) {
+			const rest = candidates.filter((c) => c !== pick).slice(0, CANDIDATE_LIMIT - 1);
+			return { shown: [pick, ...rest], extra: candidates.length - rest.length - 1 };
+		}
+		return { shown: candidates.slice(0, CANDIDATE_LIMIT), extra: candidates.length - CANDIDATE_LIMIT };
+	}
 
 	export let bracket: BracketPrediction | null;
 	export let finalFixture: Fixture | null;
@@ -80,6 +99,9 @@
 		pending: 'bg-base-300/40 text-base-content/55',
 		dead: 'bg-error/20 text-error'
 	};
+
+	$: darkHorseField = kb.darkHorse ? shownCandidates(kb.darkHorse.candidates, darkHorsePick) : null;
+	$: bottlersField = kb.bottlers ? shownCandidates(kb.bottlers.candidates, bottlersPick) : null;
 </script>
 
 <div
@@ -174,7 +196,7 @@
 		</header>
 		<div class="grid gap-4 sm:grid-cols-2">
 			{#if darkHorseQuestion}
-				<div class="stadium-card flex flex-col gap-2.5 p-4">
+				<div class="stadium-card no-glow flex flex-col gap-2.5 p-4">
 					<div class="flex items-center justify-between">
 						<span class="text-[10px] font-bold uppercase tracking-wide text-base-content/45">
 							🐴 Q3 · Dark horse
@@ -191,21 +213,37 @@
 							{/if}
 							<span class="font-semibold">{displayTeamName(darkHorsePick)}</span>
 						</div>
-						{#if kb.darkHorse}
-							<p class="text-xs text-base-content/55">
-								{kb.darkHorse.candidates.length}
-								{kb.darkHorse.candidates.length === 1 ? 'outsider' : 'outsiders'} still in contention.
-							</p>
-						{:else}
-							<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
-						{/if}
 					{:else}
 						<p class="text-xs text-base-content/55">No pick on this entry.</p>
+					{/if}
+					{#if darkHorseField && darkHorseField.shown.length > 0}
+						<div class="flex flex-col gap-1">
+							<span class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/45">
+								Live candidates
+							</span>
+							<div class="flex flex-wrap items-center gap-1.5">
+								{#each darkHorseField.shown as team (team)}
+									<span
+										class="inline-flex items-center gap-1.5 rounded-full bg-base-300/30 px-2 py-1 {team ===
+										darkHorsePick
+											? 'ring-1 ring-primary'
+											: ''}"
+									>
+										<FlagCode {team} size="sm" />
+									</span>
+								{/each}
+								{#if darkHorseField.extra > 0}
+									<span class="text-[11px] text-base-content/55">+{darkHorseField.extra} more</span>
+								{/if}
+							</div>
+						</div>
+					{:else if !kb.groupStageComplete}
+						<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
 					{/if}
 				</div>
 			{/if}
 			{#if bottlersQuestion}
-				<div class="stadium-card flex flex-col gap-2.5 p-4">
+				<div class="stadium-card no-glow flex flex-col gap-2.5 p-4">
 					<div class="flex items-center justify-between">
 						<span class="text-[10px] font-bold uppercase tracking-wide text-base-content/45">
 							💥 Q4 · Bottlers
@@ -222,13 +260,35 @@
 							{/if}
 							<span class="font-semibold">{displayTeamName(bottlersPick)}</span>
 						</div>
-						{#if kb.bottlers}
-							<p class="text-xs text-base-content/55">{kb.bottlers.note}.</p>
-						{:else}
-							<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
-						{/if}
 					{:else}
 						<p class="text-xs text-base-content/55">No pick on this entry.</p>
+					{/if}
+					{#if bottlersField && bottlersField.shown.length > 0}
+						<div class="flex flex-col gap-1">
+							<span class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/45">
+								Currently earliest out
+							</span>
+							<div class="flex flex-wrap items-center gap-1.5">
+								{#each bottlersField.shown as team (team)}
+									<span
+										class="inline-flex items-center gap-1.5 rounded-full bg-base-300/30 px-2 py-1 {team ===
+										bottlersPick
+											? 'ring-1 ring-primary'
+											: ''}"
+									>
+										<FlagCode {team} size="sm" />
+									</span>
+								{/each}
+								{#if bottlersField.extra > 0}
+									<span class="text-[11px] text-base-content/55">+{bottlersField.extra} more</span>
+								{/if}
+							</div>
+						</div>
+					{:else if !kb.groupStageComplete}
+						<p class="text-xs text-base-content/55">Candidates seed once the group stage ends.</p>
+					{/if}
+					{#if kb.bottlers}
+						<p class="text-[11px] text-base-content/55">{kb.bottlers.note}.</p>
 					{/if}
 				</div>
 			{/if}

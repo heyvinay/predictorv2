@@ -214,9 +214,7 @@
 		</div>
 	{/if}
 
-	{#if overlayOn}
-		<OverlayBanner {overlayOn} onToggle={onToggleOverlay} />
-	{/if}
+	<OverlayBanner {overlayOn} onToggle={onToggleOverlay} />
 
 	{#if canOverlay && kpiStats}
 		<KpiBand
@@ -233,7 +231,7 @@
 	<section class="grid gap-4 lg:grid-cols-2">
 		{#each groupKeys as group}
 			{#if passesFilter(group)}
-				<div class="stadium-card p-4 sm:p-5">
+				<div class="stadium-card no-glow p-4 sm:p-5">
 					<GroupTable
 						{group}
 						standings={payload.standings[group].map(toClientShape)}
@@ -256,7 +254,7 @@
 		{/each}
 	</section>
 
-	<section class="stadium-card mt-6 p-4 sm:p-5">
+	<section class="stadium-card no-glow mt-6 p-4 sm:p-5">
 		<header class="mb-3">
 			<h2 class="font-display text-xl tracking-wide">
 				Best third-placed teams
@@ -306,7 +304,7 @@
 							<th class="text-center w-10">GD</th>
 							<th class="text-center w-10">Pts</th>
 							{#if canOverlay}
-								<th class="text-center w-10">Pick</th>
+								<th class="text-center w-14">Pick</th>
 							{/if}
 						</tr>
 					</thead>
@@ -361,25 +359,24 @@
 									<span class="points-badge">{t.points}</span>
 								</td>
 								{#if canOverlay}
-									<td class="text-center">
+									<td class="text-center whitespace-nowrap">
 										{#if overlayState?.marker}
-											<span
-												class="pick-marker pick-marker-{overlayState.marker}"
-												title={overlayState.tooltip}
-											>
-												{overlayState.marker === 'hit'
-													? '✓'
-													: overlayState.marker === 'swap'
-														? '↔'
-														: overlayState.marker === 'miss'
-															? '✕'
-															: '↑'}
+											<span class="inline-flex items-center gap-1" title={overlayState.tooltip}>
+												<span class="pick-marker pick-marker-{overlayState.marker}">
+													{overlayState.marker === 'hit'
+														? '✓'
+														: overlayState.marker === 'swap'
+															? '↔'
+															: overlayState.marker === 'miss'
+																? '✕'
+																: '↑'}
+												</span>
+												{#if overlayState.userRank !== null && overlayState.marker !== 'hit'}
+													<span class="text-[9px] font-semibold text-base-content/55"
+														>#{overlayState.userRank}</span
+													>
+												{/if}
 											</span>
-											{#if overlayState.userRank !== null && overlayState.marker !== 'hit'}
-												<div class="text-[9px] font-semibold text-base-content/55">
-													you: #{overlayState.userRank}
-												</div>
-											{/if}
 										{/if}
 									</td>
 								{/if}

@@ -8,7 +8,7 @@
 	export let statusLabel: string;
 </script>
 
-<section class="stadium-card mt-6 p-4 sm:p-5" aria-label="R32 pairings that differ from your prediction">
+<section class="stadium-card no-glow mt-6 p-4 sm:p-5" aria-label="R32 pairings that differ from your prediction">
 	<header class="mb-3">
 		<h2 class="font-display text-xl tracking-wide">
 			R32 impact preview · <span class="text-primary">where your bracket shifts</span>
