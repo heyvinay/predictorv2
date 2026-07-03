@@ -43,6 +43,7 @@
 		recordSimulatorRun
 	} from '$lib/api/simulator';
 	import { fillFromMyPicks, projectStandings, resolveScenario } from '$lib/utils/simulateBracket';
+	import { markSimulatorSeen, simulatorSeen } from '$stores/uiPreferences';
 	import ResultsBracket from '$lib/components/results/v4/ResultsBracket.svelte';
 	import SimulatorBracket from '$lib/components/results/v4/SimulatorBracket.svelte';
 	import SimulatorGameShow from '$lib/components/results/v4/SimulatorGameShow.svelte';
@@ -60,6 +61,13 @@
 	let gameShowOpen = false;
 	let simulateOn = false;
 
+	// One-time tooltip on the Simulate toggle. Shown iff the feature is on
+	// AND this user hasn't discovered it yet (same `simulatorSeen` flag the
+	// rail-nav + Bracket-pill nudges use). Dismissed on any click — either
+	// by pressing Simulate (which counts as "found it") or the tooltip's
+	// own Got-it button.
+	let showTooltip = false;
+
 	onMount(async () => {
 		try {
 			status = await getSimulatorStatus();
@@ -68,7 +76,22 @@
 		} finally {
 			statusLoading = false;
 		}
+		// Reaching the Bracket tab IS the discovery event — clear the
+		// rail-nav + Bracket-pill nudges immediately, but keep the
+		// tooltip visible until they click something so they get one
+		// deliberate explainer. Guard on feature visibility so we don't
+		// consume the flag when the feature isn't actually surfaced.
+		if (status && (status.feature_enabled || status.is_admin)) {
+			if (!$simulatorSeen) {
+				showTooltip = true;
+				markSimulatorSeen();
+			}
+		}
 	});
+
+	function dismissTooltip() {
+		showTooltip = false;
+	}
 
 	$: featureVisible = !!status && (status.feature_enabled || status.is_admin);
 	$: isUnlocked = !!status && (status.is_admin || status.unlocked);
@@ -95,6 +118,7 @@
 	}
 
 	function handleToggleSimulate() {
+		dismissTooltip();
 		if (simulateOn) {
 			simulateOn = false;
 			return;
@@ -261,13 +285,48 @@
 					Preview quiz
 				</button>
 			{/if}
-			<button
-				type="button"
-				class="btn btn-sm {simulateOn ? 'btn-primary' : 'btn-outline'}"
-				on:click={handleToggleSimulate}
-			>
-				🔮 {simulateOn ? 'Simulating' : 'Simulate'}
-			</button>
+			<div class="relative">
+				<button
+					type="button"
+					class="btn btn-sm {simulateOn ? 'btn-primary' : 'btn-outline'}"
+					on:click={handleToggleSimulate}
+				>
+					🔮 {simulateOn ? 'Simulating' : 'Simulate'}
+				</button>
+				{#if showTooltip}
+					<!-- One-time intro tooltip. Absolutely positioned so the row
+					     layout above stays untouched; a small triangle points at
+					     the Simulate button. Dismissed automatically when the
+					     user clicks Simulate, or via the ✕ button here. Shown
+					     once per user per device (see markSimulatorSeen in
+					     onMount). -->
+					<div
+						class="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-primary/45 bg-base-100 p-3 text-sm shadow-lg"
+						role="dialog"
+						aria-label="What is Simulate?"
+					>
+						<span
+							class="absolute -top-1.5 right-6 h-3 w-3 rotate-45 border-l border-t border-primary/45 bg-base-100"
+							aria-hidden="true"
+						></span>
+						<div class="flex items-start gap-2">
+							<div class="flex-1">
+								<div class="font-display text-xs uppercase tracking-[0.14em] text-primary">New</div>
+								<p class="mt-1 leading-snug text-base-content/85">
+									Play the rest of the bracket — pick winners of unplayed matches and see how
+									the pool re-ranks.
+								</p>
+							</div>
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs -mt-1 -mr-1"
+								on:click={dismissTooltip}
+								aria-label="Dismiss"
+							>✕</button>
+						</div>
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 

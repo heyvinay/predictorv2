@@ -26,7 +26,8 @@
 		setActiveEntry,
 		submittedEntries
 	} from '$stores/entries';
-	import { postDeadlineLive, knockoutScoringEnabled } from '$stores/phase';
+	import { postDeadlineLive, knockoutScoringEnabled, simulatorEnabled } from '$stores/phase';
+	import { simulatorSeen } from '$stores/uiPreferences';
 	import { pageTitle } from '$stores/pageTitle';
 	import { getLeaderboard, getScoringRules, getEntryBonusReads } from '$api/leaderboard';
 	import { getActualStandings } from '$api/fixtures';
@@ -444,7 +445,13 @@
 				</div>
 			{/if}
 
-			<RoundTabs {rounds} selected={selectedRound} {liveRounds} onSelect={selectRound} />
+			<RoundTabs
+				{rounds}
+				selected={selectedRound}
+				{liveRounds}
+				onSelect={selectRound}
+				simulatorNudge={$simulatorEnabled && !$simulatorSeen}
+			/>
 
 			<!-- Group / KO round tables move the scoring explainer into a
 			     ℹ popover next to the Points header. Summary + Winner

@@ -103,6 +103,12 @@ class PhaseStatus(BaseModel):
     # the scoring engine suppresses every advancement payout. Surfaced
     # here so the admin UI can render the toggle's current state.
     knockout_scoring_enabled: bool = False
+    # What-if bracket simulator master switch (v2.194.x) — admin-controlled;
+    # when false the Simulate toggle is hidden from non-admins entirely.
+    # Surfaced here so the layout can render a "NEW" nudge on the Results
+    # rail item + Bracket tab pill once the admin flips it on, without a
+    # dedicated fetch of /simulator/status per page load.
+    simulator_enabled: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -147,6 +153,7 @@ async def get_phase_status(
         knockout_scoring_enabled=(
             competition.knockout_scoring_enabled if competition else False
         ),
+        simulator_enabled=competition.simulator_enabled if competition else False,
     )
 
 

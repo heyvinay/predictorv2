@@ -70,6 +70,18 @@ export const knockoutScoringEnabled = derived(
 			?.knockout_scoring_enabled ?? false
 );
 
+/** Admin-controlled master switch for the what-if bracket simulator
+ *  (v2.194.x). False until the admin flips it on /admin. Used at the
+ *  layout level to render a subtle "NEW" nudge on the Results rail item
+ *  once it's enabled — no dedicated /simulator/status fetch per page
+ *  load, since phase-status is already hydrated in the layout. */
+export const simulatorEnabled = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { simulator_enabled?: boolean }) | null)
+			?.simulator_enabled ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,

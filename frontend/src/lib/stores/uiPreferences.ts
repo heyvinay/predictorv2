@@ -29,3 +29,37 @@ if (browser) {
 		}
 	});
 }
+
+// ─── Simulator discoverability nudge (v2.194.x) ─────────────────────────────
+// One-per-user localStorage flag flipped the first time the user lands on
+// the Results → Bracket tab AFTER the admin has enabled the simulator.
+// Consumed by: the "NEW" dot on the Results rail-nav item (+layout.svelte),
+// the "NEW" dot on the Bracket tab pill (RoundTabs), and the one-time hint
+// tooltip on the Simulate toggle (SimulatorPanel). Once seen, all three
+// nudges vanish permanently for that user on that device.
+const SIMULATOR_SEEN_KEY = 'predictor.ui.simulator_seen';
+
+function readSimulatorSeen(): boolean {
+	if (!browser) return false;
+	try {
+		return localStorage.getItem(SIMULATOR_SEEN_KEY) === '1';
+	} catch {
+		return false;
+	}
+}
+
+export const simulatorSeen = writable<boolean>(readSimulatorSeen());
+
+/** Mark the simulator as discovered — call once when the user opens the
+ *  Bracket tab (or dismisses the intro tooltip). Idempotent; safe to call
+ *  from multiple surfaces. */
+export function markSimulatorSeen(): void {
+	if (!browser) return;
+	try {
+		localStorage.setItem(SIMULATOR_SEEN_KEY, '1');
+	} catch {
+		// localStorage unavailable — the nudge will keep showing until it
+		// works or the user upgrades their browser; harmless either way.
+	}
+	simulatorSeen.set(true);
+}

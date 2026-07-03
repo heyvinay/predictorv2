@@ -18,6 +18,11 @@
 	export let selected: RoundId;
 	export let liveRounds: Set<RoundId>;
 	export let onSelect: (id: RoundId) => void;
+	/** When true, adds a small pulsing gold dot to the Bracket tab pill —
+	 *  the simulator discoverability nudge. Fades permanently for that
+	 *  user once they've opened the Bracket tab (see markSimulatorSeen in
+	 *  SimulatorPanel). */
+	export let simulatorNudge: boolean = false;
 
 	const SHORT_LABEL: Record<RoundId, string> = {
 		summary: 'Summary',
@@ -75,6 +80,13 @@
 						role="img"
 						aria-label="Round has a match in progress"
 						title="Match in progress"
+					></span>
+				{:else if simulatorNudge && r.id === 'bracket'}
+					<span
+						class="h-[6px] w-[6px] rounded-full bg-primary animate-pulse-soft"
+						role="img"
+						aria-label="New — bracket simulator available"
+						title="New — try the bracket simulator"
 					></span>
 				{/if}
 				{labelOf(r)}

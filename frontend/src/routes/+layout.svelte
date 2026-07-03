@@ -5,7 +5,8 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { initAnalytics, identify, track } from '$lib/analytics';
-	import { fetchPhaseStatus, phase1Deadline, currentTime } from '$stores/phase';
+	import { fetchPhaseStatus, phase1Deadline, currentTime, simulatorEnabled } from '$stores/phase';
+	import { simulatorSeen } from '$stores/uiPreferences';
 	import { theme, chromeThemeFor } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
 	import { pageTitle } from '$stores/pageTitle';
@@ -186,6 +187,7 @@
 				{#each navItems as item}
 					{@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
 					{@const badge = item.href === '/entries' ? $editableEntries.length : 0}
+					{@const showSimNudge = item.href === '/results' && $simulatorEnabled && !$simulatorSeen}
 					<div class="relative w-full">
 						{#if isActive}
 							<span
@@ -211,6 +213,16 @@
 									class="ml-auto badge badge-warning badge-xs font-mono"
 									aria-label="{badge} draft entries pending"
 								>{badge}</span>
+							{:else if showSimNudge}
+								<!-- Simulator discoverability nudge. Fades permanently
+								     the moment the user opens the Bracket tab (see
+								     markSimulatorSeen call in SimulatorPanel). -->
+								<span
+									class="ml-auto h-1.5 w-1.5 rounded-full bg-primary animate-pulse-soft"
+									role="img"
+									aria-label="New feature — try the bracket simulator"
+									title="New — try the bracket simulator"
+								></span>
 							{/if}
 						</a>
 					</div>
@@ -483,6 +495,7 @@
 			{#each navItems as item}
 				{@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
 				{@const badge = item.href === '/entries' ? $editableEntries.length : 0}
+				{@const showSimNudge = item.href === '/results' && $simulatorEnabled && !$simulatorSeen}
 				<a
 					href={item.href}
 					on:click={() => trackNav('mobile-bottom-nav', item.href, item.label)}
@@ -498,6 +511,12 @@
 								class="absolute -top-1.5 -right-2 badge badge-warning badge-xs font-mono"
 								aria-label="{badge} draft entries pending"
 							>{badge}</span>
+						{:else if showSimNudge}
+							<span
+								class="absolute -top-0.5 -right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse-soft"
+								role="img"
+								aria-label="New feature — try the bracket simulator"
+							></span>
 						{/if}
 					</div>
 					<span class="text-[9px] font-medium">{item.label}</span>
