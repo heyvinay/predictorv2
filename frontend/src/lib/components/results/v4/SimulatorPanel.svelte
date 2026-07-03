@@ -271,6 +271,37 @@
 		</div>
 	</div>
 
+	<!-- Helper strip — mirrors the group-standings OverlayBanner pattern:
+	     gold-tinted primer when the tool is on, muted teaser when it's off.
+	     Gives the user a one-sentence read on what the toggle does before
+	     they touch it, and reassures them nothing they do here is permanent. -->
+	{#if simulateOn}
+		<div
+			class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm"
+			role="status"
+		>
+			<span class="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-primary/20 text-xs font-bold text-primary" aria-hidden="true">
+				🔮
+			</span>
+			<p class="flex-1 text-base-content/90">
+				<strong class="text-primary">What-if mode.</strong> Pick winners of the unplayed
+				matches — they'll flow through to the next round. Hit <strong>See standings</strong> to
+				re-rank the pool under your scenario. Nothing you do here changes your entry.
+			</p>
+		</div>
+	{:else}
+		<div
+			class="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-base-300 bg-base-200 px-4 py-2 text-sm"
+			role="status"
+		>
+			<p class="flex-1 text-base-content/60">
+				<strong class="text-base-content/80">Play out the rest of the bracket.</strong>
+				Hit <em>Simulate</em> to pick winners for the unplayed matches and see how the pool
+				re-ranks. Read-only until you turn it on.
+			</p>
+		</div>
+	{/if}
+
 	{#if !simulateOn}
 		<ResultsBracket {fixtures} {bracketPrediction} {rules} knockoutScoringEnabled={true} />
 	{:else}
