@@ -832,6 +832,56 @@ async def set_announcement_hero_enabled(
 
 
 # ---------------------------------------------------------------------------
+# What-if bracket simulator master switch (v2.194.x)
+# ---------------------------------------------------------------------------
+class SimulatorEnabledRequest(BaseModel):
+    """Toggle the what-if bracket simulator master switch."""
+
+    enabled: bool
+
+
+@router.post("/competition/simulator-enabled")
+async def set_simulator_enabled(
+    request: SimulatorEnabledRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the simulator's admin master switch.
+
+    When `enabled=false` non-admin users can't reach `/simulator/*` even
+    if they've completed the trivia unlock — admins always retain full
+    access regardless of this flag (see app/services/simulator.py).
+    Auditable, idempotent.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.simulator_enabled
+    competition.simulator_enabled = request.enabled
+    competition.updated_at = utc_now()
+    if previous != request.enabled:
+        record_audit_event(
+            session,
+            event_type="competition.simulator_enabled_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.enabled},
+        )
+    await session.commit()
+
+    return {"status": "ok", "simulator_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
 # Standings drift verification (v2.182.0)
 # ---------------------------------------------------------------------------
 class DriftCheckResult(BaseModel):

@@ -42,6 +42,7 @@
 		sendBroadcastTest,
 		setGroupStageWinnerReleased,
 		setKnockoutScoringEnabled,
+		setSimulatorEnabled,
 		setPostDeadlineLive,
 		triggerStandingsDriftCheck,
 		listOpenDriftEvents,
@@ -59,6 +60,7 @@
 		type BroadcastSendResult
 	} from '$lib/api/admin';
 	import type { EntrySettings } from '$lib/types/entry';
+	import { getSimulatorStatus } from '$lib/api/simulator';
 	import SitePulsePanel from '$lib/components/admin/SitePulsePanel.svelte';
 
 	// ─── Stats / competition state ─────────────────────────────────────────
@@ -137,6 +139,45 @@
 			knockoutError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingKnockout = false;
+		}
+	}
+
+	// ─── What-if bracket simulator master switch (v2.194.x) ───────────────
+	// No dedicated GET on the phase-status payload for this flag (it isn't
+	// on PhaseStatus) — read the initial state from the feature's own
+	// status endpoint instead, same source SimulatorPanel itself uses.
+	let simulatorEnabled = false;
+	let simulatorStatusLoading = true;
+	let togglingSimulator = false;
+	let simulatorError: string | null = null;
+
+	async function loadSimulatorStatus() {
+		simulatorStatusLoading = true;
+		try {
+			const s = await getSimulatorStatus();
+			simulatorEnabled = s.feature_enabled;
+		} catch (e) {
+			simulatorError = e instanceof Error ? e.message : 'Failed to load simulator status';
+		} finally {
+			simulatorStatusLoading = false;
+		}
+	}
+
+	async function handleToggleSimulator() {
+		const next = !simulatorEnabled;
+		const message = next
+			? 'ENABLE the what-if bracket simulator for the whole pool? Non-admins will see the Simulate toggle on the Results Bracket tab, gated behind the trivia unlock.'
+			: 'DISABLE the what-if bracket simulator? Non-admins immediately lose access to /simulator/* even if already unlocked. Admins are unaffected.';
+		if (!confirm(message)) return;
+		togglingSimulator = true;
+		simulatorError = null;
+		try {
+			const result = await setSimulatorEnabled(next);
+			simulatorEnabled = result.simulator_enabled;
+		} catch (e) {
+			simulatorError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingSimulator = false;
 		}
 	}
 
@@ -507,7 +548,12 @@
 	// never run and `loading` stays true forever.
 	onMount(async () => {
 		await loadData();
-		await Promise.all([loadEntrySettings(), loadAudienceCounts(), loadPoolPreview()]);
+		await Promise.all([
+			loadEntrySettings(),
+			loadAudienceCounts(),
+			loadPoolPreview(),
+			loadSimulatorStatus()
+		]);
 	});
 
 	async function loadData() {
@@ -829,6 +875,54 @@
 					</button>
 				</div>
 				{#if knockoutError}<div class="alert alert-error text-sm mt-3">{knockoutError}</div>{/if}
+			</section>
+
+			<!-- Bracket simulator master switch (v2.194.x) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {simulatorEnabled
+					? 'border-success/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Bracket simulator
+					<span class="text-xs text-base-content/40">
+						· what-if knockout re-rank, Results → Bracket tab
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					When OFF, the Results page's Bracket tab shows only the read-only
+					wallchart for everyone except admins. When ON, non-admins see a
+					<b>Simulate</b> toggle gated behind a trivia unlock, letting them pick
+					hypothetical winners for still-open knockout matches and preview a
+					re-ranked standings table. Admins always have full access regardless
+					of this flag.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					{#if simulatorStatusLoading}
+						<span class="loading loading-spinner loading-sm"></span>
+					{:else}
+						<span
+							class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {simulatorEnabled
+								? 'bg-success/20 text-success'
+								: 'bg-base-300 text-base-content/55'}"
+						>
+							{simulatorEnabled ? '🔮 ENABLED — pool can simulate' : 'HELD — admins only'}
+						</span>
+						<button
+							class="btn btn-sm {simulatorEnabled ? 'btn-ghost' : 'btn-primary'}"
+							type="button"
+							on:click={handleToggleSimulator}
+							disabled={togglingSimulator}
+						>
+							{togglingSimulator
+								? 'Switching…'
+								: simulatorEnabled
+									? 'Disable simulator'
+									: '🔮 Enable simulator'}
+						</button>
+					{/if}
+				</div>
+				{#if simulatorError}<div class="alert alert-error text-sm mt-3">{simulatorError}</div>{/if}
 			</section>
 
 			<!-- Standings drift verifier (v2.182.0) -->

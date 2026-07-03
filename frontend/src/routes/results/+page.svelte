@@ -62,7 +62,8 @@
 	import SummaryView from '$lib/components/results/v4/SummaryView.svelte';
 	import WinnerView from '$lib/components/results/v4/WinnerView.svelte';
 	import GroupStandingsView from '$lib/components/results/v4/GroupStandingsView.svelte';
-	import ResultsBracket from '$lib/components/results/v4/ResultsBracket.svelte';
+	import SimulatorPanel from '$lib/components/results/v4/SimulatorPanel.svelte';
+	import { track } from '$lib/analytics';
 
 	$: if (!$isAuthenticated) goto('/login');
 
@@ -252,6 +253,18 @@
 		const url = new URL($page.url);
 		url.searchParams.set('round', id);
 		history.replaceState(history.state, '', url);
+	}
+
+	// Fires once per distinct selection of the Bracket tab (not on every
+	// reactive re-run) — guarded by tracking the last round we fired for,
+	// so refresh-with-?round=bracket and repeated re-renders don't spam
+	// the funnel-entry event.
+	let lastTrackedBracketRound: RoundId | null = null;
+	$: if (selectedRound === 'bracket' && lastTrackedBracketRound !== 'bracket') {
+		lastTrackedBracketRound = 'bracket';
+		track('bracket_tab_opened');
+	} else if (selectedRound !== 'bracket') {
+		lastTrackedBracketRound = null;
 	}
 
 	async function selectEntry(entryId: string) {
@@ -476,11 +489,11 @@
 					{bonusAnswers}
 				/>
 			{:else if selectedRound === 'bracket'}
-				<ResultsBracket
+				<SimulatorPanel
 					fixtures={$fixtures}
 					bracketPrediction={$bracketPrediction}
 					{rules}
-					knockoutScoringEnabled={$knockoutScoringEnabled}
+					myEntryId={$activeEntryId}
 				/>
 			{:else if activeRound?.isKnockout}
 				{#if !$knockoutScoringEnabled}

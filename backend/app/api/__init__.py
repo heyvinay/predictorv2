@@ -15,6 +15,7 @@ from app.api import (
     odds,
     predictions,
     scores,
+    simulator,
     telemetry,
     users,
 )
@@ -53,3 +54,6 @@ api_router.include_router(
 api_router.include_router(
     announcements.admin_router, prefix="/admin/announcements", tags=["admin"]
 )
+# What-if bracket simulator: bulk entry picks powering a client-side
+# leaderboard re-rank.
+api_router.include_router(simulator.router, prefix="/simulator", tags=["simulator"])

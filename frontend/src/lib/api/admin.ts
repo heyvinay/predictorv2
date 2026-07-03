@@ -164,6 +164,21 @@ export async function setKnockoutScoringEnabled(
 	return api.post('/admin/competition/knockout-scoring', { enabled });
 }
 
+/** Flip the what-if bracket simulator's admin master switch (v2.194.x).
+ *  When `enabled=false`, non-admins can't reach `/simulator/*` even if
+ *  they've already completed the trivia unlock — admins always retain
+ *  full access regardless of this flag (see backend
+ *  app/services/simulator.py). Current state is read via
+ *  `getSimulatorStatus().feature_enabled` (api/simulator.ts) — there's
+ *  no dedicated GET here, mirroring how other admin toggles source
+ *  their initial value from the feature's own status endpoint rather
+ *  than a competition-settings read. */
+export async function setSimulatorEnabled(
+	enabled: boolean
+): Promise<{ status: string; simulator_enabled: boolean }> {
+	return api.post('/admin/competition/simulator-enabled', { enabled });
+}
+
 /** Standings drift verification (v2.182.0). */
 export interface DriftCheckResult {
 	source_used: 'FOOTBALL_DATA' | 'ESPN' | 'WIKIPEDIA' | null;

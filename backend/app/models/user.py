@@ -78,6 +78,17 @@ class User(SQLModel, table=True):
         default=None, sa_column=utc_datetime_column(nullable=True)
     )
 
+    # What-if bracket simulator gating. One-time trivia unlock is permanent
+    # per user (never resets); the daily-run counters reset at UTC midnight
+    # via services.simulator._apply_daily_reset. Admins bypass both checks
+    # entirely (see services.simulator.get_status / record_run) but still
+    # have their usage counted + audited.
+    simulator_unlocked: bool = Field(default=False)
+    simulator_runs_used: int = Field(default=0)
+    simulator_runs_reset_at: datetime | None = Field(
+        default=None, sa_column=utc_datetime_column(nullable=True)
+    )
+
     # Relationships
     competition: Optional["Competition"] = Relationship(back_populates="users")
     entries: list["PredictionEntry"] = Relationship(

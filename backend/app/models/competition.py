@@ -68,6 +68,14 @@ class Competition(SQLModel, table=True):
     # all existing competitions without a migration data patch.
     announcement_hero_enabled: bool = Field(default=True)
 
+    # What-if bracket simulator master switch: admin-controlled gate on
+    # top of the per-user trivia unlock + daily cap. Defaults FALSE so the
+    # simulator stays off until an admin opts a competition in from
+    # /admin. Admins always retain full simulator access regardless of
+    # this flag (see services.simulator.get_status/record_run) — usage is
+    # still counted + audited, just uncapped.
+    simulator_enabled: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 

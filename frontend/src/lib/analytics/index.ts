@@ -84,7 +84,20 @@ export type EventName =
 	| 'entry_unlocked'
 	| 'user_signed_in'
 	| 'user_onboarded'
-	| 'prediction_saved';
+	| 'prediction_saved'
+	// v2.194.x — what-if bracket simulator funnel (Results → Bracket tab):
+	// bracket_tab_opened (funnel entry) → simulator_gate_opened (game show
+	// launched) → simulator_challenge_submitted {result, used_5050} →
+	// simulator_unlocked → simulator_toggled_on → simulator_run_committed
+	// {picks_count, champion_set}. All browser-fired; the unlock is also
+	// audited server-side (feature.simulator_unlocked) for durability, so
+	// no alsoServer / ALLOWED_EVENTS mirroring is needed here.
+	| 'bracket_tab_opened'
+	| 'simulator_gate_opened'
+	| 'simulator_challenge_submitted'
+	| 'simulator_unlocked'
+	| 'simulator_toggled_on'
+	| 'simulator_run_committed';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog
