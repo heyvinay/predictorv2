@@ -348,6 +348,13 @@
 			{/if}
 
 			{#if standings}
+				<!-- Projected standings — visual grammar mirrors StandingsTable
+				     from the main /leaderboard page (rounded base-200 shell,
+				     sticky uppercase column-header band, thin border-t grid
+				     rows, "your entry" pin section) so users recognise the
+				     scoreboard idiom. Columns are simpler here — rank / entry /
+				     points (with was) / move — since the simulator only touches
+				     KO advancement. -->
 				<div class="mt-6 border-t border-base-content/10 pt-5">
 					<h3 class="font-display text-base tracking-wide mb-1">
 						PROJECTED <span class="text-primary">STANDINGS</span>
@@ -363,52 +370,75 @@
 						</p>
 					{/if}
 
-					{#if myRow}
+					<div
+						class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200"
+						role="table"
+						aria-label="Projected pool standings"
+					>
+						<!-- Sticky column-header band, matching StandingsTable. -->
 						<div
-							class="mb-3 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3 flex items-center gap-3"
+							class="sticky top-0 z-10 grid items-center gap-2 bg-base-300/40 px-3 py-2 backdrop-blur
+								grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:gap-3 min-[880px]:px-4 min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]"
+							role="row"
 						>
-							<span class="font-mono text-lg font-bold text-primary w-8 text-center">
-								#{myRow.newPos}
-							</span>
-							<div class="flex-1 min-w-0">
-								<div class="font-semibold truncate">{myRow.entry_name}</div>
-								<div class="text-xs text-base-content/55">was #{myRow.oldPos} · {myRow.oldTotal} pts</div>
+							<span class="sp-head" role="columnheader">#</span>
+							<span class="sp-head text-left" role="columnheader">Entry</span>
+							<span class="sp-head text-right" role="columnheader">Points</span>
+							<span class="sp-head text-right" role="columnheader">Move</span>
+						</div>
+
+						{#if myRow}
+							<div class="sp-band" role="rowgroup" aria-label="Your entry">
+								Your entry · pinned
 							</div>
-							<div class="text-right">
-								<div class="font-mono font-bold">{myRow.newTotal} pts</div>
-								<div class="text-xs font-mono {movementClass(myRow.deltaPos)}">
+							<!-- Own row — gold-ringed with a subtle primary wash to
+							     mirror the "Your entries · pinned" section of the
+							     main leaderboard, without breaking out of the row
+							     grid. -->
+							<div
+								class="grid items-center gap-2 px-3 py-2.5 border-t border-primary/40 bg-primary/10 min-[880px]:gap-3 min-[880px]:px-4
+									grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]"
+								role="row"
+							>
+								<span class="font-mono text-sm font-bold text-primary tabular-nums" role="cell">
+									#{myRow.newPos}
+								</span>
+								<div class="min-w-0" role="cell">
+									<div class="text-sm font-semibold truncate">{myRow.entry_name}</div>
+									<div class="text-[10.5px] font-mono uppercase tracking-[0.08em] text-base-content/50">
+										was #{myRow.oldPos}
+									</div>
+								</div>
+								<div class="text-right font-mono tabular-nums" role="cell">
+									<div class="text-sm font-bold">{myRow.newTotal}</div>
+									<div class="text-[10.5px] text-base-content/50">was {myRow.oldTotal}</div>
+								</div>
+								<div class="text-right font-mono text-xs tabular-nums {movementClass(myRow.deltaPos)}" role="cell">
 									{movementSymbol(myRow.deltaPos)} {Math.abs(myRow.deltaPos)}
 								</div>
 							</div>
-						</div>
-					{/if}
+							<div class="sp-band" role="rowgroup" aria-label="All entries">All entries</div>
+						{/if}
 
-					<div class="overflow-x-auto">
-						<table class="table table-sm">
-							<thead>
-								<tr class="text-[11px] uppercase tracking-[0.1em] text-base-content/50">
-									<th>Rank</th>
-									<th>Entry</th>
-									<th class="text-right">Points</th>
-									<th class="text-right">Move</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each otherRows as row (row.entry_id)}
-									<tr>
-										<td class="font-mono">#{row.newPos}</td>
-										<td class="truncate max-w-[200px]">{row.entry_name}</td>
-										<td class="text-right font-mono">
-											{row.newTotal}
-											<span class="text-base-content/40 text-xs">(was {row.oldTotal})</span>
-										</td>
-										<td class="text-right font-mono {movementClass(row.deltaPos)}">
-											{movementSymbol(row.deltaPos)} {Math.abs(row.deltaPos)}
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+						{#each otherRows as row (row.entry_id)}
+							<div
+								class="grid items-center gap-2 px-3 py-2 border-t border-base-300/40 hover:bg-base-300/25 transition-colors min-[880px]:gap-3 min-[880px]:px-4
+									grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]"
+								role="row"
+							>
+								<span class="font-mono text-sm font-semibold text-base-content/75 tabular-nums" role="cell">
+									#{row.newPos}
+								</span>
+								<span class="text-sm truncate" role="cell">{row.entry_name}</span>
+								<div class="text-right font-mono tabular-nums" role="cell">
+									<span class="text-sm">{row.newTotal}</span>
+									<span class="text-[10.5px] text-base-content/40 ml-1">was {row.oldTotal}</span>
+								</div>
+								<div class="text-right font-mono text-xs tabular-nums {movementClass(row.deltaPos)}" role="cell">
+									{movementSymbol(row.deltaPos)} {Math.abs(row.deltaPos)}
+								</div>
+							</div>
+						{/each}
 					</div>
 				</div>
 			{/if}
@@ -419,6 +449,28 @@
 <SimulatorGameShow bind:open={gameShowOpen} on:unlocked={handleUnlocked} on:close={handleGameShowClose} />
 
 <style>
+	/* Column-header cell — mirrors StandingsTable's HEAD_CLASS token. */
+	:global(.sp-head) {
+		font-size: 9.5px;
+		font-weight: 800;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: hsl(var(--bc) / 0.55);
+	}
+
+	/* Section band (Your entry · pinned / All entries) — matches
+	   SECTION_BAND_CLASS on the main leaderboard. */
+	:global(.sp-band) {
+		border-top: 1px solid hsl(var(--b3) / 0.4);
+		background: hsl(var(--b3) / 0.3);
+		padding: 4px 12px;
+		font-size: 9.5px;
+		font-weight: 800;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: hsl(var(--bc) / 0.65);
+	}
+
 	@media (prefers-reduced-motion: reduce) {
 		:global(.sim-chip) {
 			transition: none !important;
