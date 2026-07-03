@@ -275,17 +275,30 @@
 	 *    - reveal   → green (win) / red (lose) on the chosen option
 	 *    - greyed   → faded (50:50 lifeline)
 	 *    - default  → interactive base */
-	function optionClass(index: number): string {
-		const isLockedIn = lockedInIndex === index;
-		if (isLockedIn && state === 'grading') {
+	// Reactive dependencies (`state`, `lockedInIndex`, `gradeResult`,
+	// `greyedOut`) are passed EXPLICITLY so Svelte's template dep-tracker
+	// re-invokes this per option button when any of them change. A function
+	// that read those from its enclosing scope would look correct but would
+	// NOT re-evaluate — same class of bug as the resolvedOf/scenario reactivity
+	// fix on SimulatorBracket. In particular, without this the "greyed on
+	// 50:50" styling never applies visually even though the click is disabled.
+	function optionClass(
+		index: number,
+		s: GameState,
+		locked: number | null,
+		grade: 'win' | 'lose' | null,
+		greyed: Set<number>
+	): string {
+		const isLockedIn = locked === index;
+		if (isLockedIn && s === 'grading') {
 			return 'border-warning bg-warning/20';
 		}
-		if (isLockedIn && state === 'reveal') {
-			return gradeResult === 'win'
+		if (isLockedIn && s === 'reveal') {
+			return grade === 'win'
 				? 'border-success bg-success/20'
 				: 'border-error bg-error/20';
 		}
-		if (greyedOut.has(index)) {
+		if (greyed.has(index)) {
 			return 'border-base-300/40 bg-base-300/10 opacity-40';
 		}
 		return 'border-base-300/60 bg-base-300/20 hover:bg-base-300/40';
@@ -404,7 +417,11 @@
 							<button
 								type="button"
 								class="flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors {optionClass(
-									index
+									index,
+									state,
+									lockedInIndex,
+									gradeResult,
+									greyedOut
 								)}"
 								disabled={state !== 'active' || greyedOut.has(index)}
 								on:click={() => handleOptionClick(index)}
