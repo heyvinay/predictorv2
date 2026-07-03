@@ -248,6 +248,19 @@
 					{runsLabel}
 				</span>
 			{/if}
+			{#if status?.is_admin}
+				<!-- Admins are auto-unlocked and skip the gate, so they never
+				     see the unlock quiz in normal use. This lets them open it
+				     on demand to QA the game show. -->
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					on:click={() => (gameShowOpen = true)}
+					title="Preview the unlock quiz (admin only)"
+				>
+					Preview quiz
+				</button>
+			{/if}
 			<button
 				type="button"
 				class="btn btn-sm {simulateOn ? 'btn-primary' : 'btn-outline'}"

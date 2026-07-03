@@ -98,9 +98,14 @@
 		return fixtureIdToMatchNumber.get(fixture.id) ?? null;
 	}
 
-	function resolvedOf(matchNumber: number | null) {
+	// `scenario` is passed in explicitly (rather than closing over the
+	// `resolved` prop) so Svelte tracks it as a template dependency — a
+	// function that reads `resolved` internally would NOT re-evaluate when
+	// the prop updates, leaving downstream chips stale after a pick
+	// propagates. (See CLAUDE.md: functions hide reactive deps from Svelte.)
+	function resolvedOf(scenario: ResolvedScenario, matchNumber: number | null) {
 		if (matchNumber === null) return { home: null, away: null, winner: null };
-		return resolved.matches.get(matchNumber) ?? { home: null, away: null, winner: null };
+		return scenario.matches.get(matchNumber) ?? { home: null, away: null, winner: null };
 	}
 
 	function isRealFixture(fixture: Fixture): boolean {
@@ -163,7 +168,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -176,7 +181,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -189,7 +194,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -202,7 +207,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -215,7 +220,7 @@
 			{@const num = matchNumberOf(finalF)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(finalF)}
 				myPickWinner={myPickFor(num)}
 				isFinal={true}
@@ -229,7 +234,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -242,7 +247,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -255,7 +260,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -268,7 +273,7 @@
 			{@const num = matchNumberOf(f)}
 			<SimulatorChip
 				matchNumber={num ?? 0}
-				resolved={resolvedOf(num)}
+				resolved={resolvedOf(resolved, num)}
 				isReal={isRealFixture(f)}
 				myPickWinner={myPickFor(num)}
 				on:pick={forwardPick}
@@ -315,7 +320,7 @@
 							{@const num = matchNumberOf(f)}
 							<SimulatorChip
 								matchNumber={num ?? 0}
-								resolved={resolvedOf(num)}
+								resolved={resolvedOf(resolved, num)}
 								isReal={isRealFixture(f)}
 								myPickWinner={myPickFor(num)}
 								on:pick={forwardPick}
@@ -327,7 +332,7 @@
 							{@const num = matchNumberOf(f)}
 							<SimulatorChip
 								matchNumber={num ?? 0}
-								resolved={resolvedOf(num)}
+								resolved={resolvedOf(resolved, num)}
 								isReal={isRealFixture(f)}
 								myPickWinner={myPickFor(num)}
 								on:pick={forwardPick}
@@ -345,7 +350,7 @@
 							{@const num = matchNumberOf(f)}
 							<SimulatorChip
 								matchNumber={num ?? 0}
-								resolved={resolvedOf(num)}
+								resolved={resolvedOf(resolved, num)}
 								isReal={isRealFixture(f)}
 								myPickWinner={myPickFor(num)}
 								on:pick={forwardPick}
@@ -357,7 +362,7 @@
 							{@const num = matchNumberOf(f)}
 							<SimulatorChip
 								matchNumber={num ?? 0}
-								resolved={resolvedOf(num)}
+								resolved={resolvedOf(resolved, num)}
 								isReal={isRealFixture(f)}
 								myPickWinner={myPickFor(num)}
 								on:pick={forwardPick}
@@ -377,7 +382,7 @@
 								{@const num = matchNumberOf(f)}
 								<SimulatorChip
 									matchNumber={num ?? 0}
-									resolved={resolvedOf(num)}
+									resolved={resolvedOf(resolved, num)}
 									isReal={isRealFixture(f)}
 									myPickWinner={myPickFor(num)}
 									on:pick={forwardPick}
@@ -392,7 +397,7 @@
 								{@const num = matchNumberOf(f)}
 								<SimulatorChip
 									matchNumber={num ?? 0}
-									resolved={resolvedOf(num)}
+									resolved={resolvedOf(resolved, num)}
 									isReal={isRealFixture(f)}
 									myPickWinner={myPickFor(num)}
 									on:pick={forwardPick}
@@ -411,7 +416,7 @@
 						<div class="w-full max-w-xs">
 							<SimulatorChip
 								matchNumber={num ?? 0}
-								resolved={resolvedOf(num)}
+								resolved={resolvedOf(resolved, num)}
 								isReal={isRealFixture(finalF)}
 								myPickWinner={myPickFor(num)}
 								isFinal={true}
