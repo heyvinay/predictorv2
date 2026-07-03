@@ -26,6 +26,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { displayTeamName } from '$lib/utils/teamName';
+	import { teamCode } from '$lib/utils/teamCodes';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 
 	interface ResolvedChipMatch {
@@ -94,7 +95,10 @@
 			{#if hasFlag(resolved.home ?? '')}
 				<img src={getFlagUrl(resolved.home ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
-			<span class="tname">{displayTeamName(resolved.home).toUpperCase()}</span>
+			<span class="tname" title={resolved.home ?? ''}>
+				<span class="tname__full">{displayTeamName(resolved.home).toUpperCase()}</span>
+				<span class="tname__code">{teamCode(resolved.home)}</span>
+			</span>
 		</button>
 	{:else}
 		<div class="team-row" class:is-winner={homeIsWinner} class:tbd={!homeSeeded}>
@@ -102,7 +106,10 @@
 			{#if homeSeeded && hasFlag(resolved.home ?? '')}
 				<img src={getFlagUrl(resolved.home ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
-			<span class="tname">{homeSeeded ? displayTeamName(resolved.home).toUpperCase() : 'TBD'}</span>
+			<span class="tname" title={resolved.home ?? ''}>
+				<span class="tname__full">{homeSeeded ? displayTeamName(resolved.home).toUpperCase() : 'TBD'}</span>
+				<span class="tname__code">{homeSeeded ? teamCode(resolved.home) : 'TBD'}</span>
+			</span>
 		</div>
 	{/if}
 
@@ -120,7 +127,10 @@
 			{#if hasFlag(resolved.away ?? '')}
 				<img src={getFlagUrl(resolved.away ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
-			<span class="tname">{displayTeamName(resolved.away).toUpperCase()}</span>
+			<span class="tname" title={resolved.away ?? ''}>
+				<span class="tname__full">{displayTeamName(resolved.away).toUpperCase()}</span>
+				<span class="tname__code">{teamCode(resolved.away)}</span>
+			</span>
 		</button>
 	{:else}
 		<div class="team-row" class:is-winner={awayIsWinner} class:tbd={!awaySeeded}>
@@ -128,7 +138,10 @@
 			{#if awaySeeded && hasFlag(resolved.away ?? '')}
 				<img src={getFlagUrl(resolved.away ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
-			<span class="tname">{awaySeeded ? displayTeamName(resolved.away).toUpperCase() : 'TBD'}</span>
+			<span class="tname" title={resolved.away ?? ''}>
+				<span class="tname__full">{awaySeeded ? displayTeamName(resolved.away).toUpperCase() : 'TBD'}</span>
+				<span class="tname__code">{awaySeeded ? teamCode(resolved.away) : 'TBD'}</span>
+			</span>
 		</div>
 	{/if}
 </div>
@@ -139,6 +152,11 @@
 		overflow: hidden;
 		border-radius: 6px;
 		box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+		/* Establish a size-query container so each chip decides for itself
+		 * whether to show full country names or the 3-letter code — no
+		 * ResizeObserver, no shared JS state, no risk of a resize loop. */
+		container-type: inline-size;
+		container-name: simchip;
 	}
 
 	.sim-chip--final {
@@ -249,6 +267,19 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* Default: full name visible, code hidden. */
+	.tname__code { display: none; }
+	.tname__full { display: inline; }
+
+	/* Below ~150px chip width the full name would ellipsis-clip
+	 * (NETHE_/PARAG_), so swap to the 3-letter FIFA code instead. Uses a
+	 * per-chip container query so a narrow QF column can code-mode while
+	 * a roomier R32 column stays on full names, without any JS. */
+	@container simchip (max-width: 150px) {
+		.tname__full { display: none; }
+		.tname__code { display: inline; }
 	}
 
 	/* ── Final chip: bigger rows ────────────────────────────────────────────── */
