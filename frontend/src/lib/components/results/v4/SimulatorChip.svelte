@@ -90,16 +90,15 @@
 			class:is-winner={homeIsWinner}
 			on:click={pickHome}
 		>
-			<span class="bullet" class:hit={homeMatchesMyPick}>{homeMatchesMyPick ? '✓' : ''}</span>
+			<span class="bullet" class:win={homeIsWinner} class:hit={homeMatchesMyPick && !homeIsWinner}>{homeIsWinner ? '•' : homeMatchesMyPick ? '✓' : ''}</span>
 			{#if hasFlag(resolved.home ?? '')}
 				<img src={getFlagUrl(resolved.home ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
 			<span class="tname">{displayTeamName(resolved.home).toUpperCase()}</span>
-			{#if homeIsWinner}<span class="your-call" aria-label="Your call">YOUR CALL</span>{/if}
 		</button>
 	{:else}
 		<div class="team-row" class:is-winner={homeIsWinner} class:tbd={!homeSeeded}>
-			<span class="bullet" class:hit={homeMatchesMyPick}>{homeMatchesMyPick ? '✓' : ''}</span>
+			<span class="bullet" class:win={homeIsWinner} class:hit={homeMatchesMyPick && !homeIsWinner}>{homeIsWinner ? '•' : homeMatchesMyPick ? '✓' : ''}</span>
 			{#if homeSeeded && hasFlag(resolved.home ?? '')}
 				<img src={getFlagUrl(resolved.home ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
@@ -117,16 +116,15 @@
 			class:is-winner={awayIsWinner}
 			on:click={pickAway}
 		>
-			<span class="bullet" class:hit={awayMatchesMyPick}>{awayMatchesMyPick ? '✓' : ''}</span>
+			<span class="bullet" class:win={awayIsWinner} class:hit={awayMatchesMyPick && !awayIsWinner}>{awayIsWinner ? '•' : awayMatchesMyPick ? '✓' : ''}</span>
 			{#if hasFlag(resolved.away ?? '')}
 				<img src={getFlagUrl(resolved.away ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
 			<span class="tname">{displayTeamName(resolved.away).toUpperCase()}</span>
-			{#if awayIsWinner}<span class="your-call" aria-label="Your call">YOUR CALL</span>{/if}
 		</button>
 	{:else}
 		<div class="team-row" class:is-winner={awayIsWinner} class:tbd={!awaySeeded}>
-			<span class="bullet" class:hit={awayMatchesMyPick}>{awayMatchesMyPick ? '✓' : ''}</span>
+			<span class="bullet" class:win={awayIsWinner} class:hit={awayMatchesMyPick && !awayIsWinner}>{awayIsWinner ? '•' : awayMatchesMyPick ? '✓' : ''}</span>
 			{#if awaySeeded && hasFlag(resolved.away ?? '')}
 				<img src={getFlagUrl(resolved.away ?? '', 'sm')} alt="" class="flag" loading="lazy" style="aspect-ratio:4/3" />
 			{:else}<span class="flag flag-ph"></span>{/if}
@@ -211,6 +209,16 @@
 		font-size: 0.7rem;
 		font-weight: 900;
 		line-height: 1;
+	}
+
+	/* Scenario winner — gold dot (matches the gold "your call" wash). */
+	.bullet.win {
+		@apply text-primary;
+		font-size: 1rem;
+	}
+
+	/* Team the user actually picked in their own bracket entry — green tick. */
+	.bullet.hit {
 		@apply text-success;
 	}
 
@@ -241,15 +249,6 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.your-call {
-		flex-shrink: 0;
-		font-size: 0.5rem;
-		font-weight: 800;
-		letter-spacing: 0.08em;
-		@apply text-primary;
-		padding-left: 0.3rem;
 	}
 
 	/* ── Final chip: bigger rows ────────────────────────────────────────────── */
