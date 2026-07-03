@@ -35,6 +35,7 @@ import {
 } from '$lib/config/bracketConfig';
 import { buildMatchNumberIndex } from './bracketGeometry';
 import { bracketPicksForRound, stagePointsForRound } from './koPoints';
+import { koWinnerSide } from './matchDetailV4';
 
 /** Config matches in resolution order — upstream rounds first so every
  *  `winner` source is already known by the time a later round reads it. */
@@ -82,13 +83,21 @@ function isRealTeamName(name: string | null | undefined): name is string {
 	return !!name && !/\d/.test(name);
 }
 
-/** Real winner of a FINISHED, non-third_place fixture, else null. */
+/** Real winner of a FINISHED, non-third_place fixture, else null.
+ *
+ *  Resolves pens → ET → regulation via the canonical `koWinnerSide` (the
+ *  same resolver every read surface uses), so a knockout decided on
+ *  penalties after a regulation draw still yields a winner. Reading
+ *  `score.outcome` alone missed shootouts: such a match stayed winnerless —
+ *  it never advanced, never propagated its real winner downstream, and
+ *  (being finished) wasn't clickable either, leaving the chip dead. */
 function realWinnerOf(fixture: Fixture | undefined): string | null {
 	if (!fixture || fixture.status !== 'finished' || !fixture.score) return null;
 	if (fixture.stage === 'third_place') return null;
-	if (fixture.score.outcome === '1') return fixture.home_team;
-	if (fixture.score.outcome === '2') return fixture.away_team;
-	return null; // drawn/unresolved outcome on a finished KO fixture — defensive
+	const side = koWinnerSide(fixture.score);
+	if (side === 'home') return fixture.home_team;
+	if (side === 'away') return fixture.away_team;
+	return null;
 }
 
 /**

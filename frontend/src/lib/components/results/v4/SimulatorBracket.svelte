@@ -20,6 +20,7 @@
 	import { buildMatchNumberIndex } from '$lib/utils/bracketGeometry';
 	import { SEMI_FINALS, QUARTER_FINALS, ROUND_OF_16 } from '$lib/config/bracketConfig';
 	import SimulatorChip from '$lib/components/results/v4/SimulatorChip.svelte';
+	import { koWinnerSide } from '$lib/utils/matchDetailV4';
 
 	export let fixtures: Fixture[];
 	export let resolved: ResolvedScenario;
@@ -108,8 +109,13 @@
 		return scenario.matches.get(matchNumber) ?? { home: null, away: null, winner: null };
 	}
 
+	// A match is "locked" (real, non-editable) only when it's finished AND
+	// has a resolvable winner (pens → ET → regulation). A finished knockout
+	// recorded as a level draw with no shootout data has no winner to honour,
+	// so we treat it as open — the user can pick who advances in their
+	// scenario instead of being stuck with a dead, un-clickable chip.
 	function isRealFixture(fixture: Fixture): boolean {
-		return fixture.status === 'finished';
+		return fixture.status === 'finished' && koWinnerSide(fixture.score) != null;
 	}
 
 	function myPickFor(matchNumber: number | null): string | null {
