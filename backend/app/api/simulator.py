@@ -21,6 +21,8 @@ from app.models.user import User
 from app.schemas.simulator import (
     ChallengeAttempt,
     ChallengeQuestion,
+    FiftyFiftyRequest,
+    FiftyFiftyResponse,
     SimulatorPicksResponse,
     SimulatorStatus,
     UnlockResult,
@@ -28,6 +30,7 @@ from app.schemas.simulator import (
 from app.services.simulator import (
     get_bracket_picks,
     get_challenge_question,
+    get_fifty_fifty,
     get_status,
     record_run,
     unlock,
@@ -122,6 +125,35 @@ async def simulator_attempt_challenge(
         unlocked=unlocked,
         status=await get_status(session, user, competition),
     )
+
+
+@router.post("/challenge/fifty-fifty", response_model=FiftyFiftyResponse)
+async def simulator_fifty_fifty(
+    body: FiftyFiftyRequest,
+    session: DbSession,
+    user: CurrentUser,
+) -> FiftyFiftyResponse:
+    """Spend the 50:50 lifeline on the current challenge question.
+
+    Returns two option indexes that are NOT the correct answer, so the
+    client can grey them out (and disable clicks) — the remaining pair
+    still contains the correct answer, matching the classic game-show
+    mechanic. `correct_index` never leaves the server; only wrong indexes
+    do, so a two-index response still leaves a genuine two-way choice.
+
+    Auth + master-switch gated like the other interactive routes; not
+    rate-limited beyond the client's own once-per-attempt flag (calling
+    it again returns the same deterministic pair — no leak surface).
+    """
+    competition = await _get_active_competition(session)
+    _require_simulator_access(user, competition)
+    wrong = get_fifty_fifty(body.question_id)
+    if wrong is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unknown challenge question.",
+        )
+    return FiftyFiftyResponse(wrong_indexes=wrong)
 
 
 @router.post("/run", response_model=SimulatorStatus)

@@ -39,6 +39,20 @@ export async function submitSimulatorChallenge(
 	return api.post<UnlockResult>('/simulator/challenge', attempt);
 }
 
+/** POST /api/simulator/challenge/fifty-fifty — spend the lifeline. Returns
+ *  two option indexes that the server guarantees are NOT the correct
+ *  answer, so the client can grey them out and disable clicks — the
+ *  remaining pair still includes the correct answer. Correct index never
+ *  leaves the server; disclosing two wrong indexes still leaves a real
+ *  two-way choice.  */
+export async function getSimulatorFiftyFifty(question_id: string): Promise<number[]> {
+	const resp = await api.post<{ wrong_indexes: number[] }>(
+		'/simulator/challenge/fifty-fifty',
+		{ question_id }
+	);
+	return resp.wrong_indexes;
+}
+
 /** POST /api/simulator/run — record a what-if run against the caller's
  *  quota. Can reject with `ApiResponseError`:
  *    - 403 when the gate isn't unlocked yet

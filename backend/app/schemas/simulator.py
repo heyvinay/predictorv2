@@ -101,3 +101,22 @@ class UnlockResult(BaseModel):
 
     unlocked: bool
     status: SimulatorStatus
+
+
+class FiftyFiftyRequest(BaseModel):
+    """Client claims the 50:50 lifeline for a specific challenge question."""
+
+    question_id: str
+
+
+class FiftyFiftyResponse(BaseModel):
+    """Two option indexes that are NOT the correct answer.
+
+    Classic 50:50 mechanic — the client eliminates these two so the
+    remaining pair still includes the correct answer. Returning up to two
+    wrong indexes never leaks `correct_index` directly (there are always
+    three wrong options, so revealing two still leaves genuine ambiguity
+    if the user hasn't used the lifeline).
+    """
+
+    wrong_indexes: list[int]

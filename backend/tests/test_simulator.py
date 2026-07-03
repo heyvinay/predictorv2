@@ -392,6 +392,42 @@ async def test_challenge_get_never_includes_answer(
     assert len(body["options"]) == 4
 
 
+async def test_fifty_fifty_returns_two_wrong_indexes_only(
+    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
+):
+    """The 50:50 lifeline endpoint returns exactly two option indexes,
+    both provably NOT the correct one — otherwise the classic Millionaire
+    mechanic would be broken. `correct_index` must never appear in the
+    wrong_indexes list, and there must always be two."""
+    _override(db_session, viewer=locked_user)
+    q = get_challenge_question(locked_user)
+    correct = next(tq for tq in _TRIVIA_QUESTIONS if tq["id"] == q.question_id)
+
+    r = await client.post(
+        "/api/simulator/challenge/fifty-fifty",
+        json={"question_id": q.question_id},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body.keys()) == {"wrong_indexes"}
+    assert len(body["wrong_indexes"]) == 2
+    assert correct["correct_index"] not in body["wrong_indexes"]
+    # Indexes must be distinct and valid for the 4-option shape.
+    assert len(set(body["wrong_indexes"])) == 2
+    assert all(0 <= idx < len(correct["options"]) for idx in body["wrong_indexes"])
+
+
+async def test_fifty_fifty_404_on_unknown_question(
+    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
+):
+    _override(db_session, viewer=locked_user)
+    r = await client.post(
+        "/api/simulator/challenge/fifty-fifty",
+        json={"question_id": "does-not-exist"},
+    )
+    assert r.status_code == 404
+
+
 async def test_unlock_succeeds_on_correct_answer_within_time(
     db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
 ):
@@ -591,6 +627,12 @@ async def test_non_admin_blocked_from_every_interactive_route_when_feature_disab
         json={"question_id": "wc-1930-winner", "answer_index": 2, "elapsed_ms": 1000},
     )
     assert challenge_post_r.status_code == 403
+
+    fifty_fifty_r = await client.post(
+        "/api/simulator/challenge/fifty-fifty",
+        json={"question_id": "wc-1930-winner"},
+    )
+    assert fifty_fifty_r.status_code == 403
 
     # /status MUST stay reachable — it's how the frontend learns the
     # feature is off and hides the simulator UI.

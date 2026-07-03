@@ -16,18 +16,14 @@
 	  SUCCESS → confetti + "GOAL!" copy + a button that fires
 	            `simulator_unlocked`, dispatches `unlocked`, and closes.
 
-	50:50 lifeline — the client NEVER learns the answer ahead of grading
-	(the challenge response has no answer field, by design — see
-	`ChallengeQuestion` in `$lib/types/simulator`). So a "true" 50:50 that
-	guarantees the correct option survives is impossible without a second
-	server round-trip, which is out of scope here. Implemented instead as a
-	fair-but-simple visual lifeline: it greys out two options chosen at
-	random from the three the player hasn't already focused on, same as a
-	pub-quiz "ask the audience" that can occasionally mislead. The player
-	can still click ANY of the four options (greyed ones included) — the
-	lifeline narrows the visual field without fabricating answer knowledge.
-	This is a deliberate limitation; see the inline comment at
-	`applyFiftyFifty()` below.
+	50:50 lifeline — clicking it hits a dedicated server endpoint
+	(`POST /simulator/challenge/fifty-fifty`) that returns two option
+	indexes the server knows are WRONG for the current question. The client
+	greys them out and DISABLES clicks on them, so the classic Millionaire
+	mechanic works properly: two wrong answers vanish, the correct answer
+	is guaranteed to be in the remaining pair. `correct_index` still never
+	leaves the server; only two of the three wrong indexes do, so a
+	two-way choice remains for the player.
 
 	Dispatches:
 	  - unlocked: void   — challenge won, gate should flip open
@@ -37,7 +33,11 @@
 	import { createEventDispatcher, onMount, onDestroy } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 	import { track } from '$lib/analytics';
-	import { getSimulatorChallenge, submitSimulatorChallenge } from '$lib/api/simulator';
+	import {
+		getSimulatorChallenge,
+		getSimulatorFiftyFifty,
+		submitSimulatorChallenge
+	} from '$lib/api/simulator';
 	import { ApiResponseError } from '$lib/api/client';
 	import type { ChallengeQuestion } from '$lib/types/simulator';
 
@@ -161,30 +161,28 @@
 		}
 	}
 
-	/** 50:50 lifeline. The client has no way to know which option is
-	 *  correct — `ChallengeQuestion` deliberately omits the answer, and
-	 *  grading only happens server-side on submit. A "real" 50:50 would
-	 *  need a second authenticated round-trip that reveals two wrong
-	 *  answers without revealing the right one, which isn't part of this
-	 *  API surface. Fair-but-simple compromise: greys out two options
-	 *  chosen at random from the ones NOT currently selected — it thins
-	 *  the visual field for a quick gut-check, but (unlike the real
-	 *  Millionaire lifeline) it carries a real chance of greying out the
-	 *  correct answer. The player is free to still pick a greyed option;
-	 *  nothing is actually disabled. This is a deliberate, documented
-	 *  limitation rather than fabricated answer knowledge. */
-	function applyFiftyFifty() {
+	/** 50:50 lifeline — spends a round-trip to the server, which knows the
+	 *  answer key and returns two indexes it can guarantee are wrong for
+	 *  this question. Those two are greyed out AND disabled (see the
+	 *  option button's `disabled` binding below), so the classic Millionaire
+	 *  mechanic works: two wrong answers vanish, the correct answer is
+	 *  guaranteed to be in the surviving pair. `correct_index` still never
+	 *  leaves the server — only two of the three wrong indexes come back.
+	 *
+	 *  Optimistically flip `usedFiftyFifty` before the fetch so the button
+	 *  disables immediately (no double-click); revert if the request fails
+	 *  so the player can try again. */
+	async function applyFiftyFifty() {
 		if (usedFiftyFifty || !question || lockedInIndex !== null) return;
 		usedFiftyFifty = true;
-		const candidates = question.options
-			.map((_, idx) => idx)
-			.filter((idx) => idx !== selectedIndex);
-		// Shuffle candidates, take two to grey out.
-		for (let i = candidates.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+		try {
+			const wrong = await getSimulatorFiftyFifty(question.question_id);
+			greyedOut = new Set(wrong);
+		} catch {
+			// Network / auth blip — let the user try again rather than
+			// silently burning their lifeline.
+			usedFiftyFifty = false;
 		}
-		greyedOut = new Set(candidates.slice(0, 2));
 	}
 
 	function handleTimeout() {
@@ -195,6 +193,7 @@
 
 	function handleOptionClick(index: number) {
 		if (state !== 'active' || lockedInIndex !== null) return;
+		if (greyedOut.has(index)) return; // 50:50 eliminated this one — server says it's wrong
 		selectedIndex = index;
 		lockedInIndex = index;
 		stopTimer();
@@ -407,7 +406,7 @@
 								class="flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors {optionClass(
 									index
 								)}"
-								disabled={state !== 'active'}
+								disabled={state !== 'active' || greyedOut.has(index)}
 								on:click={() => handleOptionClick(index)}
 							>
 								<span

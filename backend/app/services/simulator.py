@@ -608,6 +608,34 @@ def verify_challenge(question_id: str, answer_index: int, elapsed_ms: int) -> bo
     return answer_index == question["correct_index"]
 
 
+def get_fifty_fifty(question_id: str) -> list[int] | None:
+    """Two option indexes guaranteed to be WRONG for the given question.
+
+    Powers the 50:50 lifeline: the client eliminates these two so the
+    remaining pair still contains the correct answer. Returns `None` if
+    the question id is unknown.
+
+    Why this lives server-side: the trivia bank's `correct_index` never
+    leaves the process (see `ChallengeQuestion` schema comment), so the
+    client can't compute a meaningful 50:50 on its own — a naïve random
+    two would sometimes eliminate the correct answer, making the lifeline
+    actively harmful. Returning two wrong indexes preserves the classic
+    game-show mechanic without ever revealing which of the remaining two
+    is right (there are always three wrong options; disclosing two still
+    leaves a genuine two-way choice).
+
+    The pair is picked deterministically (the first two wrong indexes in
+    natural order) so a repeat request for the same question returns the
+    same two — no info-leak surface from repeated queries.
+    """
+    question = _find_question(question_id)
+    if question is None:
+        return None
+    correct = question["correct_index"]
+    wrong = [i for i in range(len(question["options"])) if i != correct]
+    return wrong[:2]
+
+
 def _apply_daily_reset(user: User) -> None:
     """Reset the daily run counter if the last reset wasn't today (UTC).
 
