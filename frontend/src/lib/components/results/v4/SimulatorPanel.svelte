@@ -232,8 +232,13 @@
 		}
 	}
 
-	$: myRow = standings?.find((row) => row.entry_id === myEntryId) ?? null;
-	$: otherRows = standings?.filter((row) => row.entry_id !== myEntryId) ?? [];
+	// User's row stays in its natural rank position (no pin at top).
+	// It's flagged as `isMine` in the render so the row picks up the gold
+	// tint + "You" tag in place — you can see your immediate neighbours
+	// on the leaderboard rather than being lifted out of context.
+	function isMine(row: ProjectedRow): boolean {
+		return row.entry_id === myEntryId;
+	}
 
 	function movementSymbol(deltaPos: number): string {
 		if (deltaPos > 0) return '▲';
@@ -446,51 +451,37 @@
 							<span class="sp-head text-right" role="columnheader">Move</span>
 						</div>
 
-						{#if myRow}
-							<div class="sp-band" role="rowgroup" aria-label="Your entry">
-								Your entry · pinned
-							</div>
-							<!-- Own row — gold-ringed with a subtle primary wash to
-							     mirror the "Your entries · pinned" section of the
-							     main leaderboard, without breaking out of the row
-							     grid. -->
+						<!-- Rows stay in their natural rank order — the user's row is
+						     NOT pinned to the top. It's flagged via `isMine()` so the
+						     row picks up a soft gold tint + "You" chip in place, so
+						     the user can see the entries immediately above and below
+						     them in the same view. -->
+						{#each standings as row, i (row.entry_id)}
+							{@const mine = isMine(row)}
 							<div
-								class="grid items-center gap-2 px-3 py-2.5 border-t border-primary/40 bg-primary/10 min-[880px]:gap-3 min-[880px]:px-4
-									grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]"
+								class="grid items-center gap-2 px-3 py-2 border-t transition-colors min-[880px]:gap-3 min-[880px]:px-4
+									grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]
+									{mine ? 'border-primary/50 bg-primary/10' : 'border-base-300/40 hover:bg-base-300/25'}"
 								role="row"
+								aria-label={mine ? 'Your entry' : undefined}
 							>
-								<span class="font-mono text-sm font-bold text-primary tabular-nums" role="cell">
-									#{myRow.newPos}
-								</span>
-								<div class="min-w-0" role="cell">
-									<div class="text-sm font-semibold truncate">{myRow.entry_name}</div>
-									<div class="text-[10.5px] font-mono uppercase tracking-[0.08em] text-base-content/50">
-										was #{myRow.oldPos}
-									</div>
-								</div>
-								<div class="text-right font-mono tabular-nums" role="cell">
-									<div class="text-sm font-bold">{myRow.newTotal}</div>
-									<div class="text-[10.5px] text-base-content/50">was {myRow.oldTotal}</div>
-								</div>
-								<div class="text-right font-mono text-xs tabular-nums {movementClass(myRow.deltaPos)}" role="cell">
-									{movementSymbol(myRow.deltaPos)} {Math.abs(myRow.deltaPos)}
-								</div>
-							</div>
-							<div class="sp-band" role="rowgroup" aria-label="All entries">All entries</div>
-						{/if}
-
-						{#each otherRows as row (row.entry_id)}
-							<div
-								class="grid items-center gap-2 px-3 py-2 border-t border-base-300/40 hover:bg-base-300/25 transition-colors min-[880px]:gap-3 min-[880px]:px-4
-									grid-cols-[44px_minmax(0,1fr)_92px_60px] min-[880px]:grid-cols-[64px_minmax(0,1.6fr)_120px_80px]"
-								role="row"
-							>
-								<span class="font-mono text-sm font-semibold text-base-content/75 tabular-nums" role="cell">
+								<span
+									class="font-mono text-sm tabular-nums {mine ? 'font-bold text-primary' : 'font-semibold text-base-content/75'}"
+									role="cell"
+								>
 									#{row.newPos}
 								</span>
-								<span class="text-sm truncate" role="cell">{row.entry_name}</span>
+								<span class="flex items-center gap-2 min-w-0" role="cell">
+									<span class="text-sm truncate {mine ? 'font-semibold' : ''}">{row.entry_name}</span>
+									{#if mine}
+										<span
+											class="flex-shrink-0 rounded-full bg-primary/25 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-[0.14em] text-primary"
+											aria-hidden="true"
+										>You</span>
+									{/if}
+								</span>
 								<div class="text-right font-mono tabular-nums" role="cell">
-									<span class="text-sm">{row.newTotal}</span>
+									<span class="text-sm {mine ? 'font-bold' : ''}">{row.newTotal}</span>
 									<span class="text-[10.5px] text-base-content/40 ml-1">was {row.oldTotal}</span>
 								</div>
 								<div class="text-right font-mono text-xs tabular-nums {movementClass(row.deltaPos)}" role="cell">
@@ -515,19 +506,6 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: hsl(var(--bc) / 0.55);
-	}
-
-	/* Section band (Your entry · pinned / All entries) — matches
-	   SECTION_BAND_CLASS on the main leaderboard. */
-	:global(.sp-band) {
-		border-top: 1px solid hsl(var(--b3) / 0.4);
-		background: hsl(var(--b3) / 0.3);
-		padding: 4px 12px;
-		font-size: 9.5px;
-		font-weight: 800;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: hsl(var(--bc) / 0.65);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
