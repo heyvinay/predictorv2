@@ -155,7 +155,7 @@ async def get_bracket_picks(session: AsyncSession) -> SimulatorPicksResponse:
 
 # Committed simulator runs a non-admin user may record per UTC day. Admins
 # are exempt from this cap entirely (see record_run).
-SIMULATOR_DAILY_CAP = 3
+SIMULATOR_DAILY_CAP = 2
 
 # Trivia bank for the one-time unlock challenge. `correct_index` never
 # leaves the server — ChallengeQuestion (the API response shape) omits it

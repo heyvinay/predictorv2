@@ -531,7 +531,7 @@ async def test_daily_reset_when_reset_at_is_yesterday(
     assert viewer.simulator_runs_used == 0
 
 
-async def test_cap_blocks_fourth_run_with_429(
+async def test_cap_blocks_run_beyond_daily_limit_with_429(
     db_session: AsyncSession, competition: Competition, viewer: User, client: AsyncClient
 ):
     _override(db_session, viewer=viewer)
