@@ -283,6 +283,7 @@ export function projectStandings(
 		return {
 			entry_id: entry.entry_id,
 			entry_name: entry.entry_name,
+			user_id: entry.user_id,
 			user_name: entry.user_name,
 			oldPos: entry.position,
 			oldTotal: entry.total_points,

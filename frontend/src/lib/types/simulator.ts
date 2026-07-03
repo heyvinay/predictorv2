@@ -69,10 +69,16 @@ export interface ResolvedScenario {
 	matches: Map<number, ResolvedMatch>;
 }
 
-/** One row of the projected (what-if) standings table. */
+/** One row of the projected (what-if) standings table.
+ *
+ *  Satisfies `NamedEntryRow` (leaderboardV4.ts) — carries `user_id` +
+ *  `user_name` + `entry_name` — so the same `rowDisplayName()` and
+ *  `multiEntryUserIds()` helpers the main leaderboard uses can render
+ *  the "Person — Entry name" / "Person" naming on this table too. */
 export interface ProjectedRow {
 	entry_id: string;
 	entry_name: string;
+	user_id: string;
 	user_name: string;
 	oldPos: number;
 	oldTotal: number;

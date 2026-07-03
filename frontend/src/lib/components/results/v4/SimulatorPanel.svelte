@@ -43,6 +43,11 @@
 		recordSimulatorRun
 	} from '$lib/api/simulator';
 	import { fillFromMyPicks, projectStandings, resolveScenario } from '$lib/utils/simulateBracket';
+	// Reuse the leaderboard's canonical naming helpers so the projected
+	// standings surface the same "Person — Entry name" (multi-owner) /
+	// "Person" (single-owner) rule as /leaderboard's StandingsTable, per
+	// the ★ naming-rule invariant in CLAUDE.md.
+	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import { markSimulatorSeen, simulatorSeen } from '$stores/uiPreferences';
 	import ResultsBracket from '$lib/components/results/v4/ResultsBracket.svelte';
 	import SimulatorBracket from '$lib/components/results/v4/SimulatorBracket.svelte';
@@ -239,6 +244,12 @@
 	function isMine(row: ProjectedRow): boolean {
 		return row.entry_id === myEntryId;
 	}
+
+	// User_ids of anyone owning >1 entry. Reactive on `standings` so it
+	// stays valid across commits; computed from the FULL projected board
+	// (never a filtered view) so a user's display name can't flip between
+	// scenarios — same discipline as the main leaderboard.
+	$: multiOwners = standings ? multiEntryUserIds(standings) : new Set<string>();
 
 	function movementSymbol(deltaPos: number): string {
 		if (deltaPos > 0) return '▲';
@@ -472,7 +483,9 @@
 									#{row.newPos}
 								</span>
 								<span class="flex items-center gap-2 min-w-0" role="cell">
-									<span class="text-sm truncate {mine ? 'font-semibold' : ''}">{row.entry_name}</span>
+									<span class="text-sm truncate {mine ? 'font-semibold' : ''}"
+									>{rowDisplayName(row, multiOwners)}</span
+								>
 									{#if mine}
 										<span
 											class="flex-shrink-0 rounded-full bg-primary/25 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-[0.14em] text-primary"
