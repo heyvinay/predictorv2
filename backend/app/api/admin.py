@@ -1714,6 +1714,12 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
         # The recipient lands on the dashboard's winner card via the
         # navbar; the CTA itself lands them on the full standings.
         return f"{base}/leaderboard"
+    if segment == BroadcastSegment.GROUP_R32_RECAP:
+        # v2.195.0 — UTM-free /leaderboard, matching the R2/GSF recap
+        # convention. The "See the full table" CTA lands on the
+        # standings; the body separately points at the simulator on
+        # the Results page.
+        return f"{base}/leaderboard"
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"
@@ -1740,6 +1746,7 @@ async def get_broadcast_audience(
         group_r1_recap=counts[BroadcastSegment.GROUP_R1_RECAP],
         group_r2_recap=counts[BroadcastSegment.GROUP_R2_RECAP],
         group_stage_final=counts[BroadcastSegment.GROUP_STAGE_FINAL],
+        group_r32_recap=counts[BroadcastSegment.GROUP_R32_RECAP],
     )
 
 

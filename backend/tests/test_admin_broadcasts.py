@@ -329,6 +329,78 @@ class TestAudienceQueries:
                 f"unsubstituted placeholder fragment {fragment!r} in text"
             )
 
+    async def test_group_r32_recap_mirrors_submitters_audience(
+        self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
+    ):
+        # v2.195.0 — GROUP_R32_RECAP shares the SUBMITTERS predicate, like
+        # the other recap segments. Guard it: if this flips, the knockout
+        # recap silently targets the wrong audience.
+        submitters = {
+            r.email
+            for r in await query_audience(db_session, BroadcastSegment.SUBMITTERS)
+        }
+        recap = {
+            r.email
+            for r in await query_audience(
+                db_session, BroadcastSegment.GROUP_R32_RECAP
+            )
+        }
+        assert recap == submitters
+
+    async def test_group_r32_recap_content_renders_without_token_leak(
+        self, db_session: AsyncSession
+    ):
+        # v2.195.0 — the R32 recap is STATIC copy (no dynamic {{tokens}}):
+        # results + standings are a point-in-time snapshot baked into the
+        # body. This test pins two things:
+        #   1. The approved facts actually render (a guard against an
+        #      f-string typo or dropped constant before it ships to the
+        #      full pool).
+        #   2. No stray brace-placeholder leaks. Even though this segment
+        #      defines no tokens, the assertion catches a future editor
+        #      who pastes a {{TOKEN}} in expecting interpolation that
+        #      never runs for this branch — the same failure class as the
+        #      v2.180.0 R2 literal-brace bug.
+        from app.services.email import _broadcast_content_for_segment
+
+        content = _broadcast_content_for_segment(
+            BroadcastSegment.GROUP_R32_RECAP,
+            player_name="Test User",
+            deadline_display=None,
+        )
+        assert "Round of 32" in content.subject
+        # Multi-word phrases are only guaranteed contiguous in the HTML
+        # body; the plain-text body hard-wraps lines, which can split a
+        # phrase across a newline, so assert those against HTML only.
+        for html_must in [
+            "What-if Bracket Simulator",
+            "34 points separate 1st from 10th",
+            "Group Standings",
+        ]:
+            assert html_must in content.body_html, f"missing in HTML: {html_must}"
+        # Wrap-safe single tokens must appear in BOTH bodies.
+        for must in [
+            "Hi Test User",
+            "Germany",
+            "Paraguay",
+            "Lionel Zammit",
+            "1,301",
+            "https://wc26.heyvinay.com/leaderboard",
+        ]:
+            assert must in content.body_html, f"missing in HTML: {must}"
+            assert must in content.body_text, f"missing in text: {must}"
+        # No unsubstituted brace-placeholder fragments in either body.
+        for fragment in ("{{", "}}"):
+            assert fragment not in content.body_html, (
+                f"brace fragment {fragment!r} leaked into HTML"
+            )
+            assert fragment not in content.body_text, (
+                f"brace fragment {fragment!r} leaked into text"
+            )
+        # Spam-filter contract: no UTM tag, no "winner announced" pair.
+        assert "utm_" not in content.body_html
+        assert "utm_" not in content.body_text
+
     async def test_no_entry_excludes_inactive_and_onboarding_incomplete(
         self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
     ):

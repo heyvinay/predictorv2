@@ -289,6 +289,7 @@ class BroadcastAudienceCounts(BaseModel):
     group_r1_recap: int       # NEW v2.180.0 — backfilled (was added v2.178.0)
     group_r2_recap: int       # NEW v2.180.0
     group_stage_final: int    # NEW v2.181.0
+    group_r32_recap: int      # NEW v2.195.0
 
 
 class BroadcastTestRequest(BaseModel):

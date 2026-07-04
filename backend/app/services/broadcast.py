@@ -106,6 +106,15 @@ class BroadcastSegment(str, Enum):
     # and the email are guaranteed to agree on the numbers. Subject
     # avoids "winner+announced" pair to stay spam-friendly.
     GROUP_STAGE_FINAL = "group_stage_final"
+    # NEW v2.195.0 — Round of 32 knockout recap (one-off). Same audience
+    # predicate as the other recap segments (every submitter). Body is a
+    # static, admin-approved recap of the R32 results + a live-standings
+    # snapshot + the week's feature releases (headline: the What-if
+    # Bracket Simulator). No dynamic tokens — the data is a point-in-time
+    # snapshot baked into the copy, so there's no send-time compute.
+    # Spam-filter rules match R2/GSF: no UTM on the CTA, no
+    # "winner+announced" / "prize+awarded" word pairs.
+    GROUP_R32_RECAP = "group_r32_recap"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -354,6 +363,11 @@ def _segment_predicate(
         # v2.181.0 — same audience as R1/R2/SUBMITTERS. The group-stage
         # winner announcement is celebratory not transactional; everyone
         # who entered the pool deserves to hear who won.
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.GROUP_R32_RECAP:
+        # v2.195.0 — same audience as the other recap segments. Every
+        # submitter gets the knockout recap; sharing the predicate keeps
+        # the recap family's counts locked together.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

@@ -1487,6 +1487,216 @@ def _broadcast_content_for_segment(
             cta_label="Open my standings",
         )
 
+    if segment == BroadcastSegment.GROUP_R32_RECAP:
+        # v2.195.0 — Round of 32 knockout recap (one-off). Sent the
+        # morning after the R32 wrapped, ahead of the Round of 16.
+        #
+        # Unlike R2/GSF this body has NO dynamic {{tokens}} — the results
+        # and the standings are an admin-approved point-in-time snapshot,
+        # baked straight into the copy, so there's no send-time compute
+        # and nothing to interpolate. The only variable is the salutation
+        # name (f-string, HTML-escaped above).
+        #
+        # Spam-filter rules (same as R2/GSF): the CTA carries NO utm_*
+        # params (see _deep_link_for_segment), and the copy avoids the
+        # "winner+announced" / "prize+awarded" word pairs. National-flag
+        # emoji are deliberately omitted — they degrade to two-letter
+        # country codes in Outlook/Windows mail; only broadly-supported
+        # pictographs (&#128680; siren, &#128302; crystal ball, etc.)
+        # are used, matching the R2 body's convention.
+        return _BroadcastContent(
+            subject="The Round of 32 is done — and Germany aren't the only ones going home",
+            headline="The Round of 32 is done — and the table has moved.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, what a week. Thirty-two matches, sixteen "
+                "teams sent home, penalty shootouts, extra-time swings and "
+                "stoppage-time winners &mdash; the Round of 32 had the lot. "
+                "We&rsquo;ve also just launched a <strong>What-if Bracket "
+                "Simulator</strong> so you can play out the rest of the "
+                "knockouts yourself (more on that below). First, here&rsquo;s "
+                "how it played out.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>The games everyone was talking about</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>&#128680; <strong>Germany are "
+                "out</strong> &mdash; beaten by <strong>Paraguay on "
+                "penalties</strong>, the first true heavyweight to fall.</li>\n"
+                "                <li><strong>Netherlands out too</strong> "
+                "&mdash; held <strong>1-1 by Morocco</strong>, then knocked "
+                "out <strong>3-2 on penalties</strong>.</li>\n"
+                "                <li><strong>The fairytale that nearly "
+                "happened</strong> &mdash; <strong>Cape Verde</strong> twice "
+                "clawed back before losing <strong>3-2 to Argentina in extra "
+                "time</strong>.</li>\n"
+                "                <li><strong>Brazil got a scare</strong> "
+                "&mdash; <strong>Japan</strong> led 1-0 before a Martinelli "
+                "stoppage-time winner, <strong>2-1</strong>.</li>\n"
+                "                <li><strong>Portugal 2-1 Croatia</strong> "
+                "&mdash; a Euro 2016 final rematch settled by a Ramos goal "
+                "deep in stoppage time.</li>\n"
+                "                <li><strong>Belgium 3-2 Senegal</strong> "
+                "after extra time &mdash; a controversial late penalty ended "
+                "Senegal&rsquo;s run.</li>\n"
+                "                <li><strong>Egypt</strong> knocked out "
+                "<strong>Australia</strong> on penalties (4-2).</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "A couple of history-makers, too: <strong>Canada</strong> "
+                "claimed the first knockout win in their history, and the "
+                "<strong>USA</strong> saw off Bosnia. Elsewhere, "
+                "<strong>France put three past Sweden</strong> (Mbapp&eacute; "
+                "with a brace), <strong>Spain</strong> eased past Austria, "
+                "<strong>Norway</strong> edged Ivory Coast with Haaland on "
+                "the scoresheet, and <strong>Colombia</strong> saw off "
+                "Ghana.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>The table has a new name on top</strong></p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Lionel Zammit</strong> has climbed into first on "
+                "<strong>1,301 points</strong>. <strong>Glenn "
+                "Debattista</strong> and <strong>Jacques Ellul Soler</strong> "
+                "are locked together on <strong>1,283</strong>, with "
+                "<strong>Kurt Dylan Buttigieg</strong> (1,281) and "
+                "<strong>Jeffrey Formosa</strong> (1,278) right behind. Just "
+                "<strong>34 points separate 1st from 10th</strong> &mdash; "
+                "this is anyone&rsquo;s to take. Special mention to "
+                "<strong>Rhoda Maughan</strong>, up 17 places into the top "
+                "six on the back of the knockouts.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>See where you stand &rarr;</strong> "
+                '<a href="https://wc26.heyvinay.com/leaderboard" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "wc26.heyvinay.com/leaderboard</a></p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>New this week &mdash; play out the rest "
+                "yourself</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>&#128302; <strong>The What-if Bracket "
+                "Simulator.</strong> Head to the Results page, pick the "
+                "winners of the remaining knockout matches, and watch the "
+                "whole pool re-rank under <em>your</em> scenario. You unlock "
+                "it by beating a short football-trivia challenge, then get "
+                "two runs a day &mdash; so choose your scenarios wisely.</li>\n"
+                "                <li>&#128202; <strong>Group Standings "
+                "reality-check.</strong> The Standings tab now shows your "
+                "picked qualifiers against the live tables at a glance "
+                "&mdash; which are locked in, which slipped, and how your "
+                "predicted bracket has shifted. Your Dark Horse and Bottlers "
+                "picks get live status cards too.</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>The last 16 is here</strong></p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Sixteen teams left, no more second chances, and every "
+                "remaining knockout point on the line &mdash; and with the "
+                "table this tight, one good round could vault you up it. "
+                "Paraguay&ndash;France, Canada&ndash;Morocco, "
+                "Brazil&ndash;Norway and Mexico&ndash;England are already on "
+                "the schedule. Give your predictions one more look, fire up "
+                "the simulator to see what you&rsquo;re playing for &mdash; "
+                "and good luck. It gets serious from here.</p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">See you at the top of the '
+                "table.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, what a week. Thirty-two matches, sixteen "
+                "teams sent\n"
+                "home, penalty shootouts, extra-time swings and "
+                "stoppage-time winners\n"
+                "— the Round of 32 had the lot. We've also just launched a "
+                "What-if\n"
+                "Bracket Simulator so you can play out the rest of the "
+                "knockouts\n"
+                "yourself (more on that below). First, here's how it played "
+                "out.\n"
+                "\n"
+                "The games everyone was talking about\n"
+                "  🚨 Germany are out — beaten by Paraguay on penalties, the "
+                "first\n"
+                "     true heavyweight to fall.\n"
+                "  • Netherlands out too — 1-1 with Morocco, knocked out 3-2 "
+                "on penalties.\n"
+                "  • The fairytale that nearly happened — Cape Verde twice "
+                "clawed back\n"
+                "     before losing 3-2 to Argentina in extra time.\n"
+                "  • Brazil got a scare — Japan led 1-0 before a Martinelli "
+                "stoppage-time\n"
+                "     winner, 2-1.\n"
+                "  • Portugal 2-1 Croatia — a Euro 2016 final rematch settled "
+                "by a Ramos\n"
+                "     goal deep in stoppage time.\n"
+                "  • Belgium 3-2 Senegal after extra time — a controversial "
+                "late penalty\n"
+                "     ended Senegal's run.\n"
+                "  • Egypt knocked out Australia on penalties (4-2).\n"
+                "\n"
+                "History-makers, too: Canada claimed the first knockout win "
+                "in their\n"
+                "history, and the USA saw off Bosnia. Elsewhere, France put "
+                "three past\n"
+                "Sweden (Mbappé with a brace), Spain eased past Austria, "
+                "Norway edged\n"
+                "Ivory Coast with Haaland on the scoresheet, and Colombia "
+                "saw off Ghana.\n"
+                "\n"
+                "The table has a new name on top\n"
+                "Lionel Zammit has climbed into first on 1,301 points. Glenn "
+                "Debattista\n"
+                "and Jacques Ellul Soler are locked together on 1,283, with "
+                "Kurt Dylan\n"
+                "Buttigieg (1,281) and Jeffrey Formosa (1,278) right behind. "
+                "Just 34\n"
+                "points separate 1st from 10th — this is anyone's to take. "
+                "Special\n"
+                "mention to Rhoda Maughan, up 17 places into the top six.\n"
+                "\n"
+                "See where you stand\n"
+                "https://wc26.heyvinay.com/leaderboard\n"
+                "\n"
+                "New this week — play out the rest yourself\n"
+                "  🔮 The What-if Bracket Simulator. On the Results page, "
+                "pick the\n"
+                "     winners of the remaining knockout matches and watch the "
+                "whole\n"
+                "     pool re-rank under your scenario. Unlock it by beating "
+                "a short\n"
+                "     football-trivia challenge, then two runs a day.\n"
+                "  📊 Group Standings reality-check. The Standings tab now "
+                "shows your\n"
+                "     picked qualifiers against the live tables; Dark Horse "
+                "and Bottlers\n"
+                "     picks get live status cards too.\n"
+                "\n"
+                "The last 16 is here\n"
+                "Sixteen teams left, no more second chances, and every "
+                "remaining\n"
+                "knockout point on the line — and with the table this tight, "
+                "one good\n"
+                "round could vault you up it. Paraguay–France, "
+                "Canada–Morocco,\n"
+                "Brazil–Norway and Mexico–England are already on the "
+                "schedule. Give\n"
+                "your predictions one more look, fire up the simulator, and "
+                "good luck.\n"
+                "\n"
+                "See you at the top of the table.\n"
+            ),
+            cta_label="See the full table",
+        )
+
     if segment == BroadcastSegment.LAPSING:
         # v2.176.0 — soft mid-tournament nudge for users who were
         # engaged early but haven't visited in 3-7 days. The copy

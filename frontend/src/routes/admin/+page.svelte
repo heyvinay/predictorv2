@@ -431,6 +431,16 @@
 			title: 'Group Stage champion announcement',
 			description:
 				"Sunday 28 June ~7pm Malta. Auto-fills winner name + 4-part points breakdown + story line. Flip the 'Group Stage Winner release' switch above FIRST; test-send only after release, otherwise placeholders surface as literal {{WINNER_NAME}} text."
+		},
+		// v2.195.0 — Round of 32 knockout recap. Same audience as Thank
+		// Submitters. Static admin-approved copy (R32 results + a
+		// point-in-time standings snapshot + the week's feature releases,
+		// led by the What-if Bracket Simulator) — no placeholders to fill,
+		// nothing to interpolate. CTA lands on /leaderboard (no UTM).
+		group_r32_recap: {
+			title: 'Round of 32 recap',
+			description:
+				"One-off knockout recap. Same audience as Thank Submitters. Static copy — R32 result highlights, a live-standings snapshot, and the week's new features (headline: the What-if Bracket Simulator). No placeholders; CTA lands on /leaderboard (no UTM)."
 		}
 	};
 
@@ -442,7 +452,8 @@
 		'lapsing',
 		'group_r1_recap',
 		'group_r2_recap',
-		'group_stage_final'
+		'group_stage_final',
+		'group_r32_recap'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;
