@@ -57,8 +57,12 @@ def test_parse_r32_slot_returns_none_for_garbage():
 
 def test_ext_to_match_number_covers_all_16():
     # Cross-referenced against Wikipedia kickoff schedule. See
-    # tests/test_r32_ext_id_mapping.py for the full pinned set.
-    assert len(EXT_ID_TO_MATCH_NUMBER) == 16
+    # tests/test_r32_ext_id_mapping.py for the full pinned R32 set,
+    # and tests/test_ko_ext_id_mapping.py for R16/QF/SF/Final.
+    # The map was extended KO-wide in v2.195.x; this test checks the
+    # R32 slice specifically.
+    r32_slice = {k: v for k, v in EXT_ID_TO_MATCH_NUMBER.items() if 73 <= v <= 88}
+    assert len(r32_slice) == 16
     assert EXT_ID_TO_MATCH_NUMBER["537417"] == 73  # SA vs Canada (first R32)
     assert EXT_ID_TO_MATCH_NUMBER["537430"] == 87  # 1K vs Ghana (last R32)
     assert EXT_ID_TO_MATCH_NUMBER["537423"] == 76  # Brazil vs Japan

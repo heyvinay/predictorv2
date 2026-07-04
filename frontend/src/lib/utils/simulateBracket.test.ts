@@ -92,9 +92,10 @@ function finishedScore(outcome: '1' | '2'): Fixture['score'] {
  *    unresolved slot placeholders on both sides.
  */
 /** R32 external_id -> FIFA match number, mirrored from
- *  `R32_EXT_ID_TO_MATCH_NUMBER` in `bracketGeometry.ts`.
- *  `buildMatchNumberIndex` resolves R32 fixtures SOLELY via this map, so
- *  each R32 fixture MUST carry the matching `external_id`. */
+ *  `EXT_ID_TO_MATCH_NUMBER` in `bracketGeometry.ts` (R32 slice only —
+ *  the real map covers all KO stages, but these tests only exercise R32
+ *  scenarios). `buildMatchNumberIndex` resolves KO fixtures SOLELY via
+ *  that map, so each fixture MUST carry the matching `external_id`. */
 const R32_MATCH_TO_EXT_ID: Record<number, string> = {
 	73: '537417',
 	74: '537415',

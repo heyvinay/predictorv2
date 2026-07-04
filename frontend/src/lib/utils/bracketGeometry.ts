@@ -7,15 +7,18 @@
  * QF, the QF, the SF, the Final.
  *
  * Mirrors backend/app/services/bracket_seeding.py — the same
- * EXT_ID_TO_MATCH_NUMBER table for R32, plus the recursive walk
- * implemented there. Frontend version exists because BracketQuadrant
- * (a client-rendered SVG) needs the structure without a round-trip,
- * and the equivalent info isn't on the FixtureRead schema.
+ * EXT_ID_TO_MATCH_NUMBER table across ALL knockout stages, plus the
+ * recursive walk implemented there. Frontend version exists because
+ * BracketQuadrant (a client-rendered SVG) needs the structure without
+ * a round-trip, and the equivalent info isn't on the FixtureRead schema.
  *
  * IMPORTANT: keep this in lock-step with backend bracket_seeding.py.
- * The R32 ext_id → match number map was hand-verified against the
- * official 2026 FIFA schedule; downstream stages use kickoff-sorted
- * index (FIFA publishes M89, M90, ... in chronological order).
+ * Every ext_id → match_number entry is hand-verified against
+ * ROUND_OF_*_SOURCES bracket structure AND the fixture UTC kickoff in
+ * backend/data/wc2026_fixtures.json. NEVER derive match numbers from
+ * kickoff-order — FIFA schedules M89 (Paraguay–France) AFTER M90
+ * (Canada–Morocco) on Sat 4 Jul, and the prior kickoff-sort fallback
+ * (v2.184.x → v2.194.x) silently swapped those two rows.
  */
 
 import type { Fixture } from '$types';
@@ -33,10 +36,12 @@ import {
 // cast at the consumption boundary inside this module.
 type FixtureWithExt = Fixture & { external_id?: string | null };
 
-// ── R32 ext_id → FIFA match number (v2.183.1). Hand-verified
-//    against Wikipedia's 2026 FWC R32 schedule. Mirrors backend
-//    EXT_ID_TO_MATCH_NUMBER exactly.
-export const R32_EXT_ID_TO_MATCH_NUMBER: Record<string, number> = {
+/** Football-Data ext_id → FIFA match number, across all KO stages.
+ *  Hand-verified against ROUND_OF_*_SOURCES bracket structure + fixture
+ *  UTC kickoffs; MUST stay in lock-step with backend bracket_seeding.py.
+ *  Pinned by tests/test_r32_ext_id_mapping.py + test_ko_ext_id_mapping.py. */
+export const EXT_ID_TO_MATCH_NUMBER: Record<string, number> = {
+	// R32 (M73-M88)
 	'537417': 73,
 	'537423': 76,
 	'537415': 74,
@@ -52,60 +57,58 @@ export const R32_EXT_ID_TO_MATCH_NUMBER: Record<string, number> = {
 	'537429': 85,
 	'537428': 88,
 	'537427': 86,
-	'537430': 87
-};
-
-const STAGE_FIRST_MATCH_NUMBER: Record<string, number> = {
-	round_of_16: 89,
-	quarter_final: 97,
-	semi_final: 101,
-	final: 104
+	'537430': 87,
+	// R16 (M89-M96) — M89 kicks off AFTER M90 (see file docstring).
+	'537375': 89,
+	'537376': 90,
+	'537377': 91,
+	'537378': 92,
+	'537379': 93,
+	'537380': 94,
+	'537381': 95,
+	'537382': 96,
+	// QF (M97-M100)
+	'537383': 97,
+	'537384': 98,
+	'537385': 99,
+	'537386': 100,
+	// SF (M101-M102)
+	'537387': 101,
+	'537388': 102,
+	// Final (M104) — M103 third_place omitted, unscored per CLAUDE.md invariant
+	'537390': 104
 };
 
 /**
- * Given a Fixture and the full fixtures list, return the FIFA match
- * number this fixture corresponds to. Null for unrecognised cases
- * (e.g., third_place, group, data drift).
+ * Given a Fixture, return the FIFA match number it corresponds to.
+ * Null for unrecognised cases (e.g., third_place, group, data drift,
+ * or a KO fixture whose ext_id isn't in the hand-verified map).
  *
- * For R32: looks up by external_id.
- * For R16+: kickoff-sorted index within stage + the stage's base.
+ * Unlike the previous implementation, this does NOT fall back to
+ * kickoff-sorted indexing — a missing ext_id returns null so the
+ * caller surfaces the fixture as unresolved rather than mislabelling it.
+ * `allFixtures` retained in the signature for callsite compatibility
+ * but no longer needed.
  */
-export function matchNumberOf(fixture: Fixture, allFixtures: Fixture[]): number | null {
-	if (fixture.stage === 'round_of_32') {
-		const ext = (fixture as FixtureWithExt).external_id;
-		if (!ext) return null;
-		return R32_EXT_ID_TO_MATCH_NUMBER[ext] ?? null;
-	}
-	const base = STAGE_FIRST_MATCH_NUMBER[fixture.stage];
-	if (base === undefined) return null;
-	const stageFixtures = allFixtures
-		.filter((f) => f.stage === fixture.stage)
-		.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
-	const idx = stageFixtures.findIndex((f) => f.id === fixture.id);
-	return idx >= 0 ? base + idx : null;
+export function matchNumberOf(fixture: Fixture, _allFixtures: Fixture[]): number | null {
+	const ext = (fixture as FixtureWithExt).external_id;
+	if (!ext) return null;
+	return EXT_ID_TO_MATCH_NUMBER[ext] ?? null;
 }
 
 /**
  * Reverse lookup: given a FIFA match number, return the Fixture row
  * (or undefined). Builds the index on demand from the fixtures list.
+ * Any KO fixture whose ext_id isn't hand-verified is silently skipped
+ * (see file docstring for the rationale — no kickoff-sort fallback).
  */
 export function buildMatchNumberIndex(allFixtures: Fixture[]): Map<number, Fixture> {
 	const index = new Map<number, Fixture>();
-	// R32 via ext_id
 	for (const f of allFixtures) {
 		const ext = (f as FixtureWithExt).external_id;
-		if (f.stage === 'round_of_32' && ext) {
-			const num = R32_EXT_ID_TO_MATCH_NUMBER[ext];
-			if (num !== undefined) index.set(num, f);
-		}
-	}
-	// R16/QF/SF/F via kickoff order
-	for (const stage of ['round_of_16', 'quarter_final', 'semi_final', 'final']) {
-		const base = STAGE_FIRST_MATCH_NUMBER[stage];
-		const stageFixtures = allFixtures
-			.filter((f) => f.stage === stage)
-			.sort((a, b) => a.kickoff.localeCompare(b.kickoff));
-		stageFixtures.forEach((f, i) => index.set(base + i, f));
+		if (!ext) continue;
+		const num = EXT_ID_TO_MATCH_NUMBER[ext];
+		if (num !== undefined) index.set(num, f);
 	}
 	return index;
 }

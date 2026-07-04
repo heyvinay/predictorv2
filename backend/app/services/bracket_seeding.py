@@ -52,23 +52,37 @@ R32_SOURCES: dict[int, tuple[dict, dict]] = {
     88: ({"type": "group", "position": "2D"}, {"type": "group", "position": "2G"}),
 }
 
-# Map Football-Data R32 external_id → FIFA match number (v2.183.1).
+# Map Football-Data external_id → FIFA match number, across all knockout
+# stages R32 → R16 → QF → SF → Final. Two swaps have burned us; the R16
+# swap (v2.195.x, Paraguay–France ↔ Canada–Morocco) had exactly the same
+# shape as the earlier R32 swap (v2.181.1 → v2.183.0):
 #
-# Cross-referenced against the official 2026 FWC Round of 32 schedule on
-# Wikipedia (https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_round_of_32)
-# by matching each fixture's UTC kickoff to FIFA's published match number.
+#   * v2.181.1 assumed `ext_id - 537342 = FIFA match number` for R32.
+#     Wrong — Football-Data assigns ext_ids by creation order, not FIFA
+#     numbering. Every R32 fixture displayed under the wrong kickoff.
+#   * v2.184.x fixed R32 with this hand-verified map, but kept a
+#     kickoff-sort fallback in ko_lineup_resolver.py for R16+ stages,
+#     assuming FIFA schedules match numbers chronologically. That
+#     assumption held for M91-M96 but broke for the M89/M90 pair on
+#     Saturday 4 July 2026 — Canada–Morocco (M90) kicks off in Houston
+#     at 17:00Z, four hours BEFORE Paraguay–France (M89, Philadelphia,
+#     21:00Z). Kickoff-sort therefore labelled the Houston row as M89,
+#     which then walked ROUND_OF_16_SOURCES[89] and painted "winner of
+#     Paraguay match, winner of France match" onto Canada–Morocco.
 #
-# An earlier release (2.181.1) ASSUMED that Football-Data's ext_ids count
-# up in FIFA's match-number order (537415 = M73, 537416 = M74, ...). That
-# assumption was wrong — Football-Data's IDs follow a different ordering
-# (likely an internal one keyed on creation order at fixture-publish time).
-# Every R32 fixture displayed under the wrong kickoff for the duration
-# 2.181.1 → 2.183.0 was live, until this fix.
+# Lesson: FIFA match numbers are STRUCTURAL (bracket geometry). Kickoff
+# times are OPERATIONAL (broadcast schedule). Never derive one from the
+# other. Hand-verify every ext_id against BOTH the ROUND_OF_*_SOURCES
+# bracket structure AND the UTC kickoff in backend/data/wc2026_fixtures.json.
 #
-# Pinned by tests/test_r32_ext_id_mapping.py — if Football-Data ever
-# changes their ext_ids OR if FIFA reschedules a match between IDs, the
-# test catches it.
+# Pinned by:
+#   * tests/test_r32_ext_id_mapping.py (R32, ext_ids 537415-537430)
+#   * tests/test_ko_ext_id_mapping.py  (R16+, ext_ids 537375-537390)
+# Note the ext_id ranges DECREASE from R32 to R16 — Football-Data's
+# publication order for the tournament is not stage-ordered, so ID
+# arithmetic is meaningless. Trust only the hand-verified map + tests.
 EXT_ID_TO_MATCH_NUMBER: dict[str, int] = {
+    # ── R32 (73-88, ext_ids 537415-537430) ─────────────────────────────
     "537417": 73,  # Sun 28 Jun 19:00 UTC — South Africa vs Canada
     "537423": 76,  # Mon 29 Jun 17:00 UTC — Brazil vs Japan
     "537415": 74,  # Mon 29 Jun 20:30 UTC — Germany vs Paraguay
@@ -85,6 +99,33 @@ EXT_ID_TO_MATCH_NUMBER: dict[str, int] = {
     "537428": 88,  # Fri 03 Jul 18:00 UTC — Australia vs Egypt
     "537427": 86,  # Fri 03 Jul 22:00 UTC — Argentina vs Cape Verde
     "537430": 87,  # Sat 04 Jul 01:30 UTC — 1K vs Ghana
+    # ── R16 (89-96, ext_ids 537375-537382) ─────────────────────────────
+    # Structural: ROUND_OF_16_SOURCES[89]=(M74w, M77w)=Paraguay+France;
+    #             ROUND_OF_16_SOURCES[90]=(M73w, M75w)=Canada+Morocco.
+    # M89 kicks off AFTER M90 — the exception that broke the resolver.
+    "537375": 89,  # Sat 04 Jul 21:00 UTC — Paraguay vs France (Philadelphia)
+    "537376": 90,  # Sat 04 Jul 17:00 UTC — Canada vs Morocco (Houston)
+    "537377": 91,  # Sun 05 Jul 20:00 UTC — winners M76 (Brazil) vs M78 (Norway)
+    "537378": 92,  # Mon 06 Jul 00:00 UTC — winners M79 (Mexico) vs M80 (England)
+    "537379": 93,  # Mon 06 Jul 19:00 UTC — winners M83 vs M84 (Croatia vs Spain)
+    "537380": 94,  # Tue 07 Jul 00:00 UTC — winners M81 (USA) vs M82 (Belgium)
+    "537381": 95,  # Tue 07 Jul 16:00 UTC — winners M86 (Argentina) vs M88 (Australia)
+    "537382": 96,  # Tue 07 Jul 20:00 UTC — winners M85 (Switzerland) vs M87
+    # ── QF (97-100, ext_ids 537383-537386) ─────────────────────────────
+    # Cross-referenced against beIN/ESPN/olympics.com QF schedule.
+    # M97 kicks off first (Foxborough Jul 9), M100 last (Kansas City Jul 11 evening
+    # = 12 Jul 01:00Z). Match-number ordering happens to match kickoff for QFs.
+    "537383": 97,   # Thu 09 Jul 20:00 UTC — winners M89 vs M90
+    "537384": 98,   # Fri 10 Jul 19:00 UTC — winners M93 vs M94
+    "537385": 99,   # Sat 11 Jul 21:00 UTC — winners M91 vs M92
+    "537386": 100,  # Sun 12 Jul 01:00 UTC — winners M95 vs M96
+    # ── SF (101-102, ext_ids 537387-537388) ────────────────────────────
+    "537387": 101,  # Tue 14 Jul 19:00 UTC — winners M97 vs M98
+    "537388": 102,  # Wed 15 Jul 19:00 UTC — winners M99 vs M100
+    # ── Final (104, ext_id 537390) ─────────────────────────────────────
+    # M103 (third_place, ext_id 537389) intentionally OMITTED — unscored
+    # per CLAUDE.md invariant. Resolver's stage filter excludes it too.
+    "537390": 104,  # Sun 19 Jul 19:00 UTC — winners M101 vs M102
 }
 
 

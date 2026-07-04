@@ -44,7 +44,6 @@ from app.services.bracket_seeding import (
     QUARTER_FINAL_SOURCES,
     ROUND_OF_16_SOURCES,
     SEMI_FINAL_SOURCES,
-    STAGE_FIRST_MATCH_NUMBER,
     is_downstream_ko_slot_placeholder,
     is_r32_slot_placeholder,
 )
@@ -200,9 +199,14 @@ async def build_ko_lineup_resolver(session: AsyncSession) -> KoLineupResolver:
 
     Loads all knockout fixtures (every stage except `group` and `third_place`)
     plus their Score rows in a single query. Builds the match_number index
-    using `EXT_ID_TO_MATCH_NUMBER` for R32 and kickoff-sorted ordering for
-    R16+ (FIFA publishes R16/QF/SF/F matches in chronological order, so
-    sorting by kickoff within each stage yields M89, M90, ... in sequence).
+    ENTIRELY from `EXT_ID_TO_MATCH_NUMBER` — every KO stage from R32 through
+    the Final. A fixture whose ext_id isn't in the hand-verified map is left
+    unindexed and falls through to the pass-through branch in resolve() —
+    intentionally: a missing entry surfaces as a slot placeholder in the UI
+    (visibly wrong, easy to spot) rather than being silently mislabelled via
+    a kickoff-sort heuristic. The prior kickoff-sort fallback caused the
+    v2.195.x Paraguay–France ↔ Canada–Morocco swap for exactly the case
+    where FIFA scheduled M89 after M90.
     """
     result = await session.execute(
         select(Fixture, Score)
@@ -216,7 +220,6 @@ async def build_ko_lineup_resolver(session: AsyncSession) -> KoLineupResolver:
     fixtures_by_match: dict[int, Fixture] = {}
     fixtures_by_id: dict[uuid.UUID, Fixture] = {}
     scores_by_fixture_id: dict[uuid.UUID, Score] = {}
-    by_stage: dict[str, list[Fixture]] = {}
 
     for fix, score in rows:
         if fix.id in fixtures_by_id:
@@ -227,25 +230,12 @@ async def build_ko_lineup_resolver(session: AsyncSession) -> KoLineupResolver:
         fixtures_by_id[fix.id] = fix
         if score is not None:
             scores_by_fixture_id[fix.id] = score
-        by_stage.setdefault(fix.stage, []).append(fix)
-
-    # R32: ext_id → match_number is hand-verified (see EXT_ID_TO_MATCH_NUMBER
-    # docstring for the reasoning — Football-Data IDs do NOT follow FIFA's
-    # match-number order).
-    for fix in by_stage.get("round_of_32", []):
         ext_id = fix.external_id
         if ext_id and ext_id in EXT_ID_TO_MATCH_NUMBER:
             fixtures_by_match[EXT_ID_TO_MATCH_NUMBER[ext_id]] = fix
-
-    # R16/QF/SF/F: kickoff-sorted index + stage base match number.
-    # This is the same trust assumption FIFA makes in its own scheduling
-    # — Match 89 kicks off before Match 90, etc. If FIFA ever schedules
-    # a later-numbered match earlier (rare), the resolver would mis-pair;
-    # a regression test pins this against the live competition schedule.
-    for stage, base in STAGE_FIRST_MATCH_NUMBER.items():
-        sorted_fixtures = sorted(by_stage.get(stage, []), key=lambda f: f.kickoff)
-        for i, fix in enumerate(sorted_fixtures):
-            fixtures_by_match[base + i] = fix
+        # else: leave unindexed. resolve() will fall through and return
+        # the fixture's own home_team/away_team (typically a slot
+        # placeholder pre-backfill, so the frontend renders TBD).
 
     r32_resolver = await build_r32_resolver(session)
     return KoLineupResolver(

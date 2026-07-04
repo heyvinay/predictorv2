@@ -56,10 +56,20 @@ def test_pinned_ext_id_to_match_number_matches_implementation():
         )
 
 
+def _r32_slice() -> dict[str, int]:
+    """R32-only slice of the (now KO-wide) implementation map.
+
+    EXT_ID_TO_MATCH_NUMBER was extended in v2.195.x to cover R16 through
+    Final; this file tests the R32 slice only. Downstream stages are
+    pinned separately in test_ko_ext_id_mapping.py.
+    """
+    return {k: v for k, v in EXT_ID_TO_MATCH_NUMBER.items() if 73 <= v <= 88}
+
+
 def test_all_16_r32_ext_ids_pinned():
     """The pinned table must cover every R32 ext_id we know about."""
-    assert set(PINNED.keys()) == set(EXT_ID_TO_MATCH_NUMBER.keys()), (
-        "Pinned set and implementation set must match"
+    assert set(PINNED.keys()) == set(_r32_slice().keys()), (
+        "Pinned set and implementation R32 slice must match"
     )
     assert len(PINNED) == 16
 
@@ -75,7 +85,7 @@ def test_each_pinned_match_number_has_bracket_source():
 
 
 def test_no_match_number_appears_twice():
-    """Sanity: each FIFA match number is unique in the map."""
+    """Sanity: each FIFA match number is unique across the KO-wide map."""
     values = list(EXT_ID_TO_MATCH_NUMBER.values())
     assert len(values) == len(set(values)), (
         f"Duplicate match numbers in EXT_ID_TO_MATCH_NUMBER: {values}"
@@ -83,5 +93,6 @@ def test_no_match_number_appears_twice():
 
 
 def test_match_numbers_cover_73_to_88():
-    """All 16 FIFA R32 match numbers (73..88) must appear exactly once."""
-    assert set(EXT_ID_TO_MATCH_NUMBER.values()) == set(range(73, 89))
+    """All 16 FIFA R32 match numbers (73..88) must appear exactly once
+    in the R32 slice of the KO-wide map."""
+    assert set(_r32_slice().values()) == set(range(73, 89))

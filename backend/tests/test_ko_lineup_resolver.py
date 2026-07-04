@@ -221,18 +221,34 @@ async def _seed_r32_full(session, comp_id) -> list[Fixture]:
 
 
 async def _seed_r16_placeholders(session, comp_id) -> list[Fixture]:
-    """Seed all 8 R16 fixtures with slot placeholders, kickoff-ordered
-    so the resolver maps them to M89..M96 by kickoff index.
+    """Seed all 8 R16 fixtures with slot placeholders in FIFA match-number
+    order (M89..M96). Uses REAL Football-Data ext_ids so the resolver's
+    EXT_ID_TO_MATCH_NUMBER lookup succeeds (v2.195.x+: kickoff-sort
+    fallback removed; every KO fixture must carry a hand-verified ext_id).
+
+    Note the M89/M90 kickoffs deliberately reflect the real swap: M89
+    (ext_id 537375) kicks off LATER than M90 (ext_id 537376), inverting
+    the naive kickoff-sort assumption.
     """
-    ext_ids = ["A", "B", "C", "D", "E", "F", "G", "H"]
+    # (ext_id, kickoff_utc) in FIFA match-number order M89..M96
+    seed_data = [
+        ("537375", datetime(2026, 7, 4, 21, 0, tzinfo=timezone.utc)),   # M89 (later kickoff!)
+        ("537376", datetime(2026, 7, 4, 17, 0, tzinfo=timezone.utc)),   # M90 (earlier kickoff!)
+        ("537377", datetime(2026, 7, 5, 20, 0, tzinfo=timezone.utc)),   # M91
+        ("537378", datetime(2026, 7, 6, 0, 0, tzinfo=timezone.utc)),    # M92
+        ("537379", datetime(2026, 7, 6, 19, 0, tzinfo=timezone.utc)),   # M93
+        ("537380", datetime(2026, 7, 7, 0, 0, tzinfo=timezone.utc)),    # M94
+        ("537381", datetime(2026, 7, 7, 16, 0, tzinfo=timezone.utc)),   # M95
+        ("537382", datetime(2026, 7, 7, 20, 0, tzinfo=timezone.utc)),   # M96
+    ]
     fixtures: list[Fixture] = []
-    for i, ext in enumerate(ext_ids):
+    for ext, kickoff in seed_data:
         fx = await _make_fixture(
             session, comp_id,
             home=f"slot:round_of_16:{ext}:home",
             away=f"slot:round_of_16:{ext}:away",
             stage="round_of_16",
-            kickoff=KICKOFF_R16_BASE + timedelta(hours=i * 3),
+            kickoff=kickoff,
             ext_id=ext,
         )
         fixtures.append(fx)
@@ -311,11 +327,11 @@ async def test_qf_resolves_via_two_levels_of_chain(
     qf_kickoff = KICKOFF_R16_BASE + timedelta(days=5)
     qf97 = await _make_fixture(
         session, competition.id,
-        home="slot:quarter_final:QF1:home",
-        away="slot:quarter_final:QF1:away",
+        home="slot:quarter_final:537383:home",
+        away="slot:quarter_final:537383:away",
         stage="quarter_final",
         kickoff=qf_kickoff,
-        ext_id="QF1",
+        ext_id="537383",  # Real Football-Data ext_id for M97
     )
 
     # Finish all four feeding R32s — note we DON'T set R16 fixture scores;
