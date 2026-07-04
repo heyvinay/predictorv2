@@ -2536,6 +2536,13 @@
       "type": "internal",
       "summary": "Added a Round of 32 recap email that admins can send to everyone who entered — a wrap-up of the knockout shocks, the latest standings, and this week's new features.",
       "commit": "8f4a72a"
+    },
+    {
+      "version": "2.195.1",
+      "date": "2026-07-04",
+      "type": "fix",
+      "summary": "Fixed the Round of 16 fixture rows on Results — Paraguay vs France and Canada vs Morocco were showing the wrong teams because the two Saturday knockout kickoffs are in reverse order to their FIFA match numbers.",
+      "commit": "9f47daf"
     }
   ]
 }
