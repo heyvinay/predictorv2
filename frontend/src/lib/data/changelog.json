@@ -2535,7 +2535,7 @@
       "date": "2026-07-04",
       "type": "internal",
       "summary": "Added a Round of 32 recap email that admins can send to everyone who entered — a wrap-up of the knockout shocks, the latest standings, and this week's new features.",
-      "commit": "pending"
+      "commit": "8f4a72a"
     }
   ]
 }
