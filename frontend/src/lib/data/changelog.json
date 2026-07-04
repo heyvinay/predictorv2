@@ -2529,6 +2529,13 @@
       "type": "fix",
       "summary": "Projected standings in the What-if simulator now show entrants by their name (with entry name appended for anyone holding multiple entries), matching how the main Standings page reads.",
       "commit": "pending"
+    },
+    {
+      "version": "2.195.0",
+      "date": "2026-07-04",
+      "type": "internal",
+      "summary": "Added a Round of 32 recap email that admins can send to everyone who entered — a wrap-up of the knockout shocks, the latest standings, and this week's new features.",
+      "commit": "pending"
     }
   ]
 }
