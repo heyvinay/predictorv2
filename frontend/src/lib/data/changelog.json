@@ -2550,6 +2550,13 @@
       "type": "feature",
       "summary": "New 'What's New' panel — tap the ✦ in the top bar to catch up on the latest features at a glance, see which app version you're on, and tell us whether each update was useful. You can now also rate the app and send feedback any time from the footer.",
       "commit": "pending"
+    },
+    {
+      "version": "2.197.0",
+      "date": "2026-07-05",
+      "type": "feature",
+      "summary": "Rating and feedback is now a single quick step — give a star rating, jot a note in the box that appears, and hit Send. It comes straight to us, and we can reply right back to you.",
+      "commit": "pending"
     }
   ]
 }
