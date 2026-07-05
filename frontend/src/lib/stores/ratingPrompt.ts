@@ -54,6 +54,16 @@ export function registerViewForRating(): void {
 	}
 }
 
+/**
+ * Persist "asked" WITHOUT hiding the prompt. Call the moment a star is
+ * tapped so a user who rates and then closes the tab is never re-prompted
+ * (and never double-counted) — the follow-up "tell us more" step stays
+ * visible until they act on it.
+ */
+export function markRatingAsked(): void {
+	markAsked();
+}
+
 /** Hide the prompt and mark it asked — no further prompts on this device. */
 export function dismissRatingPrompt(): void {
 	markAsked();

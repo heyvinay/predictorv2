@@ -107,7 +107,10 @@ export type EventName =
 	| 'feature_nudge_shown'
 	| 'feature_nudge_clicked'
 	| 'app_rating_submitted'
-	| 'feedback_opened';
+	| 'feedback_opened'
+	// Per-feature "Was this useful?" verdict from a What's New card.
+	// Carries feature_id + verdict ('up' | 'down').
+	| 'feature_rated';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog
