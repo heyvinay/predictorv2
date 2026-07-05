@@ -204,6 +204,15 @@ class LeaderboardEntry(BaseModel):
     bonus_group_points: int = 0
     bonus_knockout_points: int = 0
 
+    # Live projection (v2.198.0) — populated ONLY on GET /leaderboard/
+    # when the live projection is armed; None otherwise. Banked position
+    # and total_points above stay banked; these carry the provisional
+    # KO-advancement projection so surfaces can opt in without changing
+    # the banked numbers.
+    projected_position: int | None = None
+    projected_total: int | None = None
+    live_delta: int | None = None
+
 
 class LeaderboardResponse(BaseModel):
     """Full leaderboard response."""
@@ -217,3 +226,6 @@ class LeaderboardResponse(BaseModel):
     # frontend uses this to conditionally render the "View All Entries"
     # button on the V4 leaderboard toolbar.
     published_sheet_url: str | None = None
+    # True when the entries carry a live projection (gates armed + a KO
+    # match is live). Frontend surfaces key their LIVE chrome off this.
+    live_projection_active: bool = False
