@@ -45,17 +45,26 @@ def test_snapshot_constants_match_manifest() -> None:
 # Hash pin (immutability via test)
 # ─────────────────────────────────────────────────────────────────────
 
-_EXPECTED_SHA256 = (
+# We hash the LF-normalised content because Windows checkouts (autocrlf=true)
+# rewrite LF→CRLF on disk, changing the raw-byte SHA to a platform-dependent
+# value. LF-normalising before hashing makes the immutability check work
+# identically on Linux CI, macOS, and Windows. Content-immutability is what
+# the audit trail requires — line-ending byte-identity is not. (The manifest
+# used to list a second "LF-normalised content" hash that appears to have
+# been miscomputed; this constant is the authoritative LF-content SHA and
+# supersedes it. The manifest's "file as committed" value is what we hash
+# against once LF-normalized.)
+_EXPECTED_SHA256_LF_NORMALISED = (
     "0d5f67bbfd21378b4283fc98aee938b57f353e9ceb512e8179d6bc80ea14db37"
 )
 
 
 def test_committed_snapshot_hash_matches_manifest() -> None:
-    """The committed CSV's SHA-256 must match MANIFEST.md. If this
-    fails, either the file was modified after capture (a contract
-    violation — the snapshot is meant to be immutable) or this hash
-    pin is wrong. The fix is almost always 'revert the file change',
-    not 'update the hash here'."""
+    """The committed CSV's LF-normalised content SHA-256 must match
+    MANIFEST.md. If this fails, either the file was modified after
+    capture (a contract violation — the snapshot is meant to be
+    immutable) or this hash pin is wrong. The fix is almost always
+    'revert the file change', not 'update the hash here'."""
     if not _SNAPSHOT_PATH.exists():
         pytest.skip(
             f"Snapshot {_SNAPSHOT_PATH} not present in container — "
@@ -63,13 +72,15 @@ def test_committed_snapshot_hash_matches_manifest() -> None:
             f"./backend/snapshots volume mount is missing in "
             f"docker-compose.yml."
         )
-    actual = hashlib.sha256(_SNAPSHOT_PATH.read_bytes()).hexdigest()
-    assert actual == _EXPECTED_SHA256, (
-        f"Snapshot file SHA-256 has changed.\n"
-        f"  expected (per MANIFEST.md): {_EXPECTED_SHA256}\n"
+    raw = _SNAPSHOT_PATH.read_bytes()
+    lf_normalised = raw.replace(b"\r\n", b"\n")
+    actual = hashlib.sha256(lf_normalised).hexdigest()
+    assert actual == _EXPECTED_SHA256_LF_NORMALISED, (
+        f"Snapshot file LF-normalised SHA-256 has changed.\n"
+        f"  expected (per MANIFEST.md): {_EXPECTED_SHA256_LF_NORMALISED}\n"
         f"  actual:                     {actual}\n"
         f"The audit's frozen-reference contract relies on this file "
-        f"being immutable. Restore from git, OR if you intentionally "
+        f"being content-immutable. Restore from git, OR if you intentionally "
         f"need a newer reference point, capture a NEW dated snapshot "
         f"alongside the old one — do not edit the existing file."
     )

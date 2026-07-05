@@ -211,66 +211,13 @@ def _finished(home="Mexico", away="South Africa", h=2, a=0) -> ExternalScore:
     )
 
 
-@pytest.mark.asyncio
-async def test_espn_post_event_resolves_final_by_team_names():
-    class FakeClient:
-        async def get_scoreboard(self, slug, dates):
-            return [
-                _event(state="post", name="STATUS_FULL_TIME", home="Mexico",
-                       away="South Africa", home_score="2", away_score="0"),
-            ]
-
-    provider = EspnScoreProvider(client=FakeClient())
-    ext = await provider.fetch_fixture_score(
-        "537327", home_team="Mexico", away_team="South Africa"
-    )
-    assert ext is not None
-    assert ext.status == MatchStatus.FINISHED
-    assert (ext.home_score, ext.away_score) == (2, 0)
-    assert ext.has_score is True
-
-
-@pytest.mark.asyncio
-async def test_espn_post_lookup_ignores_in_play_and_wrong_teams():
-    class FakeClient:
-        async def get_scoreboard(self, slug, dates):
-            return [
-                _event(),  # in-play — not a final
-                _event(state="post", name="STATUS_FULL_TIME", home="Canada", away="Qatar"),
-            ]
-
-    provider = EspnScoreProvider(client=FakeClient())
-    assert await provider.fetch_fixture_score(
-        "537327", home_team="Mexico", away_team="South Africa"
-    ) is None
-    # No team names → can't match anything by name
-    assert await provider.fetch_fixture_score("537327") is None
-
-
-@pytest.mark.asyncio
-async def test_chain_uses_backup_when_primary_has_no_usable_final():
-    # Regression for the WC2026 opener: FD served FINISHED with null
-    # scores (has_score=False) while ESPN's post event carried the real
-    # 2-0. The chain must hand the final to the backup resolver.
-    garbage = _finished(h=0, a=0)
-    garbage.has_score = False
-    primary = _StubProvider(fixture_result=garbage)
-    backup = _StubProvider(fixture_result=_finished(h=2, a=0))
-    chain = FallbackScoreProvider([backup, primary], resolver=primary, backup_resolver=backup)
-
-    ext = await chain.fetch_fixture_score(
-        "537327", home_team="Mexico", away_team="South Africa"
-    )
-    assert ext is not None and ext.has_score
-    assert (ext.home_score, ext.away_score) == (2, 0)
-
-
-@pytest.mark.asyncio
-async def test_chain_prefers_primary_when_final_is_usable():
-    primary = _StubProvider(fixture_result=_finished(h=1, a=0))
-    backup = _StubProvider(fixture_result=_finished(h=9, a=9))
-    chain = FallbackScoreProvider([backup, primary], resolver=primary, backup_resolver=backup)
-
-    ext = await chain.fetch_fixture_score("537327", home_team="Mexico", away_team="South Africa")
-    assert (ext.home_score, ext.away_score) == (1, 0)
-    assert backup.fixture_calls == 0  # FD final was usable — ESPN untouched
+# Removed (v2.195.2): `test_espn_post_event_resolves_final_by_team_names`,
+# `test_espn_post_lookup_ignores_in_play_and_wrong_teams`, and both
+# `test_chain_*` tests pinned a deprecated capability. `EspnScoreProvider.
+# fetch_fixture_score` now always returns None by design (see
+# external_scores.py:325-328) — ESPN can't resolve by Football-Data
+# ext_id, and per-fixture resolution goes to Football-Data only. The
+# FallbackScoreProvider constructor also dropped its `backup_resolver`
+# kwarg; the single-resolver design supersedes the backup-on-null-score
+# path these tests exercised. Enrichment now flows through the summary
+# endpoint in the live loop — a different code path with different tests.

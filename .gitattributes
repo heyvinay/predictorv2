@@ -1,0 +1,5 @@
+# Frozen audit snapshots — must be byte-identical across all checkouts
+# (Windows / macOS / Linux CI). Without `-text`, Windows' autocrlf=true
+# rewrites LF to CRLF on checkout, changing the SHA-256 that
+# tests/test_audit_snapshot.py pins against MANIFEST.md.
+backend/snapshots/*.csv -text

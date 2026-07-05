@@ -83,6 +83,9 @@ async def competition(session: AsyncSession) -> Competition:
         is_active=True,
         # Deadline far in the future so the write path stays open.
         phase1_deadline=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        # calculate_entry_points gates advancement scoring on this flag;
+        # tests need it True or every KO bucket comes back as 0.
+        knockout_scoring_enabled=True,
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         max_entries_per_user=5,
@@ -212,6 +215,25 @@ class TestAdvancementPayout:
             session, user=alice, competition=competition,
             status=EntryStatus.SUBMITTED,
         )
+        # Advancement is LINEUP-BASED (CLAUDE.md invariant, v2.161.0):
+        # "reached stage X" credit fires when a team is seeded into a
+        # stage-X fixture. So we need Brazil seeded into QF + SF + Final
+        # fixtures — not just the Final — for the QF/SF picks to earn credit.
+        # The Final also needs FINISHED + scored for the `winner` credit
+        # this test's docstring names as the champion-chain contract.
+        for stage_name, kickoff in (
+            ("quarter_final", datetime(2026, 7, 9, 19, 0, tzinfo=timezone.utc)),
+            ("semi_final", datetime(2026, 7, 14, 19, 0, tzinfo=timezone.utc)),
+        ):
+            session.add(Fixture(
+                competition_id=competition.id,
+                home_team="Brazil",
+                away_team="TBD",
+                kickoff=kickoff,
+                stage=stage_name,
+                group=None,
+                status=MatchStatus.SCHEDULED,
+            ))
         final = Fixture(
             competition_id=competition.id,
             home_team="Brazil",
@@ -229,6 +251,7 @@ class TestAdvancementPayout:
                 fixture_id=final.id,
                 home_score=2,
                 away_score=1,
+                outcome="1",
                 source=ScoreSource.MANUAL,
                 verified=True,
             )

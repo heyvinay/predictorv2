@@ -86,6 +86,7 @@ class TestFixtureToRead:
         fixture.match_number = 1
         fixture.status = MatchStatus.FINISHED
         fixture.minute = None
+        fixture.external_id = None
         fixture.is_locked.return_value = True
         fixture.time_until_lock.return_value = None
 
@@ -115,6 +116,7 @@ class TestFixtureToRead:
         fixture.match_number = 2
         fixture.status = MatchStatus.SCHEDULED
         fixture.minute = None
+        fixture.external_id = None
         fixture.is_locked.return_value = False
         fixture.time_until_lock.return_value = timedelta(hours=23, minutes=55)
         fixture.score = None
@@ -134,6 +136,7 @@ class TestFixtureToRead:
         fixture.match_number = 3
         fixture.status = MatchStatus.LIVE
         fixture.minute = 30
+        fixture.external_id = None
         fixture.is_locked.return_value = True
         fixture.time_until_lock.return_value = None
 
@@ -192,6 +195,7 @@ class TestFixtureToRead:
         fixture.match_number = 4
         fixture.status = MatchStatus.FINISHED
         fixture.minute = None
+        fixture.external_id = None
         fixture.is_locked.return_value = True
         fixture.time_until_lock.return_value = None
         fixture.score = None
@@ -212,6 +216,7 @@ class TestFixtureToRead:
         fixture.match_number = 49
         fixture.status = MatchStatus.FINISHED
         fixture.minute = None
+        fixture.external_id = None
         fixture.is_locked.return_value = True
         fixture.time_until_lock.return_value = None
 

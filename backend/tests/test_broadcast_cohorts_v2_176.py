@@ -22,6 +22,7 @@ from sqlmodel import SQLModel
 
 import app.models  # noqa: F401 — register every model
 from app.config import TOURNAMENT_START
+from app.models.competition import Competition
 from app.models.entry import (
     EntryStatus,
     PredictionEntry,
@@ -68,9 +69,36 @@ async def _make_user(
     return u
 
 
+async def _get_or_create_competition(s: AsyncSession) -> Competition:
+    """Return the session's Competition, creating one on demand.
+
+    PredictionEntry.competition_id is NOT NULL (v2.x schema); every entry
+    must attach to a Competition row. These tests only care about entry
+    eligibility signals, not competition semantics, so a bare-minimum
+    Competition row is sufficient.
+    """
+    from sqlalchemy import select
+    existing = (await s.execute(select(Competition))).scalars().first()
+    if existing is not None:
+        return existing
+    comp = Competition(name="Broadcast cohort tests")
+    s.add(comp)
+    await s.flush()
+    return comp
+
+
+_entry_seq = 0
+
+
 async def _make_eligible_submitted_entry(s: AsyncSession, user_id) -> None:
+    global _entry_seq
+    _entry_seq += 1
+    comp = await _get_or_create_competition(s)
     entry = PredictionEntry(
+        competition_id=comp.id,
         user_id=user_id,
+        reference=f"WC26-{_entry_seq:06d}",
+        display_name=f"Entry {_entry_seq}",
         is_disabled=False,
         withdrawn_at=None,
         entry_number=1,
@@ -140,7 +168,7 @@ async def test_pool_ghost_includes_only_users_with_no_post_kickoff_signal(
 
     # PostHog stub returns empty — pure column-only behaviour.
     with patch(
-        "app.services.broadcast.posthog_read.get_last_pageview_for_users_since",
+        "app.services.posthog_read.get_last_pageview_for_users_since",
         _EMPTY_PH,
     ):
         rows = await query_audience(db_session, BroadcastSegment.POOL_GHOST)
@@ -174,7 +202,7 @@ async def test_pool_ghost_excluded_when_posthog_shows_activity(
     # PostHog stub: x@test.com active since kickoff → not a ghost.
     ph_stub = AsyncMock(return_value={u_x.id: post_kickoff})
     with patch(
-        "app.services.broadcast.posthog_read.get_last_pageview_for_users_since",
+        "app.services.posthog_read.get_last_pageview_for_users_since",
         ph_stub,
     ):
         rows = await query_audience(db_session, BroadcastSegment.POOL_GHOST)
@@ -206,7 +234,7 @@ async def test_pool_ghost_silent_failure_when_posthog_raises(
 
     failing_ph = AsyncMock(side_effect=RuntimeError("PostHog down"))
     with patch(
-        "app.services.broadcast.posthog_read.get_last_pageview_for_users_since",
+        "app.services.posthog_read.get_last_pageview_for_users_since",
         failing_ph,
     ):
         # Must NOT raise — the engagement-input builder catches everything.
@@ -256,7 +284,7 @@ async def test_lapsing_window_3_to_7_days_ago(db_session: AsyncSession):
     await db_session.commit()
 
     with patch(
-        "app.services.broadcast.posthog_read.get_last_pageview_for_users_since",
+        "app.services.posthog_read.get_last_pageview_for_users_since",
         _EMPTY_PH,
     ):
         rows = await query_audience(db_session, BroadcastSegment.LAPSING)
@@ -289,7 +317,7 @@ async def test_pool_ghost_and_lapsing_mutually_exclusive(
     await db_session.commit()
 
     with patch(
-        "app.services.broadcast.posthog_read.get_last_pageview_for_users_since",
+        "app.services.posthog_read.get_last_pageview_for_users_since",
         _EMPTY_PH,
     ):
         ghosts = {r.email for r in await query_audience(db_session, BroadcastSegment.POOL_GHOST)}

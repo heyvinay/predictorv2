@@ -130,7 +130,8 @@ async def test_feed_returns_published_newest_first(
 
     resp = await client_as_user.get("/api/announcements/")
     assert resp.status_code == 200
-    titles = [a["title"] for a in resp.json()]
+    # Response envelope: {hero_enabled: bool, items: [...]}
+    titles = [a["title"] for a in resp.json()["items"]]
     assert titles == ["Newest", "Oldest"]  # unpublished excluded
 
 
@@ -140,7 +141,8 @@ async def test_feed_is_capped(client_as_user: AsyncClient, db_session: AsyncSess
         await _seed(db_session, title=f"News {i}")
     resp = await client_as_user.get("/api/announcements/")
     assert resp.status_code == 200
-    assert len(resp.json()) == 10
+    # Response envelope: {hero_enabled, items} — feed cap of 10 applies to items.
+    assert len(resp.json()["items"]) == 10
 
 
 # ---------------------------------------------------------------------------
