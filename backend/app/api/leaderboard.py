@@ -25,6 +25,7 @@ from app.services.entries import (
     get_entry_for_view,
 )
 from app.services.leaderboard import calculate_leaderboard, invalidate_cache
+from app.services.live_projection import apply_live_projection
 from app.services.locking import is_phase1_locked
 from app.services.scoring import (
     SCORING_STRATEGIES,
@@ -146,6 +147,7 @@ async def get_leaderboard(
 
     force = bool(refresh and user is not None and user.is_admin)
     response = await calculate_leaderboard(session, force_refresh=force, phase=phase)
+    response = await apply_live_projection(session, response)
 
     # Pre-lock blind-pool filter. Post-lock returns full standings.
     if user is None or not user.is_admin:
