@@ -2543,6 +2543,13 @@
       "type": "fix",
       "summary": "Fixed the Round of 16 fixture rows on Results — Paraguay vs France and Canada vs Morocco were showing the wrong teams because the two Saturday knockout kickoffs are in reverse order to their FIFA match numbers.",
       "commit": "9f47daf"
+    },
+    {
+      "version": "2.196.0",
+      "date": "2026-07-05",
+      "type": "feature",
+      "summary": "New 'What's New' panel — tap the ✦ in the top bar to catch up on the latest features at a glance, see which app version you're on, and tell us whether each update was useful. You can now also rate the app and send feedback any time from the footer.",
+      "commit": "pending"
     }
   ]
 }
