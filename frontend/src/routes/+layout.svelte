@@ -23,7 +23,6 @@
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
-	import FeedbackPanel from '$lib/components/FeedbackPanel.svelte';
 	import WhatsNew from '$lib/components/WhatsNew.svelte';
 	import Toaster from '$lib/components/Toaster.svelte';
 	import RatingPrompt from '$lib/components/RatingPrompt.svelte';
@@ -168,9 +167,8 @@
 <div class="min-h-screen bg-base-100 flex flex-col noise overflow-x-clip">
 	<!-- Support side panel (renders only when open) -->
 	<SupportPanel />
-	<!-- Rate & feedback side panel + What's New panel + toast stack + rating
-	     prompt. Each renders only when its own state is active. -->
-	<FeedbackPanel />
+	<!-- What's New panel + toast stack + rating/feedback prompt. Each renders
+	     only when its own state is active. -->
 	<WhatsNew />
 	<Toaster />
 	<RatingPrompt />

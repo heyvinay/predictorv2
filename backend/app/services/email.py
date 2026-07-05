@@ -7,6 +7,7 @@ local testing doesn't require an email account.
 
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -21,6 +22,11 @@ from app.services.team_name import display_team_name
 logger = logging.getLogger(__name__)
 
 RESEND_API_URL: str = "https://api.resend.com/emails"
+
+# Where in-app rating/feedback lands. A module constant rather than a
+# Settings field for now — it's the pool owner's inbox and unlikely to
+# change; promote to `Settings` if a staging env ever needs to redirect it.
+FEEDBACK_RECIPIENT_EMAIL: str = "heyvinay@gmail.com"
 
 
 async def send_magic_link_email(to_email: str, magic_link_url: str) -> None:
@@ -68,6 +74,105 @@ async def send_magic_link_email(to_email: str, magic_link_url: str) -> None:
     if response.status_code not in (200, 201):
         logger.error("[magic-link] Resend API error %s: %s", response.status_code, response.text)
         raise RuntimeError("Failed to send magic link email")
+
+
+async def send_feedback_email(
+    *,
+    rating: int,
+    message: str,
+    reply_to: str,
+    user_name: str,
+) -> None:
+    """Email a user's in-app rating + written feedback to the pool owner.
+
+    Same Resend path as :func:`send_magic_link_email`. In dev without
+    ``RESEND_API_KEY`` the feedback is printed to stdout instead of sent, so
+    local testing needs no email account. Raises :class:`RuntimeError` on a
+    non-2xx Resend response so the API endpoint can surface the failure to
+    the client ("couldn't send — try again").
+
+    ``reply_to`` is the submitter's email, set as the message Reply-To so a
+    reply straight from the inbox reaches them.
+    """
+    settings = get_settings()
+
+    stars = "★" * rating + "☆" * (5 - rating)
+
+    if not settings.resend_api_key:
+        # Dev fallback — surface in docker logs without needing Resend.
+        print("[feedback] RESEND_API_KEY not set — dev mode, printing instead of sending:", flush=True)
+        print(f"[feedback] {stars} ({rating}/5) from {user_name} <{reply_to}>", flush=True)
+        print(f"[feedback] {message}", flush=True)
+        return
+
+    subject = f"New feedback — {stars} from {user_name}"
+    html_body = _build_feedback_html(
+        stars=stars,
+        rating=rating,
+        # Escape user-controlled strings before interpolating into HTML.
+        safe_name=html.escape(user_name or "A pool member"),
+        safe_reply=html.escape(reply_to),
+        safe_message=html.escape(message),
+    )
+    text_body = f"{stars} ({rating}/5) from {user_name} <{reply_to}>\n\n{message}\n"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            RESEND_API_URL,
+            headers={
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.resend_from_email,
+                "to": FEEDBACK_RECIPIENT_EMAIL,
+                "reply_to": reply_to,
+                "subject": subject,
+                "html": html_body,
+                "text": text_body,
+            },
+            timeout=10.0,
+        )
+
+    if response.status_code not in (200, 201):
+        logger.error("[feedback] Resend API error %s: %s", response.status_code, response.text)
+        raise RuntimeError("Failed to send feedback email")
+
+
+def _build_feedback_html(
+    *,
+    stars: str,
+    rating: int,
+    safe_name: str,
+    safe_reply: str,
+    safe_message: str,
+) -> str:
+    """Render the feedback email body (inline CSS, brand palette). All
+    interpolated user strings must already be HTML-escaped by the caller."""
+    return (
+        '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8" />'
+        '<meta name="viewport" content="width=device-width,initial-scale=1.0" /></head>'
+        f'<body style="margin:0;padding:0;background:{_PAGE_BG};'
+        f'font-family:{_BODY_FONT};color:{_BODY_INK};">'
+        '<table width="100%" cellpadding="0" cellspacing="0" border="0" '
+        f'style="background:{_PAGE_BG};padding:32px 12px;"><tr><td align="center">'
+        '<table width="520" cellpadding="0" cellspacing="0" border="0" '
+        f'style="max-width:520px;width:100%;background:{_CARD_BG};border-radius:12px;'
+        'overflow:hidden;box-shadow:0 6px 24px -12px rgba(11,19,41,0.18);">'
+        f'<tr><td style="background:{_NAVY};padding:24px;">'
+        f'<div style="font-family:{_DISPLAY_FONT};font-size:15px;color:{_GOLD};'
+        'letter-spacing:1px;">ATLAS WORLD CUP POOLS</div>'
+        '<div style="color:#ffffff;font-size:18px;margin-top:6px;">New feedback</div></td></tr>'
+        '<tr><td style="padding:24px;">'
+        f'<div style="font-size:26px;color:{_GOLD};letter-spacing:3px;">{stars}</div>'
+        f'<div style="font-size:13px;color:{_MUTED_INK};margin:4px 0 18px;">'
+        f'{rating} / 5 · from {safe_name} &lt;{safe_reply}&gt;</div>'
+        f'<div style="font-size:15px;line-height:1.6;white-space:pre-wrap;'
+        f'border-left:3px solid {_GOLD};padding:4px 0 4px 14px;">{safe_message}</div>'
+        f'<div style="font-size:12px;color:{_MUTED_INK};margin-top:20px;">'
+        f'Reply to this email to respond to {safe_name} directly.</div>'
+        '</td></tr></table></td></tr></table></body></html>'
+    )
 
 
 # Brand palette — premium-night derived. Resolved as hex (no CSS vars).

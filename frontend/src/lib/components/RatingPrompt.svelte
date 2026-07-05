@@ -1,30 +1,56 @@
 <!--
 	RatingPrompt — a one-time, well-timed "rate the app" card (see
 	stores/ratingPrompt.ts for the timing gate). A star tap fires
-	`app_rating_submitted` to PostHog (measurable, no backend); "Tell us more"
-	hands off to the Tally feedback panel. Asks once per device.
+	`app_rating_submitted` to PostHog (measurable, no backend) and then reveals
+	an inline feedback box; on Send, the rating + message is emailed to the
+	pool owner via the backend (POST /api/feedback/). Asks once per device;
+	also force-openable from the footer "Feedback" link.
 	Anchored above the mobile bottom nav so it clears the sticky bar.
 -->
 <script lang="ts">
 	import { ratingPromptVisible, dismissRatingPrompt, markRatingAsked } from '$stores/ratingPrompt';
-	import { feedbackOpen } from '$stores/feedbackPanel';
+	import { sendFeedback } from '$lib/api/feedback';
 	import { track } from '$lib/analytics';
 
 	const STARS = [1, 2, 3, 4, 5];
 	let hovered = 0;
 	let submitted = 0;
+	let message = '';
+	let status: 'idle' | 'sending' | 'sent' | 'error' = 'idle';
+
+	// Reset to a clean card whenever it (re)opens — a footer-triggered open
+	// should never inherit a half-filled state from a previous session.
+	let wasVisible = false;
+	$: if ($ratingPromptVisible && !wasVisible) {
+		wasVisible = true;
+		hovered = 0;
+		submitted = 0;
+		message = '';
+		status = 'idle';
+	} else if (!$ratingPromptVisible && wasVisible) {
+		wasVisible = false;
+	}
 
 	function rate(n: number) {
 		submitted = n;
 		track('app_rating_submitted', { rating: n });
 		// Persist "asked" immediately so a rate-then-leave user is never
-		// re-prompted or double-counted; the follow-up step stays visible.
+		// re-prompted or double-counted; the feedback step stays visible.
 		markRatingAsked();
 	}
 
-	function openFeedback() {
-		dismissRatingPrompt();
-		feedbackOpen.set(true);
+	async function send() {
+		const trimmed = message.trim();
+		if (!trimmed || status === 'sending') return;
+		status = 'sending';
+		try {
+			await sendFeedback(submitted, trimmed);
+			status = 'sent';
+			track('feedback_submitted', { rating: submitted, has_message: true });
+			setTimeout(() => dismissRatingPrompt(), 1500);
+		} catch {
+			status = 'error';
+		}
 	}
 
 	function dismiss() {
@@ -74,17 +100,36 @@
 				>
 					Maybe later
 				</button>
-			{:else}
+			{:else if status === 'sent'}
 				<h3 class="font-semibold text-sm">Thanks! 🙏</h3>
-				<p class="text-xs text-base-content/60 mt-0.5 mb-3">Anything you'd like to tell us?</p>
-				<div class="flex justify-center gap-1.5 mb-3">
+				<p class="text-xs text-base-content/60 mt-0.5">Your feedback is on its way.</p>
+			{:else}
+				<div class="flex justify-center gap-1.5 mb-2">
 					{#each STARS as s}
-						<span class="text-2xl leading-none {submitted >= s ? 'text-primary' : 'text-base-content/25'}"
+						<span class="text-xl leading-none {submitted >= s ? 'text-primary' : 'text-base-content/25'}"
 							>★</span
 						>
 					{/each}
 				</div>
-				<button class="btn btn-primary btn-sm w-full" on:click={openFeedback}>Tell us more</button>
+				<p class="text-xs text-base-content/60 mb-2">Anything you'd like to tell us?</p>
+				<textarea
+					class="textarea textarea-bordered textarea-sm w-full text-sm resize-none"
+					rows="3"
+					maxlength="2000"
+					placeholder="What's working, what's not, what you'd like next…"
+					bind:value={message}
+					disabled={status === 'sending'}
+				></textarea>
+				{#if status === 'error'}
+					<p class="text-xs text-error mt-1.5">Couldn't send — please try again.</p>
+				{/if}
+				<button
+					class="btn btn-primary btn-sm w-full mt-2"
+					on:click={send}
+					disabled={!message.trim() || status === 'sending'}
+				>
+					{status === 'sending' ? 'Sending…' : 'Send'}
+				</button>
 				<button
 					class="mt-2 text-xs text-base-content/50 hover:text-base-content"
 					on:click={dismiss}

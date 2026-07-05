@@ -12,7 +12,8 @@
 -->
 <script lang="ts">
 	import { supportOpen } from '$stores/supportPanel';
-	import { feedbackOpen } from '$stores/feedbackPanel';
+	import { openRatingPrompt } from '$stores/ratingPrompt';
+	import { isAuthenticated } from '$stores/auth';
 	import { track } from '$lib/analytics';
 	import { currentVersion } from '$lib/utils/releases';
 
@@ -23,8 +24,8 @@
 	}
 
 	function onFeedbackClick() {
-		trackFooterNav('feedback_panel', 'Feedback');
-		feedbackOpen.set(true);
+		trackFooterNav('rating_card', 'Feedback');
+		openRatingPrompt();
 	}
 
 	function onRulesClick() {
@@ -87,14 +88,16 @@
 			>
 				Contact
 			</button>
-			<span class="text-base-content/20" aria-hidden="true">·</span>
-			<button
-				type="button"
-				class="hover:text-primary transition-colors font-mono uppercase tracking-widest"
-				on:click={onFeedbackClick}
-			>
-				Feedback
-			</button>
+			{#if $isAuthenticated}
+				<span class="text-base-content/20" aria-hidden="true">·</span>
+				<button
+					type="button"
+					class="hover:text-primary transition-colors font-mono uppercase tracking-widest"
+					on:click={onFeedbackClick}
+				>
+					Feedback
+				</button>
+			{/if}
 		</nav>
 
 		<p class="text-[11px] font-mono text-base-content/30" aria-label="App version">
