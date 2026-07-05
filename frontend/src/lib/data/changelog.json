@@ -2557,6 +2557,13 @@
       "type": "feature",
       "summary": "Rating and feedback is now a single quick step — give a star rating, jot a note in the box that appears, and hit Send. It comes straight to us, and we can reply right back to you.",
       "commit": "pending"
+    },
+    {
+      "version": "2.197.1",
+      "date": "2026-07-05",
+      "type": "internal",
+      "summary": "Repaired 17 stale automated tests behind the scenes so our safety checks stay accurate — no visible changes for you.",
+      "commit": "pending"
     }
   ]
 }
