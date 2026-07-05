@@ -9,6 +9,7 @@ from app.api import (
     competition,
     entries,
     entry_predictions,
+    feedback,
     fixtures,
     landing,
     leaderboard,
@@ -40,6 +41,8 @@ api_router.include_router(
 )
 # Authenticated client telemetry → server-side PostHog forwarder
 api_router.include_router(telemetry.router, prefix="/telemetry", tags=["telemetry"])
+# In-app rating + written feedback → owner's inbox (Resend). Auth required.
+api_router.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 # Smart Fill — server-side cached odds (plan §9). Unauthenticated; SvelteKit
 # /odds endpoint proxies through here. Note: trailing-slash-tolerant via the
 # router's "/" path so both /api/odds and /api/odds/ work.

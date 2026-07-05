@@ -64,6 +64,15 @@ export function markRatingAsked(): void {
 	markAsked();
 }
 
+/**
+ * Force-open the rating card regardless of the "asked" gate — for the manual
+ * footer "Feedback" entry point. The automatic view-threshold gate above is
+ * unaffected.
+ */
+export function openRatingPrompt(): void {
+	ratingPromptVisible.set(true);
+}
+
 /** Hide the prompt and mark it asked — no further prompts on this device. */
 export function dismissRatingPrompt(): void {
 	markAsked();

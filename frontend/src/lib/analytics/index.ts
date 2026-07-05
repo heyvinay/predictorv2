@@ -107,7 +107,9 @@ export type EventName =
 	| 'feature_nudge_shown'
 	| 'feature_nudge_clicked'
 	| 'app_rating_submitted'
-	| 'feedback_opened'
+	// Written feedback submitted from the rating card (emailed server-side).
+	// Carries rating + has_message. Also fired server-side in api/feedback.py.
+	| 'feedback_submitted'
 	// Per-feature "Was this useful?" verdict from a What's New card.
 	// Carries feature_id + verdict ('up' | 'down').
 	| 'feature_rated';
