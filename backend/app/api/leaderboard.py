@@ -6,6 +6,7 @@ convenience route picks the requesting user's first eligible entry by
 default; pass `?entry_id=<uuid>` to target a specific one.
 """
 
+import logging
 import uuid
 from datetime import date, datetime
 from typing import Any, Literal
@@ -38,6 +39,8 @@ from app.services.snapshots import (
     get_entry_trajectory,
     get_steepest_climbers,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -147,7 +150,14 @@ async def get_leaderboard(
 
     force = bool(refresh and user is not None and user.is_admin)
     response = await calculate_leaderboard(session, force_refresh=force, phase=phase)
-    response = await apply_live_projection(session, response)
+
+    # Live projection is a purely additive overlay (see live_projection.py's
+    # module docstring) — a bug in it must not take down the banked board
+    # for the whole pool. Fail open: log and keep serving the banked response.
+    try:
+        response = await apply_live_projection(session, response)
+    except Exception as e:  # noqa: BLE001 — overlay is best-effort, don't fail the endpoint
+        logger.warning("live projection overlay failed: %s", e)
 
     # Pre-lock blind-pool filter. Post-lock returns full standings.
     if user is None or not user.is_admin:

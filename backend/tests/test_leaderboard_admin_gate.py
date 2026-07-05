@@ -228,3 +228,36 @@ class TestRefreshGate:
         assert r.status_code == 200
         # Admin refresh forces the rebuild → new entry visible.
         assert r.json()["total_participants"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Live projection overlay — fail-open (v2.198.0)
+# ---------------------------------------------------------------------------
+class TestLiveProjectionFailOpen:
+    async def test_overlay_exception_serves_banked_board(
+        self,
+        db_session: AsyncSession,
+        competition: Competition,
+        alice: User,
+        client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """A bug in apply_live_projection (e.g. once the admin toggle in
+        Tasks 6/9 makes the gates flippable) must not 500 the whole
+        endpoint — the banked board should still be served."""
+        await _make_entry(db_session, user=alice, competition=competition)
+        _override(db_session, viewer=alice)
+
+        async def _boom(session, response):
+            raise RuntimeError("simulated overlay failure")
+
+        monkeypatch.setattr(
+            "app.api.leaderboard.apply_live_projection", _boom
+        )
+
+        r = await client.get("/api/leaderboard/")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["total_participants"] == 1
+        # Fail-open means no projection was applied — banked flag stays off.
+        assert body.get("live_projection_active") is not True
