@@ -23,6 +23,13 @@
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import SupportPanel from '$lib/components/SupportPanel.svelte';
+	import FeedbackPanel from '$lib/components/FeedbackPanel.svelte';
+	import WhatsNew from '$lib/components/WhatsNew.svelte';
+	import Toaster from '$lib/components/Toaster.svelte';
+	import RatingPrompt from '$lib/components/RatingPrompt.svelte';
+	import { openWhatsNew, hasUnseenHighlights } from '$stores/whatsNew';
+	import { maybeFireNudge } from '$lib/utils/featureNudges';
+	import { registerViewForRating } from '$stores/ratingPrompt';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import { needsOnboarding } from '$lib/utils/onboarding';
 
@@ -53,6 +60,15 @@
 			referrer_path: nav.from?.url?.pathname ?? null,
 			nav_type: nav.type,
 		});
+
+		// Feature awareness + feedback, signed-in users only. maybeFireNudge
+		// fires at most one contextual toast per session; registerViewForRating
+		// reveals the rating card once the user has engaged a few times. Both
+		// are self-throttling and no-op once seen/asked.
+		if ($isAuthenticated) {
+			maybeFireNudge(nav.to?.url?.pathname ?? '');
+			registerViewForRating();
+		}
 	});
 
 	/** Source-tagged nav-click helper. Fires `nav_clicked` with which UI
@@ -152,6 +168,12 @@
 <div class="min-h-screen bg-base-100 flex flex-col noise overflow-x-clip">
 	<!-- Support side panel (renders only when open) -->
 	<SupportPanel />
+	<!-- Rate & feedback side panel + What's New panel + toast stack + rating
+	     prompt. Each renders only when its own state is active. -->
+	<FeedbackPanel />
+	<WhatsNew />
+	<Toaster />
+	<RatingPrompt />
 
 	<!-- Navigation -->
 	{#if $isAuthenticated}
@@ -344,7 +366,24 @@
 						{/if}
 					</button>
 				</div>
-				<div class="tooltip tooltip-bottom" data-tip="Help & support">
+				<div class="tooltip tooltip-bottom" data-tip="What's new">
+						<button
+							class="btn btn-ghost btn-sm btn-circle relative"
+							aria-label="What's new"
+							on:click={openWhatsNew}
+						>
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+							</svg>
+							{#if $hasUnseenHighlights}
+								<span
+									class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary animate-pulse-soft"
+									aria-hidden="true"
+								></span>
+							{/if}
+						</button>
+					</div>
+					<div class="tooltip tooltip-bottom" data-tip="Help & support">
 					<button
 						class="btn btn-ghost btn-sm btn-circle"
 						aria-label="Help and support"
@@ -436,7 +475,24 @@
 						{/if}
 					</button>
 				</div>
-				<div class="tooltip tooltip-bottom" data-tip="Help & support">
+				<div class="tooltip tooltip-bottom" data-tip="What's new">
+						<button
+							class="btn btn-ghost btn-sm btn-circle relative"
+							aria-label="What's new"
+							on:click={openWhatsNew}
+						>
+							<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+							</svg>
+							{#if $hasUnseenHighlights}
+								<span
+									class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary animate-pulse-soft"
+									aria-hidden="true"
+								></span>
+							{/if}
+						</button>
+					</div>
+					<div class="tooltip tooltip-bottom" data-tip="Help & support">
 					<button
 						class="btn btn-ghost btn-sm btn-circle"
 						aria-label="Help and support"

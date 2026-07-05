@@ -97,7 +97,17 @@ export type EventName =
 	| 'simulator_challenge_submitted'
 	| 'simulator_unlocked'
 	| 'simulator_toggled_on'
-	| 'simulator_run_committed';
+	| 'simulator_run_committed'
+	// Feature awareness + feedback (What's New panel, contextual nudges,
+	// rating prompt). All browser-fired; no backend allow-list entry needed.
+	// whats_new_feature_clicked / feature_nudge_* carry feature_id;
+	// app_rating_submitted carries rating (1-5).
+	| 'whats_new_opened'
+	| 'whats_new_feature_clicked'
+	| 'feature_nudge_shown'
+	| 'feature_nudge_clicked'
+	| 'app_rating_submitted'
+	| 'feedback_opened';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog

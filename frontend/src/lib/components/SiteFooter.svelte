@@ -12,10 +12,19 @@
 -->
 <script lang="ts">
 	import { supportOpen } from '$stores/supportPanel';
+	import { feedbackOpen } from '$stores/feedbackPanel';
 	import { track } from '$lib/analytics';
+	import { currentVersion } from '$lib/utils/releases';
+
+	const version = currentVersion();
 
 	function trackFooterNav(target: string, label: string) {
 		track('nav_clicked', { source: 'footer', target, label });
+	}
+
+	function onFeedbackClick() {
+		trackFooterNav('feedback_panel', 'Feedback');
+		feedbackOpen.set(true);
 	}
 
 	function onRulesClick() {
@@ -78,6 +87,18 @@
 			>
 				Contact
 			</button>
+			<span class="text-base-content/20" aria-hidden="true">·</span>
+			<button
+				type="button"
+				class="hover:text-primary transition-colors font-mono uppercase tracking-widest"
+				on:click={onFeedbackClick}
+			>
+				Feedback
+			</button>
 		</nav>
+
+		<p class="text-[11px] font-mono text-base-content/30" aria-label="App version">
+			v{version}
+		</p>
 	</div>
 </footer>
