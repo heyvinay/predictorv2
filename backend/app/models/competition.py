@@ -76,6 +76,15 @@ class Competition(SQLModel, table=True):
     # still counted + audited, just uncapped.
     simulator_enabled: bool = Field(default=False)
 
+    # Live projection master switch (v2.198.0): admin-controlled gate on
+    # the read-time live projected leaderboard. When true AND
+    # knockout_scoring_enabled is true AND >=1 knockout match is live,
+    # GET /leaderboard/ layers a provisional advancement projection onto
+    # the banked board (projected_position / projected_total / live_delta).
+    # Read-time only — flipping it needs no cache invalidation. Defaults
+    # FALSE so the feature stays dark until an admin opts in from /admin.
+    live_projection_enabled: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 
