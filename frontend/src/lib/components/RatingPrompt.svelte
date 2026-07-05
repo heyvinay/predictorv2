@@ -6,7 +6,7 @@
 	Anchored above the mobile bottom nav so it clears the sticky bar.
 -->
 <script lang="ts">
-	import { ratingPromptVisible, dismissRatingPrompt } from '$stores/ratingPrompt';
+	import { ratingPromptVisible, dismissRatingPrompt, markRatingAsked } from '$stores/ratingPrompt';
 	import { feedbackOpen } from '$stores/feedbackPanel';
 	import { track } from '$lib/analytics';
 
@@ -17,6 +17,9 @@
 	function rate(n: number) {
 		submitted = n;
 		track('app_rating_submitted', { rating: n });
+		// Persist "asked" immediately so a rate-then-leave user is never
+		// re-prompted or double-counted; the follow-up step stays visible.
+		markRatingAsked();
 	}
 
 	function openFeedback() {

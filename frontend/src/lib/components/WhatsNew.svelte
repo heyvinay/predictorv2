@@ -10,6 +10,7 @@
 	import { whatsNewOpen, closeWhatsNew } from '$stores/whatsNew';
 	import { user } from '$stores/auth';
 	import { featureHighlights, currentVersion, type FeatureHighlight } from '$lib/utils/releases';
+	import { featureVerdicts, rateFeature } from '$stores/featureFeedback';
 	import { track } from '$lib/analytics';
 
 	const version = currentVersion();
@@ -112,6 +113,30 @@
 								{h.cta ?? 'Open →'}
 							</a>
 						{/if}
+						<!-- Subtle, one-shot "Was this useful?" — only seen inside the
+						     panel the user chose to open; collapses to a thank-you once
+						     answered and never re-asks. -->
+						<div class="mt-3 flex items-center gap-2 text-[11px] text-base-content/40">
+							{#if $featureVerdicts[h.id]}
+								<span>Thanks for the feedback 🙏</span>
+							{:else}
+								<span>Was this useful?</span>
+								<button
+									class="leading-none hover:text-base-content transition-colors"
+									on:click={() => rateFeature(h.id, 'up')}
+									aria-label="Yes, useful"
+								>
+									👍
+								</button>
+								<button
+									class="leading-none hover:text-base-content transition-colors"
+									on:click={() => rateFeature(h.id, 'down')}
+									aria-label="Not useful"
+								>
+									👎
+								</button>
+							{/if}
+						</div>
 					</div>
 				{/each}
 			</div>
