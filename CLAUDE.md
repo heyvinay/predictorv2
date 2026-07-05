@@ -188,13 +188,13 @@ stage X" credit fires when a team is seeded into a stage-X fixture
 FINISHED). Only the `winner` credit requires the final to be FINISHED +
 scored. Group-stage match points still pay on match completion.
 
-**KO lineup resolver chain (v2.184.x).** Extends the v2.182.x R32-only
-`r32_resolver` to cover every KO stage. Slot placeholders (`slot:
-{stage}:{ext}:{home|away}`) on R16/QF/SF/F fixtures resolve at READ
-TIME as upstream matches finish: R16 home = winner of source R32, QF
-home = winner of source R16, etc. Implementation in
-`backend/app/services/ko_lineup_resolver.py`; source maps in
-`backend/app/services/bracket_seeding.py` (`R32_SOURCES`,
+**KO lineup resolver chain (v2.184.x, ext_id mapping completed
+v2.195.1).** Extends the v2.182.x R32-only `r32_resolver` to cover
+every KO stage. Slot placeholders (`slot: {stage}:{ext}:{home|away}`)
+on R16/QF/SF/F fixtures resolve at READ TIME as upstream matches
+finish: R16 home = winner of source R32, QF home = winner of source
+R16, etc. Implementation in `backend/app/services/ko_lineup_resolver.py`;
+source maps in `backend/app/services/bracket_seeding.py` (`R32_SOURCES`,
 `ROUND_OF_16_SOURCES`, `QUARTER_FINAL_SOURCES`, `SEMI_FINAL_SOURCES`,
 `FINAL_SOURCES`). Applied in `backend/app/api/fixtures.py:fixture_to_read()`
 and `backend/app/services/ko_match_detail.py`. DB rows stay untouched —
@@ -202,6 +202,28 @@ when Football-Data eventually backfills FIFA's official lineup, the
 resolver becomes a no-op (placeholder no longer matches). Frontend
 mirror in `frontend/src/lib/utils/bracketGeometry.ts` powers the
 BracketQuadrant SVG. Memory note: `predictorv2-ko-lineup-resolver`.
+
+**★ Match-number lookup is ext_id-based for EVERY KO stage — never
+kickoff-sorted (v2.195.1 fix).** `EXT_ID_TO_MATCH_NUMBER` in
+`bracket_seeding.py` is a single hand-verified map covering R32
+through the Final (`537415..537430` → M73-M88, `537375..537382` →
+M89-M96, `537383..537386` → M97-M100, `537387..537388` → M101-M102,
+`537390` → M104; M103 third_place omitted, unscored). Before v2.195.1,
+R16+ stages were indexed by sorting fixtures by kickoff and assigning
+`stage_base + index` — this silently swapped Paraguay–France (M89)
+with Canada–Morocco (M90) because FIFA scheduled M89 to kick off
+FOUR HOURS AFTER M90 on Sat 4 Jul 2026, breaking the "match numbers
+are chronological" assumption. **Never reintroduce a kickoff-sort
+fallback for any KO stage** — FIFA match numbers are a STRUCTURAL
+bracket-position concept; kickoff time is an independent broadcast-
+scheduling decision, and the two can and do diverge. A KO fixture
+whose ext_id isn't yet in the map should surface as an unresolved
+slot placeholder, not be guessed at via kickoff order. Regression
+tests: `backend/tests/test_r32_ext_id_mapping.py` (R32),
+`backend/tests/test_ko_ext_id_mapping.py` (R16/QF/SF/Final — pins the
+M89/M90 case by name). Frontend mirror
+`EXT_ID_TO_MATCH_NUMBER` in `bracketGeometry.ts` (renamed from the old
+R32-only `R32_EXT_ID_TO_MATCH_NUMBER`) follows the same rule.
 
 **Bracket parity (v2.184.x).** The frontend `bracketConfig.ts` and the
 backend `bracket_seeding.py` encode the same FIFA bracket structure.
@@ -665,6 +687,70 @@ click-throughs. Sheet button clicks specifically fire the
 docs.google.com path is **deliberately unattributable** (sheet on a
 third-party domain).
 
+### Feature awareness: What's New panel, nudges, rating & feedback (v2.196.0–v2.197.1)
+
+Three shipped in quick succession (2026-07-05) to give pool members
+in-app ways to discover shipped features and leave feedback —
+previously only the admin Release Notes page listed changes.
+
+**Two data sources, deliberately kept separate (★ never conflate).**
+`frontend/src/lib/data/changelog.json` (raw per-semver dev log, 100s
+of noisy rows — `internal`/`fix`/`merge` included) still powers only
+the admin Release Notes page. `frontend/src/lib/data/featureHighlights.json`
+is a SEPARATE, hand-curated, newest-first consolidation of many
+releases into short user-facing themes (`{id, title, blurb, since,
+date, href?, cta?}`) — it powers the What's New panel. **Never
+auto-derive one from the other** — that's exactly the trap that would
+leak dev jargon or phase language into user-facing copy. When a
+feature ships, decide by hand whether it's worth a new
+`featureHighlights.json` entry (trim the tail so the list stays
+~6-10 items); every release still gets a `changelog.json` row
+regardless. Shared helpers in `frontend/src/lib/utils/releases.ts`
+(`currentVersion()`, `RELEASE_TYPE_BADGE`/`RELEASE_TYPE_LABEL` maps,
+highlight helpers) serve both surfaces so admin and user framing never
+drift on shared concepts like version numbers.
+
+**What's New panel** (`WhatsNew.svelte`) — opened via a nav sparkle
+button showing a passive "New" badge until the latest highlight is
+seen (`latestHighlightId()`). Each card can carry a per-feature
+👍/👎 "Was this useful?" control (`featureFeedback.ts` store,
+`feature_rated` event) — low-friction, visible only inside the panel
+a user chose to open, recorded once per device
+(`localStorage['predictor:whatsnew:feedback']`), never re-asked.
+
+**Feature nudges** — one-time contextual toasts (`toast` store +
+`Toaster.svelte`, top-anchored to clear the mobile bottom nav) driven
+by `frontend/src/lib/utils/featureNudges.ts`. Capped once per feature
+and once per session.
+
+**Rating prompt** (`RatingPrompt.svelte`) — gated by
+`frontend/src/lib/stores/ratingPrompt.ts`: fires after
+`VIEW_THRESHOLD` (4) meaningful page views in a session, asked at
+most ONCE per device (`localStorage['predictor:rating:asked']`).
+Tapping a star persists the "asked" flag immediately
+(`markRatingAsked()`) — a user who rates and closes the panel without
+sending written feedback is never re-prompted or double-counted.
+
+**Feedback is EMAILED, not stored (v2.197.0 — replaced the Tally
+hand-off).** After the star tap, an inline textarea appears; Send
+POSTs to `POST /api/feedback/` (`backend/app/api/feedback.py`,
+auth-required — keeps it from being an open email relay). Payload:
+`rating` (1-5) + `message` (1-2000 chars, HTML-escaped, 422 if
+empty/oversized). `email.send_feedback_email()` mirrors the
+magic-link Resend path (dev prints to stdout; prod POSTs via Resend,
+reply-to set to the submitter's email so the pool owner can reply
+directly) — 502 on send failure so the client can offer a retry.
+**No DB table, no migration** — there is no feedback audit trail
+beyond the inbox. The footer's persistent "Feedback" link force-opens
+the same rating card via `openRatingPrompt()` (gated to signed-in
+users); the old `FeedbackPanel.svelte` / `feedbackPanel` store (Tally
+iframe hand-off) was removed in the same release — the separate
+Support-panel Tally "Help" flow is untouched and still exists.
+
+**New analytics events:** `feature_nudge_shown`, `feature_nudge_clicked`,
+`app_rating_submitted` (carries `rating` 1-5), `feedback_submitted`,
+`feature_rated` (carries feature id + up/down), `whats_new_feature_clicked`.
+
 ### Datetime rule (system-wide)
 
 **Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
@@ -856,6 +942,31 @@ These two gates catch the recurring failure modes this codebase has hit:
    ```
    Standard pytest+httpx tutorials don't always show this; document it
    here so future authors don't lose time on the cryptic error.
+4. **Adding a NOT NULL model field or a new Pydantic schema field
+   silently breaks every test that builds that row by hand** — 17
+   tests across 6 files went stale this way as of v2.197.1 (schema
+   drift accumulated invisibly because the full suite wasn't run after
+   each of several feature merges). Two shapes recur:
+   - `MagicMock(spec=Model)` fixtures don't auto-populate a field added
+     to the model after the mock was written — pydantic then rejects
+     the mock's default `MagicMock` sentinel as an invalid type (e.g.
+     `FixtureRead.external_id: str` added in v2.184.x broke 5 mocks in
+     `test_fixture_score.py` that predated it). Fix: explicitly set
+     `mock.<new_field> = None` (or a valid value) in every fixture.
+   - Real SQLModel row-builder helpers (e.g.
+     `_make_eligible_submitted_entry` in `test_broadcast_cohorts_v2_176.py`)
+     raise `sqlite3.IntegrityError: NOT NULL constraint failed` the
+     moment a required column is added to the table after the helper
+     was written (`PredictionEntry.competition_id` / `.reference` /
+     `.display_name` all bit this). Fix: update the helper to populate
+     every required field — don't just patch the one column the error
+     message names; re-run and let the NEXT missing-field error surface
+     the rest one at a time, or read the model definition once and fix
+     all of them together.
+   Run the FULL backend suite (`pytest tests/`, not just your new
+   file) after adding any required field to a model or schema — that's
+   the only gate that catches this class of drift before it compounds
+   across releases.
 
 Skipping the gates is how this codebase has historically shipped
 patches to fix patches. Run them.
