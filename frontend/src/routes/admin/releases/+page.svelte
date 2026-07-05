@@ -5,21 +5,15 @@
 	// with a "Show more" button. Moved out of /admin/+page.svelte in v2.160.0
 	// so the Overview is no longer a kitchen-sink.
 	import { onMount } from 'svelte';
-	import changelogData from '$lib/data/changelog.json';
 	import { pageTitle } from '$lib/stores/pageTitle';
+	import {
+		allReleasesNewestFirst,
+		RELEASE_TYPE_BADGE,
+		RELEASE_TYPE_LABEL
+	} from '$lib/utils/releases';
 
-	type ReleaseEntry = {
-		version: string;
-		date: string;
-		type: string;
-		summary: string;
-		commit: string;
-	};
-
-	// Changelog ships oldest-first; UI wants newest-first.
-	const allReleases: ReleaseEntry[] = (
-		[...changelogData.entries] as ReleaseEntry[]
-	).reverse();
+	// Changelog ships oldest-first; UI wants newest-first (shared helper).
+	const allReleases = allReleasesNewestFirst();
 	const releaseTypes = [
 		'all',
 		'feature',
@@ -36,21 +30,6 @@
 			: allReleases.filter((r) => r.type === releaseFilter);
 	$: visibleReleases = filteredReleases.slice(0, releaseLimit);
 	$: latestVersion = allReleases[0]?.version ?? '—';
-
-	const RELEASE_TYPE_BADGE: Record<string, string> = {
-		feature: 'badge-success',
-		improvement: 'badge-info',
-		fix: 'badge-warning',
-		internal: 'badge-ghost',
-		merge: 'badge-primary'
-	};
-	const RELEASE_TYPE_LABEL: Record<string, string> = {
-		feature: 'New',
-		improvement: 'Polish',
-		fix: 'Fix',
-		internal: 'Internal',
-		merge: 'Merge'
-	};
 
 	onMount(() => {
 		pageTitle.set(`Release Notes · latest ${latestVersion} · ${allReleases.length} entries`);

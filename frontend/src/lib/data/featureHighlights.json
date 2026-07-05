@@ -1,0 +1,68 @@
+{
+  "_convention": "User-facing feature highlights for the What's New panel. NEWEST-FIRST (index 0 is the newest — it drives the 'New' badge via latestHighlightId()). This is a hand-curated CONSOLIDATION of many releases into a short story, decoupled from the raw dev changelog (changelog.json). Keep copy plain-language and unphased (no 'Phase 1/2'). Add a new theme to the TOP when something notable ships; trim the tail so the list stays ~6-10 items. Each item: { id, title, blurb, since (version it first landed), date (ISO), href?, cta? }.",
+  "highlights": [
+    {
+      "id": "bracket-simulator",
+      "title": "What-if Bracket Simulator",
+      "blurb": "Play out the rest of the knockouts your way — pick the winners of unplayed matches and watch how the whole pool would re-rank under your scenario. Unlock it once by beating a quick football-trivia challenge, then you get two committed runs a day.",
+      "since": "2.194.0",
+      "date": "2026-07-03",
+      "href": "/results",
+      "cta": "Try the simulator →"
+    },
+    {
+      "id": "live-bracket",
+      "title": "The live knockout bracket",
+      "blurb": "The full knockout tree with live team names and scores, a check-mark on every slot that matches your picks, and eliminated teams greyed out. Tap any chip to jump straight to that match. It's a wallchart on desktop and a swipeable carousel on mobile.",
+      "since": "2.187.0",
+      "date": "2026-06-30",
+      "href": "/results",
+      "cta": "Open the bracket →"
+    },
+    {
+      "id": "match-detail",
+      "title": "Match-by-match breakdowns",
+      "blurb": "Tap any fixture to see exactly what's at stake for you — your pick, the points it banks, and how far that team can still carry you through your bracket. Plus the pool's split on who backed whom.",
+      "since": "2.184.0",
+      "date": "2026-06-29",
+      "href": "/results",
+      "cta": "Open a match →"
+    },
+    {
+      "id": "results-redesign",
+      "title": "A cleaner Results page",
+      "blurb": "Every knockout round now opens with one card showing your whole bracket for that round in a single read — alive picks ticked, missed picks struck through, with a running points summary. On wider screens you get two fixtures per row, so a full round fits without scrolling.",
+      "since": "2.185.0",
+      "date": "2026-06-29",
+      "href": "/results",
+      "cta": "See your results →"
+    },
+    {
+      "id": "group-standings",
+      "title": "Live group standings",
+      "blurb": "Live tables for all twelve groups plus the best third-placed race, refreshed every minute with the full FIFA tiebreaker chain applied. See at a glance which of your predicted qualifiers are locked in, which have slipped, and how your Round of 32 bracket has shifted.",
+      "since": "2.181.1",
+      "date": "2026-06-28",
+      "href": "/standings",
+      "cta": "View standings →"
+    },
+    {
+      "id": "leaderboard-v4",
+      "title": "A brand-new Leaderboard",
+      "blurb": "Standings with pool filters and search, a Race chart tracking every rank across the tournament, and Insights cards — plus a detail drawer to open any entry's full picks and scoring. It's the whole pool at a glance.",
+      "since": "2.164.0",
+      "date": "2026-06-11",
+      "href": "/leaderboard",
+      "cta": "Open the Leaderboard →"
+    },
+    {
+      "id": "smart-fill",
+      "title": "Smart Fill your picks",
+      "blurb": "Short on time? Auto-populate your predictions from FIFA rankings or live betting odds, then fine-tune whatever you like before submitting — no more staring at a blank wizard.",
+      "since": "2.158.0",
+      "date": "2026-06-05",
+      "href": "/entries",
+      "cta": "Try Smart Fill →"
+    }
+  ]
+}
