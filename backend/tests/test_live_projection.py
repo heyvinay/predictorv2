@@ -17,8 +17,11 @@ from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  — registers all models
 from app.models.competition import Competition
+from app.models.entry import PredictionEntry
 from app.models.fixture import Fixture, MatchStatus
+from app.models.prediction import TeamPrediction
 from app.models.score import Score
+from app.models.user import AuthProvider, User
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
 from app.services.live_projection import (
     _has_live_ko,
@@ -26,6 +29,7 @@ from app.services.live_projection import (
     apply_live_projection,
     project_rows,
 )
+from app.services.scoring import get_scoring_config
 
 
 def _entry(name: str, total: int, exact: int = 0) -> LeaderboardEntry:
@@ -121,6 +125,36 @@ def _fixture(
     )
 
 
+async def _make_entry(
+    db_session: AsyncSession,
+    competition: Competition,
+    *,
+    email: str,
+    entry_number: int = 1,
+) -> PredictionEntry:
+    user = User(
+        email=email,
+        name=email.split("@")[0].title(),
+        password_hash="x",
+        auth_provider=AuthProvider.EMAIL,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    entry = PredictionEntry(
+        competition_id=competition.id,
+        user_id=user.id,
+        reference=f"WC26-{uuid.uuid4().hex[:6]}",
+        display_name=f"{user.name}'s Entry",
+        entry_number=entry_number,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+    await db_session.refresh(entry)
+    return entry
+
+
 @pytest.mark.asyncio
 async def test_live_advance_uses_penalty_blind_scoreline(db_session, competition):
     fx = _fixture(
@@ -197,3 +231,67 @@ async def test_gates_closed_returns_response_untouched(db_session):
 
     assert out.live_projection_active is False
     assert out is response
+
+
+@pytest.mark.asyncio
+async def test_apply_live_projection_credits_matching_team_prediction(
+    db_session, competition
+):
+    """End-to-end happy path: gates open + a live, decisive KO match +
+    a real TeamPrediction on the NEXT stage → the owning entry's row in
+    the banked LeaderboardResponse gets projected_total/live_delta, and
+    the response is marked live_projection_active. This is the only test
+    that actually exercises _deltas_by_entry's TeamPrediction query
+    against a real row — the highest-risk path in the whole service
+    (a phase filter or team-name mismatch here would silently zero out
+    every projection)."""
+    entry = await _make_entry(db_session, competition, email="entrant@example.com")
+
+    fx = _fixture(
+        competition,
+        home="Brazil",
+        away="Ghana",
+        stage="round_of_32",
+        status=MatchStatus.LIVE,
+    )
+    db_session.add(fx)
+    await db_session.commit()
+    await db_session.refresh(fx)
+    db_session.add(Score(fixture_id=fx.id, home_score=1, away_score=0))
+    await db_session.commit()
+
+    # Entry picked Brazil to reach the round_of_16 (the stage the R32
+    # winner advances to) — this is the pick the live match should credit.
+    db_session.add(
+        TeamPrediction(entry_id=entry.id, team="Brazil", stage="round_of_16")
+    )
+    await db_session.commit()
+
+    expected_delta = int(get_scoring_config()["advancement"]["round_of_16"])
+
+    response = LeaderboardResponse(
+        entries=[
+            LeaderboardEntry(
+                entry_id=entry.id,
+                entry_name=entry.display_name,
+                user_id=entry.user_id,
+                user_name="Entrant",
+                position=1,
+                total_points=200,
+                breakdown=PointBreakdown(),
+            )
+        ],
+        last_calculated=datetime(2026, 6, 20, tzinfo=timezone.utc),
+        total_participants=1,
+    )
+
+    out = await apply_live_projection(db_session, response)
+
+    assert out is not response
+    assert out.live_projection_active is True
+    row = out.entries[0]
+    assert row.live_delta == expected_delta
+    assert row.projected_total == 200 + expected_delta
+    assert row.projected_position == 1
+    # Banked fields on the returned row stay banked.
+    assert row.total_points == 200
