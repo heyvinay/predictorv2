@@ -2563,7 +2563,7 @@
       "date": "2026-07-05",
       "type": "internal",
       "summary": "Repaired 17 stale automated tests behind the scenes so our safety checks stay accurate — no visible changes for you.",
-      "commit": "pending"
+      "commit": "b584707"
     }
   ]
 }
