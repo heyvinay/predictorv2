@@ -751,6 +751,106 @@ Support-panel Tally "Help" flow is untouched and still exists.
 `app_rating_submitted` (carries `rating` 1-5), `feedback_submitted`,
 `feature_rated` (carries feature id + up/down), `whats_new_feature_clicked`.
 
+### Live projected leaderboard (v2.198.0, deployed dormant)
+
+Knockout-stage standings can re-rank **live**, mid-match, instead of
+waiting for full time. Read-time-only overlay in
+`backend/app/services/live_projection.py`, applied inside
+`get_leaderboard()` — the banked leaderboard cache (30s TTL,
+stale-while-revalidate) is **never mutated**; the live projection is
+computed fresh per-request and layered on top. This snapshot/
+trajectory purity is the same invariant that protects
+`LeaderboardSnapshot`/daily-movement widgets elsewhere — read-time
+and score-time must never blend into the same stored row.
+
+- **Scope: knockout only.** Group-stage matches carry the rarity
+  bonus, which can't be projected mid-match (denominators aren't
+  final) — live projection only activates once a knockout fixture
+  (`round_of_32` or later) is `LIVE`.
+- **Penalty-blind by design.** A live KO match's projected winner
+  comes from `Score.final_home_score`/`final_away_score` (ET-
+  inclusive, penalty-BLIND) — a live draw shows **zero movement**
+  even deep into a shootout, because `Score.outcome` (the penalty-
+  aware field) only resolves once the match is FINISHED. Standings
+  snap to the real result the instant full time + penalties are
+  recorded; there is no "projected penalty winner."
+- **Double-count guard (★ the trap here).** `get_actual_advancement()`
+  credits "reached stage X" the moment ANY fixture of that stage
+  shows a team's real (non-placeholder) name — not gated on FINISHED
+  — because `score_sync.py` writes real team names into next-round
+  fixtures as soon as Football-Data reports them, independent of
+  whether the feeding match has finished. A naive live-projection
+  overlay would double-award: once from the banked "reached round"
+  credit (already seeded) and again from projecting the live match's
+  winner into the SAME round. `_already_banked()` in
+  `live_projection.py` checks `_STAGE_ORDER` before crediting a live
+  delta — skip if the entry's actual advancement already reached that
+  stage or later. Found by a whole-feature review, not any single
+  task's isolated review — this class of bug only shows up when you
+  reason about the read path and the write path together.
+- **Fail-open.** `get_leaderboard()` wraps `apply_live_projection()`
+  in try/except — any error falls back to the banked board silently.
+  A live-projection bug should degrade to "provisional numbers,"
+  never to a 500.
+- **Seamless handoff at full time.** `score_sync.py` hard-invalidates
+  the leaderboard cache the instant a KO fixture goes FINISHED
+  (`ScoreSyncResult.points_relevant_ko`), vs. the existing soft-expire
+  for group-stage finishes — so the projected numbers don't visibly
+  "dip" back down before real points land; the cache rebuilds
+  immediately with final numbers.
+- **Two independent gates, both required:**
+  `Competition.live_projection_enabled` (admin kill switch on
+  `/admin`, defaults `false` via the migration's server default —
+  **deployed OFF**, no behavior change for the pool until an admin
+  explicitly flips it) AND an actual live KO match existing. Surfaced
+  on `PhaseStatus.live_projection_enabled` for the frontend to key
+  off.
+- **Surfaces:** `/leaderboard` standings (green `LiveProjectionPill` +
+  green "based on live: N matches" cue, red pulsing dot — matches the
+  app's existing green/white "live" convention) and the home
+  dashboard's mini-leaderboard both re-sort live
+  (`displayRank`/`displayTotal` in `leaderboardV4.ts` prefer
+  `projected_position`/`projected_total` over the banked fields when
+  `live_projection_active` is true). `EntryDrawer` was a post-hoc fix
+  (Task 15) — it was reading banked numbers straight through even
+  while live projection was active elsewhere on the same page.
+
+### Pool Distribution — full-pool histogram (v2.199.0)
+
+`PoolDistribution.svelte` (dashboard + Leaderboard Race tab) redesigned
+from a narrow ±window around one score to a full-pool points histogram
+spanning every eligible entry, with **all** of a user's own entries
+individually marked (not just their best) — mirrors the existing
+"one result per submitted entry" convention from
+`compute_personal_trail()`. Backend: `compute_pool_distribution()` in
+`backend/app/services/dashboard_stats.py`, reading from
+`LeaderboardSnapshot` (today's frozen snapshot) for consistency with
+the other snapshot-driven dashboard widgets — not the live/cached
+leaderboard.
+
+- **`_nice_bucket_width()`** — D3-style tick-step rounding (1/2/5 ×
+  10ⁿ) targeting ~12 buckets, so histogram buckets land on clean
+  numbers instead of arbitrary point values.
+- **Per-bar labels, not generic ticks.** Each bar's own
+  `bucket_start` is rendered directly beneath it, rather than 5
+  evenly-spaced axis ticks computed independently from
+  `min_points`/`max_points`. The generic-tick approach was internally
+  inconsistent — its spacing had no relationship to the backend's
+  actual bucket boundaries, so labels could imply a continuous scale
+  across gaps where no bucket (and no bar) exists. Deriving every
+  label from the bar geometry itself means the axis can't lie about
+  what the chart is showing.
+- **SVG viewBox font-sizing gotcha (recurring).** This chart's
+  `font-size` values are picked backwards from a target on-screen
+  size — a 1080-wide viewBox rendered into a ~450px card shrinks
+  "16px" text to ~7px on screen. Every label size in this component
+  was tuned by rendering and reading it, not by picking a number that
+  looks right in the SVG source.
+- **Entry-label collision staggering** — labels within `COLLISION_PX`
+  (90 viewBox units) of each other alternate onto a second vertical
+  tier, so multi-entry players' clustered picks stay legible instead
+  of overlapping.
+
 ### Datetime rule (system-wide)
 
 **Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
