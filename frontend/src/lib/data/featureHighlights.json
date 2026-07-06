@@ -2,6 +2,14 @@
   "_convention": "User-facing feature highlights for the What's New panel. NEWEST-FIRST (index 0 is the newest — it drives the 'New' badge via latestHighlightId()). This is a hand-curated CONSOLIDATION of many releases into a short story, decoupled from the raw dev changelog (changelog.json). Keep copy plain-language and unphased (no 'Phase 1/2'). Add a new theme to the TOP when something notable ships; trim the tail so the list stays ~6-10 items. Each item: { id, title, blurb, since (version it first landed), date (ISO), href?, cta? }.",
   "highlights": [
     {
+      "id": "live-leaderboard-2026-07",
+      "title": "Live leaderboard during knockouts",
+      "blurb": "When a knockout match is on, the standings move in real time based on who's currently winning. Points lock in for real at full time.",
+      "since": "2.198.0",
+      "date": "2026-07-06",
+      "href": "/leaderboard"
+    },
+    {
       "id": "bracket-simulator",
       "title": "What-if Bracket Simulator",
       "blurb": "Play out the rest of the knockouts your way — pick the winners of unplayed matches and watch how the whole pool would re-rank under your scenario. Unlock it once by beating a quick football-trivia challenge, then you get two committed runs a day.",
