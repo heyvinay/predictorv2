@@ -784,6 +784,56 @@ async def set_knockout_scoring_enabled(
 
 
 # ---------------------------------------------------------------------------
+# Live projection master switch (v2.198.0)
+# ---------------------------------------------------------------------------
+class LiveProjectionRequest(BaseModel):
+    """Toggle the live projected-leaderboard master switch."""
+
+    enabled: bool
+
+
+@router.post("/competition/live-projection")
+async def set_live_projection_enabled(
+    request: LiveProjectionRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the live-projection gate (v2.198.0).
+
+    When true (AND knockout_scoring_enabled is true AND a KO match is
+    live) GET /leaderboard/ layers the provisional projection onto the
+    banked board. Read-time only — no cache invalidation needed; the gate
+    is read fresh on every projection. Auditable, idempotent.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.live_projection_enabled
+    competition.live_projection_enabled = request.enabled
+    competition.updated_at = utc_now()
+    if previous != request.enabled:
+        record_audit_event(
+            session,
+            event_type="competition.live_projection_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.enabled},
+        )
+    await session.commit()
+
+    return {"status": "ok", "live_projection_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
 # Announcement hero visibility toggle (v2.191.0)
 # ---------------------------------------------------------------------------
 class AnnouncementHeroRequest(BaseModel):
