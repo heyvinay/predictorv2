@@ -2578,6 +2578,13 @@
       "type": "feature",
       "summary": "Pool Distribution redesigned as a full-pool histogram showing where all of your entries rank against everyone else — now also on the Leaderboard's Race tab.",
       "commit": "pending"
+    },
+    {
+      "version": "2.199.1",
+      "date": "2026-07-06",
+      "type": "fix",
+      "summary": "The leaderboard no longer shows a stale 'last result' next to the live-match indicator — one freshness cue at a time.",
+      "commit": "pending"
     }
   ]
 }
