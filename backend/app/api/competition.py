@@ -109,6 +109,10 @@ class PhaseStatus(BaseModel):
     # rail item + Bracket tab pill once the admin flips it on, without a
     # dedicated fetch of /simulator/status per page load.
     simulator_enabled: bool = False
+    # Live projection master switch (v2.198.0) — admin-controlled;
+    # surfaced so the admin UI renders the toggle's current state and
+    # the frontend can reason about whether the live board can appear.
+    live_projection_enabled: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -154,6 +158,9 @@ async def get_phase_status(
             competition.knockout_scoring_enabled if competition else False
         ),
         simulator_enabled=competition.simulator_enabled if competition else False,
+        live_projection_enabled=(
+            competition.live_projection_enabled if competition else False
+        ),
     )
 
 
