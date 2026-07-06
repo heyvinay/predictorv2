@@ -288,6 +288,12 @@ describe('displayRank / displayTotal', () => {
 		expect(displayRank(row, true)).toBe(5);
 		expect(displayTotal(row, true)).toBe(470);
 	});
+
+	it('render zero correctly, not falling back to banked (falsy-zero guard)', () => {
+		const row = mkRow({ position: 5, total_points: 470, projected_position: 0, projected_total: 0 });
+		expect(displayRank(row, true)).toBe(0);
+		expect(displayTotal(row, true)).toBe(0);
+	});
 });
 
 describe('ceilingOf / remainingMatchPoints', () => {
