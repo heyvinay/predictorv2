@@ -2571,6 +2571,13 @@
       "type": "feature",
       "summary": "The leaderboard now updates live during knockout matches — standings re-rank in real time based on who's winning, and settle to final points at full time.",
       "commit": "pending"
+    },
+    {
+      "version": "2.199.0",
+      "date": "2026-07-06",
+      "type": "feature",
+      "summary": "Pool Distribution redesigned as a full-pool histogram showing where all of your entries rank against everyone else — now also on the Leaderboard's Race tab.",
+      "commit": "pending"
     }
   ]
 }
