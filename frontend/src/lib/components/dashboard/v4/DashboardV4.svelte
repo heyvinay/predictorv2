@@ -49,6 +49,7 @@
 		groupTotalFromPredictions,
 		koTotalFromFixtures
 	} from '$lib/utils/dashboardV4';
+	import { displayRank, displayTotal } from '$lib/utils/leaderboardV4';
 	import EntrySummaryBar from '$lib/components/results/v4/EntrySummaryBar.svelte';
 	import AnnouncementHero from './AnnouncementHero.svelte';
 	import FixturesTable from './FixturesTable.svelte';
@@ -63,6 +64,7 @@
 	let loading = true;
 	let rules: ScoringRules | null = null;
 	let lbRows: LbEntryV4[] = [];
+	let liveProjectionActive = false;
 	let totalEntries = 0;
 	let announcements: Announcement[] = [];
 	let announcementHeroEnabled = true;
@@ -93,7 +95,12 @@
 		announcements = announcementsData.items;
 		announcementHeroEnabled = announcementsData.hero_enabled;
 		if (lb) {
-			lbRows = lb.entries;
+			liveProjectionActive = lb.live_projection_active === true;
+			lbRows = liveProjectionActive
+				? [...lb.entries].sort(
+						(a, b) => (a.projected_position ?? a.position) - (b.projected_position ?? b.position)
+					)
+				: lb.entries;
 			totalEntries = lb.entries.length;
 		}
 		groupStagePodium = gsw;
@@ -139,7 +146,12 @@
 		void fetchAllFixtures();
 		void getLeaderboardV4()
 			.then((lb) => {
-				lbRows = lb.entries;
+				liveProjectionActive = lb.live_projection_active === true;
+				lbRows = liveProjectionActive
+					? [...lb.entries].sort(
+							(a, b) => (a.projected_position ?? a.position) - (b.projected_position ?? b.position)
+						)
+					: lb.entries;
 				totalEntries = lb.entries.length;
 			})
 			.catch(() => undefined);
@@ -165,7 +177,13 @@
 	$: groupTotal = groupTotalFromPredictions(typedPredictions);
 	$: knockoutTotal = rules ? koTotalFromFixtures($fixtures, $bracketPrediction, rules) : 0;
 	$: rankByEntry = new Map<string, EntryRankInfo>(
-		lbRows.map((e) => [e.entry_id, { position: e.position, total_points: e.total_points }])
+		lbRows.map((e) => [
+			e.entry_id,
+			{
+				position: displayRank(e, liveProjectionActive),
+				total_points: displayTotal(e, liveProjectionActive)
+			}
+		])
 	);
 	$: visibleEntries = $submittedEntries.length > 0 ? $submittedEntries : $entries;
 
@@ -281,6 +299,7 @@
 				<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
 				<MiniLeaderboard
 					rows={lbRows}
+					live={liveProjectionActive}
 					userId={$user?.id ?? null}
 					activeEntryId={$activeEntryId}
 					{totalEntries}

@@ -9,9 +9,10 @@
 	 *  doesn't get lost between zebra rows. */
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import { miniLbRows } from '$lib/utils/dashboardV4';
-	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
+	import { displayRank, displayTotal, multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import MoveChip from '$lib/components/leaderboard/v4/MoveChip.svelte';
 	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
+	import LiveProjectionPill from '$lib/components/LiveProjectionPill.svelte';
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null;
@@ -22,8 +23,9 @@
 	 *  "X entries" footer as the freshness cue — "this is the last game
 	 *  that contributed points to this board." */
 	export let lastResult: string | null = null;
+	export let live = false;
 
-	$: ({ yours, top } = miniLbRows(rows, userId, 15));
+	$: ({ yours, top } = miniLbRows(rows, userId, 15, live));
 	// Computed from the FULL board so the label can't flip with filters.
 	$: multiOwners = multiEntryUserIds(rows);
 
@@ -42,6 +44,9 @@
 		<h2 class="flex items-center gap-2 font-display text-lg font-bold tracking-wide text-base-content">
 			Leaderboard
 			<ProvisionalPill />
+			{#if live}
+				<span class="relative"><LiveProjectionPill /></span>
+			{/if}
 		</h2>
 		<a
 			href="/leaderboard"
@@ -69,8 +74,8 @@
 					<span class="flex items-center gap-1.5">
 						<span
 							class="grid h-[18px] min-w-[18px] place-items-center rounded-badge px-1 font-display text-[12px] font-bold {MEDALS[
-								e.position
-							] ?? 'text-base-content/75'}">{e.position}</span
+								displayRank(e, live)
+							] ?? 'text-base-content/75'}">{displayRank(e, live)}</span
 						>
 						<MoveChip move={e.daily_movement} />
 					</span>
@@ -78,7 +83,7 @@
 						>{rowDisplayName(e, multiOwners)}</span
 					>
 					<span class="text-right font-display text-[12.5px] font-semibold tabular-nums text-primary"
-						>{e.total_points}</span
+						>{displayTotal(e, live)}</span
 					>
 				</div>
 			{/each}
@@ -99,8 +104,8 @@
 				<span class="flex items-center gap-1.5">
 					<span
 						class="grid h-[18px] min-w-[18px] place-items-center rounded-badge px-1 font-display text-[12px] font-bold {MEDALS[
-							e.position
-						] ?? 'text-base-content/75'}">{e.position}</span
+							displayRank(e, live)
+						] ?? 'text-base-content/75'}">{displayRank(e, live)}</span
 					>
 					<MoveChip move={e.daily_movement} />
 				</span>
@@ -118,7 +123,7 @@
 				<span
 					class="text-right font-display text-[12.5px] font-semibold tabular-nums {isOwn
 						? 'text-primary'
-						: 'text-base-content/90'}">{e.total_points}</span
+						: 'text-base-content/90'}">{displayTotal(e, live)}</span
 				>
 			</div>
 		{/each}

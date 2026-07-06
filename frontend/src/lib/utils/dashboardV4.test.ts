@@ -456,6 +456,18 @@ describe('miniLbRows', () => {
 		expect(yours).toEqual([]);
 		expect(top).toHaveLength(1);
 	});
+
+	it('sorts "yours" by projected rank when live', () => {
+		const rows = [
+			lbRow({ entry_id: 'e1', position: 5, projected_position: 2, user_id: 'me' }),
+			lbRow({ entry_id: 'e2', position: 2, projected_position: 5, user_id: 'me' })
+		];
+		const { yours: bankedOrder } = miniLbRows(rows, 'me', 10, false);
+		expect(bankedOrder.map((r) => r.entry_id)).toEqual(['e2', 'e1']); // banked: e2 (pos 2) before e1 (pos 5)
+
+		const { yours: liveOrder } = miniLbRows(rows, 'me', 10, true);
+		expect(liveOrder.map((r) => r.entry_id)).toEqual(['e1', 'e2']); // live: e1 (projected 2) before e2 (projected 5)
+	});
 });
 
 describe('moversOf', () => {

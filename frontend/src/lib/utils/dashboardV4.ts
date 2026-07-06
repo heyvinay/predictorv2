@@ -27,7 +27,7 @@ import {
 	roundIdForFixture
 } from './resultsRounds';
 import { bracketPicksForRound } from './koPoints';
-import { isRealTeam, multiEntryUserIds, rowDisplayName } from './leaderboardV4';
+import { displayRank, isRealTeam, multiEntryUserIds, rowDisplayName } from './leaderboardV4';
 import { koFinalScore } from './matchDetailV4';
 import { teamCode } from './teamCodes';
 
@@ -350,10 +350,13 @@ export function koTotalFromFixtures(
 export function miniLbRows(
 	rows: LbEntryV4[],
 	userId: string | null | undefined,
-	topN = 10
+	topN = 10,
+	live = false
 ): { yours: LbEntryV4[]; top: LbEntryV4[] } {
 	const yours = userId
-		? rows.filter((r) => r.user_id === userId).sort((a, b) => a.position - b.position)
+		? rows
+				.filter((r) => r.user_id === userId)
+				.sort((a, b) => displayRank(a, live) - displayRank(b, live))
 		: [];
 	return { yours, top: rows.slice(0, topN) };
 }
