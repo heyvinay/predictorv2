@@ -345,8 +345,13 @@ export function koTotalFromFixtures(
 
 // ── Leaderboard panels ───────────────────────────────────────────────────
 
-/** Mini-leaderboard split: the user's own rows (rank order) + the global
- *  top N. Own rows keep their server positions. */
+/** Mini-leaderboard split: the user's own rows + the global top N.
+ *  Own rows sort by displayRank (projected rank when live, else banked
+ *  position) — always correct regardless of caller.
+ *  `top` is a RAW positional slice of `rows` — it does NOT sort. Callers
+ *  must pre-sort `rows` themselves (e.g. by projected_position when live)
+ *  for `top` to reflect a live-ordered top-N. See DashboardV4.svelte's
+ *  pre-sort-at-fetch-site logic for the caller-side half of this contract. */
 export function miniLbRows(
 	rows: LbEntryV4[],
 	userId: string | null | undefined,
