@@ -21,7 +21,7 @@ from app.models.competition import Competition
 from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score, ScoreSource
 from app.services.external_scores import ExternalScore, get_score_provider
-from app.services.leaderboard import expire_cache
+from app.services.leaderboard import expire_cache, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,11 @@ class ScoreSyncResult:
     # leaderboard cache. Live 1-0 → 2-0 paints update Score rows but leave
     # the board untouched.
     points_relevant: int = 0
+    # Subset of points_relevant that were KNOCKOUT-stage finishes. These
+    # hard-invalidate the leaderboard cache (vs the soft-expire used for
+    # group finishes) so the live-projection handoff at full time is
+    # seamless — see docs/superpowers/plans/2026-07-06-live-projected-leaderboard.md.
+    points_relevant_ko: int = 0
     skipped_verified: int = 0  # rows left alone because an admin verified them
     errors: list[str] = field(default_factory=list)
     skipped_reason: str | None = None  # set if sync was a no-op (e.g. no live matches)
@@ -170,15 +175,15 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
 
     await session.commit()
 
-    if result.points_relevant > 0:
-        # Soft-expire (not invalidate), and ONLY when a fixture finished or
-        # a finished score was corrected — in-play score paints can't move
-        # points (the scoring engine ignores non-FINISHED fixtures), so
-        # expiring on them only churned rebuilds. The boards keep serving
-        # instantly via stale-while-revalidate while the rebuild with the
-        # new result happens off the request path. (Hard invalidation here
-        # used to force a seconds-long blocking rebuild onto a user request
-        # after every synced score — i.e. continuously during matches.)
+    if result.points_relevant_ko > 0:
+        # A knockout match just finished: hard-invalidate so the banked
+        # board reflects the real advancement credit on the very next
+        # read, keeping the live-projection handoff seamless (no dip at
+        # full time). Blocks one request on a rebuild — rare + acceptable.
+        invalidate_cache()
+    elif result.points_relevant > 0:
+        # Group-stage finish or a correction: soft-expire (stale-while-
+        # revalidate) as before — no live projection is involved.
         expire_cache()
 
     return result
@@ -452,6 +457,8 @@ async def _apply_external_score(
         result.synced += 1
         if ext.status == MatchStatus.FINISHED:
             result.points_relevant += 1
+            if fixture.stage in ("round_of_32", "round_of_16", "quarter_final", "semi_final", "final"):
+                result.points_relevant_ko += 1
         return None if needs_resolution else fixture.id
 
     score.home_score = home
@@ -465,6 +472,8 @@ async def _apply_external_score(
     result.updated += 1
     if ext.status == MatchStatus.FINISHED:
         result.points_relevant += 1
+        if fixture.stage in ("round_of_32", "round_of_16", "quarter_final", "semi_final", "final"):
+            result.points_relevant_ko += 1
     return None if needs_resolution else fixture.id
 
 
