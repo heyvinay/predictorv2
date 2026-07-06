@@ -503,6 +503,7 @@
 				{multiOwners}
 				compareRow={compareSelected}
 				cohort={cohortSelected}
+				live={liveActive}
 				onClose={closeDrawer}
 			/>
 		{/if}

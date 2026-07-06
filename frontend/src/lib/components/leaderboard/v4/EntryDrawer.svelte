@@ -19,6 +19,8 @@
 	import type { MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
 	import {
 		chipState,
+		displayRank,
+		displayTotal,
 		dnaOf,
 		eliminatedTeams,
 		foldBonus,
@@ -44,6 +46,7 @@
 	export let onClose: () => void;
 	/** When set, render a side-by-side compare variant instead of the single-entry view. */
 	export let compareRow: LbEntryV4 | null = null;
+	export let live = false;
 	/** When set, render the cohort list variant — "who picked this team as winner". */
 	export let cohort: { team_code: string; team_name: string; entry_ids: string[] } | null = null;
 
@@ -284,7 +287,7 @@
 			<div class="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-base-content/55">
 				{#if isOwn}<span>your entry</span>
 					<span>·</span>{/if}
-				<span class="font-display font-extrabold text-base-content/80">#{row.position}</span>
+				<span class="font-display font-extrabold text-base-content/80">#{displayRank(row, live)}</span>
 				<MoveChip move={row.daily_movement} />
 			</div>
 		</div>
@@ -313,7 +316,7 @@
 		<!-- summary cells -->
 		<div class="mt-3 grid grid-cols-[1.2fr_1fr_1fr] gap-2">
 			<div class="flex flex-col gap-0.5 rounded-[10px] bg-primary/10 px-3 py-2.5">
-				<span class="font-display text-xl font-extrabold text-primary">{row.total_points}</span>
+				<span class="font-display text-xl font-extrabold text-primary">{displayTotal(row, live)}</span>
 				<span class="text-[10px] font-bold uppercase tracking-[0.08em] text-base-content/55"
 					>Total</span
 				>
