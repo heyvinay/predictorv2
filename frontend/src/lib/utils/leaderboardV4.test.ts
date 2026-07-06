@@ -9,6 +9,8 @@ import {
 	chipState,
 	composeRankDelta,
 	deriveStage,
+	displayRank,
+	displayTotal,
 	dnaOf,
 	eliminatedTeams,
 	filterByPool,
@@ -259,6 +261,32 @@ describe('groupPtsOf / koPtsOf', () => {
 		});
 		expect(groupPtsOf(row, 15)).toBe(40 + 30 + 60 + 10 + 15);
 		expect(koPtsOf(row, 20)).toBe(40 + 40 + 20);
+	});
+});
+
+describe('displayRank / displayTotal', () => {
+	it('use projected fields when live', () => {
+		const row = mkRow({ position: 5, total_points: 470, projected_position: 2, projected_total: 500 });
+		expect(displayRank(row, true)).toBe(2);
+		expect(displayTotal(row, true)).toBe(500);
+	});
+
+	it('use banked fields when not live', () => {
+		const row = mkRow({ position: 5, total_points: 470, projected_position: 2, projected_total: 500 });
+		expect(displayRank(row, false)).toBe(5);
+		expect(displayTotal(row, false)).toBe(470);
+	});
+
+	it('fall back to banked when projected is null even if live', () => {
+		const row = mkRow({ position: 5, total_points: 470, projected_position: null, projected_total: null });
+		expect(displayRank(row, true)).toBe(5);
+		expect(displayTotal(row, true)).toBe(470);
+	});
+
+	it('fall back to banked when projected is undefined (field absent) even if live', () => {
+		const row = mkRow({ position: 5, total_points: 470 });
+		expect(displayRank(row, true)).toBe(5);
+		expect(displayTotal(row, true)).toBe(470);
 	});
 });
 

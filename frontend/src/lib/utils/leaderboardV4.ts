@@ -226,6 +226,20 @@ export function koPtsOf(row: LbEntryV4, bonusKnockout: number): number {
 	);
 }
 
+// ── Live projection display ──────────────────────────────────────────────
+
+/** Rank to render: projected when the live board is armed and a projected
+ *  value exists, else the banked position. `live` gates on the response's
+ *  live_projection_active flag — callers pass that through, not a store. */
+export function displayRank(row: LbEntryV4, live: boolean): number {
+	return live && row.projected_position != null ? row.projected_position : row.position;
+}
+
+/** Points to render: projected when live + present, else banked total. */
+export function displayTotal(row: LbEntryV4, live: boolean): number {
+	return live && row.projected_total != null ? row.projected_total : row.total_points;
+}
+
 // ── Ceiling (Points still on the table) ──────────────────────────────────
 
 /** Max theoretical points still winnable by one entry.
