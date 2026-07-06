@@ -371,7 +371,7 @@
 				{#if board?.last_calculated}
 					<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
 						<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>
-						{#if lastFinished}
+						{#if lastFinished && !(liveActive && liveMatchCue)}
 							<span class="text-base-content/40">·</span>
 							<span>last result: <b class="text-base-content/70">{lastFinished}</b></span>
 						{/if}

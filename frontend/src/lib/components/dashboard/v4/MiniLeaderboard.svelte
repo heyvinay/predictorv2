@@ -131,7 +131,7 @@
 		<div
 			class="border-t border-base-300/60 bg-base-300/40 px-3.5 py-1.5 text-center text-[10.5px] font-semibold text-base-content/55"
 		>
-			{totalEntries} entries{#if lastResult}
+			{totalEntries} entries{#if lastResult && !live}
 				<span class="text-base-content/40"> · last result: </span>
 				<b class="text-base-content/75">{lastResult}</b>
 			{/if}
