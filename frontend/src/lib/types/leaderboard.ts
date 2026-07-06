@@ -34,6 +34,12 @@ export type LbEntryV4 = LeaderboardEntry & {
 	 *  top_flop/awards → knockout column. */
 	bonus_group_points?: number;
 	bonus_knockout_points?: number;
+	/** Live projection (v2.198.0) — present only when the response's
+	 *  live_projection_active is true. Banked position/total_points on the
+	 *  base type stay banked; these carry the provisional KO projection. */
+	projected_position?: number | null;
+	projected_total?: number | null;
+	live_delta?: number | null;
 };
 
 export interface LbResponseV4 {
@@ -47,6 +53,9 @@ export interface LbResponseV4 {
 	 * page uses this to conditionally render the "View All Entries" button.
 	 */
 	published_sheet_url: string | null;
+	/** True when entries carry a live KO projection (gates armed + a
+	 *  knockout match is live). Surfaces key their LIVE chrome off this. */
+	live_projection_active?: boolean;
 }
 
 /** Points DNA — where an entry's points come from. Sums to breakdown.total. */
