@@ -398,6 +398,83 @@ async def test_deltas_by_entry_skips_already_banked_advancement(db_session, comp
 
 
 @pytest.mark.asyncio
+async def test_deltas_by_entry_skips_advance_when_banked_beyond_next_stage(
+    db_session, competition
+):
+    """Pins _already_banked's use of >= rather than == in its stage-order
+    comparison. A team can be banked at a stage FURTHER than the live
+    match's next_stage — e.g. a stale LIVE quarter_final fixture that never
+    flipped to FINISHED (a scheduler hiccup, or a status update that lagged
+    behind Football-Data) while a downstream SEMI-FINAL fixture already has
+    the team's real name seeded, banking it at semi_final. The live QF
+    match still projects a quarter_final advance for the same team, but
+    that credit is already subsumed by the semi_final credit — crediting it
+    again would double-count. Without this test, a future maintainer who
+    only read the other two tests (both exact-stage matches) could
+    "simplify" the >= to == and silently reintroduce a narrower version of
+    the double-count bug for this banked-beyond-next-stage case, with
+    nothing in CI to catch it."""
+    entry = await _make_entry(db_session, competition, email="beyond@example.com")
+
+    # Feeding match: QF Brazil vs Ghana, still LIVE (stale — should have
+    # finished already), Brazil leading 1-0. This is the live match whose
+    # projected next_stage is quarter_final's advancement target: semi_final.
+    feeding = _fixture(
+        competition,
+        home="Brazil",
+        away="Ghana",
+        stage="quarter_final",
+        status=MatchStatus.LIVE,
+    )
+    db_session.add(feeding)
+    await db_session.commit()
+    await db_session.refresh(feeding)
+    db_session.add(Score(fixture_id=feeding.id, home_score=1, away_score=0))
+    await db_session.commit()
+
+    # Downstream match: the FINAL fixture already has Brazil seeded as a
+    # REAL name — banking Brazil at "final", ONE STAGE FURTHER than
+    # "semi_final" (the live QF match's next_stage). This is the
+    # banked-beyond-next_stage case that only the >= comparison catches;
+    # an == comparison would miss it and double-count.
+    downstream = _fixture(
+        competition,
+        home="Brazil",
+        away="slot:final:999:away",
+        stage="final",
+        status=MatchStatus.SCHEDULED,
+    )
+    db_session.add(downstream)
+    await db_session.commit()
+
+    # Entry picked Brazil to reach the semi_final — the stage the live QF
+    # match would provisionally credit.
+    db_session.add(
+        TeamPrediction(entry_id=entry.id, team="Brazil", stage="semi_final")
+    )
+    await db_session.commit()
+
+    # 1. Confirm the banked path already credits Brazil at "final" —
+    #    strictly FURTHER than "semi_final" — proving the banked-beyond
+    #    precondition is genuinely reproduced (not just an exact match).
+    actual_advancement = await get_actual_advancement(db_session)
+    assert actual_advancement.get("Brazil") == "final"
+
+    # 2. Confirm the live path still thinks it should credit semi_final
+    #    from the still-LIVE quarter_final match.
+    advances = await _live_ko_advances(db_session)
+    assert len(advances) == 1
+    assert advances[0].team == "Brazil"
+    assert advances[0].next_stage == "semi_final"
+
+    # 3. The gap-check must suppress the live credit via the >= comparison
+    #    (current="final" is strictly beyond stage="semi_final", not equal
+    #    to it) — delta should be 0, not the semi_final points value.
+    deltas = await _deltas_by_entry(db_session, advances)
+    assert deltas.get(entry.id, 0) == 0
+
+
+@pytest.mark.asyncio
 async def test_deltas_by_entry_still_credits_normal_unbanked_advance(
     db_session, competition
 ):
