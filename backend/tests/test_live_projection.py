@@ -24,12 +24,13 @@ from app.models.score import Score
 from app.models.user import AuthProvider, User
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse, PointBreakdown
 from app.services.live_projection import (
+    _deltas_by_entry,
     _has_live_ko,
     _live_ko_advances,
     apply_live_projection,
     project_rows,
 )
-from app.services.scoring import get_scoring_config
+from app.services.scoring import get_actual_advancement, get_scoring_config
 
 
 def _entry(name: str, total: int, exact: int = 0) -> LeaderboardEntry:
@@ -295,3 +296,155 @@ async def test_apply_live_projection_credits_matching_team_prediction(
     assert row.projected_position == 1
     # Banked fields on the returned row stay banked.
     assert row.total_points == 200
+
+
+@pytest.mark.asyncio
+async def test_deltas_by_entry_skips_already_banked_advancement(db_session, competition):
+    """Reproduces the race the whole-feature review caught: a downstream
+    fixture's real team name is seeded (Football-Data lineup publish, or an
+    admin manual correction via /admin/sync) BEFORE the feeding match's
+    status has caught up to FINISHED in our DB. get_actual_advancement()
+    already credits the team's backers with the real, banked next-stage
+    points — purely from the downstream fixture's seeding, independent of
+    the feeding match's status (v2.161.0 lineup-based timing). If
+    _deltas_by_entry blindly credited the still-LIVE feeding match's
+    provisional advance on top of that, the entry would be double-counted,
+    then silently drop back down the moment the feeding match's status
+    catches up to FINISHED — the exact visible-dip failure mode this
+    feature exists to prevent, arriving via a different path than the one
+    the original plan anticipated."""
+    entry = await _make_entry(db_session, competition, email="racer@example.com")
+
+    # Feeding match: R16 Brazil vs Ghana, still LIVE, Brazil leading 1-0.
+    feeding = _fixture(
+        competition,
+        home="Brazil",
+        away="Ghana",
+        stage="round_of_16",
+        status=MatchStatus.LIVE,
+    )
+    db_session.add(feeding)
+    await db_session.commit()
+    await db_session.refresh(feeding)
+    db_session.add(Score(fixture_id=feeding.id, home_score=1, away_score=0))
+    await db_session.commit()
+
+    # Downstream match: QF fixture already has Brazil seeded as a REAL name
+    # — simulating FD (or an admin) publishing this lineup ahead of the
+    # feeding match's FINISHED transition. Still SCHEDULED (hasn't kicked
+    # off) — irrelevant to get_actual_advancement's "reached this stage"
+    # crediting, which only cares about the team being seeded, not the
+    # fixture's own status.
+    downstream = _fixture(
+        competition,
+        home="Brazil",
+        away="slot:quarter_final:999:away",
+        stage="quarter_final",
+        status=MatchStatus.SCHEDULED,
+    )
+    db_session.add(downstream)
+    await db_session.commit()
+
+    # Entry picked Brazil to reach the quarter_final — the exact pick that
+    # both the banked path AND the live path would credit.
+    db_session.add(
+        TeamPrediction(entry_id=entry.id, team="Brazil", stage="quarter_final")
+    )
+    await db_session.commit()
+
+    # 1. Confirm the banked path already credits Brazil at quarter_final —
+    #    proving the race precondition is genuinely reproduced.
+    actual_advancement = await get_actual_advancement(db_session)
+    assert actual_advancement.get("Brazil") == "quarter_final"
+
+    # 2. Confirm the live path ALSO thinks it should credit this — proving
+    #    both paths independently believe they own the credit.
+    advances = await _live_ko_advances(db_session)
+    assert len(advances) == 1
+    assert advances[0].team == "Brazil"
+    assert advances[0].next_stage == "quarter_final"
+
+    # 3. The gap-check must suppress the live credit: delta should be 0 /
+    #    entry absent, NOT the quarter_final points value again.
+    deltas = await _deltas_by_entry(db_session, advances)
+    assert deltas.get(entry.id, 0) == 0
+
+    # 4. End-to-end: banked total already reflects the QF credit (simulated
+    #    here as a hardcoded banked total) — projected_total must equal
+    #    total_points exactly, with zero live_delta reaching the overlay.
+    qf_points = int(get_scoring_config()["advancement"]["quarter_final"])
+    banked_total_including_qf_credit = 200 + qf_points
+    response = LeaderboardResponse(
+        entries=[
+            LeaderboardEntry(
+                entry_id=entry.id,
+                entry_name=entry.display_name,
+                user_id=entry.user_id,
+                user_name="Racer",
+                position=1,
+                total_points=banked_total_including_qf_credit,
+                breakdown=PointBreakdown(),
+            )
+        ],
+        last_calculated=datetime(2026, 6, 20, tzinfo=timezone.utc),
+        total_participants=1,
+    )
+
+    out = await apply_live_projection(db_session, response)
+
+    row = out.entries[0]
+    assert row.live_delta == 0
+    assert row.projected_total == row.total_points == banked_total_including_qf_credit
+
+
+@pytest.mark.asyncio
+async def test_deltas_by_entry_still_credits_normal_unbanked_advance(
+    db_session, competition
+):
+    """Non-race control case: the downstream fixture is STILL
+    placeholder-seeded (no real team name yet) while the feeding match is
+    LIVE. get_actual_advancement has nothing to bank for this team at this
+    stage, so _already_banked must return False and the normal live delta
+    must still be credited — proving the gap-check doesn't overcorrect and
+    silently kill the feature's actual purpose."""
+    entry = await _make_entry(db_session, competition, email="normal@example.com")
+
+    feeding = _fixture(
+        competition,
+        home="Brazil",
+        away="Ghana",
+        stage="round_of_16",
+        status=MatchStatus.LIVE,
+    )
+    db_session.add(feeding)
+    await db_session.commit()
+    await db_session.refresh(feeding)
+    db_session.add(Score(fixture_id=feeding.id, home_score=1, away_score=0))
+    await db_session.commit()
+
+    # Downstream QF fixture is STILL placeholder-seeded — no real team name
+    # for either side yet, so get_actual_advancement cannot have banked
+    # Brazil at quarter_final via this path.
+    downstream = _fixture(
+        competition,
+        home="slot:quarter_final:999:home",
+        away="slot:quarter_final:999:away",
+        stage="quarter_final",
+        status=MatchStatus.SCHEDULED,
+    )
+    db_session.add(downstream)
+    await db_session.commit()
+
+    db_session.add(
+        TeamPrediction(entry_id=entry.id, team="Brazil", stage="quarter_final")
+    )
+    await db_session.commit()
+
+    actual_advancement = await get_actual_advancement(db_session)
+    assert actual_advancement.get("Brazil") != "quarter_final"
+
+    advances = await _live_ko_advances(db_session)
+    deltas = await _deltas_by_entry(db_session, advances)
+
+    expected_delta = int(get_scoring_config()["advancement"]["quarter_final"])
+    assert deltas.get(entry.id) == expected_delta

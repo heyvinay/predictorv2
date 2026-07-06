@@ -12,7 +12,7 @@ Key invariants (see docs/superpowers/plans/2026-07-06-live-projected-leaderboard
   is invisible until FINISHED.
 - Overlay projects LIVE matches only; the seamless handoff at FINISHED is
   guaranteed by score_sync hard-invalidating the cache on a KO finish
-  (a later task — not this one).
+  (see score_sync.sync_scores_once's points_relevant_ko branch).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.models.score import Score
 from app.schemas.leaderboard import LeaderboardEntry, LeaderboardResponse
-from app.services.scoring import get_scoring_config
+from app.services.scoring import get_actual_advancement, get_scoring_config
 
 # Stage -> the stage its winner reaches. Mirrors the advancement_map in
 # scoring.get_actual_advancement. 'third_place' and 'group' are absent by
@@ -42,6 +42,32 @@ _ADVANCEMENT_MAP = {
 }
 _LIVE_STATUSES = (MatchStatus.LIVE, MatchStatus.HALFTIME)
 _KO_STAGES = list(_ADVANCEMENT_MAP.keys())
+
+# Full stage progression (mirrors scoring.get_actual_advancement's internal
+# stage_ranking) — used to detect a team already banked at `next_stage` or
+# beyond via the real (non-live) advancement path.
+_STAGE_ORDER = ["round_of_32", "round_of_16", "quarter_final", "semi_final", "final", "winner"]
+
+
+def _already_banked(actual_advancement: dict[str, str], team: str, stage: str) -> bool:
+    """True if `team` is already credited (via the REAL banked path) with
+    reaching `stage` or beyond.
+
+    Guards against a real race: scoring.get_actual_advancement() credits a
+    team's advancement the instant a DOWNSTREAM fixture's real team name is
+    seeded — with no requirement that the feeding (upstream) match be
+    FINISHED. score_sync writes a fixture's real team names independent of
+    any other fixture's status. So a team can already be banked at `stage`
+    while the match that decided it is still LIVE in our DB. Without this
+    check, a live delta here would double-count on top of the banked total
+    that already includes the same credit — then silently vanish the moment
+    the feeding match's status catches up, looking exactly like the
+    visible-dip bug this feature exists to prevent.
+    """
+    current = actual_advancement.get(team)
+    if not current or current not in _STAGE_ORDER or stage not in _STAGE_ORDER:
+        return False
+    return _STAGE_ORDER.index(current) >= _STAGE_ORDER.index(stage)
 
 
 @dataclass
@@ -134,15 +160,24 @@ async def _deltas_by_entry(
     """Provisional point gain per entry from the given live advances.
 
     An entry gains adv_config[next_stage] for each live advance whose
-    (team, next_stage) matches one of its bracket picks. While a match is
-    LIVE, that (team, next_stage) credit is never already banked (the next
-    round isn't seeded yet), so no gap-check is needed and double-counting
-    is impossible. PHASE_1 only (dormant phase_2 rows exist)."""
+    (team, next_stage) matches one of its bracket picks — UNLESS that
+    (team, next_stage) credit is already reflected in the banked
+    get_actual_advancement() result, in which case it's skipped (see
+    _already_banked's docstring for why this gap-check is required).
+    PHASE_1 only (dormant phase_2 rows exist)."""
     if not advances:
         return {}
-    points_for = {(a.team, a.next_stage): a.points for a in advances}
-    teams = [a.team for a in advances]
-    stages = [a.next_stage for a in advances]
+
+    actual_advancement = await get_actual_advancement(session)
+    live_advances = [
+        a for a in advances if not _already_banked(actual_advancement, a.team, a.next_stage)
+    ]
+    if not live_advances:
+        return {}
+
+    points_for = {(a.team, a.next_stage): a.points for a in live_advances}
+    teams = [a.team for a in live_advances]
+    stages = [a.next_stage for a in live_advances]
     rows = await session.execute(
         select(
             TeamPrediction.entry_id,
