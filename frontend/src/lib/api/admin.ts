@@ -164,6 +164,17 @@ export async function setKnockoutScoringEnabled(
 	return api.post('/admin/competition/knockout-scoring', { enabled });
 }
 
+/** Flip the live-projection master switch (v2.198.0). When enabled=true
+ *  (AND knockout_scoring_enabled is also true AND a knockout match is
+ *  currently live), GET /leaderboard/ layers a provisional advancement
+ *  projection onto the banked board. Read-time only — no cache
+ *  invalidation happens on this toggle. */
+export async function setLiveProjectionEnabled(
+	enabled: boolean
+): Promise<{ status: string; live_projection_enabled: boolean }> {
+	return api.post('/admin/competition/live-projection', { enabled });
+}
+
 /** Flip the what-if bracket simulator's admin master switch (v2.194.x).
  *  When `enabled=false`, non-admins can't reach `/simulator/*` even if
  *  they've already completed the trivia unlock — admins always retain

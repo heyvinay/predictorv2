@@ -70,6 +70,17 @@ export const knockoutScoringEnabled = derived(
 			?.knockout_scoring_enabled ?? false
 );
 
+/** Admin-controlled master switch for the live projected leaderboard
+ *  (v2.198.0). False until the admin flips it on /admin. Requires
+ *  knockoutScoringEnabled to ALSO be true for the live board to ever
+ *  actually appear — this flag alone doesn't guarantee it. */
+export const liveProjectionEnabled = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { live_projection_enabled?: boolean }) | null)
+			?.live_projection_enabled ?? false
+);
+
 /** Admin-controlled master switch for the what-if bracket simulator
  *  (v2.194.x). False until the admin flips it on /admin. Used at the
  *  layout level to render a subtle "NEW" nudge on the Results rail item

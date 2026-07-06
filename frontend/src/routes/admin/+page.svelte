@@ -23,6 +23,7 @@
 		groupStageWinnerReleased,
 		isPhase2Active,
 		knockoutScoringEnabled,
+		liveProjectionEnabled,
 		phase1Deadline,
 		phase2BracketDeadline,
 		phase1Countdown,
@@ -42,6 +43,7 @@
 		sendBroadcastTest,
 		setGroupStageWinnerReleased,
 		setKnockoutScoringEnabled,
+		setLiveProjectionEnabled,
 		setSimulatorEnabled,
 		setPostDeadlineLive,
 		triggerStandingsDriftCheck,
@@ -139,6 +141,28 @@
 			knockoutError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingKnockout = false;
+		}
+	}
+
+	// ─── Live projection master switch (v2.198.0) ─────────────────────────
+	let togglingLiveProjection = false;
+	let liveProjectionError: string | null = null;
+
+	async function handleToggleLiveProjection() {
+		const next = !$liveProjectionEnabled;
+		const message = next
+			? 'ENABLE the live projected leaderboard? During knockout matches the standings will re-rank in real time based on who is currently winning (provisional — banked points are untouched until full time). Requires knockout scoring to be ON to have any effect.'
+			: 'DISABLE the live projected leaderboard? Standings immediately revert to banked-only on the next refresh.';
+		if (!confirm(message)) return;
+		togglingLiveProjection = true;
+		liveProjectionError = null;
+		try {
+			await setLiveProjectionEnabled(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			liveProjectionError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingLiveProjection = false;
 		}
 	}
 
@@ -886,6 +910,51 @@
 					</button>
 				</div>
 				{#if knockoutError}<div class="alert alert-error text-sm mt-3">{knockoutError}</div>{/if}
+			</section>
+
+			<!-- Live projection master switch (v2.198.0) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$liveProjectionEnabled
+					? 'border-success/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Live standings
+					<span class="text-xs text-base-content/40">
+						· re-rank the leaderboard during knockout matches
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					When ON, the standings re-rank in real time while a knockout match is
+					live, based on who's currently ahead — banked points are untouched until
+					the match finishes. Requires knockout scoring to be enabled to have any
+					effect. Flip this OFF at any time if the live movement causes confusion —
+					it reverts to the banked-only board immediately.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$liveProjectionEnabled
+							? 'bg-success/20 text-success'
+							: 'bg-warning/20 text-warning-text'}"
+					>
+						{$liveProjectionEnabled
+							? '⚡ LIVE — standings react in real time'
+							: 'HELD — banked standings only'}
+					</span>
+					<button
+						class="btn btn-sm {$liveProjectionEnabled ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleLiveProjection}
+						disabled={togglingLiveProjection}
+					>
+						{togglingLiveProjection
+							? 'Switching…'
+							: $liveProjectionEnabled
+								? 'Disable live standings'
+								: '⚡ Enable live standings'}
+					</button>
+				</div>
+				{#if liveProjectionError}<div class="alert alert-error text-sm mt-3">{liveProjectionError}</div>{/if}
 			</section>
 
 			<!-- Bracket simulator master switch (v2.194.x) -->
