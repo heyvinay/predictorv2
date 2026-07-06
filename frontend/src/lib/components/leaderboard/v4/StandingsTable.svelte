@@ -24,6 +24,10 @@
 	/** entry_id → points-over-time array, for the sparkline column.
 	 *  Empty map ⇒ all rows render a dash placeholder. */
 	export let trajectoriesByEntry: Map<string, number[]> = new Map();
+	/** True when the board carries a live KO projection (armed gates +
+	 *  a knockout match live). Preserves incoming row order under the
+	 *  default sort; any explicit column sort still wins. */
+	export let live = false;
 	export let onOpen: (row: LbEntryV4) => void;
 
 	// ── Sort state, persisted across visits ──
@@ -68,7 +72,13 @@
 		return s.dir === 'asc' ? 'ascending' : 'descending';
 	}
 
-	$: sortedRows = sortRows(rows, sort, multiOwners);
+	// When live and the user hasn't chosen an explicit non-default sort,
+	// preserve the incoming order — the page has already sorted `rows` by
+	// projected_position for the live board. Any explicit column sort
+	// (name/group/knockout, or re-clicking Total) falls through to the
+	// normal banked sort; live projection only owns the DEFAULT view.
+	$: isDefaultSort = sort.key === DEFAULT_LB_SORT.key && sort.dir === DEFAULT_LB_SORT.dir;
+	$: sortedRows = live && isDefaultSort ? rows : sortRows(rows, sort, multiOwners);
 
 	// Pin own entries at the top (matching the dashboard mini-leaderboard)
 	// AND keep them in their natural rank position in the full list, so
@@ -186,6 +196,7 @@
 				{gridClass}
 				{multiOwners}
 				trajectory={trajectoriesByEntry.get(row.entry_id) ?? []}
+				{live}
 				{onOpen}
 			/>
 		{/each}
@@ -200,6 +211,7 @@
 			{gridClass}
 			{multiOwners}
 			trajectory={trajectoriesByEntry.get(row.entry_id) ?? []}
+			{live}
 			{onOpen}
 		/>
 	{:else}

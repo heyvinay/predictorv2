@@ -26,6 +26,7 @@
 	import { currentTime } from '$stores/phase';
 	import { teamCode } from '$lib/utils/teamCodes';
 	import ProvisionalPill from '$lib/components/ProvisionalPill.svelte';
+	import LiveProjectionPill from '$lib/components/LiveProjectionPill.svelte';
 	import { getBonusMeta, type BonusMeta } from '$api/bonus';
 	import { track } from '$lib/analytics';
 	import type {
@@ -178,7 +179,12 @@
 	onDestroy(() => stopPoll?.());
 
 	let search = '';
-	$: rows = board?.entries ?? [];
+	$: liveActive = board?.live_projection_active === true;
+	$: rows = liveActive
+		? [...(board?.entries ?? [])].sort(
+				(a, b) => (a.projected_position ?? a.position) - (b.projected_position ?? b.position)
+			)
+		: (board?.entries ?? []);
 	$: stage = deriveStage($fixtures);
 	$: filteredRows = searchRows(filterByPool(rows, pool), search);
 	$: multiOwners = multiEntryUserIds(rows);
@@ -281,6 +287,23 @@
 			: null;
 	})();
 
+	$: liveMatchCue = (() => {
+		const live = $fixtures.filter(
+			(f) =>
+				(f.status === 'live' || f.status === 'halftime') &&
+				f.stage !== 'group' &&
+				f.stage !== 'third_place' &&
+				f.score
+		);
+		if (live.length === 0) return null;
+		if (live.length > 1) return `${live.length} matches`;
+		const f = live[0];
+		const score = f.score;
+		if (!score) return null;
+		const min = f.minute != null ? ` · ${f.minute}′` : '';
+		return `${teamCode(f.home_team)} ${score.home_score}–${score.away_score} ${teamCode(f.away_team)}${min}`;
+	})();
+
 	// ── published Google Sheet URL (v2.177.x) ──
 	// Backend sets this on the leaderboard response when sheets_sync is
 	// configured. The button below renders only when it's present.
@@ -344,6 +367,11 @@
 						{#if lastFinished}
 							<span class="text-base-content/40">·</span>
 							<span>last result: <b class="text-base-content/70">{lastFinished}</b></span>
+						{/if}
+						{#if liveActive && liveMatchCue}
+							<span class="text-base-content/40">·</span>
+							<span class="text-error">based on live: <b>{liveMatchCue}</b></span>
+							<span class="ml-1 relative"><LiveProjectionPill /></span>
 						{/if}
 						{#if pollFailed}
 							<span
@@ -435,6 +463,7 @@
 				userId={$user?.id}
 				{multiOwners}
 				{trajectoriesByEntry}
+				live={liveActive}
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}

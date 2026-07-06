@@ -3,7 +3,13 @@
 	 *  entry drawer (a11y per ACCEPTANCE). Own entries get the gold glow
 	 *  highlight + YOU tag + gold total. */
 	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
-	import { groupPtsOf, koPtsOf, rowDisplayName } from '$lib/utils/leaderboardV4';
+	import {
+		displayRank,
+		displayTotal,
+		groupPtsOf,
+		koPtsOf,
+		rowDisplayName
+	} from '$lib/utils/leaderboardV4';
 	import FlagCode from './FlagCode.svelte';
 	import RankCell from './RankCell.svelte';
 	import Sparkline from './Sparkline.svelte';
@@ -17,6 +23,9 @@
 	export let multiOwners: Set<string>;
 	/** Points-over-time series for this entry (≥2 to draw). */
 	export let trajectory: number[] = [];
+	/** True when the board carries a live KO projection. Gates the
+	 *  projected rank/total display and the +N delta chip. */
+	export let live = false;
 	export let onOpen: (row: LbEntryV4) => void;
 
 	$: bonusG = row.bonus_group_points ?? 0;
@@ -44,7 +53,7 @@
 	title="View this entry's predictions"
 	on:click={() => onOpen(row)}
 >
-	<span role="cell"><RankCell rank={row.position} move={row.daily_movement} /></span>
+	<span role="cell"><RankCell rank={displayRank(row, live)} move={row.daily_movement} /></span>
 
 	<span
 		role="cell"
@@ -115,7 +124,10 @@
 			? `Total includes ${koPts - bonusK} knockout point${koPts - bonusK === 1 ? '' : 's'} from bracket picks${bonusK ? ` plus ${bonusK} knockout bonus` : ''}`
 			: 'Group-stage total only — knockout points will appear once scoring opens'}
 	>
-		{row.total_points}
+		{#if live && row.live_delta != null && row.live_delta > 0}
+			<span class="mr-1 align-middle text-[11px] font-bold text-success">+{row.live_delta}</span>
+		{/if}
+		{displayTotal(row, live)}
 	</span>
 
 	<span
