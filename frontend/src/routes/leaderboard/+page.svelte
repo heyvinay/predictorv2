@@ -66,6 +66,13 @@
 	// ── view + pool persistence ──
 	const VIEW_KEY = 'predictor:lb:view';
 	const POOL_KEY = 'predictor:lb:pool';
+	// Inclusion list, not exclusion — Fixture.stage is plain `string`, so an
+	// exclusion check (stage !== 'group' && stage !== 'third_place') gives
+	// zero compile-time protection against a new/typo'd stage slipping
+	// through. Mirrors the named-stage switch in resultsRounds.ts's
+	// roundIdForFixture(), which excludes 'third_place' the same way for
+	// the same documented reason (CLAUDE.md ★ third_place invariant).
+	const KO_STAGES = ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
 	const VIEWS: { id: LbView; label: string; sub: string }[] = [
 		{ id: 'table', label: 'Standings', sub: '' },
 		{ id: 'race', label: 'The Race', sub: 'rank over time' },
@@ -291,8 +298,7 @@
 		const live = $fixtures.filter(
 			(f) =>
 				(f.status === 'live' || f.status === 'halftime') &&
-				f.stage !== 'group' &&
-				f.stage !== 'third_place' &&
+				KO_STAGES.includes(f.stage) &&
 				f.score
 		);
 		if (live.length === 0) return null;
