@@ -252,6 +252,23 @@
 			</div>
 		{/if}
 
+		<!-- Mobile-only: leaderboard right after the matchday score cards,
+		     ahead of the tables/trail content below. Same component + props
+		     as the side-column instance below — just a different position
+		     at narrow widths, where the 2-col grid collapses to one column
+		     and DOM order becomes visual order. Hidden at min-[920px] so
+		     desktop keeps the side-column instance only (no duplicate). -->
+		<div class="mb-5 block min-[920px]:hidden">
+			<MiniLeaderboard
+				rows={lbRows}
+				live={liveProjectionActive}
+				userId={$user?.id ?? null}
+				activeEntryId={$activeEntryId}
+				{totalEntries}
+				{lastResult}
+			/>
+		</div>
+
 		<!-- v2.181.0: DailyMvpStrip moved out of the top-of-page slot
 		     and into the side column below (above MiniLeaderboard).
 		     v2.184.x: GroupStageWinnerCard moved INTO the main column
@@ -288,6 +305,11 @@
 					{rules}
 					{derivedMatchdays}
 				/>
+
+				<!-- Fills the whitespace that opens up under Latest results
+				     once the side column (MiniLeaderboard + PoolDistribution)
+				     grows taller than the main column's tables. -->
+				<PersonalTrailStrip />
 			</div>
 
 			<!-- Side column -->
@@ -297,29 +319,29 @@
 				     row (was 5 full-width chips at top-of-page in
 				     v2.180.0). -->
 				<DailyMvpStrip on:open={e => openLeaderboardEntry(e.detail.entry_id)} />
-				<MiniLeaderboard
-					rows={lbRows}
-					live={liveProjectionActive}
-					userId={$user?.id ?? null}
-					activeEntryId={$activeEntryId}
-					{totalEntries}
-					{lastResult}
-				/>
+				<!-- Desktop-only: the mobile-width instance moved above,
+				     right after the matchday strip (see comment there). -->
+				<div class="hidden min-[920px]:block">
+					<MiniLeaderboard
+						rows={lbRows}
+						live={liveProjectionActive}
+						userId={$user?.id ?? null}
+						activeEntryId={$activeEntryId}
+						{totalEntries}
+						{lastResult}
+					/>
+				</div>
 				<PoolDistribution />
 			</div>
 		</div>
 
-		<!-- ============ Dashboard widgets region (2026-06-22) ============
-		     DailyMvpStrip was promoted to the top of the page (above the
-		     grid); PersonalTrailStrip stays below as the trailing widget. -->
-		<div class="my-5 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-60"></div>
-		<div class="flex flex-col gap-4">
-			<PersonalTrailStrip />
-			{#if groupStagePodium && groupStagePodium.entries.length > 0}
-				<div class="mt-5">
-					<GroupStageWinnerCard podium={groupStagePodium} />
-				</div>
-			{/if}
-		</div>
+		<!-- PersonalTrailStrip moved into the main column (above, after
+		     ResultsTable) so it fills the side column's overflow instead of
+		     sitting in its own full-width row. This region now holds only
+		     the Group Stage Winner card, once released. -->
+		{#if groupStagePodium && groupStagePodium.entries.length > 0}
+			<div class="my-5 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-60"></div>
+			<GroupStageWinnerCard podium={groupStagePodium} />
+		{/if}
 	{/if}
 </div>

@@ -646,17 +646,25 @@ class PersonalTrailResponse(BaseModel):
 
 
 class DistBin(BaseModel):
-    points_delta: int
+    bucket_start: int
+    bucket_end: int
     count: int
 
 
+class YourEntryMarker(BaseModel):
+    entry_id: str
+    entry_name: str
+    points: int
+    position: int
+
+
 class PoolDistributionResponse(BaseModel):
-    user_points: int
-    window_size: int
     bins: list[DistBin]
-    next_rank_points_away: int | None
-    next_rank_position: int | None
-    near_count: int
+    bucket_width: int
+    min_points: int
+    max_points: int
+    total_entries: int
+    your_entries: list[YourEntryMarker]
     caption: str
     generated_at: datetime
 
@@ -717,16 +725,25 @@ async def pool_distribution(
     session: DbSession,
     user: CurrentUser,
 ) -> PoolDistributionResponse:
-    """Returns the histogram of entries around the requesting user's points total."""
+    """Full-pool points histogram with every entry the user owns marked."""
     from app.services.dashboard_stats import compute_pool_distribution
     r = await compute_pool_distribution(session, user_id=str(user.id))
     return PoolDistributionResponse(
-        user_points=r.user_points,
-        window_size=r.window_size,
-        bins=[DistBin(points_delta=b.points_delta, count=b.count) for b in r.bins],
-        next_rank_points_away=r.next_rank_points_away,
-        next_rank_position=r.next_rank_position,
-        near_count=r.near_count,
+        bins=[
+            DistBin(bucket_start=b.bucket_start, bucket_end=b.bucket_end, count=b.count)
+            for b in r.bins
+        ],
+        bucket_width=r.bucket_width,
+        min_points=r.min_points,
+        max_points=r.max_points,
+        total_entries=r.total_entries,
+        your_entries=[
+            YourEntryMarker(
+                entry_id=e.entry_id, entry_name=e.entry_name,
+                points=e.points, position=e.position,
+            )
+            for e in r.your_entries
+        ],
         caption=r.caption,
         generated_at=r.generated_at,
     )

@@ -1,14 +1,12 @@
 <script lang="ts">
 	/** Gold-tinted toolbar under the header: search box left (grows to
-	 *  max-w-sm on desktop, full row on phones), best-rank summary when
-	 *  the user has entries on the board, pool filter pills
+	 *  max-w-sm on desktop, full row on phones), pool filter pills
 	 *  (All / Atlas / JMFA / Guests) right. Pool selection persists;
 	 *  filtering keeps global ranks (spec §2). */
 	import type { LbEntryV4, LbPool } from '$lib/types/leaderboard';
-	import { bestOwnSummary, poolCounts } from '$lib/utils/leaderboardV4';
+	import { poolCounts } from '$lib/utils/leaderboardV4';
 
 	export let rows: LbEntryV4[];
-	export let userId: string | null | undefined;
 	export let pool: LbPool;
 	export let onPool: (p: LbPool) => void;
 	/** Two-way bound search query (person or entry name). */
@@ -17,7 +15,6 @@
 	const POOLS: LbPool[] = ['All', 'Atlas', 'JMFA', 'Guests'];
 
 	$: counts = poolCounts(rows);
-	$: best = bestOwnSummary(rows, userId);
 
 	// Arrow-key cycling within the radiogroup (review P2). Tab still
 	// moves out of the group; Home/End jump to ends. Left/Right wrap.
@@ -58,17 +55,6 @@
 			class="h-[30px] w-full rounded-full border-[1.5px] border-base-300/80 bg-base-200 pl-6 pr-2 text-[11px] font-semibold text-base-content placeholder:text-base-content/40 transition-colors focus:border-primary focus:outline-none sm:h-[34px] sm:pl-7 sm:pr-2.5 sm:text-xs"
 		/>
 	</label>
-
-	{#if best}
-		<span class="text-xs text-base-content/70">
-			best is <b class="font-display font-extrabold text-primary">#{best.bestRank}</b>
-			{#if best.ptsOffLead > 0}
-				· {best.ptsOffLead} pts off the lead
-			{:else}
-				· leading the pool
-			{/if}
-		</span>
-	{/if}
 
 	<div
 		class="flex flex-wrap gap-1 sm:gap-1.5"

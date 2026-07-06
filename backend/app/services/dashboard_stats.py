@@ -5,6 +5,7 @@ Datetimes are aware-UTC; dates are plain `date`.
 """
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -199,37 +200,64 @@ async def compute_personal_trail(
 
 @dataclass
 class DistBin:
-    points_delta: int
+    bucket_start: int
+    bucket_end: int
     count: int
 
 
 @dataclass
+class YourEntryMarker:
+    entry_id: str
+    entry_name: str
+    points: int
+    position: int
+
+
+@dataclass
 class PoolDistributionResult:
-    user_points: int
-    window_size: int
     bins: list[DistBin]
-    next_rank_points_away: int | None
-    next_rank_position: int | None
-    near_count: int
+    bucket_width: int
+    min_points: int
+    max_points: int
+    total_entries: int
+    your_entries: list[YourEntryMarker]
     caption: str
     generated_at: datetime
 
 
-DEFAULT_WINDOW = 5
-WIDENED_WINDOW = 10
-MIN_NEAR_FOR_DEFAULT = 2
+def _nice_bucket_width(value_range: int, target_buckets: int = 12) -> int:
+    """Round a raw bucket width up to a "nice" step (1/2/5 × a power of ten)
+    so histogram axis labels land on clean numbers instead of arbitrary
+    point values. Mirrors the standard D3-style tick-step algorithm."""
+    if value_range <= 0:
+        return 1
+    raw = value_range / target_buckets
+    magnitude = 10 ** math.floor(math.log10(raw))
+    for mult in (1, 2, 5, 10):
+        step = magnitude * mult
+        if step >= raw:
+            return int(step)
+    return int(magnitude * 10)  # pragma: no cover — unreachable, mult=10 always satisfies step >= raw
+
+
+def _empty_result(total_entries: int = 0) -> PoolDistributionResult:
+    return PoolDistributionResult(
+        bins=[], bucket_width=1, min_points=0, max_points=0,
+        total_entries=total_entries, your_entries=[], caption="",
+        generated_at=utc_now(),
+    )
 
 
 async def compute_pool_distribution(
     session: AsyncSession, *, user_id: str,
 ) -> PoolDistributionResult:
-    """Returns the histogram of entries around the requesting user's points total."""
+    """Full-pool points histogram with the requesting user's OWN entries
+    (all of them, not just their best) marked individually. Buckets span
+    every eligible entry's total_points, not a narrow window around one
+    score — with real point gaps between ranks, a narrow window is often
+    empty except the user's own bar (v2.198.x redesign)."""
     if not await is_phase1_locked(session):
-        return PoolDistributionResult(
-            user_points=0, window_size=DEFAULT_WINDOW, bins=[],
-            next_rank_points_away=None, next_rank_position=None,
-            near_count=0, caption="", generated_at=utc_now(),
-        )
+        return _empty_result()
 
     user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
     today = date.today()
@@ -241,6 +269,7 @@ async def compute_pool_distribution(
                 LeaderboardSnapshot.position,
                 LeaderboardSnapshot.total_points,
                 PredictionEntry.user_id,
+                PredictionEntry.display_name,
             )
             .join(PredictionEntry, PredictionEntry.id == LeaderboardSnapshot.entry_id)
             .where(LeaderboardSnapshot.entry_id.in_(eligible_entry_ids_select()))
@@ -248,87 +277,67 @@ async def compute_pool_distribution(
         )
     ).all()
 
+    if not rows:
+        return _empty_result()
+
     user_rows = [r for r in rows if r[3] == user_uuid]
     if not user_rows:
-        return PoolDistributionResult(
-            user_points=0, window_size=DEFAULT_WINDOW, bins=[],
-            next_rank_points_away=None, next_rank_position=None,
-            near_count=0, caption="", generated_at=utc_now(),
-        )
-
-    best = min(user_rows, key=lambda r: r[1])  # (entry_id, position, total_points, user_id)
-    user_points: int = best[2]
-    user_rank: int = best[1]
+        return _empty_result(total_entries=len(rows))
 
     all_pts = [r[2] for r in rows]
-
-    def count_in_window(window: int) -> int:
-        return sum(1 for p in all_pts if abs(p - user_points) <= window and p != user_points)
-
-    window = DEFAULT_WINDOW
-    if count_in_window(window) < MIN_NEAR_FOR_DEFAULT:
-        window = WIDENED_WINDOW
+    min_pts, max_pts = min(all_pts), max(all_pts)
+    width = _nice_bucket_width(max_pts - min_pts)
+    origin = (min_pts // width) * width
 
     bins_map: dict[int, int] = {}
     for p in all_pts:
-        delta = p - user_points
-        if abs(delta) <= window:
-            bins_map[delta] = bins_map.get(delta, 0) + 1
+        bucket_start = origin + ((p - origin) // width) * width
+        bins_map[bucket_start] = bins_map.get(bucket_start, 0) + 1
 
-    bins = sorted(
-        (DistBin(points_delta=d, count=c) for d, c in bins_map.items()),
-        key=lambda b: b.points_delta,
+    bins = [
+        DistBin(bucket_start=start, bucket_end=start + width - 1, count=count)
+        for start, count in sorted(bins_map.items())
+    ]
+
+    your_entries = sorted(
+        (
+            YourEntryMarker(
+                entry_id=str(entry_id), entry_name=display_name or "",
+                points=pts, position=position,
+            )
+            for entry_id, position, pts, _uid, display_name in user_rows
+        ),
+        key=lambda e: e.position,
     )
 
-    higher_deltas = [p - user_points for p in all_pts if p > user_points]
-    if higher_deltas:
-        next_rank_points_away = min(higher_deltas)
-        ranks_above = [r[1] for r in rows if r[2] > user_points]
-        next_rank_position = max(ranks_above) if ranks_above else user_rank - 1
-    else:
-        next_rank_points_away = None
-        next_rank_position = None
-
-    near_count = count_in_window(window)
-    caption = _build_caption(
-        user_rank=user_rank,
-        near_count=near_count,
-        window=window,
-        next_rank_points_away=next_rank_points_away,
-        next_rank_position=next_rank_position,
-        tied_with=bins_map.get(0, 1) - 1,
-    )
+    caption = _build_caption(your_entries=your_entries, total_entries=len(rows))
 
     return PoolDistributionResult(
-        user_points=user_points,
-        window_size=window,
         bins=bins,
-        next_rank_points_away=next_rank_points_away,
-        next_rank_position=next_rank_position,
-        near_count=near_count,
+        bucket_width=width,
+        min_points=min_pts,
+        max_points=max_pts,
+        total_entries=len(rows),
+        your_entries=your_entries,
         caption=caption,
         generated_at=utc_now(),
     )
 
 
-def _build_caption(
-    *, user_rank: int, near_count: int, window: int,
-    next_rank_points_away: int | None,
-    next_rank_position: int | None,
-    tied_with: int,
-) -> str:
-    """Compose the server-side caption. See spec for the 4 variants."""
-    if user_rank == 1 and next_rank_points_away is None:
-        return f"Nobody within {window} points of you above. You're leading the pool."
-    if tied_with > 0:
+def _build_caption(*, your_entries: list[YourEntryMarker], total_entries: int) -> str:
+    """Compose the server-side caption for the full-pool distribution.
+    Every entry the user owns is in `your_entries` (sorted best-first)."""
+    if not your_entries:
+        return ""
+    if len(your_entries) == 1:
+        pos = your_entries[0].position
+        if pos == 1:
+            return f"You're leading the pool of {total_entries} entries."
+        return f"You're #{pos} of {total_entries} entries."
+    best, worst = your_entries[0].position, your_entries[-1].position
+    if best == 1:
         return (
-            f"You're tied with {tied_with} other "
-            f"entr{'y' if tied_with == 1 else 'ies'} at this score. "
-            f"{near_count} entries within {window} points."
+            f"Your best entry leads the pool of {total_entries} — "
+            f"{len(your_entries)} entries total."
         )
-    if next_rank_points_away is None:
-        return f"You're alone at this points total — {near_count} other entries within {window} points."
-    return (
-        f"{near_count} entries within {window} points of you. "
-        f"The next rank is {next_rank_points_away} points away."
-    )
+    return f"Your {len(your_entries)} entries rank #{best}–#{worst} of {total_entries}."

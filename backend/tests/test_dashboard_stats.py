@@ -279,22 +279,75 @@ async def test_pool_distribution_empty_pre_deadline(session: AsyncSession):
     from sqlalchemy import select as sa_select
     user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
     result = await compute_pool_distribution(session, user_id=str(user_row.id))
-    assert result.user_points == 0
+    assert result.total_entries == 0
+    assert result.bins == []
+    assert result.your_entries == []
 
 
 async def test_pool_distribution_bins(session: AsyncSession):
-    """User at 150 pts; pool spans 122..150. Window picks up nearby points."""
+    """Full-pool histogram spans every eligible entry's today-points
+    (122..150 across the 5-entry seed pool), not a narrow window around
+    one user — every bucket's count sums to the pool size."""
     entries, _ = await _seed_basic_pool(session)
     from sqlalchemy import select as sa_select
     user_row = (await session.execute(sa_select(User).where(User.name == "A"))).scalar_one()
     result = await compute_pool_distribution(session, user_id=str(user_row.id))
-    assert result.user_points == 150
-    own = [b for b in result.bins if b.points_delta == 0]
-    assert own and own[0].count >= 1
+    assert result.total_entries == 5
+    assert result.min_points == 122
+    assert result.max_points == 150
+    assert sum(b.count for b in result.bins) == 5
+    # Entry A (150 pts, the day's best) is marked in your_entries.
+    assert len(result.your_entries) == 1
+    assert result.your_entries[0].entry_id == str(entries["a"].id)
+    assert result.your_entries[0].points == 150
+
+
+async def test_pool_distribution_marks_all_of_a_multi_entry_users_entries(session: AsyncSession):
+    """A user with 2 entries gets BOTH marked in your_entries, not just
+    their best-ranked one — the v2.198.x redesign's whole point."""
+    import uuid
+    from app.models import AuthProvider
+    comp = Competition(name="t", phase1_deadline=utc_now() - timedelta(hours=1), is_phase2_active=False)
+    session.add(comp)
+    await session.flush()
+    u = User(email="multi@t", name="Multi", is_admin=False, password_hash="x", auth_provider=AuthProvider.EMAIL)
+    session.add(u)
+    await session.flush()
+    today = date.today()
+    for entry_number, (label, pts, pos) in enumerate((("first", 200, 1), ("second", 150, 3)), start=1):
+        entry = PredictionEntry(
+            user_id=u.id, competition_id=comp.id, display_name=label,
+            is_disabled=False, reference=f"WC26-{uuid.uuid4().hex[:6]}", entry_number=entry_number,
+        )
+        session.add(entry)
+        await session.flush()
+        session.add(PredictionEntryPhase(entry_id=entry.id, phase=PredictionPhase.PHASE_1, status=EntryStatus.SUBMITTED))
+        session.add(LeaderboardSnapshot(entry_id=entry.id, user_id=u.id, captured_date=today, position=pos, total_points=pts))
+    # A third, unrelated entry so the pool isn't just this one user.
+    other = User(email="other@t", name="Other", is_admin=False, password_hash="x", auth_provider=AuthProvider.EMAIL)
+    session.add(other)
+    await session.flush()
+    other_entry = PredictionEntry(
+        user_id=other.id, competition_id=comp.id, display_name="other-entry",
+        is_disabled=False, reference=f"WC26-{uuid.uuid4().hex[:6]}", entry_number=1,
+    )
+    session.add(other_entry)
+    await session.flush()
+    session.add(PredictionEntryPhase(entry_id=other_entry.id, phase=PredictionPhase.PHASE_1, status=EntryStatus.SUBMITTED))
+    session.add(LeaderboardSnapshot(entry_id=other_entry.id, user_id=other.id, captured_date=today, position=2, total_points=175))
+    await session.commit()
+
+    from sqlalchemy import select as sa_select
+    multi_user = (await session.execute(sa_select(User).where(User.name == "Multi"))).scalar_one()
+    result = await compute_pool_distribution(session, user_id=str(multi_user.id))
+    assert result.total_entries == 3
+    assert {e.entry_name for e in result.your_entries} == {"first", "second"}
+    # Sorted best-first (lowest position number first).
+    assert [e.position for e in result.your_entries] == [1, 3]
 
 
 async def test_pool_distribution_leader_caption(session: AsyncSession):
-    """When user is at #1 (highest points), caption says they're leading."""
+    """When the user's single entry is at #1, caption says they're leading."""
     import uuid
     from app.models import AuthProvider
     comp = Competition(name="t", phase1_deadline=utc_now() - timedelta(hours=1), is_phase2_active=False)
@@ -330,7 +383,7 @@ async def test_pool_distribution_leader_caption(session: AsyncSession):
     from sqlalchemy import select as sa_select
     leader_user = (await session.execute(sa_select(User).where(User.name == "leader"))).scalar_one()
     result = await compute_pool_distribution(session, user_id=str(leader_user.id))
-    assert result.next_rank_points_away is None
+    assert result.your_entries[0].position == 1
     caption_lower = result.caption.lower()
     assert any(word in caption_lower for word in ("leading", "above", "ahead"))
 

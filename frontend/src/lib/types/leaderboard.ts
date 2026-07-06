@@ -233,17 +233,25 @@ export interface PersonalTrailResponse {
 }
 
 export interface DistBin {
-	points_delta: number;
+	bucket_start: number;
+	bucket_end: number;
 	count: number;
 }
 
+export interface YourEntryMarker {
+	entry_id: string;
+	entry_name: string;
+	points: number;
+	position: number;
+}
+
 export interface PoolDistributionResponse {
-	user_points: number;
-	window_size: number;
 	bins: DistBin[];
-	next_rank_points_away: number | null;
-	next_rank_position: number | null;
-	near_count: number;
+	bucket_width: number;
+	min_points: number;
+	max_points: number;
+	total_entries: number;
+	your_entries: YourEntryMarker[];
 	caption: string;
 	generated_at: string;
 }

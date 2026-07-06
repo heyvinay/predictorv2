@@ -52,6 +52,7 @@
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
 	import RaceStoryGrid from '$lib/components/leaderboard/v4/RaceStoryGrid.svelte';
 	import RaceViewPills from '$lib/components/leaderboard/v4/RaceViewPills.svelte';
+	import PoolDistribution from '$lib/components/dashboard/v4/PoolDistribution.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
 
 	// v2.166.0: the deadline passing no longer auto-opens the page —
@@ -376,7 +377,9 @@
 						{/if}
 						{#if liveActive && liveMatchCue}
 							<span class="text-base-content/40">·</span>
-							<span class="text-error">based on live: <b>{liveMatchCue}</b></span>
+							<span class="rounded bg-success px-1.5 py-0.5 text-white"
+								>based on live: <b>{liveMatchCue}</b></span
+							>
 							<span class="ml-1 relative"><LiveProjectionPill /></span>
 						{/if}
 						{#if pollFailed}
@@ -434,7 +437,7 @@
 				{/if}
 			</div>
 		</div>
-		<YourEntriesStrip {rows} userId={$user?.id} {pool} onPool={setPool} bind:search />
+		<YourEntriesStrip {rows} {pool} onPool={setPool} bind:search />
 
 		{#if loading}
 			<!-- skeleton: same card + row rhythm as the real table -->
@@ -485,6 +488,10 @@
 				{matchMarkers}
 				showMinimap
 			/>
+
+			<div class="mt-3">
+				<PoolDistribution />
+			</div>
 		{:else if view === 'insights'}
 			<InsightsGrid
 				{rows}

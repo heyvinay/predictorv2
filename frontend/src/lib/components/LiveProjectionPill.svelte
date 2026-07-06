@@ -1,9 +1,11 @@
 <script lang="ts">
 	/** Click-target pill that surfaces the "these standings include a live
 	 *  KO projection" state with a small popover. Mirrors ProvisionalPill's
-	 *  popover mechanics (open state, click-outside, Escape-to-close) but
-	 *  uses the error/red tokens this codebase reserves for live/in-progress
-	 *  indicators (RoundTabs' pulsing dot, EntryDrawer's live-minute chip). */
+	 *  popover mechanics (open state, click-outside, Escape-to-close). Badge
+	 *  uses the same bg-success/text-white treatment as this codebase's other
+	 *  live-score chips (MatchHero, FixtureRowKo); the dot alone stays on the
+	 *  error/red token reserved for live/in-progress indicators (RoundTabs'
+	 *  pulsing dot, EntryDrawer's live-minute chip). */
 	let open = false;
 	let buttonEl: HTMLButtonElement;
 
@@ -31,7 +33,7 @@
 	<button
 		bind:this={buttonEl}
 		type="button"
-		class="inline-flex items-center gap-1 rounded-badge border border-error/40 bg-error/10 px-1.5 py-px text-[10px] font-extrabold uppercase tracking-[0.06em] text-error transition-colors hover:bg-error/20"
+		class="inline-flex items-center gap-0.5 rounded-badge bg-success px-1 py-px text-[10px] font-extrabold uppercase text-white transition-colors hover:bg-success/90"
 		aria-expanded={open}
 		aria-haspopup="dialog"
 		on:click={toggle}
