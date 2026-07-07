@@ -887,12 +887,6 @@ async def win_probability_endpoint(
             ),
         )
 
-    unresolved_matches = 0
-    n = result.scenario_count
-    while n > 1:
-        n //= 2
-        unresolved_matches += 1
-
     return WinProbabilityResponse(
         entries=[
             EntryWinProbability(
@@ -908,8 +902,8 @@ async def win_probability_endpoint(
             for team, odds in result.team_stage_odds.items()
         ],
         meta=WinProbabilityMeta(
-            mode="exact",
-            unresolved_matches=unresolved_matches,
+            mode=result.mode,
+            unresolved_matches=result.unresolved_matches,
             scenario_count=result.scenario_count,
             computed_at=result.computed_at,
         ),

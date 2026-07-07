@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+import random
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -193,6 +194,54 @@ def enumerate_scenarios(
         yield winners, weight
 
 
+# Above this many unresolved matches, 2**m scenarios stops being cheap to
+# enumerate exhaustively — benchmarked at ~9s for m=14 against a 68-entry
+# pool (2**14 = 16,384 scenarios), so m=15 (32,768) is still comfortably
+# affordable but roughly doubles that; each further step doubles it again.
+# This tournament's m only ever shrinks (every finished KO match removes
+# one unresolved match), so exact enumeration covers it end to end — this
+# constant exists to future-proof a differently-shaped tournament (more
+# knockout rounds simultaneously unresolved) rather than for this one.
+# Exposed as a `simulate_pool`/`compute_win_probability` parameter, not
+# just a hardcoded constant, so it can be tuned per deployment without a
+# code change if a pool's entry count changes the affordable ceiling.
+EXACT_ENUMERATION_MAX_M = 15
+MONTE_CARLO_SAMPLES = 20_000
+
+
+def sample_scenarios(
+    matches: dict[int, MatchSpec],
+    known_winners: dict[int, str],
+    unresolved: list[int],
+    num_samples: int = MONTE_CARLO_SAMPLES,
+    *,
+    rng: random.Random | None = None,
+) -> Iterator[tuple[dict[int, str], float]]:
+    """Monte Carlo fallback for when 2**len(unresolved) is too large to
+    enumerate exhaustively: `num_samples` random draws under the same
+    uniform 50/50 per-match model, each carrying equal weight
+    1/num_samples. Downstream aggregation (simulate_pool) only ever
+    consumes (winners, weight) pairs, so it needs no changes to consume
+    sampled scenarios instead of enumerated ones — this is a statistical
+    ESTIMATE of the same quantity enumerate_scenarios computes exactly,
+    convergent as num_samples grows but never exact for finite samples.
+
+    Same topological-order requirement as enumerate_scenarios: ascending
+    match_number in `unresolved` is always valid.
+    """
+    rng = rng if rng is not None else random.Random()
+    weight = 1.0 / num_samples
+
+    for _ in range(num_samples):
+        winners = dict(known_winners)
+        for match_number in unresolved:
+            spec = matches[match_number]
+            home = resolve_ref(spec.home_ref, winners)
+            away = resolve_ref(spec.away_ref, winners)
+            winners[match_number] = home if rng.random() < 0.5 else away
+        yield winners, weight
+
+
 def resolve_known_state(
     matches: dict[int, MatchSpec], raw_outcomes: dict[int, str]
 ) -> tuple[dict[int, str], list[int]]:
@@ -329,6 +378,14 @@ class PoolSimulationResult:
     # Stamped at construction — reflects when the simulation actually ran,
     # not when a cached result happens to be served to a given request.
     computed_at: datetime = field(default_factory=utc_now)
+    # "exact" (2**m enumeration) or "monte_carlo" (sampled) — whichever
+    # simulate_pool actually used, driven by len(unresolved) vs max_exact_m.
+    mode: str = "exact"
+    # m = len(unresolved), recorded directly rather than derived from
+    # scenario_count — under "exact" mode scenario_count == 2**m so a
+    # log2 reversal works, but under "monte_carlo" scenario_count is
+    # just num_samples (e.g. 20,000) and log2(20000) is not m at all.
+    unresolved_matches: int = 0
 
 
 def simulate_pool(
@@ -340,6 +397,9 @@ def simulate_pool(
     base_points: dict[str, int],
     entry_bonus_picks: dict[str, dict[str, str]] | None = None,
     bonus_config: BonusSimulationConfig | None = None,
+    max_exact_m: int = EXACT_ENUMERATION_MAX_M,
+    num_samples: int = MONTE_CARLO_SAMPLES,
+    rng: random.Random | None = None,
 ) -> PoolSimulationResult:
     """Enumerate every bracket completion and, for each, rank the pool by
     base_points[entry] + entry_ko_points(...) [+ simulate_bonus_points(...)
@@ -351,11 +411,19 @@ def simulate_pool(
     can omit them with zero behavior change — the bonus term is simply
     0 for every entry in every scenario.
 
+    Aggregation auto-selects exact enumeration when
+    len(unresolved) <= max_exact_m, else falls back to seeded Monte
+    Carlo sampling (see sample_scenarios) — this tournament never
+    crosses that threshold (m only shrinks), but a differently-shaped
+    one might.
+
     Ranking uses standard competition ranking (ties share the lower rank
     number, e.g. 1-1-3). Win credit for a scenario is split evenly among
     every entry tied for the top score, so `sum(p_win for all entries)`
-    always equals 1.0 — the invariant the plan's response schema depends
-    on to render odds that don't silently over- or under-count.
+    always equals 1.0 under exact enumeration — the invariant the plan's
+    response schema depends on to render odds that don't silently over-
+    or under-count. Under Monte Carlo, this holds only approximately
+    (sampling noise), same as every other per-entry statistic.
     """
     entry_ids = list(entries)
     accum = {eid: EntryProbability() for eid in entry_ids}
@@ -365,7 +433,16 @@ def simulate_pool(
     exact_stage_weight: dict[str, dict[str, float]] = {}
     bonus_picks = entry_bonus_picks or {}
 
-    for winners, weight in enumerate_scenarios(matches, known_winners, unresolved):
+    if len(unresolved) <= max_exact_m:
+        scenario_source = enumerate_scenarios(matches, known_winners, unresolved)
+        mode = "exact"
+    else:
+        scenario_source = sample_scenarios(
+            matches, known_winners, unresolved, num_samples, rng=rng
+        )
+        mode = "monte_carlo"
+
+    for winners, weight in scenario_source:
         advancement = build_advancement(matches, winners)
         scenario_count += 1
 
@@ -405,7 +482,11 @@ def simulate_pool(
     }
 
     return PoolSimulationResult(
-        entries=accum, scenario_count=scenario_count, team_stage_odds=team_stage_odds
+        entries=accum,
+        scenario_count=scenario_count,
+        team_stage_odds=team_stage_odds,
+        mode=mode,
+        unresolved_matches=len(unresolved),
     )
 
 

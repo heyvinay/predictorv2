@@ -11,6 +11,8 @@ import uuid
 
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.services.scoring import calculate_advancement_points
+import random
+
 from app.services.win_probability import (
     BonusSimulationConfig,
     MatchSpec,
@@ -18,6 +20,7 @@ from app.services.win_probability import (
     entry_ko_points,
     enumerate_scenarios,
     resolve_known_state,
+    sample_scenarios,
     simulate_bonus_points,
     simulate_pool,
 )
@@ -443,3 +446,84 @@ class TestBonusSimulation:
 
         assert round(result.entries["entry-1"].p_win, 6) == 0.5
         assert round(result.entries["entry-2"].p_win, 6) == 0.5
+
+
+class TestMonteCarloFallback:
+    """Aggregation strategy is auto-selected by m = len(unresolved):
+    exact enumeration (2**m, exact) while m is small, seeded Monte
+    Carlo sampling once m exceeds max_exact_m — future-proofing for a
+    tournament shape where more knockout rounds are simultaneously
+    unresolved than this one ever has (m only shrinks here, never
+    exceeding ~15). `max_exact_m` is a parameter, not a hardcoded
+    constant, specifically so these tests can force the Monte Carlo
+    path on a small, hand-verifiable bracket instead of needing a real
+    2**16-scenario bracket to exercise it."""
+
+    FOUR_TEAM_BRACKET = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+
+    def test_sample_scenarios_produces_uniform_weight_valid_completions(self):
+        rng = random.Random(42)
+        samples = list(
+            sample_scenarios(
+                self.FOUR_TEAM_BRACKET, {}, [101, 102, 104], num_samples=500, rng=rng
+            )
+        )
+
+        assert len(samples) == 500
+        for winners, weight in samples:
+            assert round(weight, 10) == round(1.0 / 500, 10)
+            # Every unresolved match must have a winner, and it must be
+            # one of that match's two actual participants.
+            assert winners[101] in ("A", "B")
+            assert winners[102] in ("C", "D")
+            assert winners[104] in (winners[101], winners[102])
+
+    def test_sample_scenarios_converges_to_the_exact_closed_form_answer(self):
+        """Statistical, not exact — a seeded 20k-sample run must land
+        close to the true 0.25 champion probability (2**-2), same
+        invariant test_enumerate_scenarios_four_team_bracket_champion_odds_are_2_pow_neg_rounds
+        pins exactly for the enumeration path."""
+        rng = random.Random(7)
+        champion_weight: dict[str, float] = {}
+        for winners, weight in sample_scenarios(
+            self.FOUR_TEAM_BRACKET, {}, [101, 102, 104], num_samples=20_000, rng=rng
+        ):
+            advancement = build_advancement(self.FOUR_TEAM_BRACKET, winners)
+            for team, stage in advancement.items():
+                if stage == "winner":
+                    champion_weight[team] = champion_weight.get(team, 0.0) + weight
+
+        for team in ("A", "B", "C", "D"):
+            assert abs(champion_weight.get(team, 0.0) - 0.25) < 0.02
+
+    def test_simulate_pool_uses_exact_mode_when_m_is_within_threshold(self):
+        result = simulate_pool(
+            self.FOUR_TEAM_BRACKET,
+            known_winners={},
+            unresolved=[101, 102, 104],
+            entries={"entry-1": [("A", "winner")]},
+            points_by_stage=POINTS_BY_STAGE,
+            base_points={"entry-1": 0},
+            max_exact_m=15,
+        )
+        assert result.mode == "exact"
+        assert result.scenario_count == 8
+
+    def test_simulate_pool_switches_to_monte_carlo_once_m_exceeds_threshold(self):
+        result = simulate_pool(
+            self.FOUR_TEAM_BRACKET,
+            known_winners={},
+            unresolved=[101, 102, 104],
+            entries={"entry-1": [("A", "winner")]},
+            points_by_stage=POINTS_BY_STAGE,
+            base_points={"entry-1": 0},
+            max_exact_m=2,  # m=3 here, so this forces the MC path
+            num_samples=1000,
+            rng=random.Random(1),
+        )
+        assert result.mode == "monte_carlo"
+        assert result.scenario_count == 1000
