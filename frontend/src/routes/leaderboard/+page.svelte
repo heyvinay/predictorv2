@@ -19,7 +19,8 @@
 		getAllTrajectories,
 		getLeaderboardV4,
 		getMatchMarkers,
-		getScoringRules
+		getScoringRules,
+		getWinProbability
 	} from '$api/leaderboard';
 	import { startLivePoll } from '$lib/utils/livePoll';
 	import { relativeAgo } from '$lib/utils/relativeTime';
@@ -39,6 +40,7 @@
 		EntryTrajectory
 	} from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
+	import type { WinProbabilityResponse } from '$lib/types/winProbability';
 	import {
 		deriveStage,
 		filterByPool,
@@ -128,6 +130,24 @@
 	/** Champion-pick cohort (champion-survival chip opens this). */
 	let cohortSelected: { team_code: string; team_name: string; entry_ids: string[] } | null = null;
 	let stopPoll: (() => void) | null = null;
+	/** Win Probability tab state — lifted up here (not local to the child
+	 *  component) so switching away and back to the tab doesn't destroy
+	 *  the last result. Fetched only on demand (the "Run simulation"
+	 *  button), never automatically on tab open. */
+	let winProbData: WinProbabilityResponse | null = null;
+	let winProbLoading = false;
+	let winProbFailed = false;
+	async function runWinProbability() {
+		winProbLoading = true;
+		winProbFailed = false;
+		try {
+			winProbData = await getWinProbability();
+		} catch {
+			winProbFailed = true;
+		} finally {
+			winProbLoading = false;
+		}
+	}
 	/** True if the most recent background poll failed (the .catch path in
 	 *  the live poll below). Surfaces as an amber dot on the freshness
 	 *  strip — silent failures used to be invisible. Resets on success. */
@@ -514,7 +534,16 @@
 				fixtures={$fixtures}
 			/>
 		{:else if view === 'win_probability'}
-			<WinProbabilityView {rows} {multiOwners} onOpen={(row) => (selected = row)} />
+			<WinProbabilityView
+				rows={filteredRows}
+				{multiOwners}
+				userId={$user?.id}
+				data={winProbData}
+				loading={winProbLoading}
+				failed={winProbFailed}
+				onRun={runWinProbability}
+				onOpen={(row) => (selected = row)}
+			/>
 		{/if}
 
 		{#if selected}
