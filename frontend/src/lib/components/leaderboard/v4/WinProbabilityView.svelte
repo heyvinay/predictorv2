@@ -18,6 +18,7 @@
 	import { rowDisplayName } from '$lib/utils/leaderboardV4';
 	import { joinWinProbabilityRows } from '$lib/utils/winProbability';
 	import FlagCode from './FlagCode.svelte';
+	import WinProbabilityExplainer from './WinProbabilityExplainer.svelte';
 	import YouTag from './YouTag.svelte';
 
 	export let rows: LbEntryV4[];
@@ -178,6 +179,10 @@
 			<span>Last run {relativeAgo(data.meta.computed_at, $currentTime.getTime())}</span>
 			<button class="btn btn-ghost btn-xs" on:click={onRun}>Re-run</button>
 		</span>
+	</div>
+
+	<div class="mb-2">
+		<WinProbabilityExplainer {hasOdds} />
 	</div>
 
 	<div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">

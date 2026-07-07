@@ -2634,6 +2634,13 @@
       "type": "fix",
       "summary": "Standings' Trend sparkline now tracks rank instead of total points — points only ever go up, so every entry showed the same meaningless upward line.",
       "commit": "pending"
+    },
+    {
+      "version": "2.206.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "New 'For the nerds' explainer on Win Probability — explains how Win%, T3, ER, and Odds% are simulated.",
+      "commit": "pending"
     }
   ]
 }
