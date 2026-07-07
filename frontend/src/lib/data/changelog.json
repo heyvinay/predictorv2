@@ -2620,6 +2620,13 @@
       "type": "fix",
       "summary": "Standings no longer shows tied entries out of rank order (e.g. #22 above #21) — ties now sort by rank number instead of by name.",
       "commit": "pending"
+    },
+    {
+      "version": "2.205.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "New 'For the nerds' explainer on Standings — a short plain-English guide to how Group, Knockout, Total, and tie-breaking actually work.",
+      "commit": "pending"
     }
   ]
 }
