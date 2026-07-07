@@ -23,6 +23,7 @@ import type {
 	RaceStoriesResponse
 } from '$lib/types/leaderboard';
 import type { ScoringRules } from '$lib/types/results';
+import type { WinProbabilityResponse } from '$lib/types/winProbability';
 
 export type PhaseFilter = 'phase_1' | 'phase_2' | null;
 
@@ -54,6 +55,14 @@ export async function getLeaderboardV4(): Promise<LbResponseV4> {
  *  one response. Powers the Race bump chart. */
 export async function getAllTrajectories(days = 30): Promise<AllTrajectoriesResponse> {
 	return api.get<AllTrajectoriesResponse>(`/leaderboard/snapshots?days=${days}`);
+}
+
+/** GET /api/leaderboard/win-probability — P(win)/P(top-3)/expected rank
+ *  per entry plus team trophy-odds, from simulating the remaining
+ *  knockout bracket. Admin-gated until win_probability_enabled opens it
+ *  to the pool; a 403 means the caller should hide the tab. */
+export async function getWinProbability(): Promise<WinProbabilityResponse> {
+	return api.get<WinProbabilityResponse>('/leaderboard/win-probability');
 }
 
 /** Bonus reads with settled hit/points/category (v2.164.0 fields). The

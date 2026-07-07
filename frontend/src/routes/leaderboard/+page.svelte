@@ -54,6 +54,7 @@
 	import RaceViewPills from '$lib/components/leaderboard/v4/RaceViewPills.svelte';
 	import PoolDistribution from '$lib/components/dashboard/v4/PoolDistribution.svelte';
 	import InsightsGrid from '$lib/components/leaderboard/v4/InsightsGrid.svelte';
+	import WinProbabilityView from '$lib/components/leaderboard/v4/WinProbabilityView.svelte';
 
 	// v2.166.0: the deadline passing no longer auto-opens the page —
 	// release is the admin's manual "Go live" switch on /admin
@@ -74,19 +75,31 @@
 	// roundIdForFixture(), which excludes 'third_place' the same way for
 	// the same documented reason (CLAUDE.md ★ third_place invariant).
 	const KO_STAGES = ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
-	const VIEWS: { id: LbView; label: string; sub: string }[] = [
-		{ id: 'table', label: 'Standings', sub: '' },
-		{ id: 'race', label: 'The Race', sub: 'rank over time' },
-		{ id: 'insights', label: 'Insights', sub: 'for the nerds' }
-	];
+	// Win Probability is admin-gated (v2.200.0) — one clause to delete here
+	// opens it to the pool, same recipe as V4_LEADERBOARD_ENABLED itself.
+	$: VIEWS = (
+		[
+			{ id: 'table', label: 'Standings', sub: '' },
+			{ id: 'race', label: 'The Race', sub: 'rank over time' },
+			{ id: 'insights', label: 'Insights', sub: 'for the nerds' }
+		] as { id: LbView; label: string; sub: string }[]
+	).concat(
+		$user?.is_admin === true
+			? [{ id: 'win_probability', label: 'Win Probability', sub: 'pool odds' }]
+			: []
+	);
 	let view: LbView = 'table';
 	let pool: LbPool = 'All';
 	if (browser) {
 		const v = localStorage.getItem(VIEW_KEY);
-		if (v === 'table' || v === 'race' || v === 'insights') view = v;
+		if (v === 'table' || v === 'race' || v === 'insights' || v === 'win_probability') view = v;
 		const p = localStorage.getItem(POOL_KEY);
 		if (p === 'All' || p === 'Atlas' || p === 'JMFA' || p === 'Guests') pool = p;
 	}
+	// A restored 'win_probability' view for a non-admin (stale localStorage,
+	// or admin status revoked) falls back to Standings rather than
+	// rendering a tab that isn't in VIEWS.
+	$: if (view === 'win_probability' && $user?.is_admin !== true) view = 'table';
 	function setView(v: LbView) {
 		// Skip the telemetry when the user clicks the already-active tab —
 		// adds noise without information.
@@ -500,6 +513,8 @@
 				userId={$user?.id}
 				fixtures={$fixtures}
 			/>
+		{:else if view === 'win_probability'}
+			<WinProbabilityView {rows} {multiOwners} onOpen={(row) => (selected = row)} />
 		{/if}
 
 		{#if selected}

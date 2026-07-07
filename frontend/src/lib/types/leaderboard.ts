@@ -8,8 +8,10 @@
 
 import type { LeaderboardEntry } from '$types';
 
-/** Page view switcher state, persisted to localStorage['predictor:lb:view']. */
-export type LbView = 'table' | 'race' | 'insights';
+/** Page view switcher state, persisted to localStorage['predictor:lb:view'].
+ *  'win_probability' is admin-gated (see +page.svelte's VIEWS builder) —
+ *  never persisted-and-restored for a non-admin session. */
+export type LbView = 'table' | 'race' | 'insights' | 'win_probability';
 
 /** Pool filter, persisted to localStorage['predictor:lb:pool'].
  *  Pools map onto User.employer: atlas → Atlas, jmfa → JMFA,
