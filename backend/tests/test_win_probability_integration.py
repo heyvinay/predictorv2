@@ -19,10 +19,13 @@ from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.models.score import Score
 from app.models.user import User
+from app.models.bonus import BonusAnswer, BonusPrediction
 from app.services.scoring import calculate_entry_points, get_actual_advancement
 from app.services.win_probability import (
+    BONUS_BRACKET_QUESTIONS,
     build_advancement,
     compute_win_probability,
+    load_bonus_simulation_config,
     load_bracket_state,
     load_pool_predictions,
 )
@@ -200,3 +203,66 @@ async def test_compute_win_probability_end_to_end_sums_to_one(db_session):
     total_p_win = sum(e.p_win for e in result.entries.values())
     assert round(total_p_win, 6) <= 1.0
     assert round(total_p_win, 6) > 0.0
+
+
+async def test_load_bonus_simulation_config_when_nothing_resolved(db_session):
+    """No admin has confirmed a BonusAnswer yet — both bracket-dependent
+    bonus questions must be treated as open for simulation."""
+    competition = await _seed_competition(db_session)
+
+    config = await load_bonus_simulation_config(db_session, competition.id)
+
+    assert config.unresolved_questions == BONUS_BRACKET_QUESTIONS
+    assert "France" in config.fifa_top_teams  # sanity: real YAML list loaded
+    assert config.points_by_question == {"dark_horse": 20, "flop": 20}
+
+
+async def test_load_bonus_simulation_config_excludes_a_resolved_question(db_session):
+    """Future-proofing: the moment an admin confirms an answer for ONE
+    question, that question drops out of unresolved_questions — the
+    other stays open. This is the exact scenario the user flagged:
+    don't assume both are still open, check the real resolution state."""
+    competition = await _seed_competition(db_session)
+    db_session.add(
+        BonusAnswer(competition_id=competition.id, question_id="flop", correct_answer="Germany")
+    )
+    await db_session.commit()
+
+    config = await load_bonus_simulation_config(db_session, competition.id)
+
+    assert config.unresolved_questions == frozenset({"dark_horse"})
+
+
+async def test_compute_win_probability_awards_more_to_the_better_dark_horse_pick(db_session):
+    """End-to-end wiring proof, not just unit-level plumbing. Sweden and
+    Paraguay are both non-FIFA-top-10 (France and Germany, the other two
+    teams in this bracket slice, both ARE top-10 — see
+    config/worldcup2026.yml's fifa_top_teams). Paraguay is already
+    eliminated (lost M74) and permanently stuck at round_of_32; Sweden
+    is still alive in M77 and reaches at least that same rank, tying or
+    beating Paraguay in every scenario. So entry A (dark_horse=Sweden)
+    must score >= entry B (dark_horse=Paraguay) in every single
+    scenario, and strictly better in the branch where Sweden wins M77 —
+    which must show up as entry A having a strictly better (lower)
+    expected rank when their KO picks are otherwise identical (both
+    empty, so this isolates the bonus wiring specifically).
+    """
+    competition = await _seed_competition(db_session)
+    await _seed_bracket_slice(db_session, competition)
+    entry_a = await _seed_entry(db_session, competition, "a@test.com", "Entry A")
+    entry_b = await _seed_entry(db_session, competition, "b@test.com", "Entry B")
+
+    db_session.add_all(
+        [
+            BonusPrediction(entry_id=entry_a.id, question_id="dark_horse", answer="Sweden"),
+            BonusPrediction(entry_id=entry_b.id, question_id="dark_horse", answer="Paraguay"),
+        ]
+    )
+    await db_session.commit()
+
+    result = await compute_win_probability(db_session)
+
+    a = result.entries[str(entry_a.id)]
+    b = result.entries[str(entry_b.id)]
+    assert a.expected_rank < b.expected_rank
+    assert a.p_win > b.p_win

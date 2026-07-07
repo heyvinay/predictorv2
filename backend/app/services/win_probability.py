@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -29,6 +30,7 @@ from app.models._datetime import utc_now
 
 log = logging.getLogger(__name__)
 
+from app.models.bonus import BonusAnswer, BonusPrediction
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import PredictionPhase, TeamPrediction, normalize_stage
 from app.models.score import Score
@@ -39,6 +41,14 @@ from app.services.bracket_seeding import (
     ROUND_OF_16_SOURCES,
     SEMI_FINAL_SOURCES,
 )
+from app.services.bonus import (
+    answer_in,
+    compute_bottlers,
+    compute_dark_horse,
+    get_meta,
+    get_questions,
+)
+from app.services.locking import get_active_competition
 from app.services.r32_resolver import build_r32_resolver, resolve_r32_pair
 from app.services.scoring import (
     calculate_entry_points,
@@ -72,6 +82,12 @@ _SCORED_KO_STAGES = (
 KO_PREDICTION_STAGES = frozenset(
     {"round_of_32", "round_of_16", "quarter_final", "semi_final", "final", "winner"}
 )
+
+# The only two bonus questions whose correct answer is a function of
+# knockout bracket progress (services.bonus.compute_dark_horse /
+# compute_bottlers) — the group-stage questions are settled facts once
+# the group stage ends and never need re-simulation.
+BONUS_BRACKET_QUESTIONS = frozenset({"dark_horse", "flop"})
 
 # Mirrors scoring.py's stage progression (get_actual_advancement /
 # calculate_advancement_points) — kept in lockstep deliberately rather than
@@ -236,6 +252,62 @@ def entry_ko_points(
     return total
 
 
+@dataclass(frozen=True)
+class BonusSimulationConfig:
+    """What the per-scenario bonus re-simulation needs to know.
+
+    Only the KO-bracket-dependent bonus questions (dark_horse, flop) are
+    ever candidates for simulation — the group-stage questions are
+    settled facts once the group stage ends and always live in
+    base_points, never here. `unresolved_questions` is the ONLY switch
+    that matters for correctness: a question already answered by an
+    admin (a BonusAnswer row exists) must never be re-simulated, since
+    its real fixed points are already baked into base_points. Passing
+    an already-resolved question here would double-count it.
+    """
+
+    fifa_top_teams: frozenset[str]
+    unresolved_questions: frozenset[str]
+    points_by_question: dict[str, int]
+
+
+def simulate_bonus_points(
+    picks: dict[str, str],
+    advancement: dict[str, str],
+    config: BonusSimulationConfig,
+) -> int:
+    """One entry's bonus points for ONE scenario's advancement dict.
+
+    Reuses the real scoring functions (services.bonus.compute_dark_horse /
+    compute_bottlers) directly against the simulated advancement — the
+    same team->highest_stage shape build_advancement() already produces
+    for KO scoring — so there is no separate reimplementation to drift
+    out of sync with the actual bonus-settlement logic.
+
+    compute_bottlers's `competition_teams` param is passed as
+    `fifa_top_teams` itself rather than the full ~48-team roster: every
+    fifa_top team is guaranteed to be a real competition entrant (the
+    YAML's own invariant — see config/worldcup2026.yml's fifa_top_teams
+    comment), so `[t for t in fifa_top if t in competition_teams]`
+    reduces to `fifa_top` either way. A team absent from `advancement`
+    (eliminated in the group stage, never seeded into a KO match) falls
+    back to progress.get(t, "group") inside compute_bottlers/
+    compute_dark_horse — identical to how the real DB-backed progress
+    dict would represent that team, so restricting to KO-stage teams
+    only never changes the answer.
+    """
+    total = 0
+    if "dark_horse" in config.unresolved_questions:
+        correct = compute_dark_horse(advancement, config.fifa_top_teams)
+        if answer_in(picks.get("dark_horse", ""), correct):
+            total += config.points_by_question.get("dark_horse", 0)
+    if "flop" in config.unresolved_questions:
+        correct = compute_bottlers(advancement, config.fifa_top_teams, config.fifa_top_teams)
+        if answer_in(picks.get("flop", ""), correct):
+            total += config.points_by_question.get("flop", 0)
+    return total
+
+
 @dataclass
 class EntryProbability:
     """One entry's outcome distribution across every simulated scenario."""
@@ -266,10 +338,18 @@ def simulate_pool(
     entries: dict[str, list[tuple[str, str]]],
     points_by_stage: dict[str, int],
     base_points: dict[str, int],
+    entry_bonus_picks: dict[str, dict[str, str]] | None = None,
+    bonus_config: BonusSimulationConfig | None = None,
 ) -> PoolSimulationResult:
     """Enumerate every bracket completion and, for each, rank the pool by
-    base_points[entry] + entry_ko_points(...) to accumulate P(win),
-    P(top-3), and expected final rank per entry.
+    base_points[entry] + entry_ko_points(...) [+ simulate_bonus_points(...)
+    if an unresolved bracket-dependent bonus question applies] to
+    accumulate P(win), P(top-3), and expected final rank per entry.
+
+    `entry_bonus_picks`/`bonus_config` are optional so callers with
+    nothing unresolved (or that don't care about bonus questions at all)
+    can omit them with zero behavior change — the bonus term is simply
+    0 for every entry in every scenario.
 
     Ranking uses standard competition ranking (ties share the lower rank
     number, e.g. 1-1-3). Win credit for a scenario is split evenly among
@@ -283,6 +363,7 @@ def simulate_pool(
     # team -> exact highest stage reached -> accumulated weight. Converted
     # to cumulative "reached at least" odds once the loop finishes.
     exact_stage_weight: dict[str, dict[str, float]] = {}
+    bonus_picks = entry_bonus_picks or {}
 
     for winners, weight in enumerate_scenarios(matches, known_winners, unresolved):
         advancement = build_advancement(matches, winners)
@@ -295,6 +376,11 @@ def simulate_pool(
         scores = {
             eid: base_points.get(eid, 0)
             + entry_ko_points(entries[eid], advancement, points_by_stage)
+            + (
+                simulate_bonus_points(bonus_picks.get(eid, {}), advancement, bonus_config)
+                if bonus_config is not None
+                else 0
+            )
             for eid in entry_ids
         }
 
@@ -439,6 +525,65 @@ async def load_pool_predictions(
     return entries, base_points
 
 
+async def load_bonus_simulation_config(
+    session: AsyncSession, competition_id: uuid.UUID
+) -> BonusSimulationConfig:
+    """Which bracket-dependent bonus questions (dark_horse, flop) still
+    need per-scenario re-simulation, determined from the REAL resolution
+    state — never assumed. A question drops out of unresolved_questions
+    the moment ANY BonusAnswer row exists for it in this competition:
+    from that point its real, fixed answer is already correctly baked
+    into every entry's base_points (via calculate_entry_points's own
+    bonus_question_points), and re-simulating it here would double-count
+    it. This is also what makes the wiring future-proof — as the admin
+    settles each question over the course of the tournament, this
+    function's answer shifts on its own with no code change needed.
+    """
+    resolved_result = await session.execute(
+        select(BonusAnswer.question_id).where(BonusAnswer.competition_id == competition_id)
+    )
+    resolved = {row[0] for row in resolved_result.all()}
+    unresolved = BONUS_BRACKET_QUESTIONS - resolved
+
+    meta = get_meta()
+    questions_by_id = {q.id: q for q in get_questions()}
+    points_by_question = {
+        qid: questions_by_id[qid].points
+        for qid in BONUS_BRACKET_QUESTIONS
+        if qid in questions_by_id
+    }
+
+    return BonusSimulationConfig(
+        fifa_top_teams=frozenset(meta.fifa_top_teams),
+        unresolved_questions=frozenset(unresolved),
+        points_by_question=points_by_question,
+    )
+
+
+async def load_bonus_picks(
+    session: AsyncSession, question_ids: frozenset[str]
+) -> dict[str, dict[str, str]]:
+    """Each eligible entry's picks for the given bonus question ids.
+    Callers pass only the currently-unresolved ids — there's no reason
+    to load picks for a question that will never be re-simulated."""
+    if not question_ids:
+        return {}
+    entry_ids_result = await session.execute(eligible_entry_ids_select())
+    entry_ids = [row[0] for row in entry_ids_result.all()]
+    if not entry_ids:
+        return {}
+
+    result = await session.execute(
+        select(BonusPrediction.entry_id, BonusPrediction.question_id, BonusPrediction.answer)
+        .where(BonusPrediction.entry_id.in_(entry_ids))
+        .where(BonusPrediction.question_id.in_(list(question_ids)))
+    )
+    picks: dict[str, dict[str, str]] = {}
+    for entry_id, question_id, answer in result.all():
+        picks.setdefault(str(entry_id), {})[question_id] = answer
+    return picks
+
+
 async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult:
     """Top-level entry point: load the live bracket + pool, enumerate every
     remaining-match completion under the 50/50 model, and return each
@@ -454,7 +599,24 @@ async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult
     entries, base_points = await load_pool_predictions(session, actual_advancement)
     points_by_stage = get_scoring_config().get("advancement", {})
 
-    return simulate_pool(matches, known_winners, unresolved, entries, points_by_stage, base_points)
+    competition = await get_active_competition(session)
+    bonus_config = None
+    bonus_picks: dict[str, dict[str, str]] = {}
+    if competition is not None:
+        bonus_config = await load_bonus_simulation_config(session, competition.id)
+        if bonus_config.unresolved_questions:
+            bonus_picks = await load_bonus_picks(session, bonus_config.unresolved_questions)
+
+    return simulate_pool(
+        matches,
+        known_winners,
+        unresolved,
+        entries,
+        points_by_stage,
+        base_points,
+        entry_bonus_picks=bonus_picks,
+        bonus_config=bonus_config,
+    )
 
 
 # ─── Stale-while-revalidate cache ──────────────────────────────────────────

@@ -12,11 +12,13 @@ import uuid
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.services.scoring import calculate_advancement_points
 from app.services.win_probability import (
+    BonusSimulationConfig,
     MatchSpec,
     build_advancement,
     entry_ko_points,
     enumerate_scenarios,
     resolve_known_state,
+    simulate_bonus_points,
     simulate_pool,
 )
 
@@ -330,3 +332,114 @@ def test_simulate_pool_result_carries_a_computed_at_timestamp():
 
     after = datetime.now(timezone.utc)
     assert before <= result.computed_at <= after
+
+
+class TestBonusSimulation:
+    """Dark Horse / Bottlers are auto-computed from bracket progress
+    (services.bonus.compute_dark_horse / compute_bottlers) — their
+    "correct answer" can change as the knockout bracket plays out, so
+    an UNRESOLVED question (no admin-confirmed BonusAnswer yet) must be
+    simulated per scenario just like a KO advancement pick. A RESOLVED
+    question must NOT be re-simulated — its real, fixed answer is
+    already baked into the entry's banked base_points."""
+
+    def test_unresolved_dark_horse_awards_points_only_in_matching_scenarios(self):
+        matches = {
+            101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+            102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+            104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+        }
+        config = BonusSimulationConfig(
+            fifa_top_teams=frozenset({"A", "B"}),
+            unresolved_questions=frozenset({"dark_horse"}),
+            points_by_question={"dark_horse": 20},
+        )
+        picks = {"dark_horse": "C"}
+
+        won_weight = 0.0
+        for winners, weight in enumerate_scenarios(matches, {}, [101, 102, 104]):
+            advancement = build_advancement(matches, winners)
+            won_weight += weight * (simulate_bonus_points(picks, advancement, config) > 0)
+
+        # C is a non-top team; it's the dark horse exactly when it goes
+        # further than D (the other non-top team) — i.e. whenever C wins
+        # its semi (P=0.5), regardless of the final's outcome.
+        assert round(won_weight, 6) == 0.5
+
+    def test_resolved_question_is_never_simulated_even_if_pick_would_match(self):
+        """Future-proofing: once a question is resolved, this function
+        must ignore it entirely — the real settled points live in
+        base_points, not here. Passing a config that omits the question
+        from unresolved_questions must produce zero regardless of what
+        the scenario's computed answer would have been."""
+        matches = {104: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+        config = BonusSimulationConfig(
+            fifa_top_teams=frozenset(),
+            unresolved_questions=frozenset(),  # both questions already resolved
+            points_by_question={"dark_horse": 20, "flop": 20},
+        )
+        picks = {"dark_horse": "A", "flop": "B"}
+
+        for winners, _ in enumerate_scenarios(matches, {}, [104]):
+            advancement = build_advancement(matches, winners)
+            assert simulate_bonus_points(picks, advancement, config) == 0
+
+    def test_mixed_resolution_only_simulates_the_unresolved_one(self):
+        """dark_horse resolved, flop still open — only flop should ever
+        contribute points from this function."""
+        matches = {104: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+        config = BonusSimulationConfig(
+            fifa_top_teams=frozenset({"A", "B"}),
+            unresolved_questions=frozenset({"flop"}),
+            points_by_question={"dark_horse": 20, "flop": 20},
+        )
+        # A correct dark_horse pick must never pay here (resolved); a
+        # correct flop pick (A is a top team eliminated at the final,
+        # i.e. it lost) must pay.
+        picks = {"dark_horse": "A", "flop": "A"}
+
+        for winners, _ in enumerate_scenarios(matches, {}, [104]):
+            advancement = build_advancement(matches, winners)
+            points = simulate_bonus_points(picks, advancement, config)
+            # A "bottles" (flop) only in the scenario where it LOSES the
+            # final (winners[104] == "B") — winning it is not bottling.
+            if winners[104] == "B":
+                assert points == 20
+            else:
+                assert points == 0
+
+    def test_simulate_pool_folds_bonus_points_into_scores(self):
+        """End-to-end: simulate_pool must add the bonus delta on top of
+        base_points + KO delta, not require a second enumeration pass.
+
+        entry-1: base 100 + flop pick "A" (unresolved, +20 whenever A
+        loses the final). entry-2: flat base 110, no bonus picks.
+        Without the bonus wired in, entry-2 always wins (110 > 100) —
+        P(entry-1 wins) would be 0. With it wired in, entry-1 overtakes
+        entry-2 (120 > 110) exactly when A loses, so P(entry-1 wins)
+        must land at 0.5, not 0 — proving the delta actually changed
+        who wins, not just that it computed without crashing.
+        """
+        matches = {104: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+        unresolved = [104]
+        config = BonusSimulationConfig(
+            fifa_top_teams=frozenset({"A", "B"}),
+            unresolved_questions=frozenset({"flop"}),
+            points_by_question={"dark_horse": 20, "flop": 20},
+        )
+        entries = {"entry-1": [], "entry-2": []}
+        bonus_picks = {"entry-1": {"flop": "A"}}
+
+        result = simulate_pool(
+            matches,
+            known_winners={},
+            unresolved=unresolved,
+            entries=entries,
+            points_by_stage=POINTS_BY_STAGE,
+            base_points={"entry-1": 100, "entry-2": 110},
+            entry_bonus_picks=bonus_picks,
+            bonus_config=config,
+        )
+
+        assert round(result.entries["entry-1"].p_win, 6) == 0.5
+        assert round(result.entries["entry-2"].p_win, 6) == 0.5
