@@ -2585,6 +2585,13 @@
       "type": "fix",
       "summary": "The leaderboard no longer shows a stale 'last result' next to the live-match indicator — one freshness cue at a time.",
       "commit": "pending"
+    },
+    {
+      "version": "2.200.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "New admin-only Win Probability tab on the Leaderboard shows each entry's odds of winning the pool by simulating every remaining knockout match, plus each team's odds of lifting the trophy.",
+      "commit": "pending"
     }
   ]
 }
