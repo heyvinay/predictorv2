@@ -14,12 +14,20 @@ state (via `ko_lineup_resolver` / `bracket_seeding`) into this shape.
 
 from __future__ import annotations
 
+import asyncio
 import itertools
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Iterator
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models._datetime import utc_now
+
+log = logging.getLogger(__name__)
 
 from app.models.fixture import Fixture, MatchStatus
 from app.models.prediction import PredictionPhase, TeamPrediction, normalize_stage
@@ -414,3 +422,138 @@ async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult
     points_by_stage = get_scoring_config().get("advancement", {})
 
     return simulate_pool(matches, known_winners, unresolved, entries, points_by_stage, base_points)
+
+
+# ─── Stale-while-revalidate cache ──────────────────────────────────────────
+# Mirrors leaderboard.py's cache module exactly (CachedLeaderboard /
+# _cache / _cache_ttl / _cache_locks / _refresh_tasks / _is_fresh /
+# _schedule_background_refresh / invalidate_cache / expire_cache) — same
+# NOTE on per-process-only caching applies here too. There's only one
+# cache entry (no phase filter like the leaderboard), but the dict-keyed
+# shape is kept for consistency and cheap future extension.
+
+_CACHE_KEY = "default"
+
+
+@dataclass
+class CachedWinProbability:
+    result: PoolSimulationResult
+    last_calculated: datetime
+    # Marked by expire_win_probability_cache() — a stale result is still
+    # servable via stale-while-revalidate, unlike a dropped one.
+    stale: bool = False
+
+
+_cache: dict[str, CachedWinProbability] = {}
+_cache_ttl = timedelta(seconds=30)
+_cache_locks: dict[str, asyncio.Lock] = {}
+_refresh_tasks: dict[str, "asyncio.Task[None]"] = {}
+
+# Overridable in tests (point at the test engine's factory); production
+# lazily resolves the app's global async_session_maker.
+_background_session_factory: Callable[[], AsyncSession] | None = None
+
+
+def _make_background_session() -> AsyncSession:
+    if _background_session_factory is not None:
+        return _background_session_factory()
+    from app.database import async_session_maker
+
+    return async_session_maker()
+
+
+def _lock_for(cache_key: str) -> asyncio.Lock:
+    lock = _cache_locks.get(cache_key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _cache_locks[cache_key] = lock
+    return lock
+
+
+def _is_fresh(cached: CachedWinProbability, now: datetime) -> bool:
+    return not cached.stale and (now - cached.last_calculated) < _cache_ttl
+
+
+async def _rebuild_win_probability(
+    session: AsyncSession, cache_key: str, now: datetime
+) -> PoolSimulationResult:
+    result = await compute_win_probability(session)
+    _cache[cache_key] = CachedWinProbability(result=result, last_calculated=now)
+    return result
+
+
+def _schedule_background_refresh(cache_key: str) -> None:
+    """Kick off (at most one) off-request rebuild for `cache_key`.
+
+    Part of the stale-while-revalidate path: the caller has already been
+    served the expired result, so the rebuild's seconds-long cost (the
+    ~9s benchmark measured against the live pool) lands here instead of
+    on a user request.
+    """
+    existing = _refresh_tasks.get(cache_key)
+    if existing is not None and not existing.done():
+        return
+
+    async def _refresh() -> None:
+        async with _lock_for(cache_key):
+            now = utc_now()
+            cached = _cache.get(cache_key)
+            if cached is not None and _is_fresh(cached, now):
+                return  # rebuilt by someone else while we waited
+            async with _make_background_session() as session:
+                await _rebuild_win_probability(session, cache_key, now)
+
+    def _log_failure(task: "asyncio.Task[None]") -> None:
+        if not task.cancelled() and task.exception() is not None:
+            log.warning(
+                "background win-probability refresh for %r failed: %s",
+                cache_key,
+                task.exception(),
+            )
+
+    task = asyncio.create_task(_refresh())
+    task.add_done_callback(_log_failure)
+    _refresh_tasks[cache_key] = task
+
+
+async def get_win_probability(
+    session: AsyncSession, force_refresh: bool = False
+) -> PoolSimulationResult:
+    """Cached entry point: fast path on a fresh cache, stale-while-
+    revalidate on an expired one, blocking rebuild on a cold cache or
+    force_refresh — same three paths as leaderboard.calculate_leaderboard.
+    """
+    cache_key = _CACHE_KEY
+    now = utc_now()
+
+    if not force_refresh and cache_key in _cache:
+        cached = _cache[cache_key]
+        if _is_fresh(cached, now):
+            return cached.result
+        _schedule_background_refresh(cache_key)
+        return cached.result
+
+    async with _lock_for(cache_key):
+        now = utc_now()
+        if not force_refresh and cache_key in _cache:
+            cached = _cache[cache_key]
+            if _is_fresh(cached, now):
+                return cached.result
+
+        return await _rebuild_win_probability(session, cache_key, now)
+
+
+def invalidate_win_probability_cache() -> None:
+    """Drop the cache entirely. The next consumer BLOCKS on a full
+    rebuild — read-your-write semantics. Used for the admin toggle path
+    and the score-sync KO-finish hook (mirrors leaderboard's usage)."""
+    global _cache
+    _cache = {}
+
+
+def expire_win_probability_cache() -> None:
+    """Mark the cached result stale WITHOUT dropping it — consumers keep
+    getting instant responses from the last-known result while the
+    stale-while-revalidate path rebuilds in the background."""
+    for cached in _cache.values():
+        cached.stale = True

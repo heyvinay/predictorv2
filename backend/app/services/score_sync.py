@@ -22,6 +22,10 @@ from app.models.fixture import Fixture, MatchStatus
 from app.models.score import Score, ScoreSource
 from app.services.external_scores import ExternalScore, get_score_provider
 from app.services.leaderboard import expire_cache, invalidate_cache
+from app.services.win_probability import (
+    expire_win_probability_cache,
+    invalidate_win_probability_cache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -181,10 +185,15 @@ async def sync_scores_once(session: AsyncSession) -> ScoreSyncResult:
         # read, keeping the live-projection handoff seamless (no dip at
         # full time). Blocks one request on a rebuild — rare + acceptable.
         invalidate_cache()
+        # A KO finish changes both m (one fewer unresolved match) and
+        # every entry's banked base — the win-probability cache is stale
+        # in exactly the same way the leaderboard's is.
+        invalidate_win_probability_cache()
     elif result.points_relevant > 0:
         # Group-stage finish or a correction: soft-expire (stale-while-
         # revalidate) as before — no live projection is involved.
         expire_cache()
+        expire_win_probability_cache()
 
     return result
 

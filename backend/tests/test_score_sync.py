@@ -617,6 +617,61 @@ async def test_ko_finish_hard_invalidates_not_soft_expires(session, competition,
 
 
 @pytest.mark.asyncio
+async def test_ko_finish_also_invalidates_win_probability_cache(session, competition, monkeypatch) -> None:
+    """The win-probability cache must ride the same KO-finish hook as the
+    leaderboard cache: hard-invalidate on a KO finish, soft-expire on a
+    group finish — in lockstep, not just the leaderboard's own calls."""
+    import app.services.score_sync as score_sync_module
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        score_sync_module, "invalidate_win_probability_cache", lambda: calls.append("hard")
+    )
+    monkeypatch.setattr(
+        score_sync_module, "expire_win_probability_cache", lambda: calls.append("soft")
+    )
+
+    # --- KO-stage finish: expect hard invalidate, no soft expire ---
+    ko_fixture = _fixture(
+        competition.id,
+        kickoff=NOW - timedelta(hours=1),
+        status=MatchStatus.LIVE,
+        ext="301",
+        stage="round_of_16",
+    )
+    session.add(ko_fixture)
+    await session.commit()
+    await session.refresh(ko_fixture)
+
+    provider = FakeProvider(live=[_ext(MatchStatus.FINISHED, ext_id="301")])
+    monkeypatch.setattr(score_sync_module, "get_score_provider", lambda: provider)
+
+    await sync_scores_once(session)
+
+    assert calls == ["hard"]
+
+    # --- Group-stage finish: expect soft expire, no hard invalidate ---
+    calls.clear()
+    group_fixture = _fixture(
+        competition.id,
+        kickoff=NOW - timedelta(hours=1),
+        status=MatchStatus.LIVE,
+        ext="302",
+        stage="group",
+    )
+    session.add(group_fixture)
+    await session.commit()
+    await session.refresh(group_fixture)
+
+    provider2 = FakeProvider(live=[_ext(MatchStatus.FINISHED, ext_id="302")])
+    monkeypatch.setattr(score_sync_module, "get_score_provider", lambda: provider2)
+
+    await sync_scores_once(session)
+
+    assert calls == ["soft"]
+
+
+@pytest.mark.asyncio
 async def test_finished_score_correction_is_points_relevant(session, live_fixture) -> None:
     result = ScoreSyncResult()
     await _apply_external_score(session, live_fixture.competition_id, _ext(MatchStatus.FINISHED, home=1, away=0), result)
