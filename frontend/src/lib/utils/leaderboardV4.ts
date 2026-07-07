@@ -320,10 +320,14 @@ function sortValue(row: LbEntryV4, key: LbSortKey): number {
 	return row.total_points;
 }
 
-/** Sort rows for the standings table. Numeric columns tie-break on the
- *  display name (A→Z regardless of direction); the Entry column sorts on
- *  the same rowDisplayName the cell renders. Server `position` values
- *  ride along untouched — global ranks must survive any sort order. */
+/** Sort rows for the standings table. The `total` column ties-break on
+ *  `position` ascending — the backend already resolved that tie via
+ *  exact_scores (services/leaderboard.py) to assign position numbers,
+ *  so re-breaking it alphabetically here would visually contradict the
+ *  # column (e.g. #22 rendering above #21 because its name sorts
+ *  earlier). `group`/`knockout` are derived sums the backend never
+ *  ranks, so they still fall back to the display name; the Entry
+ *  column sorts on the same rowDisplayName the cell renders. */
 export function sortRows(
 	rows: LbEntryV4[],
 	sort: LbSort,
@@ -338,6 +342,7 @@ export function sortRows(
 		if (sort.key === 'entry') return flip * byName(a, b);
 		const diff = sortValue(a, sort.key) - sortValue(b, sort.key);
 		if (diff !== 0) return flip * diff;
+		if (sort.key === 'total') return a.position - b.position; // backend's own tiebreak, direction-independent
 		return byName(a, b); // ties always read A→Z
 	});
 }

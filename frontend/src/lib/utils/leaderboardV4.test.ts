@@ -513,10 +513,15 @@ describe('bestOwnSummary', () => {
 describe('sortRows (v2.168.0)', () => {
 	const none = new Set<string>();
 	const rows = [
+		// a/b tie on total_points but carry DISTINCT server positions (21/22) —
+		// the backend already broke this tie via exact_scores. Their names sort
+		// the opposite way (Émile < Zara) so this fixture would fail under the
+		// old alphabetical-tiebreak bug (position 22 rendering above 21).
 		mkRow({
 			entry_id: 'a',
 			user_id: 'ua',
 			user_name: 'Zara',
+			position: 21,
 			total_points: 50,
 			breakdown: mkBreakdown({ match_outcome_points: 30, quarter_final_points: 20 })
 		}),
@@ -524,6 +529,7 @@ describe('sortRows (v2.168.0)', () => {
 			entry_id: 'b',
 			user_id: 'ub',
 			user_name: 'Émile',
+			position: 22,
 			total_points: 50,
 			breakdown: mkBreakdown({ match_outcome_points: 10, quarter_final_points: 40 })
 		}),
@@ -531,15 +537,27 @@ describe('sortRows (v2.168.0)', () => {
 			entry_id: 'c',
 			user_id: 'uc',
 			user_name: 'adam',
+			position: 1,
 			total_points: 80,
 			breakdown: mkBreakdown({ match_outcome_points: 80 })
 		})
 	];
 
-	it('default sort: total desc, ties alphabetical A→Z', () => {
+	it('default sort: total desc, ties break by server position (not name)', () => {
 		const out = sortRows(rows, DEFAULT_LB_SORT, none);
-		// c (80) first; a/b tie at 50 → Émile before Zara (accent-insensitive).
-		expect(out.map((r) => r.entry_id)).toEqual(['c', 'b', 'a']);
+		// c (80, #1) first; a/b tie at 50 → a (#21) before b (#22), even though
+		// "Émile" < "Zara" alphabetically — position is the tie's source of truth.
+		expect(out.map((r) => r.entry_id)).toEqual(['c', 'a', 'b']);
+	});
+
+	it('total column ties break by position regardless of sort direction', () => {
+		const desc = sortRows(rows, { key: 'total', dir: 'desc' }, none);
+		expect(desc.map((r) => r.entry_id)).toEqual(['c', 'a', 'b']);
+		const asc = sortRows(rows, { key: 'total', dir: 'asc' }, none);
+		// Ascending flips the 80-vs-50 groups, but WITHIN the tie a still
+		// precedes b — the tiebreak is position-ascending either way, not
+		// flipped by `flip`.
+		expect(asc.map((r) => r.entry_id)).toEqual(['a', 'b', 'c']);
 	});
 
 	it('entry column sorts by display name, case/accent-insensitive', () => {

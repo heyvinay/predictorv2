@@ -2613,6 +2613,13 @@
       "type": "feature",
       "summary": "Win Probability's T3, ER, Win%, and Odds% columns are now sortable — click a header to reorder by that stat.",
       "commit": "pending"
+    },
+    {
+      "version": "2.204.0",
+      "date": "2026-07-07",
+      "type": "fix",
+      "summary": "Standings no longer shows tied entries out of rank order (e.g. #22 above #21) — ties now sort by rank number instead of by name.",
+      "commit": "pending"
     }
   ]
 }
