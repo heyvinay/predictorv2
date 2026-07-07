@@ -29,6 +29,15 @@
 	export let onRun: () => void;
 	export let onOpen: (row: LbEntryV4) => void;
 
+	// Fixed-width CHAMP (104px) / FINAL (56px) columns match
+	// StandingsTable's own GRID_KO exactly, so the champion-pick flag and
+	// finalist dots line up at the same x-position as the Standings tab —
+	// a CSS grid, not flexbox, is what makes columns width-independent of
+	// each row's entry-name length. Champ/Final/bar hide below 880px,
+	// same breakpoint Standings uses to hide its own Champ column.
+	const ROW_GRID =
+		'grid-cols-[28px_minmax(0,1.6fr)_140px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_140px_72px]';
+
 	$: joined = data ? joinWinProbabilityRows(rows, data.entries) : [];
 	$: topTeams = data
 		? [...data.teams]
@@ -97,19 +106,20 @@
 			{@const finalists = j.row.finalist_picks ?? []}
 			{@const finAlive = j.row.finalists_alive ?? 0}
 			<button
-				class="flex w-full items-center gap-3 border-t border-base-300/40 px-4 py-2.5 text-left first:border-t-0 hover:bg-base-content/5 {isOwn
+				role="row"
+				class="grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-2 text-left first:border-t-0 hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {ROW_GRID} {isOwn
 					? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 					: ''}"
 				on:click={() => onOpen(j.row)}
 			>
-				<span class="w-5 shrink-0 text-right font-mono text-xs text-base-content/55">{i + 1}</span>
+				<span role="cell" class="text-right font-mono text-xs text-base-content/55">{i + 1}</span>
 
-				<span class="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-bold">
+				<span role="cell" class="flex min-w-0 items-center gap-1.5 text-sm font-bold">
 					<span class="truncate">{rowDisplayName(j.row, multiOwners)}</span>
 					{#if isOwn}<YouTag />{/if}
 				</span>
 
-				<span class="hidden shrink-0 sm:flex" title="Champion pick">
+				<span role="cell" class="hidden min-[880px]:flex" title="Champion pick">
 					{#if j.row.champion_pick}
 						<FlagCode team={j.row.champion_pick} alive={j.row.champion_alive ?? true} dot />
 					{:else}
@@ -118,7 +128,8 @@
 				</span>
 
 				<span
-					class="hidden shrink-0 justify-center gap-1 sm:flex"
+					role="cell"
+					class="hidden justify-center gap-1 min-[880px]:flex"
 					title="{finAlive} of {finalists.length || 2} finalist picks still alive"
 				>
 					{#each [0, 1] as slot}
@@ -135,7 +146,7 @@
 					{/each}
 				</span>
 
-				<span class="flex shrink-0 flex-col items-end gap-0.5 text-right">
+				<span role="cell" class="flex flex-col items-end gap-0.5 text-right">
 					<span class="flex items-baseline gap-1">
 						<span class="font-mono text-sm font-extrabold tabular-nums">{pct(j.p_win)}</span>
 						<span class="text-[10px] uppercase tracking-[0.05em] text-base-content/45">win</span>
@@ -146,7 +157,7 @@
 					</span>
 				</span>
 
-				<span class="hidden h-2 w-16 shrink-0 overflow-hidden rounded-full bg-base-300/60 sm:block">
+				<span role="cell" class="hidden h-2 overflow-hidden rounded-full bg-base-300/60 min-[880px]:block">
 					<span
 						class="block h-full rounded-full bg-gradient-to-r from-primary to-success"
 						style="width: {Math.max(1, j.p_win * 100)}%"
