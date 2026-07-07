@@ -38,6 +38,18 @@ def _clean_win_probability_state():
     win_probability_service._background_session_factory = None
 
 
+@pytest.fixture(autouse=True)
+def _stub_polymarket(monkeypatch):
+    """This file only exercises the cache layer, never real network —
+    stub Polymarket so get_win_probability's odds-weighted branch never
+    reaches out over HTTP during a test run."""
+
+    async def _empty(_stage):
+        return {}
+
+    monkeypatch.setattr(win_probability_service, "get_stage_reach_probabilities", _empty)
+
+
 @pytest_asyncio.fixture
 async def session_factory():
     engine = create_async_engine(

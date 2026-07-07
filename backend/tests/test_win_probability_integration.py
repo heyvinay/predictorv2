@@ -8,6 +8,7 @@ the live scoring primitives they must stay in lockstep with.
 
 from datetime import datetime, timezone
 
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -30,6 +31,18 @@ from app.services.win_probability import (
     load_bracket_state,
     load_pool_predictions,
 )
+
+
+@pytest.fixture(autouse=True)
+def _stub_polymarket_by_default(monkeypatch):
+    """Every test in this file must never hit the real network. Tests
+    that specifically want to exercise the Polymarket-priority path
+    override this with their own monkeypatch.setattr call."""
+
+    async def _empty(_stage):
+        return {}
+
+    monkeypatch.setattr(win_probability_service, "get_stage_reach_probabilities", _empty)
 
 
 @pytest_asyncio.fixture
@@ -335,6 +348,53 @@ async def test_compute_win_probability_includes_odds_weighted_view_when_next_mat
     odds_a = comparison.odds_weighted.entries[str(entry_a.id)].p_win
     assert round(uniform_a, 6) == 0.5
     assert odds_a > uniform_a
+
+
+async def test_compute_win_probability_prefers_polymarket_over_h2h_when_both_available(
+    db_session, monkeypatch
+):
+    """When Polymarket has a usable price for both M77 sides, it must
+    win over the h2h fallback — even a h2h line that would say the
+    opposite (Sweden favoured) gets overridden by Polymarket's France
+    price, proving priority order end to end, not just at the pure-core
+    unit level (test_win_probability.py::TestComputeMatchWinProbabilities)."""
+    competition = await _seed_competition(db_session)
+    await _seed_bracket_slice(db_session, competition)
+    entry_a = await _seed_entry(db_session, competition, "a@test.com", "Entry A")
+    entry_b = await _seed_entry(db_session, competition, "b@test.com", "Entry B")
+
+    db_session.add_all(
+        [
+            TeamPrediction(entry_id=entry_a.id, team="France", stage="round_of_16"),
+            TeamPrediction(entry_id=entry_b.id, team="Sweden", stage="round_of_16"),
+        ]
+    )
+    await db_session.commit()
+
+    async def fake_get_or_refresh_odds():
+        # h2h says Sweden is favoured — if this leaks through, the test fails.
+        return _fake_odds_cache("France", "Sweden", home_price=8.0, draw_price=5.0, away_price=1.3)
+
+    async def fake_get_stage_reach_probabilities(stage):
+        # M77 (round_of_32) is priceable, its next stage is round_of_16 — that's
+        # the one this test cares about. M89's target stage (quarter_final) is
+        # also fetched by load_ko_match_win_probabilities (it fetches for every
+        # unresolved match's target stage, not just priceable ones) but M89
+        # itself isn't priceable yet, so an empty dict for it is a no-op.
+        if stage == "round_of_16":
+            return {"france": 0.9, "sweden": 0.1}
+        return {}
+
+    monkeypatch.setattr(win_probability_service, "get_or_refresh_odds", fake_get_or_refresh_odds)
+    monkeypatch.setattr(
+        win_probability_service, "get_stage_reach_probabilities", fake_get_stage_reach_probabilities
+    )
+
+    comparison = await compute_win_probability(db_session)
+
+    assert comparison.odds_weighted is not None
+    odds_a = comparison.odds_weighted.entries[str(entry_a.id)].p_win
+    assert round(odds_a, 6) == 0.9, "Polymarket's France price must win over h2h's Sweden-favoured line"
 
 
 async def test_compute_win_probability_omits_odds_weighted_when_nothing_priced(db_session):

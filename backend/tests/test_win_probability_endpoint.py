@@ -44,6 +44,17 @@ def _clean_win_probability_cache():
     win_probability_service.invalidate_win_probability_cache()
 
 
+@pytest.fixture(autouse=True)
+def _stub_polymarket(monkeypatch):
+    """Gate/response-shape tests never need real network — stub
+    Polymarket so the odds-weighted branch stays local."""
+
+    async def _empty(_stage):
+        return {}
+
+    monkeypatch.setattr(win_probability_service, "get_stage_reach_probabilities", _empty)
+
+
 async def _make_competition(
     session: AsyncSession, *, win_probability_enabled: bool
 ) -> Competition:

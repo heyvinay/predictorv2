@@ -17,6 +17,7 @@ from app.services.win_probability import (
     BonusSimulationConfig,
     MatchSpec,
     build_advancement,
+    compute_match_win_probabilities,
     entry_ko_points,
     enumerate_scenarios,
     resolve_known_state,
@@ -593,3 +594,77 @@ class TestOddsWeightedScenarios:
         )
         assert round(result.entries["backs_favourite"].p_win, 6) == 0.9
         assert round(result.entries["backs_underdog"].p_win, 6) == 0.1
+
+
+class TestComputeMatchWinProbabilities:
+    """compute_match_win_probabilities's source priority: Polymarket's
+    reach-next-stage prices win when both sides have one, h2h odds are
+    the fallback, and a match with neither is left unpriced (but still
+    counted as priceable)."""
+
+    def _bracket(self):
+        # quarter_final's next stage is semi_final (ADVANCEMENT_MAP).
+        return {101: MatchSpec(stage="quarter_final", home_ref="France", away_ref="Sweden")}
+
+    def _h2h_api_matches(self, home_price, draw_price, away_price):
+        return [
+            {
+                "home_team": "France",
+                "away_team": "Sweden",
+                "bookmakers": [
+                    {
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "outcomes": [
+                                    {"name": "France", "price": home_price},
+                                    {"name": "Draw", "price": draw_price},
+                                    {"name": "Sweden", "price": away_price},
+                                ],
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+
+    def test_prefers_polymarket_when_both_sides_priced(self):
+        stage_reach = {"semi_final": {"france": 0.8, "sweden": 0.2}}
+        probs, priceable = compute_match_win_probabilities(
+            self._bracket(), {}, [101], api_matches=[], stage_reach_probabilities=stage_reach
+        )
+        assert priceable == 1
+        assert round(probs[101], 6) == 0.8
+
+    def test_renormalizes_polymarket_prices_that_dont_sum_to_one(self):
+        # 0.7 + 0.4 = 1.1 (bid-ask spread) -> devig to 0.7/1.1.
+        stage_reach = {"semi_final": {"france": 0.7, "sweden": 0.4}}
+        probs, _ = compute_match_win_probabilities(
+            self._bracket(), {}, [101], api_matches=[], stage_reach_probabilities=stage_reach
+        )
+        assert round(probs[101], 6) == round(0.7 / 1.1, 6)
+
+    def test_falls_back_to_h2h_when_polymarket_missing_one_side(self):
+        stage_reach = {"semi_final": {"france": 0.8}}  # Sweden absent
+        api_matches = self._h2h_api_matches(1.3, 5.0, 8.0)
+        probs, _ = compute_match_win_probabilities(
+            self._bracket(), {}, [101], api_matches=api_matches, stage_reach_probabilities=stage_reach
+        )
+        assert probs[101] > 0.5  # France favoured per the h2h odds, not the Polymarket dict
+
+    def test_neither_source_leaves_match_unpriced_but_still_priceable(self):
+        probs, priceable = compute_match_win_probabilities(
+            self._bracket(), {}, [101], api_matches=[], stage_reach_probabilities={}
+        )
+        assert priceable == 1
+        assert 101 not in probs
+
+    def test_slot_dependent_match_is_not_priceable_under_either_source(self):
+        matches = {
+            101: MatchSpec(stage="round_of_16", home_ref=74, away_ref=77),
+        }
+        probs, priceable = compute_match_win_probabilities(
+            matches, {}, [101], api_matches=[], stage_reach_probabilities={"quarter_final": {"france": 0.9}}
+        )
+        assert priceable == 0
+        assert probs == {}

@@ -51,8 +51,9 @@ from app.services.bonus import (
 )
 from app.services.locking import get_active_competition
 from app.services.odds_cache import get_or_refresh_odds
+from app.services.polymarket import get_stage_reach_probabilities
 from app.services.r32_resolver import build_r32_resolver, resolve_r32_pair
-from app.services.team_match import derive_advance_probability, extract_h2h_odds, find_odds_for_fixture
+from app.services.team_match import canonicalize, derive_advance_probability, extract_h2h_odds, find_odds_for_fixture
 from app.services.scoring import (
     calculate_entry_points,
     eligible_entry_ids_select,
@@ -534,25 +535,44 @@ def compute_match_win_probabilities(
     known_winners: dict[int, str],
     unresolved: list[int],
     api_matches: list[dict],
+    stage_reach_probabilities: dict[str, dict[str, float]] | None = None,
 ) -> tuple[dict[int, float], int]:
     """Pure core: derive P(home advances) for every unresolved match whose
-    two teams are already real (i.e. resolvable from `known_winners`) AND
-    priced by at least one bookmaker in `api_matches`.
+    two teams are already real (i.e. resolvable from `known_winners`).
+
+    Two sources, in priority order:
+
+    1. Polymarket's "reach {next_stage}" markets (`stage_reach_probabilities`,
+       keyed by target stage -> {canonicalized team: P(Yes)}). Being
+       seeded into this match already means both teams reached the
+       match's OWN stage as a certain fact, so each team's price for
+       reaching the NEXT stage already IS its probability of winning
+       this specific match — no further derivation needed. Preferred
+       over h2h because it's available even when this exact fixture
+       hasn't been added to a sportsbook's h2h grid yet, and because a
+       compound market naturally accounts for asymmetric bracket paths
+       that a single match's h2h line doesn't need to. Renormalized
+       (home / (home + away)) the same way h2h odds are devigged, to
+       absorb the residual bid-ask spread between the two sides' prices.
+    2. The Odds API's per-fixture h2h odds (team_match.py), when
+       Polymarket doesn't have a usable price for BOTH sides.
 
     A match further out in the bracket — still waiting on another
     unresolved match to decide one of its teams — has no real matchup to
-    price yet (there's no odds line for "TBD vs TBD"); it's silently
-    absent from the returned dict rather than guessed at, matching this
-    module's existing gap-over-guess convention (see load_bracket_state's
-    docstring). Callers default an absent match_number to 0.5.
+    price under EITHER source yet (there's no market for "TBD vs TBD");
+    it's silently absent from the returned dict rather than guessed at,
+    matching this module's existing gap-over-guess convention (see
+    load_bracket_state's docstring). Callers default an absent
+    match_number to 0.5.
 
     Returns (probabilities, priceable_count) — priceable_count is every
-    unresolved match with two real teams, regardless of whether odds were
-    actually found for it, so callers can surface an odds-coverage badge
+    unresolved match with two real teams, regardless of whether either
+    source actually priced it, so callers can surface a coverage badge
     ("priced 2 of 2") distinct from "these matches aren't priceable yet".
     """
     probabilities: dict[int, float] = {}
     priceable_count = 0
+    stage_reach_probabilities = stage_reach_probabilities or {}
 
     for match_number in unresolved:
         spec = matches[match_number]
@@ -563,6 +583,14 @@ def compute_match_win_probabilities(
             continue  # still slot-dependent — no real matchup to price yet
 
         priceable_count += 1
+
+        target_stage = ADVANCEMENT_MAP.get(spec.stage)
+        poly = stage_reach_probabilities.get(target_stage, {}) if target_stage else {}
+        home_poly = poly.get(canonicalize(home))
+        away_poly = poly.get(canonicalize(away))
+        if home_poly is not None and away_poly is not None and (home_poly + away_poly) > 0:
+            probabilities[match_number] = home_poly / (home_poly + away_poly)
+            continue
 
         found = find_odds_for_fixture(home, away, api_matches)
         if found is None:
@@ -580,16 +608,28 @@ async def load_ko_match_win_probabilities(
     known_winners: dict[int, str],
     unresolved: list[int],
 ) -> tuple[dict[int, float], int]:
-    """DB/IO wrapper: read the shared odds cache and delegate to the pure
-    core. Never raises — odds_cache.get_or_refresh_odds() already has its
-    own durability contract (any upstream failure serves last-good cache,
-    or an empty matches list on a cold cache), so an odds outage simply
-    means every match_number is absent from the result, and callers fall
-    back to the uniform model entirely.
+    """DB/IO wrapper: read the shared odds cache + Polymarket's per-stage
+    markets and delegate to the pure core. Never raises — both sources
+    already have their own durability contracts (any upstream failure
+    serves last-good cache, or empty on a cold cache), so an outage on
+    either simply means fewer match_numbers get priced, and callers fall
+    back to the uniform model for whatever's left unpriced.
     """
     cache = await get_or_refresh_odds()
     api_matches = cache.get("matches") or []
-    return compute_match_win_probabilities(matches, known_winners, unresolved, api_matches)
+
+    target_stages = {
+        ADVANCEMENT_MAP[matches[m].stage]
+        for m in unresolved
+        if matches[m].stage in ADVANCEMENT_MAP
+    }
+    stage_reach_probabilities = {
+        stage: await get_stage_reach_probabilities(stage) for stage in target_stages
+    }
+
+    return compute_match_win_probabilities(
+        matches, known_winners, unresolved, api_matches, stage_reach_probabilities
+    )
 
 
 @dataclass

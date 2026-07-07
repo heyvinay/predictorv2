@@ -2599,6 +2599,13 @@
       "type": "feature",
       "summary": "Win Probability now shows a second odds-weighted column, using live betting odds instead of a flat coin-flip for whichever knockout matches are already priced.",
       "commit": "pending"
+    },
+    {
+      "version": "2.202.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "Win Probability's odds-weighted column now also uses Polymarket's team-to-reach-round markets, which price a team's chances even before its next opponent is confirmed.",
+      "commit": "pending"
     }
   ]
 }
