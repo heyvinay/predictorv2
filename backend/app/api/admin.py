@@ -834,6 +834,57 @@ async def set_live_projection_enabled(
 
 
 # ---------------------------------------------------------------------------
+# Win-probability simulator master switch (v2.200.0)
+# ---------------------------------------------------------------------------
+class WinProbabilityRequest(BaseModel):
+    """Toggle the knockout win-probability simulator master switch."""
+
+    enabled: bool
+
+
+@router.post("/competition/win-probability")
+async def set_win_probability_enabled(
+    request: WinProbabilityRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Flip the win-probability gate.
+
+    Read-time only, like live_projection_enabled — no cache invalidation
+    needed here; GET /leaderboard/win-probability checks this flag fresh
+    on every request, and the simulator's own SWR cache is invalidated
+    independently by score changes (score_sync.py), not by this toggle.
+    Auditable, idempotent.
+    """
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.win_probability_enabled
+    competition.win_probability_enabled = request.enabled
+    competition.updated_at = utc_now()
+    if previous != request.enabled:
+        record_audit_event(
+            session,
+            event_type="competition.win_probability_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.enabled},
+        )
+    await session.commit()
+
+    return {"status": "ok", "win_probability_enabled": request.enabled}
+
+
+# ---------------------------------------------------------------------------
 # Announcement hero visibility toggle (v2.191.0)
 # ---------------------------------------------------------------------------
 class AnnouncementHeroRequest(BaseModel):

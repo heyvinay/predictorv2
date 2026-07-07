@@ -617,6 +617,17 @@ async def is_knockout_scoring_enabled(session: AsyncSession) -> bool:
     return bool(competition and competition.knockout_scoring_enabled)
 
 
+async def is_win_probability_enabled(session: AsyncSession) -> bool:
+    """Whether the win-probability simulator is unlocked for the active
+    competition. Fail-closed, same contract as is_knockout_scoring_enabled:
+    returns False when no competition is active OR the flag is unset."""
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    return bool(competition and competition.win_probability_enabled)
+
+
 async def calculate_entry_points(
     session: AsyncSession,
     entry_id: uuid.UUID,

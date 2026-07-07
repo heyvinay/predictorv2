@@ -113,6 +113,10 @@ class PhaseStatus(BaseModel):
     # surfaced so the admin UI renders the toggle's current state and
     # the frontend can reason about whether the live board can appear.
     live_projection_enabled: bool = False
+    # Win-probability simulator master switch — admin-controlled;
+    # surfaced so the frontend can gate the /leaderboard Win Probability
+    # tab on this flag once it opens beyond admin-only.
+    win_probability_enabled: bool = False
 
 
 @router.get("/phase-status", response_model=PhaseStatus)
@@ -160,6 +164,9 @@ async def get_phase_status(
         simulator_enabled=competition.simulator_enabled if competition else False,
         live_projection_enabled=(
             competition.live_projection_enabled if competition else False
+        ),
+        win_probability_enabled=(
+            competition.win_probability_enabled if competition else False
         ),
     )
 

@@ -85,6 +85,14 @@ class Competition(SQLModel, table=True):
     # FALSE so the feature stays dark until an admin opts in from /admin.
     live_projection_enabled: bool = Field(default=False)
 
+    # Win-probability simulator master switch (v2.200.0): admin-controlled
+    # gate on the knockout win-probability engine (services.win_probability).
+    # Read-time only, like live_projection_enabled — flipping it needs no
+    # cache invalidation, since the cache is keyed independently and reads
+    # this flag fresh on every request. Defaults FALSE so the feature stays
+    # dark until an admin opts in from /admin.
+    win_probability_enabled: bool = Field(default=False)
+
     # Configuration reference
     config_file: str | None = None
 
