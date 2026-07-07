@@ -37,11 +37,11 @@
 	// StandingsTable's own GRID_KO exactly, so the champion-pick flag and
 	// finalist dots line up at the same x-position as the Standings tab —
 	// a CSS grid, not flexbox, is what makes columns width-independent of
-	// each row's entry-name length. WIN%/T3/ER get their own fixed
-	// columns too, matching a header row above the rows. Champ/Final
-	// hide below 880px, same breakpoint Standings uses.
+	// each row's entry-name length. T3/ER/WIN% get their own fixed
+	// columns too (in that order), matching a header row above the rows.
+	// Champ/Final hide below 880px, same breakpoint Standings uses.
 	const ROW_GRID =
-		'grid-cols-[28px_minmax(0,1.6fr)_60px_50px_44px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_60px_50px_44px]';
+		'grid-cols-[28px_minmax(0,1.6fr)_50px_44px_60px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_50px_44px_60px]';
 
 	$: joined = data ? joinWinProbabilityRows(rows, data.entries) : [];
 	$: topTeams = data
@@ -132,12 +132,6 @@
 			<span
 				role="columnheader"
 				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
-				title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches"
-				>Win%</span
-			>
-			<span
-				role="columnheader"
-				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
 				title="Probability this entry finishes in the top 3">T3</span
 			>
 			<span
@@ -145,6 +139,12 @@
 				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
 				title="Expected rank — this entry's average finishing position, weighted by how likely each simulated outcome is. Lower is better."
 				>ER</span
+			>
+			<span
+				role="columnheader"
+				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+				title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches"
+				>Win%</span
 			>
 		</div>
 		{#each joined as j, i (j.row.entry_id)}
@@ -194,12 +194,6 @@
 
 				<span
 					role="cell"
-					class="text-right font-mono text-sm font-extrabold tabular-nums"
-					title="P(finishes 1st) — probability-weighted across every simulated outcome"
-					>{pct(j.p_win)}</span
-				>
-				<span
-					role="cell"
 					class="text-right font-mono text-xs tabular-nums text-base-content/55"
 					title="P(finishes in the top 3)"
 					>{pct(j.p_top3)}</span
@@ -209,6 +203,12 @@
 					class="text-right font-mono text-xs tabular-nums text-base-content/55"
 					title="Expected rank — average finishing position across all simulated outcomes"
 					>{j.expected_rank.toFixed(1)}</span
+				>
+				<span
+					role="cell"
+					class="text-right font-mono text-sm font-extrabold tabular-nums"
+					title="P(finishes 1st) — probability-weighted across every simulated outcome"
+					>{pct(j.p_win)}</span
 				>
 			</button>
 		{:else}
