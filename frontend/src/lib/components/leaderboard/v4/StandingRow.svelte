@@ -21,7 +21,7 @@
 	export let gridClass: string;
 	/** Users with >1 entries (computed from the UNFILTERED board). */
 	export let multiOwners: Set<string>;
-	/** Points-over-time series for this entry (≥2 to draw). */
+	/** Rank-over-time series for this entry, oldest first (≥2 to draw). */
 	export let trajectory: number[] = [];
 	/** True when the board carries a live KO projection. Gates the
 	 *  projected rank/total display and the +N delta chip. */
@@ -112,7 +112,7 @@
 	</span>
 
 	<span role="cell" class="hidden justify-self-center min-[880px]:flex">
-		<Sparkline points={trajectory} />
+		<Sparkline ranks={trajectory} />
 	</span>
 
 	<span

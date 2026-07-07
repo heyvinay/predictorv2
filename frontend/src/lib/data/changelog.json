@@ -2627,6 +2627,13 @@
       "type": "feature",
       "summary": "New 'For the nerds' explainer on Standings — a short plain-English guide to how Group, Knockout, Total, and tie-breaking actually work.",
       "commit": "pending"
+    },
+    {
+      "version": "2.205.1",
+      "date": "2026-07-07",
+      "type": "fix",
+      "summary": "Standings' Trend sparkline now tracks rank instead of total points — points only ever go up, so every entry showed the same meaningless upward line.",
+      "commit": "pending"
     }
   ]
 }

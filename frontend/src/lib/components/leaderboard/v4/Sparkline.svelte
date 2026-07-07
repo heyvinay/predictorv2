@@ -1,28 +1,34 @@
 <script lang="ts">
-	/** Tiny SVG line chart of an entry's total-points trajectory.
-	 *  Coloured by net direction (up = success, down = error, flat
+	/** Tiny SVG line chart of an entry's RANK trajectory (v2.206.0 —
+	 *  was total-points, which is monotonically non-decreasing for
+	 *  every entry by construction and so always trended up-right
+	 *  regardless of how well an entry was actually doing). Lower
+	 *  rank number is better, so the y-axis is inverted here: the
+	 *  best rank in the window plots at the TOP. Coloured by net
+	 *  direction (rank improved = success, worsened = error, flat
 	 *  or single-point = muted). Returns a placeholder dash when
 	 *  fewer than 2 data points exist. */
-	export let points: number[] = [];
+	export let ranks: number[] = [];
 
 	const W = 60;
 	const H = 18;
 
-	$: ready = points.length >= 2;
-	$: lo = ready ? Math.min(...points) : 0;
-	$: hi = ready ? Math.max(...points) : 1;
+	$: ready = ranks.length >= 2;
+	$: lo = ready ? Math.min(...ranks) : 0;
+	$: hi = ready ? Math.max(...ranks) : 1;
 	$: range = Math.max(1, hi - lo);
-	$: dx = ready ? (W - 4) / (points.length - 1) : 0;
+	$: dx = ready ? (W - 4) / (ranks.length - 1) : 0;
 	$: path = ready
-		? points
+		? ranks
 				.map((v, i) => {
 					const x = 2 + i * dx;
-					const y = 2 + ((hi - v) / range) * (H - 4);
+					const y = 2 + ((v - lo) / range) * (H - 4); // lowest rank (best) -> top
 					return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
 				})
 				.join(' ')
 		: '';
-	$: delta = ready ? points[points.length - 1] - points[0] : 0;
+	// Positive delta = rank NUMBER went down = improved.
+	$: delta = ready ? ranks[0] - ranks[ranks.length - 1] : 0;
 	$: stroke =
 		delta > 0
 			? 'stroke-success'
@@ -35,7 +41,7 @@
 	<svg
 		viewBox="0 0 {W} {H}"
 		class="h-[18px] w-[60px]"
-		aria-label="Points trajectory"
+		aria-label="Rank trajectory"
 		role="img"
 	>
 		<path

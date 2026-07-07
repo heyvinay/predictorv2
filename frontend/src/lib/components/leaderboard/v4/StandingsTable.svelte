@@ -21,7 +21,7 @@
 	/** Users with >1 entries (from the UNFILTERED board — naming must not
 	 *  change when a pool filter hides one of someone's entries). */
 	export let multiOwners: Set<string>;
-	/** entry_id → points-over-time array, for the sparkline column.
+	/** entry_id → rank-over-time array, for the sparkline column.
 	 *  Empty map ⇒ all rows render a dash placeholder. */
 	export let trajectoriesByEntry: Map<string, number[]> = new Map();
 	/** True when the board carries a live KO projection (armed gates +
@@ -170,7 +170,7 @@
 		<span
 			class="{HEAD_CLASS} hidden text-center min-[880px]:block"
 			role="columnheader"
-			title="Points-over-time, last 14 days">Trend</span
+			title="Rank-over-time, last 14 days — up means climbing the standings">Trend</span
 		>
 		<button
 			type="button"

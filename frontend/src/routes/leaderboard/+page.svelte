@@ -122,7 +122,7 @@
 	let board: LbResponseV4 | null = null;
 	let rules: ScoringRules | null = null;
 	let bonusMeta: BonusMeta | null = null;
-	/** entry_id → points-over-time series, for the standings sparkline.
+	/** entry_id → rank-over-time series, for the standings sparkline.
 	 *  Populated from the bulk snapshots endpoint; empty if it 403s
 	 *  pre-deadline (sparklines fall back to a dash placeholder). */
 	let trajectoriesByEntry = new Map<string, number[]>();
@@ -182,8 +182,11 @@
 			.catch(() => undefined);
 		void getAllTrajectories(14)
 			.then((traj) => {
+				// Rank, not total_points — points only ever go up, so a
+				// points-trajectory sparkline trended upward for every
+				// entry regardless of how they were actually doing.
 				trajectoriesByEntry = new Map(
-					traj.entries.map((t) => [t.entry_id, t.points.map((p) => p.total_points)])
+					traj.entries.map((t) => [t.entry_id, t.points.map((p) => p.position)])
 				);
 			})
 			.catch(() => undefined);
