@@ -236,7 +236,6 @@
 	$: stage = deriveStage($fixtures);
 	$: filteredRows = searchRows(filterByPool(rows, pool), search);
 	$: multiOwners = multiEntryUserIds(rows);
-	$: playedCount = $fixtures.filter((f) => f.status === 'finished').length;
 
 	// ── Race-tab redesign state (2026-06-22) ──
 	let raceMode: RaceViewMode = 'around_me';
@@ -403,11 +402,6 @@
 		     one row alongside the info line. ── -->
 		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
 			<div class="text-[12px] text-base-content/70 sm:text-[13px]">
-				<p>
-					{board?.total_participants ?? rows.length} entries
-					{#if playedCount > 0}· {playedCount} of {$fixtures.length} matches played{/if}
-					· predictions locked since kick-off
-				</p>
 				{#if board?.last_calculated}
 					<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
 						<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>

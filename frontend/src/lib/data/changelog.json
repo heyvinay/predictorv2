@@ -2641,6 +2641,13 @@
       "type": "feature",
       "summary": "New 'For the nerds' explainer on Win Probability — explains how Win%, T3, ER, and Odds% are simulated.",
       "commit": "pending"
+    },
+    {
+      "version": "2.206.1",
+      "date": "2026-07-07",
+      "type": "improvement",
+      "summary": "Removed the redundant entries/matches-played summary line from the Standings header.",
+      "commit": "pending"
     }
   ]
 }
