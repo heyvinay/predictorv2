@@ -2606,6 +2606,13 @@
       "type": "feature",
       "summary": "Win Probability's odds-weighted column now also uses Polymarket's team-to-reach-round markets, which price a team's chances even before its next opponent is confirmed.",
       "commit": "pending"
+    },
+    {
+      "version": "2.203.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "Win Probability's T3, ER, Win%, and Odds% columns are now sortable — click a header to reorder by that stat.",
+      "commit": "pending"
     }
   ]
 }

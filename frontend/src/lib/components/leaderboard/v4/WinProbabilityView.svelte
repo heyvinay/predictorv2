@@ -50,7 +50,59 @@
 
 	$: hasOdds = !!data?.odds_weighted;
 	$: gridClass = hasOdds ? ROW_GRID_WITH_ODDS : ROW_GRID;
-	$: joined = data ? joinWinProbabilityRows(rows, data.entries, data.odds_weighted?.entries) : [];
+	$: joinedRaw = data ? joinWinProbabilityRows(rows, data.entries, data.odds_weighted?.entries) : [];
+
+	// Sortable stat columns. ER's "best" direction is ascending (lower rank
+	// wins) so it gets a different default than the other three, which are
+	// all "higher is better" — clicking a header the first time should
+	// always show the best rows first, not require a second click to flip.
+	type SortKey = 'p_top3' | 'expected_rank' | 'p_win' | 'odds_p_win';
+	const DEFAULT_DIR: Record<SortKey, 'asc' | 'desc'> = {
+		p_top3: 'desc',
+		expected_rank: 'asc',
+		p_win: 'desc',
+		odds_p_win: 'desc'
+	};
+	let sortKey: SortKey = 'p_win';
+	let sortDir: 'asc' | 'desc' = 'desc';
+
+	function toggleSort(key: SortKey) {
+		if (sortKey === key) {
+			sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+		} else {
+			sortKey = key;
+			sortDir = DEFAULT_DIR[key];
+		}
+	}
+
+	// A plain helper called from the template (aria-sort={ariaSort(key)})
+	// would never re-run on click: Svelte's template dependency tracking
+	// only sees the identifiers written directly in the template
+	// expression, not what a called function's body reads internally —
+	// so `sortKey`/`sortDir` have to appear literally in this statement
+	// for the attribute to actually update. The visible ▲/▼ arrow uses
+	// the same `{#if sortKey === '...'}` pattern inline in the template,
+	// which is why it already worked before this fix.
+	$: sortAria = {
+		p_top3: sortKey === 'p_top3' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
+		expected_rank:
+			sortKey === 'expected_rank' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
+		p_win: sortKey === 'p_win' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
+		odds_p_win:
+			sortKey === 'odds_p_win' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
+	} as const;
+
+	// Rows with no value for the active sort key (odds_p_win when a match
+	// isn't priced for that entry) sink to the bottom regardless of
+	// direction — "no data" isn't a value to rank by in either direction.
+	$: joined = [...joinedRaw].sort((a, b) => {
+		const av = a[sortKey];
+		const bv = b[sortKey];
+		if (av === undefined && bv === undefined) return 0;
+		if (av === undefined) return 1;
+		if (bv === undefined) return -1;
+		return sortDir === 'asc' ? av - bv : bv - av;
+	});
 	$: topTeams = data
 		? [...data.teams]
 				.sort((a, b) => (b.stage_odds.winner ?? 0) - (a.stage_odds.winner ?? 0))
@@ -151,28 +203,65 @@
 			>
 			<span
 				role="columnheader"
+				aria-sort={sortAria.p_top3}
 				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
-				title="Probability this entry finishes in the top 3">T3</span
 			>
+				<button
+					class="inline-flex items-center gap-0.5 hover:text-base-content/80"
+					title="Probability this entry finishes in the top 3 — click to sort"
+					on:click={() => toggleSort('p_top3')}
+				>
+					T3{#if sortKey === 'p_top3'}<span aria-hidden="true"
+							>{sortDir === 'asc' ? '▲' : '▼'}</span
+						>{/if}
+				</button>
+			</span>
 			<span
 				role="columnheader"
+				aria-sort={sortAria.expected_rank}
 				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
-				title="Expected rank — this entry's average finishing position, weighted by how likely each simulated outcome is. Lower is better."
-				>ER</span
 			>
+				<button
+					class="inline-flex items-center gap-0.5 hover:text-base-content/80"
+					title="Expected rank — this entry's average finishing position, weighted by how likely each simulated outcome is. Lower is better. Click to sort."
+					on:click={() => toggleSort('expected_rank')}
+				>
+					ER{#if sortKey === 'expected_rank'}<span aria-hidden="true"
+							>{sortDir === 'asc' ? '▲' : '▼'}</span
+						>{/if}
+				</button>
+			</span>
 			<span
 				role="columnheader"
+				aria-sort={sortAria.p_win}
 				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
-				title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches"
-				>Win%</span
 			>
+				<button
+					class="inline-flex items-center gap-0.5 hover:text-base-content/80"
+					title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches — click to sort"
+					on:click={() => toggleSort('p_win')}
+				>
+					Win%{#if sortKey === 'p_win'}<span aria-hidden="true"
+							>{sortDir === 'asc' ? '▲' : '▼'}</span
+						>{/if}
+				</button>
+			</span>
 			{#if hasOdds}
 				<span
 					role="columnheader"
+					aria-sort={sortAria.odds_p_win}
 					class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
-					title="The same Win% but weighted by live betting odds for the next unresolved match(es), instead of a flat 50/50"
-					>Odds%</span
 				>
+					<button
+						class="inline-flex items-center gap-0.5 hover:text-base-content/80"
+						title="The same Win% but weighted by live betting odds for the next unresolved match(es), instead of a flat 50/50 — click to sort"
+						on:click={() => toggleSort('odds_p_win')}
+					>
+						Odds%{#if sortKey === 'odds_p_win'}<span aria-hidden="true"
+								>{sortDir === 'asc' ? '▲' : '▼'}</span
+							>{/if}
+					</button>
+				</span>
 			{/if}
 		</div>
 		{#each joined as j, i (j.row.entry_id)}
