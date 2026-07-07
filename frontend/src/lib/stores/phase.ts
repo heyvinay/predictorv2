@@ -93,6 +93,16 @@ export const simulatorEnabled = derived(
 			?.simulator_enabled ?? false
 );
 
+/** Admin-controlled master switch for the Win Probability leaderboard
+ *  tab. False (admin-only) until the admin flips it on /admin — at
+ *  which point non-admins see the tab too. */
+export const winProbabilityEnabled = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { win_probability_enabled?: boolean }) | null)
+			?.win_probability_enabled ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,

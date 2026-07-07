@@ -175,6 +175,15 @@ export async function setLiveProjectionEnabled(
 	return api.post('/admin/competition/live-projection', { enabled });
 }
 
+/** Flip the Win Probability tab's master switch. Read-time gate — no
+ *  cache invalidation happens on this toggle; GET /leaderboard/
+ *  win-probability checks it fresh on every request. */
+export async function setWinProbabilityEnabled(
+	enabled: boolean
+): Promise<{ status: string; win_probability_enabled: boolean }> {
+	return api.post('/admin/competition/win-probability', { enabled });
+}
+
 /** Flip the what-if bracket simulator's admin master switch (v2.194.x).
  *  When `enabled=false`, non-admins can't reach `/simulator/*` even if
  *  they've already completed the trivia unlock — admins always retain

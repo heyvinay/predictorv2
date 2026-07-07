@@ -28,7 +28,8 @@
 		phase2BracketDeadline,
 		phase1Countdown,
 		phase2Countdown,
-		postDeadlineLive
+		postDeadlineLive,
+		winProbabilityEnabled
 	} from '$stores/phase';
 	import {
 		getAdminStats,
@@ -45,6 +46,7 @@
 		setKnockoutScoringEnabled,
 		setLiveProjectionEnabled,
 		setSimulatorEnabled,
+		setWinProbabilityEnabled,
 		setPostDeadlineLive,
 		triggerStandingsDriftCheck,
 		listOpenDriftEvents,
@@ -163,6 +165,28 @@
 			liveProjectionError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingLiveProjection = false;
+		}
+	}
+
+	// ─── Win Probability tab master switch ────────────────────────────────
+	let togglingWinProbability = false;
+	let winProbabilityError: string | null = null;
+
+	async function handleToggleWinProbability() {
+		const next = !$winProbabilityEnabled;
+		const message = next
+			? 'ENABLE the Win Probability tab for everyone? Non-admins will see pool-wide odds computed by simulating the remaining knockout matches.'
+			: 'DISABLE the Win Probability tab for non-admins? Admins keep seeing it either way.';
+		if (!confirm(message)) return;
+		togglingWinProbability = true;
+		winProbabilityError = null;
+		try {
+			await setWinProbabilityEnabled(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			winProbabilityError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingWinProbability = false;
 		}
 	}
 
@@ -955,6 +979,48 @@
 					</button>
 				</div>
 				{#if liveProjectionError}<div class="alert alert-error text-sm mt-3">{liveProjectionError}</div>{/if}
+			</section>
+
+			<!-- Win Probability tab master switch -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$winProbabilityEnabled
+					? 'border-success/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Win probability
+					<span class="text-xs text-base-content/40">
+						· pool odds tab on the Leaderboard
+					</span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					When ON, everyone sees the Win Probability tab (each entry's odds of winning
+					the pool, plus team trophy-odds) — not just admins. The simulation itself
+					always runs the same way regardless of this flag; this only controls who can
+					see the tab.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$winProbabilityEnabled
+							? 'bg-success/20 text-success'
+							: 'bg-warning/20 text-warning-text'}"
+					>
+						{$winProbabilityEnabled ? 'OPEN — visible to everyone' : 'ADMIN-ONLY'}
+					</span>
+					<button
+						class="btn btn-sm {$winProbabilityEnabled ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleWinProbability}
+						disabled={togglingWinProbability}
+					>
+						{togglingWinProbability
+							? 'Switching…'
+							: $winProbabilityEnabled
+								? 'Restrict to admins'
+								: 'Open to everyone'}
+					</button>
+				</div>
+				{#if winProbabilityError}<div class="alert alert-error text-sm mt-3">{winProbabilityError}</div>{/if}
 			</section>
 
 			<!-- Bracket simulator master switch (v2.194.x) -->

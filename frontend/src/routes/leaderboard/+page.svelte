@@ -13,7 +13,7 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
-	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
+	import { phase1Deadline, postDeadlineLive, winProbabilityEnabled } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import {
 		getAllTrajectories,
@@ -77,8 +77,9 @@
 	// roundIdForFixture(), which excludes 'third_place' the same way for
 	// the same documented reason (CLAUDE.md ★ third_place invariant).
 	const KO_STAGES = ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'final'];
-	// Win Probability is admin-gated (v2.200.0) — one clause to delete here
-	// opens it to the pool, same recipe as V4_LEADERBOARD_ENABLED itself.
+	// Win Probability is admin-gated by default; the /admin toggle flips
+	// winProbabilityEnabled to open it to the whole pool (same recipe as
+	// V4_LEADERBOARD_ENABLED's postDeadlineLive gate).
 	$: VIEWS = (
 		[
 			{ id: 'table', label: 'Standings', sub: '' },
@@ -86,7 +87,7 @@
 			{ id: 'insights', label: 'Insights', sub: 'for the nerds' }
 		] as { id: LbView; label: string; sub: string }[]
 	).concat(
-		$user?.is_admin === true
+		$user?.is_admin === true || $winProbabilityEnabled
 			? [{ id: 'win_probability', label: 'Win Probability', sub: 'pool odds' }]
 			: []
 	);
@@ -98,10 +99,12 @@
 		const p = localStorage.getItem(POOL_KEY);
 		if (p === 'All' || p === 'Atlas' || p === 'JMFA' || p === 'Guests') pool = p;
 	}
-	// A restored 'win_probability' view for a non-admin (stale localStorage,
-	// or admin status revoked) falls back to Standings rather than
-	// rendering a tab that isn't in VIEWS.
-	$: if (view === 'win_probability' && $user?.is_admin !== true) view = 'table';
+	// A restored 'win_probability' view for someone who can no longer see
+	// it (stale localStorage, admin status revoked, or the admin flipped
+	// the flag back off) falls back to Standings rather than rendering a
+	// tab that isn't in VIEWS.
+	$: if (view === 'win_probability' && $user?.is_admin !== true && !$winProbabilityEnabled)
+		view = 'table';
 	function setView(v: LbView) {
 		// Skip the telemetry when the user clicks the already-active tab —
 		// adds noise without information.
@@ -541,6 +544,7 @@
 				data={winProbData}
 				loading={winProbLoading}
 				failed={winProbFailed}
+				{lastFinished}
 				onRun={runWinProbability}
 				onOpen={(row) => (selected = row)}
 			/>

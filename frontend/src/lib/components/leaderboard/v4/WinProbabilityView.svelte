@@ -26,6 +26,10 @@
 	export let data: WinProbabilityResponse | null;
 	export let loading: boolean;
 	export let failed: boolean;
+	/** Most-recently-FINISHED fixture, formatted e.g. "POR 0–1 ESP" — same
+	 *  value the Standings header's "last result" line uses, passed down
+	 *  from the page rather than recomputed here. */
+	export let lastFinished: string | null;
 	export let onRun: () => void;
 	export let onOpen: (row: LbEntryV4) => void;
 
@@ -33,10 +37,11 @@
 	// StandingsTable's own GRID_KO exactly, so the champion-pick flag and
 	// finalist dots line up at the same x-position as the Standings tab —
 	// a CSS grid, not flexbox, is what makes columns width-independent of
-	// each row's entry-name length. Champ/Final/bar hide below 880px,
-	// same breakpoint Standings uses to hide its own Champ column.
+	// each row's entry-name length. WIN%/T3/ER get their own fixed
+	// columns too, matching a header row above the rows. Champ/Final
+	// hide below 880px, same breakpoint Standings uses.
 	const ROW_GRID =
-		'grid-cols-[28px_minmax(0,1.6fr)_140px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_140px_72px]';
+		'grid-cols-[28px_minmax(0,1.6fr)_60px_50px_44px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_60px_50px_44px]';
 
 	$: joined = data ? joinWinProbabilityRows(rows, data.entries) : [];
 	$: topTeams = data
@@ -93,6 +98,9 @@
 				.meta.unresolved_matches === 1
 				? ''
 				: 'es'} left to play
+			{#if lastFinished}
+				· last result: <b class="text-base-content/70">{lastFinished}</b>
+			{/if}
 		</span>
 		<span class="flex items-center gap-2 text-xs text-base-content/55">
 			<span>Last run {relativeAgo(data.meta.computed_at, $currentTime.getTime())}</span>
@@ -101,6 +109,44 @@
 	</div>
 
 	<div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">
+		<div
+			class="grid items-center gap-2 border-b border-base-300/40 bg-base-300/40 px-3 py-2 min-[880px]:gap-3 min-[880px]:px-4 {ROW_GRID}"
+			role="row"
+		>
+			<span role="columnheader" aria-label="Rank"></span>
+			<span
+				role="columnheader"
+				class="text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+				>Entry</span
+			>
+			<span
+				role="columnheader"
+				class="hidden text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55 min-[880px]:block"
+				title="Who this entry picked to win the whole tournament">Champ</span
+			>
+			<span
+				role="columnheader"
+				class="hidden text-center text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55 min-[880px]:block"
+				title="How many of this entry's two finalist picks are still alive">Final</span
+			>
+			<span
+				role="columnheader"
+				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+				title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches"
+				>Win%</span
+			>
+			<span
+				role="columnheader"
+				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+				title="Probability this entry finishes in the top 3">T3</span
+			>
+			<span
+				role="columnheader"
+				class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+				title="Expected rank — this entry's average finishing position, weighted by how likely each simulated outcome is. Lower is better."
+				>ER</span
+			>
+		</div>
 		{#each joined as j, i (j.row.entry_id)}
 			{@const isOwn = j.row.user_id === userId}
 			{@const finalists = j.row.finalist_picks ?? []}
@@ -146,23 +192,24 @@
 					{/each}
 				</span>
 
-				<span role="cell" class="flex flex-col items-end gap-0.5 text-right">
-					<span class="flex items-baseline gap-1">
-						<span class="font-mono text-sm font-extrabold tabular-nums">{pct(j.p_win)}</span>
-						<span class="text-[10px] uppercase tracking-[0.05em] text-base-content/45">win</span>
-					</span>
-					<span class="flex items-center gap-2 text-[10px] text-base-content/45">
-						<span class="font-mono tabular-nums">top-3 {pct(j.p_top3)}</span>
-						<span class="font-mono tabular-nums">E[rank] {j.expected_rank.toFixed(1)}</span>
-					</span>
-				</span>
-
-				<span role="cell" class="hidden h-2 overflow-hidden rounded-full bg-base-300/60 min-[880px]:block">
-					<span
-						class="block h-full rounded-full bg-gradient-to-r from-primary to-success"
-						style="width: {Math.max(1, j.p_win * 100)}%"
-					></span>
-				</span>
+				<span
+					role="cell"
+					class="text-right font-mono text-sm font-extrabold tabular-nums"
+					title="P(finishes 1st) — probability-weighted across every simulated outcome"
+					>{pct(j.p_win)}</span
+				>
+				<span
+					role="cell"
+					class="text-right font-mono text-xs tabular-nums text-base-content/55"
+					title="P(finishes in the top 3)"
+					>{pct(j.p_top3)}</span
+				>
+				<span
+					role="cell"
+					class="text-right font-mono text-xs tabular-nums text-base-content/55"
+					title="Expected rank — average finishing position across all simulated outcomes"
+					>{j.expected_rank.toFixed(1)}</span
+				>
 			</button>
 		{:else}
 			<p class="px-4 py-6 text-center text-sm text-base-content/55">No eligible entries yet.</p>
