@@ -21,6 +21,7 @@ from app.models.score import Score
 from app.models.user import User
 from app.models.bonus import BonusAnswer, BonusPrediction
 from app.services.scoring import calculate_entry_points, get_actual_advancement
+from app.services import win_probability as win_probability_service
 from app.services.win_probability import (
     BONUS_BRACKET_QUESTIONS,
     build_advancement,
@@ -197,7 +198,8 @@ async def test_compute_win_probability_end_to_end_sums_to_one(db_session):
     )
     await db_session.commit()
 
-    result = await compute_win_probability(db_session)
+    comparison = await compute_win_probability(db_session)
+    result = comparison.uniform
 
     assert set(result.entries) == {str(entry_a.id), str(entry_b.id)}
     total_p_win = sum(e.p_win for e in result.entries.values())
@@ -260,9 +262,90 @@ async def test_compute_win_probability_awards_more_to_the_better_dark_horse_pick
     )
     await db_session.commit()
 
-    result = await compute_win_probability(db_session)
+    comparison = await compute_win_probability(db_session)
+    result = comparison.uniform
 
     a = result.entries[str(entry_a.id)]
     b = result.entries[str(entry_b.id)]
     assert a.expected_rank < b.expected_rank
     assert a.p_win > b.p_win
+
+
+def _fake_odds_cache(home_team: str, away_team: str, home_price: float, draw_price: float, away_price: float) -> dict:
+    return {
+        "matches": [
+            {
+                "home_team": home_team,
+                "away_team": away_team,
+                "bookmakers": [
+                    {
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "outcomes": [
+                                    {"name": home_team, "price": home_price},
+                                    {"name": "Draw", "price": draw_price},
+                                    {"name": away_team, "price": away_price},
+                                ],
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+
+
+async def test_compute_win_probability_includes_odds_weighted_view_when_next_match_is_priced(
+    db_session, monkeypatch
+):
+    """M77 (France vs Sweden) is the next unresolved match with two real
+    teams — exactly the case odds-weighting is meant to cover. Entry A
+    picks France to reach round_of_16 (true only if France wins M77);
+    Entry B picks Sweden for the same stage (true only if Sweden wins).
+    Heavily favouring France in the fake odds must shift the odds-
+    weighted P(win) split away from the uniform 50/50 the same picks get
+    under the plain model.
+    """
+    competition = await _seed_competition(db_session)
+    await _seed_bracket_slice(db_session, competition)
+    entry_a = await _seed_entry(db_session, competition, "a@test.com", "Entry A")
+    entry_b = await _seed_entry(db_session, competition, "b@test.com", "Entry B")
+
+    db_session.add_all(
+        [
+            TeamPrediction(entry_id=entry_a.id, team="France", stage="round_of_16"),
+            TeamPrediction(entry_id=entry_b.id, team="Sweden", stage="round_of_16"),
+        ]
+    )
+    await db_session.commit()
+
+    async def fake_get_or_refresh_odds():
+        return _fake_odds_cache("France", "Sweden", home_price=1.3, draw_price=5.0, away_price=8.0)
+
+    monkeypatch.setattr(win_probability_service, "get_or_refresh_odds", fake_get_or_refresh_odds)
+
+    comparison = await compute_win_probability(db_session)
+
+    assert comparison.odds_matches_priced == 1
+    assert comparison.odds_matches_priceable == 1
+    assert comparison.odds_weighted is not None
+
+    uniform_a = comparison.uniform.entries[str(entry_a.id)].p_win
+    odds_a = comparison.odds_weighted.entries[str(entry_a.id)].p_win
+    assert round(uniform_a, 6) == 0.5
+    assert odds_a > uniform_a
+
+
+async def test_compute_win_probability_omits_odds_weighted_when_nothing_priced(db_session):
+    """No ODDS_API_KEY configured in test settings -> get_or_refresh_odds
+    degrades to an empty/error cache -> nothing is priceable, so the
+    comparison must NOT surface a misleadingly-identical second view."""
+    competition = await _seed_competition(db_session)
+    await _seed_bracket_slice(db_session, competition)
+    await _seed_entry(db_session, competition, "a@test.com", "Entry A")
+
+    comparison = await compute_win_probability(db_session)
+
+    assert comparison.odds_weighted is None
+    assert comparison.odds_matches_priced == 0

@@ -28,8 +28,23 @@ export interface WinProbabilityMeta {
 	computed_at: string;
 }
 
+export interface OddsWeightedView {
+	entries: EntryWinProbability[];
+	teams: TeamStageOdds[];
+}
+
+export interface OddsCoverage {
+	priced: number;
+	priceable: number;
+}
+
 export interface WinProbabilityResponse {
 	entries: EntryWinProbability[];
 	teams: TeamStageOdds[];
 	meta: WinProbabilityMeta;
+	/** Null when nothing in the remaining bracket is priced yet (every
+	 *  unresolved match still has at least one TBD side, or the odds API
+	 *  has no line for the next real matchup). */
+	odds_weighted: OddsWeightedView | null;
+	odds_coverage: OddsCoverage;
 }

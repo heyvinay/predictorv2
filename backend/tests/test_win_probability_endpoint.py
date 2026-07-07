@@ -160,6 +160,11 @@ async def test_response_shape_and_probabilities_sum_to_one(session: AsyncSession
     assert set(entry) >= {"entry_id", "p_win", "p_top3", "expected_rank"}
     assert round(sum(e["p_win"] for e in body["entries"]), 6) == 1.0
 
+    # No ODDS_API_KEY in test settings -> nothing priced -> odds_weighted
+    # stays absent rather than surfacing a misleadingly-identical copy.
+    assert body["odds_weighted"] is None
+    assert body["odds_coverage"] == {"priced": 0, "priceable": 0}
+
 
 @pytest.mark.asyncio
 async def test_engine_failure_degrades_to_unavailable_not_500(session: AsyncSession, monkeypatch):

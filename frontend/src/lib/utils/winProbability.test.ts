@@ -101,4 +101,33 @@ describe('joinWinProbabilityRows', () => {
 		const rows = [mkRow({ entry_id: 'e1' })];
 		expect(joinWinProbabilityRows(rows, [])).toEqual([]);
 	});
+
+	it('merges odds-weighted p_win onto matching rows when provided', () => {
+		const rows = [mkRow({ entry_id: 'e1' }), mkRow({ entry_id: 'e2' })];
+		const probabilities: EntryWinProbability[] = [
+			{ entry_id: 'e1', p_win: 0.5, p_top3: 0.5, expected_rank: 1 },
+			{ entry_id: 'e2', p_win: 0.5, p_top3: 0.5, expected_rank: 1 }
+		];
+		const oddsWeighted: EntryWinProbability[] = [
+			{ entry_id: 'e1', p_win: 0.9, p_top3: 0.9, expected_rank: 1 },
+			{ entry_id: 'e2', p_win: 0.1, p_top3: 0.1, expected_rank: 2 }
+		];
+
+		const joined = joinWinProbabilityRows(rows, probabilities, oddsWeighted);
+
+		const byId = new Map(joined.map((j) => [j.row.entry_id, j]));
+		expect(byId.get('e1')?.odds_p_win).toBe(0.9);
+		expect(byId.get('e2')?.odds_p_win).toBe(0.1);
+	});
+
+	it('leaves odds_p_win undefined when no odds-weighted view is supplied', () => {
+		const rows = [mkRow({ entry_id: 'e1' })];
+		const probabilities: EntryWinProbability[] = [
+			{ entry_id: 'e1', p_win: 0.5, p_top3: 0.5, expected_rank: 1 }
+		];
+
+		const joined = joinWinProbabilityRows(rows, probabilities);
+
+		expect(joined[0].odds_p_win).toBeUndefined();
+	});
 });

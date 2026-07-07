@@ -844,10 +844,37 @@ class WinProbabilityMeta(BaseModel):
     computed_at: datetime
 
 
+class OddsWeightedView(BaseModel):
+    entries: list[EntryWinProbability]
+    teams: list[TeamStageOdds]
+
+
+class OddsCoverage(BaseModel):
+    priced: int
+    priceable: int
+
+
 class WinProbabilityResponse(BaseModel):
     entries: list[EntryWinProbability]
     teams: list[TeamStageOdds]
     meta: WinProbabilityMeta
+    # None when nothing in the remaining bracket is priceable yet (every
+    # unresolved match still has at least one TBD side) — the frontend's
+    # signal to hide the odds-weighted column rather than render a
+    # "second view" that's silently identical to the uniform one.
+    odds_weighted: OddsWeightedView | None = None
+    odds_coverage: OddsCoverage = OddsCoverage(priced=0, priceable=0)
+
+
+def _build_view(result: "PoolSimulationResult") -> tuple[list[EntryWinProbability], list[TeamStageOdds]]:
+    entries = [
+        EntryWinProbability(
+            entry_id=entry_id, p_win=p.p_win, p_top3=p.p_top3, expected_rank=p.expected_rank
+        )
+        for entry_id, p in result.entries.items()
+    ]
+    teams = [TeamStageOdds(team=team, stage_odds=odds) for team, odds in result.team_stage_odds.items()]
+    return entries, teams
 
 
 @router.get("/win-probability", response_model=WinProbabilityResponse)
@@ -856,8 +883,10 @@ async def win_probability_endpoint(
     user: CurrentUser,
 ) -> WinProbabilityResponse:
     """P(each entry wins the pool) + P(top-3) + expected rank, computed by
-    simulating every remaining knockout match. Team trophy-odds ride along
-    as a byproduct of the same enumeration. See
+    simulating every remaining knockout match under a uniform 50/50
+    per-match model, plus an odds-weighted second view when live betting
+    odds price at least one of the next unresolved matches. Team
+    trophy-odds ride along as a byproduct of the same enumeration. See
     app.services.win_probability for the engine.
     """
     from app.services.locking import get_active_competition
@@ -871,7 +900,7 @@ async def win_probability_endpoint(
         )
 
     try:
-        result = await get_win_probability(session)
+        comparison = await get_win_probability(session)
     except Exception:
         # Fail-open — same philosophy as live_projection.apply_live_projection:
         # a simulator bug degrades to "odds unavailable," never a 500.
@@ -887,24 +916,26 @@ async def win_probability_endpoint(
             ),
         )
 
+    uniform = comparison.uniform
+    entries, teams = _build_view(uniform)
+
+    odds_weighted = None
+    if comparison.odds_weighted is not None:
+        odds_entries, odds_teams = _build_view(comparison.odds_weighted)
+        odds_weighted = OddsWeightedView(entries=odds_entries, teams=odds_teams)
+
     return WinProbabilityResponse(
-        entries=[
-            EntryWinProbability(
-                entry_id=entry_id,
-                p_win=p.p_win,
-                p_top3=p.p_top3,
-                expected_rank=p.expected_rank,
-            )
-            for entry_id, p in result.entries.items()
-        ],
-        teams=[
-            TeamStageOdds(team=team, stage_odds=odds)
-            for team, odds in result.team_stage_odds.items()
-        ],
+        entries=entries,
+        teams=teams,
         meta=WinProbabilityMeta(
-            mode=result.mode,
-            unresolved_matches=result.unresolved_matches,
-            scenario_count=result.scenario_count,
-            computed_at=result.computed_at,
+            mode=uniform.mode,
+            unresolved_matches=uniform.unresolved_matches,
+            scenario_count=uniform.scenario_count,
+            computed_at=uniform.computed_at,
+        ),
+        odds_weighted=odds_weighted,
+        odds_coverage=OddsCoverage(
+            priced=comparison.odds_matches_priced,
+            priceable=comparison.odds_matches_priceable,
         ),
     )

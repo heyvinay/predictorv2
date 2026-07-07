@@ -39,13 +39,25 @@
 	// a CSS grid, not flexbox, is what makes columns width-independent of
 	// each row's entry-name length. T3/ER/WIN% get their own fixed
 	// columns too (in that order), matching a header row above the rows.
-	// Champ/Final hide below 880px, same breakpoint Standings uses.
+	// Champ/Final hide below 880px, same breakpoint Standings uses. A
+	// trailing ODDS% column is inserted only when the API actually
+	// priced something — two full grid-template literals (not built by
+	// concatenation) so Tailwind's static class scanner sees both.
 	const ROW_GRID =
 		'grid-cols-[28px_minmax(0,1.6fr)_50px_44px_60px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_50px_44px_60px]';
+	const ROW_GRID_WITH_ODDS =
+		'grid-cols-[28px_minmax(0,1.6fr)_50px_44px_60px_60px] min-[880px]:grid-cols-[28px_minmax(0,1.6fr)_104px_56px_50px_44px_60px_60px]';
 
-	$: joined = data ? joinWinProbabilityRows(rows, data.entries) : [];
+	$: hasOdds = !!data?.odds_weighted;
+	$: gridClass = hasOdds ? ROW_GRID_WITH_ODDS : ROW_GRID;
+	$: joined = data ? joinWinProbabilityRows(rows, data.entries, data.odds_weighted?.entries) : [];
 	$: topTeams = data
 		? [...data.teams]
+				.sort((a, b) => (b.stage_odds.winner ?? 0) - (a.stage_odds.winner ?? 0))
+				.slice(0, 8)
+		: [];
+	$: topTeamsOdds = data?.odds_weighted
+		? [...data.odds_weighted.teams]
 				.sort((a, b) => (b.stage_odds.winner ?? 0) - (a.stage_odds.winner ?? 0))
 				.slice(0, 8)
 		: [];
@@ -103,6 +115,14 @@
 			{/if}
 		</span>
 		<span class="flex items-center gap-2 text-xs text-base-content/55">
+			{#if data.odds_coverage.priceable > 0}
+				<span
+					class="rounded-badge bg-base-300/50 px-1.5 py-0.5 font-mono text-[10px]"
+					title="Live betting odds priced {data.odds_coverage.priced} of {data.odds_coverage
+						.priceable} upcoming match(es) with two known teams"
+					>odds {data.odds_coverage.priced}/{data.odds_coverage.priceable}</span
+				>
+			{/if}
 			<span>Last run {relativeAgo(data.meta.computed_at, $currentTime.getTime())}</span>
 			<button class="btn btn-ghost btn-xs" on:click={onRun}>Re-run</button>
 		</span>
@@ -110,7 +130,7 @@
 
 	<div class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200">
 		<div
-			class="grid items-center gap-2 border-b border-base-300/40 bg-base-300/40 px-3 py-2 min-[880px]:gap-3 min-[880px]:px-4 {ROW_GRID}"
+			class="grid items-center gap-2 border-b border-base-300/40 bg-base-300/40 px-3 py-2 min-[880px]:gap-3 min-[880px]:px-4 {gridClass}"
 			role="row"
 		>
 			<span role="columnheader" aria-label="Rank"></span>
@@ -146,6 +166,14 @@
 				title="Probability this entry finishes 1st in the pool, averaged across every simulated outcome of the remaining knockout matches"
 				>Win%</span
 			>
+			{#if hasOdds}
+				<span
+					role="columnheader"
+					class="text-right text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/55"
+					title="The same Win% but weighted by live betting odds for the next unresolved match(es), instead of a flat 50/50"
+					>Odds%</span
+				>
+			{/if}
 		</div>
 		{#each joined as j, i (j.row.entry_id)}
 			{@const isOwn = j.row.user_id === userId}
@@ -153,7 +181,7 @@
 			{@const finAlive = j.row.finalists_alive ?? 0}
 			<button
 				role="row"
-				class="grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-2 text-left first:border-t-0 hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {ROW_GRID} {isOwn
+				class="grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-2 text-left first:border-t-0 hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {gridClass} {isOwn
 					? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 					: ''}"
 				on:click={() => onOpen(j.row)}
@@ -210,6 +238,14 @@
 					title="P(finishes 1st) — probability-weighted across every simulated outcome"
 					>{pct(j.p_win)}</span
 				>
+				{#if hasOdds}
+					<span
+						role="cell"
+						class="text-right font-mono text-xs tabular-nums text-base-content/55"
+						title="P(finishes 1st) weighted by live betting odds instead of a flat 50/50"
+						>{j.odds_p_win !== undefined ? pct(j.odds_p_win) : '—'}</span
+					>
+				{/if}
 			</button>
 		{:else}
 			<p class="px-4 py-6 text-center text-sm text-base-content/55">No eligible entries yet.</p>
@@ -223,6 +259,24 @@
 			</p>
 			<div class="flex flex-wrap gap-2">
 				{#each topTeams as t (t.team)}
+					<span
+						class="inline-flex items-center gap-1.5 rounded-badge bg-base-300/50 px-2.5 py-1 text-xs"
+					>
+						<FlagCode team={t.team} size="sm" />
+						<span class="font-mono tabular-nums text-base-content/55">{pct(teamOdds(t))}</span>
+					</span>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if topTeamsOdds.length}
+		<div class="mt-2 rounded-xl border border-base-300/60 bg-base-200 px-4 py-3">
+			<p class="mb-2 text-xs font-bold uppercase tracking-[0.06em] text-base-content/55">
+				Trophy odds — odds-weighted
+			</p>
+			<div class="flex flex-wrap gap-2">
+				{#each topTeamsOdds as t (t.team)}
 					<span
 						class="inline-flex items-center gap-1.5 rounded-badge bg-base-300/50 px-2.5 py-1 text-xs"
 					>

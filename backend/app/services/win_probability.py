@@ -50,7 +50,9 @@ from app.services.bonus import (
     get_questions,
 )
 from app.services.locking import get_active_competition
+from app.services.odds_cache import get_or_refresh_odds
 from app.services.r32_resolver import build_r32_resolver, resolve_r32_pair
+from app.services.team_match import derive_advance_probability, extract_h2h_odds, find_odds_for_fixture
 from app.services.scoring import (
     calculate_entry_points,
     eligible_entry_ids_select,
@@ -172,25 +174,33 @@ def enumerate_scenarios(
     matches: dict[int, MatchSpec],
     known_winners: dict[int, str],
     unresolved: list[int],
+    match_probabilities: dict[int, float] | None = None,
 ) -> Iterator[tuple[dict[int, str], float]]:
-    """Yield (winners, weight) for every completion of the bracket under a
-    uniform 50/50 per-match model.
+    """Yield (winners, weight) for every completion of the bracket.
+
+    `match_probabilities` maps match_number -> P(home side advances); a
+    match absent from it (or the whole arg omitted) defaults to a flat
+    50/50 split — this is the ONLY thing that changes behavior, so
+    omitting the arg entirely reproduces the original uniform model
+    exactly (each of the 2**len(unresolved) combinations at 1/2**n).
 
     `unresolved` must be in topological order — ascending match_number is
     always valid, since FIFA match numbers only ever reference strictly
     earlier matches (verified against bracket_seeding.py's source maps).
-    Each of the 2**len(unresolved) combinations carries equal weight.
     """
+    match_probabilities = match_probabilities or {}
     n = len(unresolved)
-    weight = 1.0 / (2**n) if n else 1.0
 
     for bits in itertools.product((0, 1), repeat=n):
         winners = dict(known_winners)
+        weight = 1.0
         for match_number, bit in zip(unresolved, bits):
             spec = matches[match_number]
             home = resolve_ref(spec.home_ref, winners)
             away = resolve_ref(spec.away_ref, winners)
+            p_home = match_probabilities.get(match_number, 0.5)
             winners[match_number] = home if bit == 0 else away
+            weight *= p_home if bit == 0 else (1.0 - p_home)
         yield winners, weight
 
 
@@ -216,20 +226,28 @@ def sample_scenarios(
     num_samples: int = MONTE_CARLO_SAMPLES,
     *,
     rng: random.Random | None = None,
+    match_probabilities: dict[int, float] | None = None,
 ) -> Iterator[tuple[dict[int, str], float]]:
     """Monte Carlo fallback for when 2**len(unresolved) is too large to
-    enumerate exhaustively: `num_samples` random draws under the same
-    uniform 50/50 per-match model, each carrying equal weight
-    1/num_samples. Downstream aggregation (simulate_pool) only ever
-    consumes (winners, weight) pairs, so it needs no changes to consume
-    sampled scenarios instead of enumerated ones — this is a statistical
-    ESTIMATE of the same quantity enumerate_scenarios computes exactly,
-    convergent as num_samples grows but never exact for finite samples.
+    enumerate exhaustively: `num_samples` random draws, each carrying
+    equal weight 1/num_samples. Downstream aggregation (simulate_pool)
+    only ever consumes (winners, weight) pairs, so it needs no changes to
+    consume sampled scenarios instead of enumerated ones — this is a
+    statistical ESTIMATE of the same quantity enumerate_scenarios
+    computes exactly, convergent as num_samples grows but never exact for
+    finite samples.
+
+    `match_probabilities` (match_number -> P(home advances), default 0.5
+    when absent) skews the per-match coin flip — unlike the exact path,
+    the probability is baked into the DRAW frequency here rather than
+    the yielded weight, since that's what "random sampling" means; the
+    weight stays uniform either way.
 
     Same topological-order requirement as enumerate_scenarios: ascending
     match_number in `unresolved` is always valid.
     """
     rng = rng if rng is not None else random.Random()
+    match_probabilities = match_probabilities or {}
     weight = 1.0 / num_samples
 
     for _ in range(num_samples):
@@ -238,7 +256,8 @@ def sample_scenarios(
             spec = matches[match_number]
             home = resolve_ref(spec.home_ref, winners)
             away = resolve_ref(spec.away_ref, winners)
-            winners[match_number] = home if rng.random() < 0.5 else away
+            p_home = match_probabilities.get(match_number, 0.5)
+            winners[match_number] = home if rng.random() < p_home else away
         yield winners, weight
 
 
@@ -400,6 +419,7 @@ def simulate_pool(
     max_exact_m: int = EXACT_ENUMERATION_MAX_M,
     num_samples: int = MONTE_CARLO_SAMPLES,
     rng: random.Random | None = None,
+    match_probabilities: dict[int, float] | None = None,
 ) -> PoolSimulationResult:
     """Enumerate every bracket completion and, for each, rank the pool by
     base_points[entry] + entry_ko_points(...) [+ simulate_bonus_points(...)
@@ -434,11 +454,18 @@ def simulate_pool(
     bonus_picks = entry_bonus_picks or {}
 
     if len(unresolved) <= max_exact_m:
-        scenario_source = enumerate_scenarios(matches, known_winners, unresolved)
+        scenario_source = enumerate_scenarios(
+            matches, known_winners, unresolved, match_probabilities
+        )
         mode = "exact"
     else:
         scenario_source = sample_scenarios(
-            matches, known_winners, unresolved, num_samples, rng=rng
+            matches,
+            known_winners,
+            unresolved,
+            num_samples,
+            rng=rng,
+            match_probabilities=match_probabilities,
         )
         mode = "monte_carlo"
 
@@ -500,6 +527,85 @@ def _cumulative_from_exact(exact: dict[str, float]) -> dict[str, float]:
         running += exact.get(stage, 0.0)
         cumulative[stage] = running
     return cumulative
+
+
+def compute_match_win_probabilities(
+    matches: dict[int, MatchSpec],
+    known_winners: dict[int, str],
+    unresolved: list[int],
+    api_matches: list[dict],
+) -> tuple[dict[int, float], int]:
+    """Pure core: derive P(home advances) for every unresolved match whose
+    two teams are already real (i.e. resolvable from `known_winners`) AND
+    priced by at least one bookmaker in `api_matches`.
+
+    A match further out in the bracket — still waiting on another
+    unresolved match to decide one of its teams — has no real matchup to
+    price yet (there's no odds line for "TBD vs TBD"); it's silently
+    absent from the returned dict rather than guessed at, matching this
+    module's existing gap-over-guess convention (see load_bracket_state's
+    docstring). Callers default an absent match_number to 0.5.
+
+    Returns (probabilities, priceable_count) — priceable_count is every
+    unresolved match with two real teams, regardless of whether odds were
+    actually found for it, so callers can surface an odds-coverage badge
+    ("priced 2 of 2") distinct from "these matches aren't priceable yet".
+    """
+    probabilities: dict[int, float] = {}
+    priceable_count = 0
+
+    for match_number in unresolved:
+        spec = matches[match_number]
+        try:
+            home = resolve_ref(spec.home_ref, known_winners)
+            away = resolve_ref(spec.away_ref, known_winners)
+        except KeyError:
+            continue  # still slot-dependent — no real matchup to price yet
+
+        priceable_count += 1
+
+        found = find_odds_for_fixture(home, away, api_matches)
+        if found is None:
+            continue
+        odds = extract_h2h_odds(found)
+        if odds is None:
+            continue
+        probabilities[match_number] = derive_advance_probability(odds)
+
+    return probabilities, priceable_count
+
+
+async def load_ko_match_win_probabilities(
+    matches: dict[int, MatchSpec],
+    known_winners: dict[int, str],
+    unresolved: list[int],
+) -> tuple[dict[int, float], int]:
+    """DB/IO wrapper: read the shared odds cache and delegate to the pure
+    core. Never raises — odds_cache.get_or_refresh_odds() already has its
+    own durability contract (any upstream failure serves last-good cache,
+    or an empty matches list on a cold cache), so an odds outage simply
+    means every match_number is absent from the result, and callers fall
+    back to the uniform model entirely.
+    """
+    cache = await get_or_refresh_odds()
+    api_matches = cache.get("matches") or []
+    return compute_match_win_probabilities(matches, known_winners, unresolved, api_matches)
+
+
+@dataclass
+class WinProbabilityComparison:
+    """Both simulation views side by side: the existing uniform 50/50
+    model, and an odds-weighted variant when The Odds API prices at least
+    one of the next unresolved matches. `odds_weighted` is None (never a
+    zeroed-out result) when nothing is priceable yet — the frontend's
+    signal to hide the second column rather than render a misleading
+    "identical to uniform" comparison.
+    """
+
+    uniform: PoolSimulationResult
+    odds_weighted: PoolSimulationResult | None
+    odds_matches_priced: int = 0
+    odds_matches_priceable: int = 0
 
 
 async def load_bracket_state(
@@ -665,15 +771,13 @@ async def load_bonus_picks(
     return picks
 
 
-async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult:
-    """Top-level entry point: load the live bracket + pool, enumerate every
-    remaining-match completion under the 50/50 model, and return each
-    entry's P(win) / P(top-3) / expected rank.
-
-    Exact enumeration only for now — at the current tournament stage
-    m is well inside the 2**m budget this needs (m only shrinks as
-    matches finish). A Monte Carlo fallback for large m is deferred; see
-    the plan doc for the threshold this will need once implemented.
+async def compute_win_probability(session: AsyncSession) -> WinProbabilityComparison:
+    """Top-level entry point: load the live bracket + pool and run the
+    simulation twice — once under the uniform 50/50 model, once weighted
+    by live betting odds for whichever unresolved matches are already
+    real-vs-real and priced. The odds-weighted run is cheap to add: m is
+    the same, so it's the same 2**m (or Monte Carlo) budget twice, not
+    squared.
     """
     matches, known_winners, unresolved = await load_bracket_state(session)
     actual_advancement = await get_actual_advancement(session)
@@ -688,7 +792,7 @@ async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult
         if bonus_config.unresolved_questions:
             bonus_picks = await load_bonus_picks(session, bonus_config.unresolved_questions)
 
-    return simulate_pool(
+    uniform = simulate_pool(
         matches,
         known_winners,
         unresolved,
@@ -697,6 +801,32 @@ async def compute_win_probability(session: AsyncSession) -> PoolSimulationResult
         base_points,
         entry_bonus_picks=bonus_picks,
         bonus_config=bonus_config,
+    )
+
+    match_probabilities, priceable_count = await load_ko_match_win_probabilities(
+        matches, known_winners, unresolved
+    )
+    odds_weighted = (
+        simulate_pool(
+            matches,
+            known_winners,
+            unresolved,
+            entries,
+            points_by_stage,
+            base_points,
+            entry_bonus_picks=bonus_picks,
+            bonus_config=bonus_config,
+            match_probabilities=match_probabilities,
+        )
+        if match_probabilities
+        else None
+    )
+
+    return WinProbabilityComparison(
+        uniform=uniform,
+        odds_weighted=odds_weighted,
+        odds_matches_priced=len(match_probabilities),
+        odds_matches_priceable=priceable_count,
     )
 
 
@@ -713,7 +843,7 @@ _CACHE_KEY = "default"
 
 @dataclass
 class CachedWinProbability:
-    result: PoolSimulationResult
+    result: WinProbabilityComparison
     last_calculated: datetime
     # Marked by expire_win_probability_cache() — a stale result is still
     # servable via stale-while-revalidate, unlike a dropped one.
@@ -752,7 +882,7 @@ def _is_fresh(cached: CachedWinProbability, now: datetime) -> bool:
 
 async def _rebuild_win_probability(
     session: AsyncSession, cache_key: str, now: datetime
-) -> PoolSimulationResult:
+) -> WinProbabilityComparison:
     result = await compute_win_probability(session)
     _cache[cache_key] = CachedWinProbability(result=result, last_calculated=now)
     return result
@@ -794,7 +924,7 @@ def _schedule_background_refresh(cache_key: str) -> None:
 
 async def get_win_probability(
     session: AsyncSession, force_refresh: bool = False
-) -> PoolSimulationResult:
+) -> WinProbabilityComparison:
     """Cached entry point: fast path on a fresh cache, stale-while-
     revalidate on an expired one, blocking rebuild on a cold cache or
     force_refresh — same three paths as leaderboard.calculate_leaderboard.

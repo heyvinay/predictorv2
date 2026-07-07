@@ -112,12 +112,12 @@ async def _await_background_refresh() -> None:
 async def test_fresh_cache_hit_returns_same_result_without_recompute(db_session, competition):
     await _make_entry(db_session, competition, email="alice@example.com")
     first = await get_win_probability(db_session)
-    assert len(first.entries) == 1
+    assert len(first.uniform.entries) == 1
 
     await _make_entry(db_session, competition, email="bob@example.com")
     second = await get_win_probability(db_session)
 
-    assert len(second.entries) == 1, "still-fresh cache must not recompute"
+    assert len(second.uniform.entries) == 1, "still-fresh cache must not recompute"
 
 
 @pytest.mark.asyncio
@@ -126,31 +126,31 @@ async def test_expired_cache_serves_stale_and_revalidates(db_session, session_fa
 
     await _make_entry(db_session, competition, email="alice@example.com")
     first = await get_win_probability(db_session)
-    assert len(first.entries) == 1
+    assert len(first.uniform.entries) == 1
 
     await _make_entry(db_session, competition, email="bob@example.com")
     expire_win_probability_cache()
 
     stale = await get_win_probability(db_session)
-    assert len(stale.entries) == 1, "stale board should be served as-is"
+    assert len(stale.uniform.entries) == 1, "stale board should be served as-is"
 
     await _await_background_refresh()
 
     fresh = await get_win_probability(db_session)
-    assert len(fresh.entries) == 2, "background rebuild should have landed"
+    assert len(fresh.uniform.entries) == 2, "background rebuild should have landed"
 
 
 @pytest.mark.asyncio
 async def test_invalidate_cache_blocks_for_fresh_data(db_session, competition):
     await _make_entry(db_session, competition, email="alice@example.com")
     first = await get_win_probability(db_session)
-    assert len(first.entries) == 1
+    assert len(first.uniform.entries) == 1
 
     await _make_entry(db_session, competition, email="bob@example.com")
     win_probability_service.invalidate_win_probability_cache()
 
     fresh = await get_win_probability(db_session)
-    assert len(fresh.entries) == 2, "hard invalidation must rebuild inline"
+    assert len(fresh.uniform.entries) == 2, "hard invalidation must rebuild inline"
     assert win_probability_service._refresh_tasks == {}, "no background task expected"
 
 

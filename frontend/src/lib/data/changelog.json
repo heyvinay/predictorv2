@@ -2592,6 +2592,13 @@
       "type": "feature",
       "summary": "New admin-only Win Probability tab on the Leaderboard shows each entry's odds of winning the pool by simulating every remaining knockout match, plus each team's odds of lifting the trophy.",
       "commit": "pending"
+    },
+    {
+      "version": "2.201.0",
+      "date": "2026-07-07",
+      "type": "feature",
+      "summary": "Win Probability now shows a second odds-weighted column, using live betting odds instead of a flat coin-flip for whichever knockout matches are already priced.",
+      "commit": "pending"
     }
   ]
 }

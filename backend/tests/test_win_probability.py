@@ -527,3 +527,69 @@ class TestMonteCarloFallback:
         )
         assert result.mode == "monte_carlo"
         assert result.scenario_count == 1000
+
+
+class TestOddsWeightedScenarios:
+    """match_probabilities skews scenario weight away from the flat 50/50
+    default — the odds-weighting feature's core mechanism, independent of
+    where the probabilities themselves come from (team_match.py / the
+    odds API)."""
+
+    def _one_match_bracket(self):
+        return {101: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+
+    def test_omitting_match_probabilities_reproduces_uniform_weights(self):
+        matches = self._one_match_bracket()
+        scenarios = list(enumerate_scenarios(matches, {}, [101]))
+        assert [round(w, 6) for _, w in scenarios] == [0.5, 0.5]
+
+    def test_match_probabilities_skew_scenario_weight(self):
+        matches = self._one_match_bracket()
+        scenarios = list(
+            enumerate_scenarios(matches, {}, [101], match_probabilities={101: 0.8})
+        )
+        weight_by_winner = {winners[101]: w for winners, w in scenarios}
+        assert round(weight_by_winner["A"], 6) == 0.8
+        assert round(weight_by_winner["B"], 6) == 0.2
+
+    def test_absent_match_number_defaults_to_half(self):
+        matches = {
+            101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+            102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        }
+        # Only 101 is priced; 102 must still fall back to 0.5.
+        scenarios = list(
+            enumerate_scenarios(matches, {}, [101, 102], match_probabilities={101: 0.9})
+        )
+        total_weight = sum(w for _, w in scenarios)
+        assert round(total_weight, 6) == 1.0
+
+    def test_sample_scenarios_draw_frequency_tracks_match_probabilities(self):
+        matches = self._one_match_bracket()
+        rng = random.Random(42)
+        scenarios = list(
+            sample_scenarios(
+                matches, {}, [101], num_samples=5000, rng=rng, match_probabilities={101: 0.9}
+            )
+        )
+        a_share = sum(1 for winners, _ in scenarios if winners[101] == "A") / len(scenarios)
+        assert 0.85 < a_share < 0.95
+
+    def test_simulate_pool_with_match_probabilities_shifts_p_win(self):
+        matches = self._one_match_bracket()
+        entries = {
+            "backs_favourite": [("A", "winner")],
+            "backs_underdog": [("B", "winner")],
+        }
+        points_by_stage = {"winner": 10}
+        result = simulate_pool(
+            matches,
+            {},
+            [101],
+            entries,
+            points_by_stage,
+            base_points={"backs_favourite": 0, "backs_underdog": 0},
+            match_probabilities={101: 0.9},
+        )
+        assert round(result.entries["backs_favourite"].p_win, 6) == 0.9
+        assert round(result.entries["backs_underdog"].p_win, 6) == 0.1
