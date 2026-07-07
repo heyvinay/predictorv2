@@ -16,6 +16,7 @@ from app.services.win_probability import (
     build_advancement,
     entry_ko_points,
     enumerate_scenarios,
+    resolve_known_state,
     simulate_pool,
 )
 
@@ -231,3 +232,52 @@ def test_simulate_pool_ties_split_win_credit_evenly():
     # entry-3 wins outright whenever B wins (P=0.5).
     assert round(result.entries["entry-3"].p_win, 6) == 0.5
     assert round(sum(e.p_win for e in result.entries.values()), 6) == 1.0
+
+
+def test_resolve_known_state_marks_a_finished_match_as_a_known_winner():
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    # 101 finished (A won); 102 and 104 not yet played.
+    raw_outcomes = {101: "1"}
+
+    known_winners, unresolved = resolve_known_state(matches, raw_outcomes)
+
+    assert known_winners == {101: "A"}
+    assert sorted(unresolved) == [102, 104]
+
+
+def test_resolve_known_state_treats_a_match_as_unresolved_if_its_own_feeders_are_undecided():
+    """A match can be marked FINISHED in the DB while its feeder match
+    hasn't resolved (a transient data-lag edge case) — resolve_known_state
+    must not crash on a stale/inconsistent outcome; it defers that match
+    to `unresolved` rather than guessing."""
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    # 104 (the final) is reported as decided, but neither semi is —
+    # its participants aren't actually known yet.
+    raw_outcomes = {104: "1"}
+
+    known_winners, unresolved = resolve_known_state(matches, raw_outcomes)
+
+    assert known_winners == {}
+    assert sorted(unresolved) == [101, 102, 104]
+
+
+def test_resolve_known_state_fully_resolved_bracket_has_no_unresolved_matches():
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    raw_outcomes = {101: "1", 102: "2", 104: "2"}
+
+    known_winners, unresolved = resolve_known_state(matches, raw_outcomes)
+
+    assert known_winners == {101: "A", 102: "D", 104: "D"}
+    assert unresolved == []
