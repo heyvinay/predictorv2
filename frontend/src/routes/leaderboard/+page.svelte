@@ -49,7 +49,6 @@
 		selectRaceSlice
 	} from '$lib/utils/leaderboardV4';
 	import StandingsTable from '$lib/components/leaderboard/v4/StandingsTable.svelte';
-	import ScoringExplainer from '$lib/components/leaderboard/v4/ScoringExplainer.svelte';
 	import YourEntriesStrip from '$lib/components/leaderboard/v4/YourEntriesStrip.svelte';
 	import EntryDrawer from '$lib/components/leaderboard/v4/EntryDrawer.svelte';
 	import RaceChart from '$lib/components/leaderboard/v4/RaceChart.svelte';
@@ -429,11 +428,6 @@
 						<span class="ml-1"><ProvisionalPill /></span>
 					</p>
 				{/if}
-				{#if rules}
-					<div class="mt-1">
-						<ScoringExplainer {rules} />
-					</div>
-				{/if}
 			</div>
 			<div class="flex gap-1.5 sm:gap-2">
 				{#each VIEWS as v}
@@ -512,6 +506,7 @@
 				{multiOwners}
 				{trajectoriesByEntry}
 				live={liveActive}
+				{rules}
 				onOpen={(row) => (selected = row)}
 			/>
 		{:else if view === 'race'}

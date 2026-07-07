@@ -11,8 +11,10 @@
 	 *  in the # column are global positions and never recomputed. */
 	import { browser } from '$app/environment';
 	import type { LbEntryV4, LbStage } from '$lib/types/leaderboard';
+	import type { ScoringRules } from '$lib/types/results';
 	import type { LbSort, LbSortKey } from '$lib/utils/leaderboardV4';
 	import { DEFAULT_LB_SORT, sortRows } from '$lib/utils/leaderboardV4';
+	import ScoringExplainer from './ScoringExplainer.svelte';
 	import StandingRow from './StandingRow.svelte';
 
 	export let rows: LbEntryV4[];
@@ -28,6 +30,9 @@
 	 *  a knockout match live). Preserves incoming row order under the
 	 *  default sort; any explicit column sort still wins. */
 	export let live = false;
+	/** Feeds the "For the nerds" ⓘ next to the Total header. Icon hidden
+	 *  entirely when null (still loading, or the fetch failed). */
+	export let rules: ScoringRules | null = null;
 	export let onOpen: (row: LbEntryV4) => void;
 
 	// ── Sort state, persisted across visits ──
@@ -172,15 +177,22 @@
 			role="columnheader"
 			title="Rank-over-time, last 14 days — up means climbing the standings">Trend</span
 		>
-		<button
-			type="button"
+		<span
+			class="flex items-center justify-end gap-1"
 			role="columnheader"
 			aria-sort={ariaSortFor('total', sort)}
-			class="{HEAD_CLASS} text-right transition-colors hover:text-primary {sort.key === 'total'
-				? 'text-primary'
-				: ''}"
-			on:click={() => toggleSort('total')}>Total {arrowFor('total')}</button
 		>
+			{#if rules}
+				<ScoringExplainer {rules} iconOnly align="right" />
+			{/if}
+			<button
+				type="button"
+				class="{HEAD_CLASS} transition-colors hover:text-primary {sort.key === 'total'
+					? 'text-primary'
+					: ''}"
+				on:click={() => toggleSort('total')}>Total {arrowFor('total')}</button
+			>
+		</span>
 		<span role="columnheader" aria-label="Open entry details"></span>
 	</div>
 

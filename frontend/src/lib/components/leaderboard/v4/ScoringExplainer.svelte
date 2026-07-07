@@ -1,13 +1,20 @@
 <script lang="ts">
-	/** "For the nerds" ℹ popover on the Standings header — plain-English
-	 *  background on how points and ranking actually work, for users
-	 *  confused by things like two same-total entries ranking #21/#22
-	 *  instead of tying. Same popover pattern as PointsHelpButton.svelte
-	 *  (results/v4); numbers come from ScoringRules so a YAML change
-	 *  updates this copy too. */
+	/** "For the nerds" ℹ popover — plain-English background on how points
+	 *  and ranking actually work, for users confused by things like two
+	 *  same-total entries ranking #21/#22 instead of tying. Same popover
+	 *  pattern as PointsHelpButton.svelte (results/v4); numbers come from
+	 *  ScoringRules so a YAML change updates this copy too.
+	 *
+	 *  `iconOnly` drops the "For the nerds" label for tight inline use
+	 *  (next to the Total column header) — just the ⓘ badge, same click
+	 *  target and popover. `align` controls which edge the popover hangs
+	 *  from; right-aligned callers (like Total, near the row's right
+	 *  edge) should pass "right" so the panel doesn't overflow. */
 	import type { ScoringRules } from '$lib/types/results';
 
 	export let rules: ScoringRules;
+	export let iconOnly = false;
+	export let align: 'left' | 'right' = 'left';
 
 	let open = false;
 	let containerEl: HTMLSpanElement;
@@ -30,18 +37,22 @@
 		type="button"
 		class="inline-flex items-center gap-1 text-[11px] font-semibold text-base-content/55 transition-colors hover:text-primary"
 		aria-expanded={open}
+		aria-label={iconOnly ? 'How points & ranking work' : undefined}
 		on:click|stopPropagation={() => (open = !open)}
 	>
 		<span
 			class="grid h-3.5 w-3.5 place-items-center rounded-full bg-base-300/60 text-[10px] leading-none"
 			aria-hidden="true">ⓘ</span
 		>
-		For the nerds
+		{#if !iconOnly}For the nerds{/if}
 	</button>
 
 	{#if open}
 		<div
-			class="absolute left-0 top-[calc(100%+6px)] z-30 w-[300px] rounded-box border border-primary/30 bg-base-200 p-3 text-left text-[12px] font-normal normal-case leading-relaxed text-base-content/85 shadow-card"
+			class="absolute top-[calc(100%+6px)] z-30 w-[300px] rounded-box border border-primary/30 bg-base-200 p-3 text-left text-[12px] font-normal normal-case leading-relaxed text-base-content/85 shadow-card {align ===
+			'right'
+				? 'right-0'
+				: 'left-0'}"
 			role="dialog"
 		>
 			<div class="mb-1.5 font-display text-[13px] font-bold tracking-tight">

@@ -2648,6 +2648,13 @@
       "type": "improvement",
       "summary": "Removed the redundant entries/matches-played summary line from the Standings header.",
       "commit": "pending"
+    },
+    {
+      "version": "2.206.2",
+      "date": "2026-07-07",
+      "type": "improvement",
+      "summary": "The Standings 'For the nerds' explainer moved into a small ⓘ next to the Total column header, right where it's relevant.",
+      "commit": "pending"
     }
   ]
 }
