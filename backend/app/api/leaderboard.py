@@ -815,3 +815,102 @@ async def group_stage_winner_endpoint(
         audit_verified=podium.audit_verified,
         generated_at=podium.generated_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Knockout win-probability simulator
+# ---------------------------------------------------------------------------
+# Gate mirrors the all-entries CSV export pattern (predictions.py):
+# admin always; non-admin only once Competition.win_probability_enabled is
+# flipped from /admin. Read-time gate — no cache invalidation on toggle.
+
+
+class EntryWinProbability(BaseModel):
+    entry_id: str
+    p_win: float
+    p_top3: float
+    expected_rank: float
+
+
+class TeamStageOdds(BaseModel):
+    team: str
+    stage_odds: dict[str, float]
+
+
+class WinProbabilityMeta(BaseModel):
+    mode: str
+    unresolved_matches: int
+    scenario_count: int
+    computed_at: datetime
+
+
+class WinProbabilityResponse(BaseModel):
+    entries: list[EntryWinProbability]
+    teams: list[TeamStageOdds]
+    meta: WinProbabilityMeta
+
+
+@router.get("/win-probability", response_model=WinProbabilityResponse)
+async def win_probability_endpoint(
+    session: DbSession,
+    user: CurrentUser,
+) -> WinProbabilityResponse:
+    """P(each entry wins the pool) + P(top-3) + expected rank, computed by
+    simulating every remaining knockout match. Team trophy-odds ride along
+    as a byproduct of the same enumeration. See
+    app.services.win_probability for the engine.
+    """
+    from app.services.locking import get_active_competition
+    from app.services.win_probability import get_win_probability
+
+    competition = await get_active_competition(session)
+    if not (user.is_admin or (competition and competition.win_probability_enabled)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Win probability not yet released",
+        )
+
+    try:
+        result = await get_win_probability(session)
+    except Exception:
+        # Fail-open — same philosophy as live_projection.apply_live_projection:
+        # a simulator bug degrades to "odds unavailable," never a 500.
+        logger.exception("win-probability computation failed")
+        return WinProbabilityResponse(
+            entries=[],
+            teams=[],
+            meta=WinProbabilityMeta(
+                mode="unavailable",
+                unresolved_matches=0,
+                scenario_count=0,
+                computed_at=utc_now(),
+            ),
+        )
+
+    unresolved_matches = 0
+    n = result.scenario_count
+    while n > 1:
+        n //= 2
+        unresolved_matches += 1
+
+    return WinProbabilityResponse(
+        entries=[
+            EntryWinProbability(
+                entry_id=entry_id,
+                p_win=p.p_win,
+                p_top3=p.p_top3,
+                expected_rank=p.expected_rank,
+            )
+            for entry_id, p in result.entries.items()
+        ],
+        teams=[
+            TeamStageOdds(team=team, stage_odds=odds)
+            for team, odds in result.team_stage_odds.items()
+        ],
+        meta=WinProbabilityMeta(
+            mode="exact",
+            unresolved_matches=unresolved_matches,
+            scenario_count=result.scenario_count,
+            computed_at=result.computed_at,
+        ),
+    )

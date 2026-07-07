@@ -281,3 +281,52 @@ def test_resolve_known_state_fully_resolved_bracket_has_no_unresolved_matches():
 
     assert known_winners == {101: "A", 102: "D", 104: "D"}
     assert unresolved == []
+
+
+def test_simulate_pool_team_stage_odds_match_closed_form_2_pow_neg_rounds():
+    """The plan promises team trophy-odds fall out of the same enumeration
+    used for entry ranking, and that they must equal 2**-rounds — this
+    pins that invariant at the simulate_pool level (not just the raw
+    enumerate_scenarios level already covered above), since that's what
+    the API endpoint will actually serve to the frontend."""
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    unresolved = [101, 102, 104]
+
+    result = simulate_pool(
+        matches,
+        known_winners={},
+        unresolved=unresolved,
+        entries={"entry-a": [("A", "winner")]},
+        points_by_stage=POINTS_BY_STAGE,
+        base_points={"entry-a": 0},
+    )
+
+    for team in ("A", "B", "C", "D"):
+        assert round(result.team_stage_odds[team]["semi_final"], 6) == 1.0
+        assert round(result.team_stage_odds[team]["winner"], 6) == 0.25
+
+
+def test_simulate_pool_result_carries_a_computed_at_timestamp():
+    """The API's `meta.computed_at` must reflect when the simulation
+    actually ran, not when a cached result happens to be served — so
+    PoolSimulationResult stamps its own construction time."""
+    from datetime import datetime, timezone
+
+    matches = {104: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+    before = datetime.now(timezone.utc)
+
+    result = simulate_pool(
+        matches,
+        known_winners={},
+        unresolved=[104],
+        entries={"entry-a": [("A", "winner")]},
+        points_by_stage=POINTS_BY_STAGE,
+        base_points={"entry-a": 0},
+    )
+
+    after = datetime.now(timezone.utc)
+    assert before <= result.computed_at <= after

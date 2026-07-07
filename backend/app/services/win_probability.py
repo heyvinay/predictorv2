@@ -18,7 +18,7 @@ import asyncio
 import itertools
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Iterator
 
@@ -249,6 +249,14 @@ class EntryProbability:
 class PoolSimulationResult:
     entries: dict[str, EntryProbability]
     scenario_count: int
+    # team -> stage -> P(team reaches AT LEAST that stage), cumulative —
+    # e.g. team_stage_odds["Brazil"]["final"] includes every scenario
+    # where Brazil went on to win it all, not just the ones where the
+    # final was its exact ceiling. Trophy odds are team_stage_odds[t]["winner"].
+    team_stage_odds: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Stamped at construction — reflects when the simulation actually ran,
+    # not when a cached result happens to be served to a given request.
+    computed_at: datetime = field(default_factory=utc_now)
 
 
 def simulate_pool(
@@ -272,10 +280,17 @@ def simulate_pool(
     entry_ids = list(entries)
     accum = {eid: EntryProbability() for eid in entry_ids}
     scenario_count = 0
+    # team -> exact highest stage reached -> accumulated weight. Converted
+    # to cumulative "reached at least" odds once the loop finishes.
+    exact_stage_weight: dict[str, dict[str, float]] = {}
 
     for winners, weight in enumerate_scenarios(matches, known_winners, unresolved):
         advancement = build_advancement(matches, winners)
         scenario_count += 1
+
+        for team, stage in advancement.items():
+            team_weights = exact_stage_weight.setdefault(team, {})
+            team_weights[stage] = team_weights.get(stage, 0.0) + weight
 
         scores = {
             eid: base_points.get(eid, 0)
@@ -299,7 +314,25 @@ def simulate_pool(
         for eid in top_entries:
             accum[eid].p_win += win_share
 
-    return PoolSimulationResult(entries=accum, scenario_count=scenario_count)
+    team_stage_odds = {
+        team: _cumulative_from_exact(exact) for team, exact in exact_stage_weight.items()
+    }
+
+    return PoolSimulationResult(
+        entries=accum, scenario_count=scenario_count, team_stage_odds=team_stage_odds
+    )
+
+
+def _cumulative_from_exact(exact: dict[str, float]) -> dict[str, float]:
+    """Convert P(highest stage reached == X) into P(reached AT LEAST X) —
+    a reverse cumulative sum over STAGE_ORDER, since reaching a later
+    stage implies having reached every earlier one."""
+    cumulative: dict[str, float] = {}
+    running = 0.0
+    for stage in reversed(STAGE_ORDER):
+        running += exact.get(stage, 0.0)
+        cumulative[stage] = running
+    return cumulative
 
 
 async def load_bracket_state(
