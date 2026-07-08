@@ -310,6 +310,10 @@
 				<strong class="text-primary">What-if mode.</strong> Pick winners of the unplayed
 				matches — they'll flow through to the next round. Hit <strong>See standings</strong> to
 				re-rank the pool under your scenario. Nothing you do here changes your entry.
+				<span class="mt-1 block text-base-content/60"
+					>This is a rough estimate for fun, not an official projection — it can be wrong.
+					Don't rely on it.</span
+				>
 			</p>
 		</div>
 	{:else}
@@ -379,16 +383,11 @@
 					<h3 class="font-display text-base tracking-wide mb-1">
 						PROJECTED <span class="text-primary">STANDINGS</span>
 					</h3>
-					{#if !scenario.champion}
-						<p class="text-xs text-base-content/55 mb-3">
-							Pick a champion in the Final to include bonus questions in a future update — for now this
-							preview covers knockout advancement points only.
-						</p>
-					{:else}
-						<p class="text-xs text-base-content/55 mb-3">
-							Knockout advancement points only — group-stage points and bonus questions are unchanged.
-						</p>
-					{/if}
+					<p class="text-xs text-base-content/55 mb-3">
+						Includes group-stage points, bonus questions, and knockout advancement under this
+						scenario. It's a rough estimate for fun, not an official projection — it can be
+						wrong, so don't rely on it.
+					</p>
 
 					<div
 						class="overflow-hidden rounded-xl border border-base-300/60 bg-base-200"
