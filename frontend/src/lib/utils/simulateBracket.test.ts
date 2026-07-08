@@ -422,12 +422,54 @@ describe('resolveScenario — hypothetical propagation', () => {
 describe('fillFromMyPicks', () => {
 	const fixtures = buildPartialBracketFixtures();
 
-	it('seeds a match when the pick matches a currently-resolved real team', () => {
+	// A match at round X is WON by whichever team the entry picked to
+	// REACH round X+1 — winning an R32 match IS reaching R16, winning an
+	// R16 match IS reaching QF, etc. So resolving an R32 match's winner
+	// reads the `round_of_16` field, not `round_of_32` (which is really
+	// "predicted group-stage qualifiers" — for a real, already-decided
+	// R32 fixture, BOTH participants are typically already in that set,
+	// so it can never distinguish a winner). Only the Final is different:
+	// its winner is the singular `winner` field, not a round-reach list.
+
+	it('seeds an R32 match from the round_of_16 picks (the round those teams are picked to REACH)', () => {
 		const myBracket: BracketPrediction = {
 			group_winners: {},
 			round_of_32: [],
-			round_of_16: ['Brazil'], // picked Brazil to reach QF via M89 (home already resolved)
+			round_of_16: ['France'], // picked France to win M75 and reach R16
 			quarter_finals: [],
+			semi_finals: [],
+			final: [],
+			winner: ''
+		};
+		const hypo = fillFromMyPicks(fixtures, myBracket);
+		expect(hypo.get(75)).toBe('France');
+	});
+
+	it('regression: resolves the real match-winner pick even when BOTH participants are also in round_of_32 (predicted group qualifiers)', () => {
+		// This is the exact "looks random" bug: round_of_32 typically
+		// contains BOTH real sides of an already-decided R32 fixture (the
+		// user correctly predicted both teams' groups), so using it to
+		// pick a winner always fell through to whichever side happened to
+		// be `home` in the fixture data — never the user's real pick.
+		const myBracket: BracketPrediction = {
+			group_winners: {},
+			round_of_32: ['France', 'Japan'], // both real M75 participants — must NOT decide the winner
+			round_of_16: ['Japan'], // the entry's actual prediction: Japan wins M75
+			quarter_finals: [],
+			semi_finals: [],
+			final: [],
+			winner: ''
+		};
+		const hypo = fillFromMyPicks(fixtures, myBracket);
+		expect(hypo.get(75)).toBe('Japan');
+	});
+
+	it('seeds an R16 match from the quarter_finals picks', () => {
+		const myBracket: BracketPrediction = {
+			group_winners: {},
+			round_of_32: [],
+			round_of_16: [],
+			quarter_finals: ['Brazil'], // picked Brazil to win M89 (R16, home already resolved) and reach QF
 			semi_finals: [],
 			final: [],
 			winner: ''
@@ -440,8 +482,8 @@ describe('fillFromMyPicks', () => {
 		const myBracket: BracketPrediction = {
 			group_winners: {},
 			round_of_32: [],
-			round_of_16: ['Senegal'], // Senegal LOST M73 to Mexico — eliminated, not seeded into M89/M90
-			quarter_finals: [],
+			round_of_16: [],
+			quarter_finals: ['Senegal'], // Senegal LOST M73 to Mexico — eliminated, not seeded into M89/M90
 			semi_finals: [],
 			final: [],
 			winner: ''
@@ -454,15 +496,37 @@ describe('fillFromMyPicks', () => {
 	it('does not seed matches that are already played (M73/M74)', () => {
 		const myBracket: BracketPrediction = {
 			group_winners: {},
-			round_of_32: ['Senegal'], // Senegal lost — irrelevant, M73 already has a real result
+			round_of_32: [],
+			round_of_16: ['Senegal'], // Senegal lost — irrelevant, M73 already has a real result
 			quarter_finals: [],
-			round_of_16: [],
 			semi_finals: [],
 			final: [],
 			winner: ''
 		};
 		const hypo = fillFromMyPicks(fixtures, myBracket);
 		expect(hypo.has(73)).toBe(false);
+	});
+
+	it('propagates a full path to the champion, using the singular `winner` field for the Final', () => {
+		// Brazil: real M74 win -> R16 M89 -> QF M97 -> SF M101 -> Final
+		// M104 (same chain as the "full scenario" parity test above). The
+		// other side of each later match is left unresolved on purpose —
+		// fillFromMyPicks only needs ONE side to seed a hypothetical
+		// winner, same as a bye.
+		const myBracket: BracketPrediction = {
+			group_winners: {},
+			round_of_32: [],
+			round_of_16: [],
+			quarter_finals: ['Brazil'], // wins M89 (R16), reaches QF
+			semi_finals: ['Brazil'], // wins M97 (QF), reaches SF
+			final: ['Brazil'], // wins M101 (SF), reaches Final
+			winner: 'Brazil' // wins M104 (Final) — champion
+		};
+		const hypo = fillFromMyPicks(fixtures, myBracket);
+		expect(hypo.get(89)).toBe('Brazil');
+		expect(hypo.get(97)).toBe('Brazil');
+		expect(hypo.get(101)).toBe('Brazil');
+		expect(hypo.get(104)).toBe('Brazil');
 	});
 });
 

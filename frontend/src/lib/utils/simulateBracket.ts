@@ -317,26 +317,38 @@ export function projectStandings(
  * `resolveScenario` reports that match (and everything downstream of it)
  * as unresolved rather than silently guessing.
  *
- * Resolved round-by-round (R32 → R16 → QF → SF → F), re-resolving the
+ * ★ A round's own pick field is who's predicted to REACH that round, not
+ * who wins a match played AT that round — winning an R32 match IS
+ * reaching R16. So a round's MATCHES are resolved against the NEXT
+ * round's pick field (`round_of_32` matches read `round_of_16` picks,
+ * etc.); the Final is the exception, resolved via the singular `winner`
+ * field rather than a round-reach list. Using a round's own field to
+ * resolve its own matches (the bug this fixed) is a no-op for any
+ * already-decided real fixture: both sides are typically already in that
+ * round's "reached" set (e.g. both R32 participants really did qualify),
+ * so the pick can never distinguish a winner and silently falls back to
+ * whichever side happens to be `home` in the fixture data.
+ *
+ * Resolved round-by-round (R32 → R16 → QF → SF → Final), re-resolving the
  * scenario after each round's picks are folded in. This lets an earlier
- * hypothetical winner (e.g. the user's R32 pick) seed a later round's
- * participant slot (e.g. that team showing up as one of the R16 fixture's
- * two teams) so the user's SF/Final picks can also seed correctly even
- * though those matches' upstream fixtures haven't been played yet.
+ * hypothetical winner (e.g. the user's round_of_16 pick resolving an R32
+ * match) seed a later round's participant slot (that team showing up as
+ * one of the R16 fixture's two teams) so the user's later picks can also
+ * seed correctly even though those matches' upstream fixtures haven't
+ * been played yet.
  */
 export function fillFromMyPicks(fixtures: Fixture[], myBracket: BracketPrediction): HypoWinners {
 	const hypoWinners: HypoWinners = new Map();
 
-	const roundConfigs: Array<{ roundId: RoundId; matches: KnockoutMatch[] }> = [
-		{ roundId: 'r32', matches: ROUND_OF_32 },
-		{ roundId: 'r16', matches: ROUND_OF_16 },
-		{ roundId: 'qf', matches: QUARTER_FINALS },
-		{ roundId: 'sf', matches: SEMI_FINALS },
-		{ roundId: 'f', matches: [FINAL] }
+	const roundConfigs: Array<{ pickRoundId: RoundId; matches: KnockoutMatch[] }> = [
+		{ pickRoundId: 'r16', matches: ROUND_OF_32 },
+		{ pickRoundId: 'qf', matches: ROUND_OF_16 },
+		{ pickRoundId: 'sf', matches: QUARTER_FINALS },
+		{ pickRoundId: 'f', matches: SEMI_FINALS }
 	];
 
-	for (const { roundId, matches } of roundConfigs) {
-		const picks = bracketPicksForRound(myBracket, roundId);
+	for (const { pickRoundId, matches } of roundConfigs) {
+		const picks = bracketPicksForRound(myBracket, pickRoundId);
 		if (picks.size === 0) continue;
 		// Re-resolve with everything seeded so far, so this round's matches
 		// see any upstream hypothetical winners already folded in.
@@ -348,6 +360,21 @@ export function fillFromMyPicks(fixtures: Fixture[], myBracket: BracketPredictio
 			const candidate = [home, away].find((team) => team && picks.has(team));
 			if (candidate) hypoWinners.set(cfg.matchNumber, candidate);
 			// else: pick absent/eliminated from this slot — leave open.
+		}
+	}
+
+	// The Final is a singleton keyed by the `winner` pick (not a
+	// round-reach list) — same eligibility rule as every other round:
+	// only seed it when the pick is actually one of the Final's two
+	// currently-resolved real participants.
+	if (myBracket.winner) {
+		const scenario = resolveScenario(fixtures, hypoWinners);
+		const resolved = scenario.matches.get(FINAL.matchNumber);
+		if (resolved && !resolved.winner) {
+			const { home, away } = resolved;
+			if (myBracket.winner === home || myBracket.winner === away) {
+				hypoWinners.set(FINAL.matchNumber, myBracket.winner);
+			}
 		}
 	}
 
