@@ -1,25 +1,21 @@
 <!--
-	SimulatorPanel — orchestrator for the what-if bracket simulator
-	(v2.194.x core stage). Mounted in place of ResultsBracket under the
-	Results page's Bracket tab.
+	SimulatorPanel — orchestrator for the what-if bracket simulator.
+	Mounted in place of ResultsBracket under the Results page's Bracket tab.
 
 	Flow:
 	  1. On mount, fetch simulator status. If the feature is off (and the
 	     viewer isn't an admin), render the existing read-only
 	     ResultsBracket unchanged — the simulator is fully invisible.
-	  2. Otherwise render the read-only wallchart PLUS a "Simulate" toggle
-	     + a run-counter chip.
-	  3. Turning Simulate ON while locked (non-admin, not yet unlocked)
-	     opens the SimulatorGameShow trivia gate. A correct answer flips
-	     `unlocked` and the panel switches into the interactive bracket.
-	     Admins and already-unlocked users skip the gate entirely.
-	  4. In interactive mode the user can click open matches to set a
+	  2. Otherwise render the read-only wallchart PLUS a "Simulate" toggle.
+	     Turning it on switches straight into the interactive bracket — no
+	     per-user unlock gate, no daily run cap.
+	  3. In interactive mode the user can click open matches to set a
 	     hypothetical winner (free, no run spent — `resolveScenario` reruns
 	     locally on every pick), use "Fill with my picks" to seed from
 	     their own bracket entry, or "Reset to live" to clear overrides.
-	  5. "See standings" commits a run (`recordSimulatorRun`) and renders
-	     the projected standings table underneath, pinning the viewer's
-	     own row.
+	  4. "See standings" commits a run (`recordSimulatorRun`, for auditing
+	     only) and renders the projected standings table underneath,
+	     pinning the viewer's own row.
 
 	Bonus-question scoring, the ceiling readout, and pivotal-match
 	highlighting are explicitly OUT of scope for this stage (see task
@@ -51,7 +47,6 @@
 	import { markSimulatorSeen, simulatorSeen } from '$stores/uiPreferences';
 	import ResultsBracket from '$lib/components/results/v4/ResultsBracket.svelte';
 	import SimulatorBracket from '$lib/components/results/v4/SimulatorBracket.svelte';
-	import SimulatorGameShow from '$lib/components/results/v4/SimulatorGameShow.svelte';
 
 	export let fixtures: Fixture[];
 	export let bracketPrediction: BracketPrediction | null;
@@ -63,7 +58,6 @@
 	// ── Status / gating ────────────────────────────────────────────────────
 	let status: SimulatorStatus | null = null;
 	let statusLoading = true;
-	let gameShowOpen = false;
 	let simulateOn = false;
 
 	// One-time tooltip on the Simulate toggle. Shown iff the feature is on
@@ -99,7 +93,6 @@
 	}
 
 	$: featureVisible = !!status && (status.feature_enabled || status.is_admin);
-	$: isUnlocked = !!status && (status.is_admin || status.unlocked);
 
 	// ── Bracket picks (lazy — only fetched once Simulate actually turns on) ──
 	let picksEntries: SimulatorEntryPicks[] = [];
@@ -128,10 +121,6 @@
 			simulateOn = false;
 			return;
 		}
-		if (!isUnlocked) {
-			gameShowOpen = true;
-			return;
-		}
 		activateSimulator();
 	}
 
@@ -139,16 +128,6 @@
 		simulateOn = true;
 		track('simulator_toggled_on');
 		void ensurePicksLoaded();
-	}
-
-	function handleUnlocked() {
-		gameShowOpen = false;
-		if (status) status = { ...status, unlocked: true };
-		activateSimulator();
-	}
-
-	function handleGameShowClose() {
-		gameShowOpen = false;
 	}
 
 	// ── Hypothetical winners + live scenario resolution ─────────────────────
@@ -204,13 +183,11 @@
 	let standings: ProjectedRow[] | null = null;
 	let commitLoading = false;
 	let commitError: string | null = null;
-	let commitErrorKind: 'locked' | 'capped' | 'other' | null = null;
 
 	async function handleSeeStandings() {
 		if (!rules) return;
 		commitLoading = true;
 		commitError = null;
-		commitErrorKind = null;
 		try {
 			await ensurePicksLoaded();
 			const freshStatus = await recordSimulatorRun();
@@ -223,13 +200,8 @@
 			});
 		} catch (e) {
 			if (e instanceof ApiResponseError && e.status === 403) {
-				commitErrorKind = 'locked';
-				commitError = 'Answer the trivia challenge to unlock the bracket simulator.';
-			} else if (e instanceof ApiResponseError && e.status === 429) {
-				commitErrorKind = 'capped';
-				commitError = "You've used all your runs today — resets after midnight UTC.";
+				commitError = "The bracket simulator isn't available right now.";
 			} else {
-				commitErrorKind = 'other';
 				commitError = e instanceof Error ? e.message : 'Could not run that scenario.';
 			}
 		} finally {
@@ -262,12 +234,6 @@
 		if (deltaPos < 0) return 'text-error';
 		return 'text-base-content/50';
 	}
-
-	$: runsLabel = !status
-		? ''
-		: status.is_admin || status.runs_remaining === null
-			? 'Unlimited'
-			: `${status.runs_remaining} / ${status.cap} runs left today`;
 </script>
 
 {#if statusLoading}
@@ -283,24 +249,6 @@
 			KNOCKOUT <span class="text-primary">BRACKET</span>
 		</h2>
 		<div class="flex items-center gap-3">
-			{#if simulateOn}
-				<span class="rounded-badge bg-primary/15 px-2.5 py-1 text-[11px] font-mono uppercase tracking-[0.12em] text-primary">
-					{runsLabel}
-				</span>
-			{/if}
-			{#if status?.is_admin}
-				<!-- Admins are auto-unlocked and skip the gate, so they never
-				     see the unlock quiz in normal use. This lets them open it
-				     on demand to QA the game show. -->
-				<button
-					type="button"
-					class="btn btn-ghost btn-sm"
-					on:click={() => (gameShowOpen = true)}
-					title="Preview the unlock quiz (admin only)"
-				>
-					Preview quiz
-				</button>
-			{/if}
 			<div class="relative">
 				<button
 					type="button"
@@ -412,10 +360,7 @@
 
 			{#if commitError}
 				<div
-					class="mt-4 rounded-xl border px-4 py-3 text-sm
-						{commitErrorKind === 'capped'
-						? 'border-warning/40 bg-warning/10 text-warning-text'
-						: 'border-error/40 bg-error/10 text-error'}"
+					class="mt-4 rounded-xl border border-error/40 bg-error/10 px-4 py-3 text-sm text-error"
 					role="status"
 				>
 					{commitError}
@@ -508,8 +453,6 @@
 		</div>
 	{/if}
 {/if}
-
-<SimulatorGameShow bind:open={gameShowOpen} on:unlocked={handleUnlocked} on:close={handleGameShowClose} />
 
 <style>
 	/* Column-header cell — mirrors StandingsTable's HEAD_CLASS token. */

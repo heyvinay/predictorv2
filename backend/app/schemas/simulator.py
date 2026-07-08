@@ -61,69 +61,17 @@ class SimulatorPicksResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Gating (v2.194.x) — one-time trivia unlock, daily run cap, admin master
-# switch. See app/services/simulator.py for the enforcement logic.
+# Gating — admin master switch only. The one-time trivia unlock and daily
+# run cap were removed; see app/services/simulator.py.
 # ---------------------------------------------------------------------------
 
 
 class SimulatorStatus(BaseModel):
     """Current gating state for the requesting user.
 
-    `runs_remaining` is `None` for admins (unlimited — the cap doesn't
-    apply to them) and `max(0, cap - runs_used)` for everyone else.
+    `feature_enabled` reflects the active competition's admin-controlled
+    master switch. Admins always get full access regardless of its value.
     """
 
     feature_enabled: bool
-    unlocked: bool
     is_admin: bool
-    runs_used: int
-    runs_remaining: int | None
-    cap: int
-    reset_at: datetime | None
-
-
-class ChallengeQuestion(BaseModel):
-    """One trivia question, answer key withheld.
-
-    ★ Never add `correct_index` (or any other answer-bearing field) to
-    this schema — it is the response body for `GET /simulator/challenge`
-    and must never leak the answer to the client.
-    """
-
-    question_id: str
-    question: str
-    options: list[str]
-
-
-class ChallengeAttempt(BaseModel):
-    """A user's answer to a trivia challenge."""
-
-    question_id: str
-    answer_index: int
-    elapsed_ms: int
-
-
-class UnlockResult(BaseModel):
-    """Outcome of a trivia attempt + the resulting gating status."""
-
-    unlocked: bool
-    status: SimulatorStatus
-
-
-class FiftyFiftyRequest(BaseModel):
-    """Client claims the 50:50 lifeline for a specific challenge question."""
-
-    question_id: str
-
-
-class FiftyFiftyResponse(BaseModel):
-    """Two option indexes that are NOT the correct answer.
-
-    Classic 50:50 mechanic — the client eliminates these two so the
-    remaining pair still includes the correct answer. Returning up to two
-    wrong indexes never leaks `correct_index` directly (there are always
-    three wrong options, so revealing two still leaves genuine ambiguity
-    if the user hasn't used the lifeline).
-    """
-
-    wrong_indexes: list[int]

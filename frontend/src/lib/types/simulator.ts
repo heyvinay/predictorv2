@@ -114,44 +114,12 @@ export interface PivotalMatch {
 	swing: number;
 }
 
-// ── Game-show unlock gate (v2.194.x) ────────────────────────────────────────
+// ── Gating — admin master switch only ───────────────────────────────────────
 
-/** GET/POST /api/simulator/status|challenge envelope shape. `runs_remaining`
- *  is `null` for admins (unlimited); non-admins get a finite countdown
- *  against `cap`. `reset_at` is an ISO timestamp for when `runs_used` next
- *  resets, or `null` if there's no reset window (or the user is admin). */
+/** GET /api/simulator/status response. `feature_enabled` reflects the
+ *  active competition's admin-controlled master switch; admins always
+ *  have full access regardless of its value. */
 export interface SimulatorStatus {
 	feature_enabled: boolean;
-	unlocked: boolean;
 	is_admin: boolean;
-	runs_used: number;
-	runs_remaining: number | null;
-	cap: number;
-	reset_at: string | null;
-}
-
-/** GET /api/simulator/challenge response. Deliberately carries no answer
- *  field — the server is the only party that knows which option is
- *  correct, both at question time and at grading time. */
-export interface ChallengeQuestion {
-	question_id: string;
-	question: string;
-	options: string[];
-}
-
-/** POST /api/simulator/challenge request body. `elapsed_ms` is measured
- *  client-side from question render to option click (or timeout) via
- *  `performance.now()`; the server independently rejects anything over
- *  15000ms regardless of what the client reports. */
-export interface ChallengeAttempt {
-	question_id: string;
-	answer_index: number;
-	elapsed_ms: number;
-}
-
-/** POST /api/simulator/challenge response — the graded outcome plus a
- *  fresh status snapshot (unlocked flips true on a correct answer). */
-export interface UnlockResult {
-	unlocked: boolean;
-	status: SimulatorStatus;
 }

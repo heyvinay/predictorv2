@@ -4,10 +4,10 @@
 knockout picks + frozen group points + current total/position in one
 response, powering a client-side leaderboard re-rank.
 
-Gating (v2.194.x): a one-time trivia unlock (permanent per user), a
-daily cap of 3 committed runs, and an admin master switch. Admins
-bypass the unlock + cap entirely and retain full access even when the
-master switch is off; admin usage is still counted + audited.
+Gating: an admin master switch per competition
+(`Competition.simulator_enabled`). Admins always bypass it and retain
+full access even when it's off. There is no per-user unlock or daily
+run cap.
 
 HTTP-level tests via ASGITransport, mirroring test_leaderboard_admin_gate.py.
 """
@@ -15,7 +15,7 @@ HTTP-level tests via ASGITransport, mirroring test_leaderboard_admin_gate.py.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -33,12 +33,6 @@ from app.models.entry import EntryStatus, PredictionEntry, PredictionEntryPhase
 from app.models.prediction import PredictionPhase, TeamPrediction
 from app.models.user import AuthProvider, User
 from app.services import leaderboard as leaderboard_service
-from app.services.simulator import (
-    CHALLENGE_TIME_LIMIT_MS,
-    SIMULATOR_DAILY_CAP,
-    _TRIVIA_QUESTIONS,
-    get_challenge_question,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -88,10 +82,6 @@ async def viewer(db_session: AsyncSession) -> User:
         name="Viewer",
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
-        # Gating (v2.194.x): pre-unlocked so the pre-existing bracket-picks
-        # tests (which predate gating) keep exercising the endpoint.
-        # Dedicated gating tests below build their own locked users.
-        simulator_unlocked=True,
     )
     db_session.add(u)
     await db_session.commit()
@@ -107,21 +97,6 @@ async def admin_user(db_session: AsyncSession) -> User:
         password_hash="x",
         auth_provider=AuthProvider.EMAIL,
         is_admin=True,
-    )
-    db_session.add(u)
-    await db_session.commit()
-    await db_session.refresh(u)
-    return u
-
-
-@pytest_asyncio.fixture
-async def locked_user(db_session: AsyncSession) -> User:
-    """A plain, non-admin user who has NOT completed the trivia unlock."""
-    u = User(
-        email="locked@example.com",
-        name="Locked",
-        password_hash="x",
-        auth_provider=AuthProvider.EMAIL,
     )
     db_session.add(u)
     await db_session.commit()
@@ -367,186 +342,31 @@ async def test_group_points_and_totals_populated(
 
 
 # ---------------------------------------------------------------------------
-# Gating (v2.194.x) — trivia unlock, daily cap, admin master switch
+# Gating — admin master switch only
 # ---------------------------------------------------------------------------
 
 
-def _correct_attempt_payload(user: User) -> dict:
-    """Build a correct-answer ChallengeAttempt body for whatever question
-    `get_challenge_question` deterministically serves this user right now."""
-    q = get_challenge_question(user)
-    correct = next(tq for tq in _TRIVIA_QUESTIONS if tq["id"] == q.question_id)
-    return {
-        "question_id": q.question_id,
-        "answer_index": correct["correct_index"],
-        "elapsed_ms": 1000,
-    }
-
-
-async def test_challenge_get_never_includes_answer(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    r = await client.get("/api/simulator/challenge")
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body.keys()) == {"question_id", "question", "options"}
-    assert len(body["options"]) == 4
-
-
-async def test_fifty_fifty_returns_two_wrong_indexes_only(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    """The 50:50 lifeline endpoint returns exactly two option indexes,
-    both provably NOT the correct one — otherwise the classic Millionaire
-    mechanic would be broken. `correct_index` must never appear in the
-    wrong_indexes list, and there must always be two."""
-    _override(db_session, viewer=locked_user)
-    q = get_challenge_question(locked_user)
-    correct = next(tq for tq in _TRIVIA_QUESTIONS if tq["id"] == q.question_id)
-
-    r = await client.post(
-        "/api/simulator/challenge/fifty-fifty",
-        json={"question_id": q.question_id},
-    )
-    assert r.status_code == 200
-    body = r.json()
-    assert set(body.keys()) == {"wrong_indexes"}
-    assert len(body["wrong_indexes"]) == 2
-    assert correct["correct_index"] not in body["wrong_indexes"]
-    # Indexes must be distinct and valid for the 4-option shape.
-    assert len(set(body["wrong_indexes"])) == 2
-    assert all(0 <= idx < len(correct["options"]) for idx in body["wrong_indexes"])
-
-
-async def test_fifty_fifty_404_on_unknown_question(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    r = await client.post(
-        "/api/simulator/challenge/fifty-fifty",
-        json={"question_id": "does-not-exist"},
-    )
-    assert r.status_code == 404
-
-
-async def test_unlock_succeeds_on_correct_answer_within_time(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    payload = _correct_attempt_payload(locked_user)
-    r = await client.post("/api/simulator/challenge", json=payload)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["unlocked"] is True
-    assert body["status"]["unlocked"] is True
-
-    await db_session.refresh(locked_user)
-    assert locked_user.simulator_unlocked is True
-
-
-async def test_unlock_fails_on_wrong_answer(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    q = get_challenge_question(locked_user)
-    correct = next(tq for tq in _TRIVIA_QUESTIONS if tq["id"] == q.question_id)
-    wrong_index = (correct["correct_index"] + 1) % len(correct["options"])
-
-    r = await client.post(
-        "/api/simulator/challenge",
-        json={
-            "question_id": q.question_id,
-            "answer_index": wrong_index,
-            "elapsed_ms": 1000,
-        },
-    )
-    assert r.status_code == 200
-    body = r.json()
-    assert body["unlocked"] is False
-    assert body["status"]["unlocked"] is False
-
-    await db_session.refresh(locked_user)
-    assert locked_user.simulator_unlocked is False
-
-
-async def test_unlock_fails_when_over_time_limit(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    payload = _correct_attempt_payload(locked_user)
-    payload["elapsed_ms"] = CHALLENGE_TIME_LIMIT_MS + 1
-
-    r = await client.post("/api/simulator/challenge", json=payload)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["unlocked"] is False
-
-    await db_session.refresh(locked_user)
-    assert locked_user.simulator_unlocked is False
-
-
-async def test_unlock_allows_unlimited_attempts_no_lockout(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-    q = get_challenge_question(locked_user)
-    correct = next(tq for tq in _TRIVIA_QUESTIONS if tq["id"] == q.question_id)
-    wrong_index = (correct["correct_index"] + 1) % len(correct["options"])
-
-    # Multiple wrong attempts should never lock the user out of trying again.
-    for _ in range(3):
-        r = await client.post(
-            "/api/simulator/challenge",
-            json={
-                "question_id": q.question_id,
-                "answer_index": wrong_index,
-                "elapsed_ms": 1000,
-            },
-        )
-        assert r.status_code == 200
-        assert r.json()["unlocked"] is False
-
-    # A subsequent correct attempt still succeeds.
-    payload = _correct_attempt_payload(locked_user)
-    r = await client.post("/api/simulator/challenge", json=payload)
-    assert r.status_code == 200
-    assert r.json()["unlocked"] is True
-
-
-async def test_daily_reset_when_reset_at_is_yesterday(
+async def test_non_admin_can_use_simulator_freely_when_enabled(
     db_session: AsyncSession, competition: Competition, viewer: User, client: AsyncClient
 ):
-    viewer.simulator_runs_used = SIMULATOR_DAILY_CAP
-    viewer.simulator_runs_reset_at = datetime.now(timezone.utc) - timedelta(days=1)
-    db_session.add(viewer)
-    await db_session.commit()
-
+    """No unlock, no daily cap — a plain non-admin user can hit /run and
+    /bracket-picks repeatedly the moment the competition's master switch
+    is on. Positive-path proof that the gate and run limit are gone."""
     _override(db_session, viewer=viewer)
-    r = await client.get("/api/simulator/status")
-    assert r.status_code == 200
-    body = r.json()
-    assert body["runs_used"] == 0
-    assert body["runs_remaining"] == SIMULATOR_DAILY_CAP
 
-    await db_session.refresh(viewer)
-    assert viewer.simulator_runs_used == 0
-
-
-async def test_cap_blocks_run_beyond_daily_limit_with_429(
-    db_session: AsyncSession, competition: Competition, viewer: User, client: AsyncClient
-):
-    _override(db_session, viewer=viewer)
-    for _ in range(SIMULATOR_DAILY_CAP):
+    for _ in range(5):
         r = await client.post("/api/simulator/run")
         assert r.status_code == 200
 
-    r = await client.post("/api/simulator/run")
-    assert r.status_code == 429
-    assert "Retry-After" in r.headers
+    picks_r = await client.get("/api/simulator/bracket-picks")
+    assert picks_r.status_code == 200
+
+    status_r = await client.get("/api/simulator/status")
+    assert status_r.status_code == 200
+    assert status_r.json() == {"feature_enabled": True, "is_admin": False}
 
 
-async def test_admin_bypasses_cap_and_is_unlocked_when_feature_disabled(
+async def test_admin_bypasses_master_switch_when_feature_disabled(
     db_session: AsyncSession, admin_user: User, client: AsyncClient
 ):
     comp = Competition(
@@ -566,40 +386,22 @@ async def test_admin_bypasses_cap_and_is_unlocked_when_feature_disabled(
 
     status_r = await client.get("/api/simulator/status")
     assert status_r.status_code == 200
-    status_body = status_r.json()
-    assert status_body["unlocked"] is True
-    assert status_body["is_admin"] is True
-    assert status_body["runs_remaining"] is None
+    assert status_r.json() == {"feature_enabled": False, "is_admin": True}
 
-    # Many more than the non-admin cap — none should 429.
-    for _ in range(SIMULATOR_DAILY_CAP + 5):
-        r = await client.post("/api/simulator/run")
-        assert r.status_code == 200
+    r = await client.post("/api/simulator/run")
+    assert r.status_code == 200
 
     # bracket-picks reachable too, despite simulator_enabled=False.
     picks_r = await client.get("/api/simulator/bracket-picks")
     assert picks_r.status_code == 200
 
 
-async def test_non_admin_locked_gets_403_from_bracket_picks_and_run(
-    db_session: AsyncSession, competition: Competition, locked_user: User, client: AsyncClient
-):
-    _override(db_session, viewer=locked_user)
-
-    picks_r = await client.get("/api/simulator/bracket-picks")
-    assert picks_r.status_code == 403
-
-    run_r = await client.post("/api/simulator/run")
-    assert run_r.status_code == 403
-
-
 async def test_non_admin_blocked_from_every_interactive_route_when_feature_disabled(
     db_session: AsyncSession, viewer: User, client: AsyncClient
 ):
-    # viewer is unlocked, but the competition's master switch is off. With
-    # the switch off, a non-admin must be 403'd on EVERY interactive route
-    # — challenge (GET + POST), run, and bracket-picks — so they can't
-    # touch the simulator at all. Only /status stays reachable.
+    # With the master switch off, a non-admin must be 403'd on every
+    # interactive route — run and bracket-picks — so they can't touch the
+    # simulator at all. Only /status stays reachable.
     comp = Competition(
         name="Test World Cup",
         external_id="WC",
@@ -620,21 +422,6 @@ async def test_non_admin_blocked_from_every_interactive_route_when_feature_disab
 
     run_r = await client.post("/api/simulator/run")
     assert run_r.status_code == 403
-
-    challenge_get_r = await client.get("/api/simulator/challenge")
-    assert challenge_get_r.status_code == 403
-
-    challenge_post_r = await client.post(
-        "/api/simulator/challenge",
-        json={"question_id": "wc-1930-winner", "answer_index": 2, "elapsed_ms": 1000},
-    )
-    assert challenge_post_r.status_code == 403
-
-    fifty_fifty_r = await client.post(
-        "/api/simulator/challenge/fifty-fifty",
-        json={"question_id": "wc-1930-winner"},
-    )
-    assert fifty_fifty_r.status_code == 403
 
     # /status MUST stay reachable — it's how the frontend learns the
     # feature is off and hides the simulator UI.
