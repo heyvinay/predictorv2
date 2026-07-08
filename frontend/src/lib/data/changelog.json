@@ -2676,6 +2676,34 @@
       "type": "improvement",
       "summary": "The Standings freshness line (last updated, last result) now sits right-aligned above the table.",
       "commit": "4f07b76"
+    },
+    {
+      "version": "2.207.3",
+      "date": "2026-07-08",
+      "type": "fix",
+      "summary": "Fixed the bracket simulator: your knockout-stage bonus question points are now included in the projected pool standings.",
+      "commit": "ed45adf"
+    },
+    {
+      "version": "2.207.4",
+      "date": "2026-07-08",
+      "type": "fix",
+      "summary": "Fixed 'Fill with my picks' in the bracket simulator — it now correctly uses your own predicted winners instead of resolving matches essentially at random.",
+      "commit": "1c11032"
+    },
+    {
+      "version": "2.208.0",
+      "date": "2026-07-08",
+      "type": "feature",
+      "summary": "The bracket simulator's trivia unlock quiz and daily run limit are gone — everyone can play out what-if scenarios freely once it's turned on.",
+      "commit": "3b19a52"
+    },
+    {
+      "version": "2.208.1",
+      "date": "2026-07-08",
+      "type": "improvement",
+      "summary": "Added a clear disclaimer to the bracket simulator: its projections are a fun estimate, not an official guarantee.",
+      "commit": "0049f6e"
     }
   ]
 }
