@@ -2655,6 +2655,27 @@
       "type": "improvement",
       "summary": "The Standings 'For the nerds' explainer moved into a small ⓘ next to the Total column header, right where it's relevant.",
       "commit": "pending"
+    },
+    {
+      "version": "2.207.0",
+      "date": "2026-07-08",
+      "type": "feature",
+      "summary": "Win Probability tab: expanding an entry now shows exactly what has to happen for it to win the pool — win chance, title-run odds by team, and the upcoming matches that swing it most.",
+      "commit": "db73c8c"
+    },
+    {
+      "version": "2.207.1",
+      "date": "2026-07-08",
+      "type": "improvement",
+      "summary": "Win Probability tab redesign: one always-on Prob% column that uses live betting odds when available (falling back to a coin-toss otherwise), a new Projected Total column, automatic loading, and cleaner entry rows — click the name to open full predictions, click anywhere else for the breakdown.",
+      "commit": "26d2510"
+    },
+    {
+      "version": "2.207.2",
+      "date": "2026-07-08",
+      "type": "improvement",
+      "summary": "The Standings freshness line (last updated, last result) now sits right-aligned above the table.",
+      "commit": "4f07b76"
     }
   ]
 }
