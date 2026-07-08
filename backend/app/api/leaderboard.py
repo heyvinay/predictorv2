@@ -896,22 +896,25 @@ def _build_view(
 ) -> tuple[list[EntryWinProbability], list[TeamStageOdds]]:
     """Project a PoolSimulationResult into API shape.
 
-    `include_conditionals` enriches each entry with its per-entry breakdown
-    (projected points + title worlds + decisive matches) via the engine's
-    pure `build_entry_conditionals`. Only the primary uniform view sets it —
-    the odds-weighted view only feeds the compact Odds% column, so it stays
-    lean and leaves those fields at their defaults.
+    `projected_points` comes straight off the engine's `expected_points` for
+    every entry in every view — the frontend picks a single "effective"
+    view (odds-weighted when priced, else uniform) for its Prob%/Proj
+    columns and the inline entry card, so both views need it populated.
+    `include_conditionals` additionally enriches each entry with its title
+    worlds + decisive matches via the engine's pure
+    `build_entry_conditionals` — requested for whichever view ends up being
+    the effective one (currently both, since the odds-weighted view may be
+    the one the frontend renders the card from).
     """
     from app.services.win_probability import build_entry_conditionals
 
     entries: list[EntryWinProbability] = []
     for entry_id, p in result.entries.items():
-        projected_points = 0.0
+        projected_points = p.expected_points
         title_worlds: list[TitleWorld] = []
         decisive_matches: list[DecisiveMatch] = []
         if include_conditionals:
             b = build_entry_conditionals(result, entry_id)
-            projected_points = b.projected_points
             title_worlds = [
                 TitleWorld(
                     team=w.team,
@@ -990,7 +993,7 @@ async def win_probability_endpoint(
 
     odds_weighted = None
     if comparison.odds_weighted is not None:
-        odds_entries, odds_teams = _build_view(comparison.odds_weighted)
+        odds_entries, odds_teams = _build_view(comparison.odds_weighted, include_conditionals=True)
         odds_weighted = OddsWeightedView(entries=odds_entries, teams=odds_teams)
 
     return WinProbabilityResponse(

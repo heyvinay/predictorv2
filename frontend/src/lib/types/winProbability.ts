@@ -30,10 +30,12 @@ export interface EntryWinProbability {
 	p_win: number;
 	p_top3: number;
 	expected_rank: number;
-	/** Per-entry conditional breakdown — populated on the primary (uniform)
-	 *  view only; the odds-weighted view omits them. Optional so consumers
-	 *  fall back to defaults; `joinWinProbabilityRows` coerces to 0 / [].
-	 *  Powers the inline expanded card in the Win Probability tab. */
+	/** Per-entry conditional breakdown — populated on BOTH views (uniform
+	 *  and odds-weighted), so whichever one the frontend treats as the
+	 *  "effective" view carries a consistent Prob%/Proj/card. Optional so
+	 *  consumers fall back to defaults; `joinWinProbabilityRows` coerces
+	 *  to 0 / []. Powers the inline expanded card in the Win Probability
+	 *  tab. */
 	projected_points?: number;
 	title_worlds?: TitleWorld[];
 	decisive_matches?: DecisiveMatch[];

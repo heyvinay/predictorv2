@@ -134,9 +134,10 @@
 	let cohortSelected: { team_code: string; team_name: string; entry_ids: string[] } | null = null;
 	let stopPoll: (() => void) | null = null;
 	/** Win Probability tab state — lifted up here (not local to the child
-	 *  component) so switching away and back to the tab doesn't destroy
-	 *  the last result. Fetched only on demand (the "Run simulation"
-	 *  button), never automatically on tab open. */
+	 *  component) so switching away and back to the tab reuses the last
+	 *  result instead of refetching. Auto-fetched the first time the tab
+	 *  opens (see the reactive below); `onRun` stays wired to the error
+	 *  state's "Try again" for a manual retry. */
 	let winProbData: WinProbabilityResponse | null = null;
 	let winProbLoading = false;
 	let winProbFailed = false;
@@ -150,6 +151,22 @@
 		} finally {
 			winProbLoading = false;
 		}
+	}
+	// Auto-load the moment the tab is opened, reusing whatever's already
+	// loaded on return visits. Setting winProbLoading synchronously inside
+	// runWinProbability falsifies this guard before the next reactive
+	// re-run, so there's no fetch loop. A failed fetch also stops
+	// re-firing — the error state's "Try again" button is the only way
+	// back in from there.
+	$: if (
+		browser &&
+		lbOpen &&
+		view === 'win_probability' &&
+		!winProbData &&
+		!winProbLoading &&
+		!winProbFailed
+	) {
+		void runWinProbability();
 	}
 	/** True if the most recent background poll failed (the .catch path in
 	 *  the live poll below). Surfaces as an amber dot on the freshness
@@ -395,40 +412,11 @@
 
 {#if $isAuthenticated && lbOpen}
 	<div class="container mx-auto max-w-[1180px] mobile-padding pb-6 pt-3">
-		<!-- ── slim header: info line left, view pills right (the navbar
-		     already titles the page — no big heading). On mobile the
-		     pills shrink and drop their sub-labels so all three fit in
-		     one row alongside the info line. ── -->
-		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-			<div class="text-[12px] text-base-content/70 sm:text-[13px]">
-				{#if board?.last_calculated}
-					<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
-						<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>
-						{#if lastFinished && !(liveActive && liveMatchCue)}
-							<span class="text-base-content/40">·</span>
-							<span>last result: <b class="text-base-content/70">{lastFinished}</b></span>
-						{/if}
-						{#if liveActive && liveMatchCue}
-							<span class="text-base-content/40">·</span>
-							<span class="rounded bg-success px-1.5 py-0.5 text-white"
-								>based on live: <b>{liveMatchCue}</b></span
-							>
-							<span class="ml-1 relative"><LiveProjectionPill /></span>
-						{/if}
-						{#if pollFailed}
-							<span
-								class="ml-1 inline-flex items-center gap-1 text-warning-text"
-								role="status"
-								title="The most recent refresh failed — showing last known standings"
-							>
-								<span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>
-								refresh failed
-							</span>
-						{/if}
-						<span class="ml-1"><ProvisionalPill /></span>
-					</p>
-				{/if}
-			</div>
+		<!-- ── slim header: view pills only (the navbar already titles the
+		     page — no big heading). The freshness/status line used to live
+		     here but now renders below the search/filter strip, on every
+		     tab instead of just Standings. ── -->
+		<div class="mb-3 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
 			<div class="flex gap-1.5 sm:gap-2">
 				{#each VIEWS as v}
 					<button
@@ -471,6 +459,37 @@
 			</div>
 		</div>
 		<YourEntriesStrip {rows} {pool} onPool={setPool} bind:search />
+
+		<!-- ── freshness/status line — relocated here (was in the header
+		     above the view pills) so it shows on every tab, not just
+		     Standings. Same content, same reactives, new position. ── -->
+		{#if board?.last_calculated}
+			<p class="mb-3 mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
+				<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>
+				{#if lastFinished && !(liveActive && liveMatchCue)}
+					<span class="text-base-content/40">·</span>
+					<span>last result: <b class="text-base-content/70">{lastFinished}</b></span>
+				{/if}
+				{#if liveActive && liveMatchCue}
+					<span class="text-base-content/40">·</span>
+					<span class="rounded bg-success px-1.5 py-0.5 text-white"
+						>based on live: <b>{liveMatchCue}</b></span
+					>
+					<span class="ml-1 relative"><LiveProjectionPill /></span>
+				{/if}
+				{#if pollFailed}
+					<span
+						class="ml-1 inline-flex items-center gap-1 text-warning-text"
+						role="status"
+						title="The most recent refresh failed — showing last known standings"
+					>
+						<span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>
+						refresh failed
+					</span>
+				{/if}
+				<span class="ml-1"><ProvisionalPill /></span>
+			</p>
+		{/if}
 
 		{#if loading}
 			<!-- skeleton: same card + row rhythm as the real table -->
@@ -542,9 +561,9 @@
 				data={winProbData}
 				loading={winProbLoading}
 				failed={winProbFailed}
-				{lastFinished}
 				live={liveActive}
 				onRun={runWinProbability}
+				onOpen={(row) => (selected = row)}
 			/>
 		{/if}
 

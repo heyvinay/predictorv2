@@ -199,3 +199,88 @@ async def test_engine_failure_degrades_to_unavailable_not_500(session: AsyncSess
     assert body["entries"] == []
     assert body["teams"] == []
     assert body["meta"]["mode"] == "unavailable"
+
+
+def test_build_view_surfaces_expected_points_regardless_of_conditionals():
+    """`projected_points` must come from the engine's `expected_points`
+    unconditionally — both the uniform view (conditionals on) and the
+    odds-weighted view (conditionals off) need it so the frontend's single
+    Prob%/Proj columns and the inline entry card can read a consistent
+    "effective view" whichever one the API picked. Before this fix,
+    `_build_view(..., include_conditionals=False)` left `projected_points`
+    at its 0.0 default for every entry."""
+    from app.api.leaderboard import _build_view
+    from app.services.win_probability import EntryProbability, PoolSimulationResult
+
+    result = PoolSimulationResult(
+        entries={
+            "e1": EntryProbability(p_win=0.6, p_top3=0.9, expected_rank=1.2, expected_points=142.5),
+            "e2": EntryProbability(p_win=0.4, p_top3=0.7, expected_rank=1.8, expected_points=131.0),
+        },
+        scenario_count=4,
+    )
+
+    entries, _teams = _build_view(result, include_conditionals=False)
+
+    by_id = {e.entry_id: e for e in entries}
+    assert by_id["e1"].projected_points == 142.5
+    assert by_id["e2"].projected_points == 131.0
+    # No conditionals requested -> title worlds / decisive matches stay empty.
+    assert by_id["e1"].title_worlds == []
+    assert by_id["e1"].decisive_matches == []
+
+
+def test_build_view_with_conditionals_also_has_expected_points_and_worlds(monkeypatch):
+    """The uniform view's existing include_conditionals=True path must keep
+    working exactly as before: projected_points still comes through, and
+    title_worlds/decisive_matches populate from build_entry_conditionals."""
+    import app.services.win_probability as win_probability_service
+    from app.api.leaderboard import _build_view
+    from app.services.win_probability import (
+        DecisiveMatch as EngineDecisiveMatch,
+    )
+    from app.services.win_probability import (
+        EntryConditionalBreakdown,
+        EntryProbability,
+        PoolSimulationResult,
+    )
+    from app.services.win_probability import (
+        TitleWorld as EngineTitleWorld,
+    )
+
+    result = PoolSimulationResult(
+        entries={
+            "e1": EntryProbability(p_win=1.0, p_top3=1.0, expected_rank=1.0, expected_points=150.0),
+        },
+        scenario_count=1,
+    )
+
+    breakdown = EntryConditionalBreakdown(
+        projected_points=150.0,
+        title_worlds=[EngineTitleWorld(team="Brazil", trophy_odds=0.5, p_win_given_champion=1.0)],
+        decisive_matches=[
+            EngineDecisiveMatch(
+                match_number=90,
+                stage="semi_final",
+                home_team="Brazil",
+                away_team="France",
+                p_win_if_home=1.0,
+                p_win_if_away=0.0,
+            )
+        ],
+    )
+
+    monkeypatch.setattr(
+        win_probability_service,
+        "build_entry_conditionals",
+        lambda _result, _entry_id: breakdown,
+    )
+
+    entries, _teams = _build_view(result, include_conditionals=True)
+
+    entry = entries[0]
+    assert entry.projected_points == 150.0
+    assert len(entry.title_worlds) == 1
+    assert entry.title_worlds[0].team == "Brazil"
+    assert len(entry.decisive_matches) == 1
+    assert entry.decisive_matches[0].match_number == 90
