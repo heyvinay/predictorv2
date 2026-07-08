@@ -485,6 +485,7 @@ describe('projectStandings', () => {
 			position,
 			total_points: groupPts, // no KO points banked yet in this fixture
 			group_points: groupPts,
+			bonus_knockout_points: 0,
 			picks
 		};
 	}
@@ -551,6 +552,49 @@ describe('projectStandings', () => {
 	});
 });
 
+describe('projectStandings — bonus-points accuracy', () => {
+	const fixtures = buildPartialBracketFixtures();
+	const scenario = resolveScenario(fixtures, new Map());
+
+	// The real accuracy bar for this engine: with NO hypothetical
+	// overrides (an empty HypoWinners map resolves every match to its
+	// real, already-decided result — exactly "today, live"), newTotal
+	// must reproduce the entry's real total_points exactly. If the
+	// simulator can't reproduce today's actual leaderboard with zero
+	// hypothetical input, nothing it projects under a hypothetical is
+	// trustworthy either.
+	it('newTotal reproduces total_points exactly when the entry has banked knockout-bonus points and nothing hypothetical changed', () => {
+		const entries: SimulatorEntryPicks[] = [
+			{
+				entry_id: '1',
+				entry_name: 'Real Total Entry',
+				user_id: 'u-1',
+				user_name: 'Real Total Entry',
+				position: 1,
+				// Real total = group_points (100) + KO already banked from
+				// finished M73/M74 (80, via the picks below) + knockout-bonus
+				// (25, e.g. the Top/Flop question) = 205.
+				total_points: 205,
+				group_points: 100,
+				bonus_knockout_points: 25,
+				picks: {
+					round_of_32: ['Mexico', 'Senegal', 'Brazil', 'Italy'], // 80 pts, all real/finished
+					round_of_16: [],
+					quarter_finals: [],
+					semi_finals: [],
+					final: [],
+					winner: null
+				}
+			}
+		];
+
+		const rows = projectStandings(entries, scenario.reached, scenario.champion, ADV);
+
+		expect(rows[0].newTotal).toBe(205);
+		expect(rows[0].deltaPts).toBe(0);
+	});
+});
+
 describe('pivotalMatches', () => {
 	const fixtures = buildPartialBracketFixtures();
 
@@ -569,6 +613,7 @@ describe('pivotalMatches', () => {
 			position,
 			total_points: groupPts,
 			group_points: groupPts,
+			bonus_knockout_points: 0,
 			picks
 		};
 	}

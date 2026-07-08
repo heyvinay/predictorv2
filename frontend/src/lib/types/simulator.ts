@@ -5,8 +5,11 @@
  * `results.ts` / `admin.ts` (the barrel carries uncommitted user WIP and
  * must not be touched). Import directly: `from '$lib/types/simulator'`.
  *
- * Bonus-question scoring is explicitly deferred — this stage covers KO
- * advancement points only (see CLAUDE.md / task scope).
+ * Bonus-question points are never rescored by a hypothetical bracket —
+ * neither category is resolved by who wins a KO match — so both ride
+ * through unchanged from the real leaderboard: group-stage bonus is
+ * folded into `group_points`, knockout-stage bonus is its own field.
+ * Only KO advancement points get rescored per scenario.
  */
 
 /** One entry's bracket picks, served by GET /api/simulator/bracket-picks.
@@ -31,9 +34,15 @@ export interface SimulatorEntryPicks {
 	position: number;
 	/** Current (real) total points — group + knockout + bonus, banked. */
 	total_points: number;
-	/** Current (real) group-stage points — held fixed across every
-	 *  what-if scenario; only the knockout component gets rescored. */
+	/** Current (real) group-stage points, INCLUDING group-stage bonus
+	 *  questions — held fixed across every what-if scenario; only the
+	 *  knockout advancement component gets rescored. */
 	group_points: number;
+	/** Current (real) knockout-stage bonus-question points (e.g. the
+	 *  Top/Flop question) — held fixed across every what-if scenario,
+	 *  same as `group_points`, since no bonus question is resolved by
+	 *  who wins a bracket match. */
+	bonus_knockout_points: number;
 	picks: SimulatorBracketPicks;
 }
 

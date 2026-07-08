@@ -43,6 +43,13 @@ class SimulatorEntryPicks(BaseModel):
     # advancement/position bonuses + group-stage bonus questions) — frozen
     # inputs the simulator layers hypothetical knockout results on top of.
     group_points: int
+    # Knockout-stage bonus-question points (e.g. Top/Flop) — also frozen.
+    # No bonus question is resolved by who wins a bracket match, so this
+    # rides through unchanged in every what-if scenario, same as
+    # `group_points`. Without it, `newTotal` on the frontend silently
+    # dropped this component even in a "nothing hypothetical changed"
+    # scenario, understating any entry with banked knockout-bonus points.
+    bonus_knockout_points: int
     picks: SimulatorBracketPicks
 
 

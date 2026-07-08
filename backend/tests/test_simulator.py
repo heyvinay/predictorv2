@@ -244,6 +244,7 @@ async def test_response_shape_and_plural_fields(
         "position",
         "total_points",
         "group_points",
+        "bonus_knockout_points",
         "picks",
     ):
         assert key in row
@@ -359,6 +360,7 @@ async def test_group_points_and_totals_populated(
     # present and numeric (not None) so the frontend re-rank has a stable
     # base to add hypothetical knockout points onto.
     assert isinstance(row["group_points"], int)
+    assert isinstance(row["bonus_knockout_points"], int)
     assert isinstance(row["total_points"], int)
     assert isinstance(row["position"], int)
     assert row["position"] >= 1

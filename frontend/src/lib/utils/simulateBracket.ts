@@ -6,9 +6,12 @@
  * knockout points are recomputed against the resulting hypothetical
  * lineup, and the whole leaderboard re-ranks.
  *
- * Bonus-question points are OUT OF SCOPE for this stage — only KO
- * advancement points (`fixtureKoHits` / `stagePointsForRound`) are
- * rescored. `group_points` rides through unchanged from the server.
+ * Bonus-question points are never rescored — no bonus question is
+ * resolved by who wins a KO match, so both categories ride through
+ * unchanged from the server: group-stage bonus inside `group_points`,
+ * knockout-stage bonus via its own `bonus_knockout_points` field. Only
+ * KO advancement points (`fixtureKoHits` / `stagePointsForRound`) are
+ * rescored per scenario.
  *
  * No Svelte/store/`$app` imports — this module must stay pure so it can
  * run in a Web Worker later if the full-pool rescore gets expensive.
@@ -254,10 +257,17 @@ export function rescoreEntryKo(
 /**
  * Project the whole pool's standings under a resolved scenario.
  *
- * `newTotal` = server-supplied group points (untouched — group stage
- * isn't part of this what-if) + rescored KO points. Sorted by newTotal
- * descending, ties broken alphabetically by entry_name (stable, matches
- * `sortRows`'s A→Z tie-break convention in `leaderboardV4.ts`).
+ * `newTotal` = server-supplied group points (untouched — includes
+ * group-stage bonus, held fixed since group stage isn't part of this
+ * what-if) + rescored KO advancement points + server-supplied
+ * knockout-stage bonus points (also untouched — no bonus question is
+ * resolved by who wins a bracket match). This is the invariant that
+ * keeps the simulator trustworthy: with an empty `HypoWinners` map
+ * (nothing hypothetical), `newTotal` must reproduce the entry's real
+ * `total_points` exactly — see the parity test in
+ * simulateBracket.test.ts. Sorted by newTotal descending, ties broken
+ * alphabetically by entry_name (stable, matches `sortRows`'s A→Z
+ * tie-break convention in `leaderboardV4.ts`).
  */
 export function projectStandings(
 	entries: SimulatorEntryPicks[],
@@ -267,7 +277,7 @@ export function projectStandings(
 ): ProjectedRow[] {
 	const withTotals = entries.map((entry) => {
 		const koPoints = rescoreEntryKo(entry.picks, reached, champion, adv);
-		const newTotal = entry.group_points + koPoints;
+		const newTotal = entry.group_points + koPoints + entry.bonus_knockout_points;
 		return { entry, newTotal };
 	});
 

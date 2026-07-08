@@ -90,8 +90,9 @@ async def _load_ko_picks(
 
 
 async def get_bracket_picks(session: AsyncSession) -> SimulatorPicksResponse:
-    """Every eligible entry's knockout picks + frozen group points + current
-    total/position, in ~3-4 queries total:
+    """Every eligible entry's knockout picks + frozen group points +
+    frozen knockout-bonus points + current total/position, in ~3-4
+    queries total:
 
     1. Eligible-entries lookup (shared predicate with the leaderboard).
     2. One bulk KO-stage TeamPrediction query for all entries.
@@ -139,6 +140,7 @@ async def get_bracket_picks(session: AsyncSession) -> SimulatorPicksResponse:
                 position=row.position,
                 total_points=row.total_points,
                 group_points=group_points,
+                bonus_knockout_points=row.bonus_knockout_points,
                 picks=picks,
             )
         )
