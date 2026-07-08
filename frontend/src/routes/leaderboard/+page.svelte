@@ -464,7 +464,7 @@
 		     above the view pills) so it shows on every tab, not just
 		     Standings. Same content, same reactives, new position. ── -->
 		{#if board?.last_calculated}
-			<p class="mb-3 mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-base-content/55">
+			<p class="mb-3 mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 text-[11px] text-base-content/55">
 				<span title={`Cache rebuilt ${board.last_calculated}`}>Updated {updatedAgo}</span>
 				{#if lastFinished && !(liveActive && liveMatchCue)}
 					<span class="text-base-content/40">·</span>
