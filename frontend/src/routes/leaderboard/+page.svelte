@@ -543,8 +543,8 @@
 				loading={winProbLoading}
 				failed={winProbFailed}
 				{lastFinished}
+				live={liveActive}
 				onRun={runWinProbability}
-				onOpen={(row) => (selected = row)}
 			/>
 		{/if}
 

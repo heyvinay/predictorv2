@@ -6,11 +6,37 @@
  * Import directly: `from '$lib/types/winProbability'`.
  */
 
+/** One "if this team lifts the cup" world for a single entry. */
+export interface TitleWorld {
+	team: string;
+	/** P(team is champion) — the marginal shown in parentheses. */
+	trophy_odds: number;
+	/** P(this entry wins the pool | team champion) — the "wins X%" figure. */
+	p_win_given_champion: number;
+}
+
+/** One upcoming real-vs-real match and how its result swings the entry's odds. */
+export interface DecisiveMatch {
+	match_number: number;
+	stage: string;
+	home_team: string;
+	away_team: string;
+	p_win_if_home: number;
+	p_win_if_away: number;
+}
+
 export interface EntryWinProbability {
 	entry_id: string;
 	p_win: number;
 	p_top3: number;
 	expected_rank: number;
+	/** Per-entry conditional breakdown — populated on the primary (uniform)
+	 *  view only; the odds-weighted view omits them. Optional so consumers
+	 *  fall back to defaults; `joinWinProbabilityRows` coerces to 0 / [].
+	 *  Powers the inline expanded card in the Win Probability tab. */
+	projected_points?: number;
+	title_worlds?: TitleWorld[];
+	decisive_matches?: DecisiveMatch[];
 }
 
 /** stage_odds keys are singular KO stage names ('round_of_32' .. 'winner'),

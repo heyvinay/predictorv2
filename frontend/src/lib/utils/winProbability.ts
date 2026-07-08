@@ -1,5 +1,5 @@
 import type { LbEntryV4 } from '$lib/types/leaderboard';
-import type { EntryWinProbability } from '$lib/types/winProbability';
+import type { DecisiveMatch, EntryWinProbability, TitleWorld } from '$lib/types/winProbability';
 
 export interface WinProbabilityRow {
 	row: LbEntryV4;
@@ -10,6 +10,11 @@ export interface WinProbabilityRow {
 	 *  supplied — undefined (not 0) when there's nothing to compare, so
 	 *  the UI can distinguish "no odds column" from "0% under odds". */
 	odds_p_win?: number;
+	/** Per-entry conditional breakdown carried from the uniform view, read
+	 *  by the inline expanded card. Defaults keep older payloads safe. */
+	projected_points: number;
+	title_worlds: TitleWorld[];
+	decisive_matches: DecisiveMatch[];
 }
 
 /** Joins the win-probability API's entry_id-keyed odds onto the
@@ -39,7 +44,10 @@ export function joinWinProbabilityRows(
 			p_win: p.p_win,
 			p_top3: p.p_top3,
 			expected_rank: p.expected_rank,
-			odds_p_win: oddsById.get(p.entry_id)
+			odds_p_win: oddsById.get(p.entry_id),
+			projected_points: p.projected_points ?? 0,
+			title_worlds: p.title_worlds ?? [],
+			decisive_matches: p.decisive_matches ?? []
 		});
 	}
 	return joined.sort((a, b) => b.p_win - a.p_win);

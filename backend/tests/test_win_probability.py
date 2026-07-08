@@ -17,6 +17,7 @@ from app.services.win_probability import (
     BonusSimulationConfig,
     MatchSpec,
     build_advancement,
+    build_entry_conditionals,
     compute_match_win_probabilities,
     entry_ko_points,
     enumerate_scenarios,
@@ -447,6 +448,94 @@ class TestBonusSimulation:
 
         assert round(result.entries["entry-1"].p_win, 6) == 0.5
         assert round(result.entries["entry-2"].p_win, 6) == 0.5
+
+
+class TestEntryConditionals:
+    """Per-entry conditional breakdown ("what has to happen for you to win").
+
+    Uses the hand-enumerable 4-team bracket where each entry backs one team
+    to win it all, so every conditional has a closed form: entry-A wins the
+    pool IFF team A lifts the cup. That makes the numbers exact, not
+    statistical — the whole point of building conditionals inside the same
+    enumeration the aggregate stats already use.
+    """
+
+    BRACKET = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    ENTRIES = {
+        "entry-a": [("A", "winner")],
+        "entry-b": [("B", "winner")],
+        "entry-c": [("C", "winner")],
+        "entry-d": [("D", "winner")],
+    }
+
+    def _result(self):
+        return simulate_pool(
+            self.BRACKET,
+            known_winners={},
+            unresolved=[101, 102, 104],
+            entries=self.ENTRIES,
+            points_by_stage=POINTS_BY_STAGE,
+            base_points={eid: 0 for eid in self.ENTRIES},
+        )
+
+    def test_projected_points_is_the_probability_weighted_final_total(self):
+        # entry-a scores 100 iff A champions (P=0.25), else 0 -> E = 25.
+        b = build_entry_conditionals(self._result(), "entry-a")
+        assert round(b.projected_points, 6) == 25.0
+
+    def test_title_worlds_keeps_only_teams_with_a_real_shot(self):
+        b = build_entry_conditionals(self._result(), "entry-a")
+        # entry-a can only win if A lifts the cup, so B/C/D worlds (0%
+        # conditional) are filtered out — exactly one world survives.
+        assert len(b.title_worlds) == 1
+        world = b.title_worlds[0]
+        assert world.team == "A"
+        assert round(world.trophy_odds, 6) == 0.25  # 2**-2
+        assert round(world.p_win_given_champion, 6) == 1.0
+
+    def test_decisive_matches_condition_on_each_next_result(self):
+        b = build_entry_conditionals(self._result(), "entry-a")
+        by_num = {d.match_number: d for d in b.decisive_matches}
+
+        # Only the two semis are real-vs-real now; the final is still
+        # TBD-vs-TBD (its feeders unresolved) so it isn't a decisive match.
+        assert set(by_num) == {101, 102}
+
+        # A's own semi is decisive: if A advances (home) entry-a still has a
+        # 50% shot (win the final); if B advances, entry-a is dead (0%).
+        semi = by_num[101]
+        assert (semi.home_team, semi.away_team) == ("A", "B")
+        assert round(semi.p_win_if_home, 6) == 0.5
+        assert round(semi.p_win_if_away, 6) == 0.0
+
+        # The other semi (C v D) doesn't touch A's path — entry-a's odds are
+        # 0.25 either way, so it has zero swing and sorts last.
+        other = by_num[102]
+        assert round(other.p_win_if_home, 6) == 0.25
+        assert round(other.p_win_if_away, 6) == 0.25
+        assert b.decisive_matches[0].match_number == 101  # highest swing first
+
+    def test_entry_with_no_winning_path_gets_an_empty_breakdown(self):
+        # A fifth entry that predicted nothing and sits on a base of 0 can
+        # never outscore the four 100-point picks — no title worlds, no
+        # decisive matches, projected 0.
+        entries = {**self.ENTRIES, "entry-none": []}
+        result = simulate_pool(
+            self.BRACKET,
+            known_winners={},
+            unresolved=[101, 102, 104],
+            entries=entries,
+            points_by_stage=POINTS_BY_STAGE,
+            base_points={eid: 0 for eid in entries},
+        )
+        b = build_entry_conditionals(result, "entry-none")
+        assert b.projected_points == 0.0
+        assert b.title_worlds == []
+        assert b.decisive_matches == []
 
 
 class TestMonteCarloFallback:

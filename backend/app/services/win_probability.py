@@ -384,6 +384,18 @@ class EntryProbability:
     p_win: float = 0.0
     p_top3: float = 0.0
     expected_rank: float = 0.0
+    # Expected FINAL total = Σ weight·score across every scenario. Already
+    # includes each entry's banked points plus the probability-weighted
+    # value of every still-open match — the "projected points" per entry.
+    expected_points: float = 0.0
+    # Conditional win-weight buckets, credited only in scenarios this entry
+    # wins. Divide a bucket by its marginal to recover a conditional prob:
+    #   win_by_champion[team]        / P(team lifts the cup)   = P(win | team champion)
+    #   win_by_match_winner[m][team] / P(match m won by team)  = P(win | m won by team)
+    # This is Bayes computed for free inside the enumeration loop — no
+    # second simulation pass.
+    win_by_champion: dict[str, float] = field(default_factory=dict)
+    win_by_match_winner: dict[int, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -401,6 +413,15 @@ class PoolSimulationResult:
     # "exact" (2**m enumeration) or "monte_carlo" (sampled) — whichever
     # simulate_pool actually used, driven by len(unresolved) vs max_exact_m.
     mode: str = "exact"
+    # Per resolvable-next match: P(match m won by team) — the denominators
+    # for the per-entry "decisive matches" conditional view. Only the
+    # unresolved matches whose BOTH sides are already real teams appear
+    # here (a TBD-vs-TBD match downstream has no concrete matchup to
+    # condition on yet).
+    match_winner_weight: dict[int, dict[str, float]] = field(default_factory=dict)
+    # match_number -> (home_team, away_team, stage) for those same matches,
+    # so the breakdown builder can label them without re-reading the bracket.
+    match_meta: dict[int, tuple[str, str, str]] = field(default_factory=dict)
     # m = len(unresolved), recorded directly rather than derived from
     # scenario_count — under "exact" mode scenario_count == 2**m so a
     # log2 reversal works, but under "monte_carlo" scenario_count is
@@ -454,6 +475,25 @@ def simulate_pool(
     exact_stage_weight: dict[str, dict[str, float]] = {}
     bonus_picks = entry_bonus_picks or {}
 
+    # Champion = winner of the (single) 'final' match; None if the loaded
+    # bracket doesn't yet include a final fixture. `resolvable_matches` are
+    # the unresolved matches whose BOTH sides are already real teams — the
+    # only ones with a concrete "if home wins / if away wins" to condition
+    # on (same set compute_match_win_probabilities calls priceable).
+    final_match_number = next(
+        (m for m, spec in matches.items() if spec.stage == "final"), None
+    )
+    resolvable_matches: dict[int, tuple[str, str, str]] = {}
+    for m in unresolved:
+        spec = matches[m]
+        try:
+            home = resolve_ref(spec.home_ref, known_winners)
+            away = resolve_ref(spec.away_ref, known_winners)
+        except KeyError:
+            continue
+        resolvable_matches[m] = (home, away, spec.stage)
+    match_winner_weight: dict[int, dict[str, float]] = {}
+
     if len(unresolved) <= max_exact_m:
         scenario_source = enumerate_scenarios(
             matches, known_winners, unresolved, match_probabilities
@@ -499,11 +539,32 @@ def simulate_pool(
         for eid in entry_ids:
             rank = rank_by_score[scores[eid]]
             accum[eid].expected_rank += rank * weight
+            accum[eid].expected_points += scores[eid] * weight
             if rank <= 3:
                 accum[eid].p_top3 += weight
 
+        # Marginals for the conditional denominators: how much weight lands
+        # on each possible winner of each resolvable next match.
+        champion = (
+            winners.get(final_match_number) if final_match_number is not None else None
+        )
+        for m in resolvable_matches:
+            mw = winners[m]
+            bucket = match_winner_weight.setdefault(m, {})
+            bucket[mw] = bucket.get(mw, 0.0) + weight
+
         for eid in top_entries:
             accum[eid].p_win += win_share
+            # Partition this win-credit by the facts that produced it, so a
+            # later divide-by-marginal recovers the conditionals.
+            if champion is not None:
+                accum[eid].win_by_champion[champion] = (
+                    accum[eid].win_by_champion.get(champion, 0.0) + win_share
+                )
+            for m in resolvable_matches:
+                mw = winners[m]
+                cond = accum[eid].win_by_match_winner.setdefault(m, {})
+                cond[mw] = cond.get(mw, 0.0) + win_share
 
     team_stage_odds = {
         team: _cumulative_from_exact(exact) for team, exact in exact_stage_weight.items()
@@ -515,6 +576,8 @@ def simulate_pool(
         team_stage_odds=team_stage_odds,
         mode=mode,
         unresolved_matches=len(unresolved),
+        match_winner_weight=match_winner_weight,
+        match_meta=resolvable_matches,
     )
 
 
@@ -528,6 +591,109 @@ def _cumulative_from_exact(exact: dict[str, float]) -> dict[str, float]:
         running += exact.get(stage, 0.0)
         cumulative[stage] = running
     return cumulative
+
+
+# ─── Per-entry conditional breakdown ("what has to happen for you to win") ──
+
+
+@dataclass(frozen=True)
+class TitleWorld:
+    """One 'if this team lifts the cup' world for a single entry."""
+
+    team: str
+    trophy_odds: float  # P(team is champion) — the marginal
+    p_win_given_champion: float  # P(this entry wins the pool | team champion)
+
+
+@dataclass(frozen=True)
+class DecisiveMatch:
+    """One upcoming match and how its result swings this entry's win odds."""
+
+    match_number: int
+    stage: str
+    home_team: str
+    away_team: str
+    p_win_if_home: float  # P(this entry wins the pool | home advances)
+    p_win_if_away: float  # P(this entry wins the pool | away advances)
+
+    @property
+    def swing(self) -> float:
+        return abs(self.p_win_if_home - self.p_win_if_away)
+
+
+@dataclass(frozen=True)
+class EntryConditionalBreakdown:
+    """Everything the per-entry win-probability card needs, derived purely
+    from an already-computed PoolSimulationResult — no DB, no re-simulation."""
+
+    projected_points: float
+    title_worlds: list[TitleWorld]
+    decisive_matches: list[DecisiveMatch]
+
+
+def build_entry_conditionals(
+    result: PoolSimulationResult,
+    entry_id: str,
+    *,
+    max_worlds: int = 5,
+    max_matches: int = 5,
+    min_conditional: float = 0.005,
+) -> EntryConditionalBreakdown:
+    """Slice one entry's conditional view out of a pool simulation.
+
+    Title worlds: every team that can still lift the cup, sorted by trophy
+    odds, keeping only worlds where this entry has a non-trivial conditional
+    win chance (>= `min_conditional`) — the "teams with a real shot" filter.
+    Decisive matches: the next real-vs-real matches, ranked by how much their
+    result swings this entry's win probability (|if-home − if-away|), keeping
+    only matches this entry has some live path through.
+
+    A conditional is win_bucket / marginal; a marginal of 0 (a team/outcome
+    that never occurred in any scenario) yields 0 rather than a divide error.
+    """
+    ep = result.entries.get(entry_id)
+    if ep is None:
+        return EntryConditionalBreakdown(0.0, [], [])
+
+    worlds: list[TitleWorld] = []
+    for team, stage_odds in result.team_stage_odds.items():
+        trophy = stage_odds.get("winner", 0.0)
+        if trophy <= 0:
+            continue
+        cond = ep.win_by_champion.get(team, 0.0) / trophy
+        if cond < min_conditional:
+            continue
+        worlds.append(TitleWorld(team=team, trophy_odds=trophy, p_win_given_champion=cond))
+    worlds.sort(key=lambda w: w.trophy_odds, reverse=True)
+
+    matches: list[DecisiveMatch] = []
+    for m, (home, away, stage) in result.match_meta.items():
+        marginals = result.match_winner_weight.get(m, {})
+        w_home = marginals.get(home, 0.0)
+        w_away = marginals.get(away, 0.0)
+        buckets = ep.win_by_match_winner.get(m, {})
+        p_home = buckets.get(home, 0.0) / w_home if w_home > 0 else 0.0
+        p_away = buckets.get(away, 0.0) / w_away if w_away > 0 else 0.0
+        dm = DecisiveMatch(
+            match_number=m,
+            stage=stage,
+            home_team=home,
+            away_team=away,
+            p_win_if_home=p_home,
+            p_win_if_away=p_away,
+        )
+        # Drop matches this entry can't win under either outcome — they're
+        # not "decisive" for this entry, just noise at the bottom of the sort.
+        if max(p_home, p_away) < min_conditional:
+            continue
+        matches.append(dm)
+    matches.sort(key=lambda d: d.swing, reverse=True)
+
+    return EntryConditionalBreakdown(
+        projected_points=ep.expected_points,
+        title_worlds=worlds[:max_worlds],
+        decisive_matches=matches[:max_matches],
+    )
 
 
 def compute_match_win_probabilities(

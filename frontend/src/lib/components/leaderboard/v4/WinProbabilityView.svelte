@@ -11,6 +11,7 @@
 	 * coming back to the tab shows the last result (with its timestamp),
 	 * not a silent auto-refetch or a blank slate.
 	 */
+	import { slide } from 'svelte/transition';
 	import { currentTime } from '$stores/phase';
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { TeamStageOdds, WinProbabilityResponse } from '$lib/types/winProbability';
@@ -19,6 +20,7 @@
 	import { joinWinProbabilityRows } from '$lib/utils/winProbability';
 	import FlagCode from './FlagCode.svelte';
 	import WinProbabilityExplainer from './WinProbabilityExplainer.svelte';
+	import WinProbEntryCard from './WinProbEntryCard.svelte';
 	import YouTag from './YouTag.svelte';
 
 	export let rows: LbEntryV4[];
@@ -32,7 +34,17 @@
 	 *  from the page rather than recomputed here. */
 	export let lastFinished: string | null;
 	export let onRun: () => void;
-	export let onOpen: (row: LbEntryV4) => void;
+	/** Live-projection active — makes the expanded card read projected
+	 *  rank/points instead of banked ones, same as the standings surfaces. */
+	export let live = false;
+
+	// Clicking a row expands it in place to reveal that entry's conditional
+	// win-probability card ("what has to happen for you to win") — a single
+	// open row at a time, toggled off by clicking the open row again.
+	let expanded: string | null = null;
+	function toggle(entryId: string) {
+		expanded = expanded === entryId ? null : entryId;
+	}
 
 	// Fixed-width CHAMP (104px) / FINAL (56px) columns match
 	// StandingsTable's own GRID_KO exactly, so the champion-pick flag and
@@ -273,12 +285,16 @@
 			{@const isOwn = j.row.user_id === userId}
 			{@const finalists = j.row.finalist_picks ?? []}
 			{@const finAlive = j.row.finalists_alive ?? 0}
+			{@const isExpanded = expanded === j.row.entry_id}
 			<button
 				role="row"
-				class="grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-2 text-left first:border-t-0 hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {gridClass} {isOwn
+				aria-expanded={isExpanded}
+				class="grid w-full items-center gap-2 border-t border-base-300/40 px-3 py-2 text-left first:border-t-0 hover:bg-base-content/5 min-[880px]:gap-3 min-[880px]:px-4 {gridClass} {isExpanded
+					? 'bg-base-content/5'
+					: ''} {isOwn
 					? 'bg-gradient-to-r from-primary/10 via-primary/[0.03] to-transparent shadow-[inset_3px_0_0_theme(colors.primary)]'
 					: ''}"
-				on:click={() => onOpen(j.row)}
+				on:click={() => toggle(j.row.entry_id)}
 			>
 				<span role="cell" class="text-right font-mono text-xs text-base-content/55">{i + 1}</span>
 
@@ -341,6 +357,14 @@
 					>
 				{/if}
 			</button>
+			{#if isExpanded}
+				<div
+					class="border-t border-base-300/40 bg-base-300/20 px-3 py-3 min-[880px]:px-4"
+					transition:slide={{ duration: 200 }}
+				>
+					<WinProbEntryCard entry={j} {multiOwners} {isOwn} {live} />
+				</div>
+			{/if}
 		{:else}
 			<p class="px-4 py-6 text-center text-sm text-base-content/55">No eligible entries yet.</p>
 		{/each}

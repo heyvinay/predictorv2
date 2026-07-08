@@ -825,11 +825,36 @@ async def group_stage_winner_endpoint(
 # flipped from /admin. Read-time gate — no cache invalidation on toggle.
 
 
+class TitleWorld(BaseModel):
+    """One 'if this team lifts the cup' world for a single entry."""
+
+    team: str
+    trophy_odds: float
+    p_win_given_champion: float
+
+
+class DecisiveMatch(BaseModel):
+    """One upcoming match and how its result swings the entry's win odds."""
+
+    match_number: int
+    stage: str
+    home_team: str
+    away_team: str
+    p_win_if_home: float
+    p_win_if_away: float
+
+
 class EntryWinProbability(BaseModel):
     entry_id: str
     p_win: float
     p_top3: float
     expected_rank: float
+    # Per-entry conditional breakdown (uniform view only; the odds-weighted
+    # view leaves these at their defaults). Powers the inline "what has to
+    # happen for you to win" card in the Win Probability tab.
+    projected_points: float = 0.0
+    title_worlds: list[TitleWorld] = []
+    decisive_matches: list[DecisiveMatch] = []
 
 
 class TeamStageOdds(BaseModel):
@@ -866,13 +891,57 @@ class WinProbabilityResponse(BaseModel):
     odds_coverage: OddsCoverage = OddsCoverage(priced=0, priceable=0)
 
 
-def _build_view(result: "PoolSimulationResult") -> tuple[list[EntryWinProbability], list[TeamStageOdds]]:
-    entries = [
-        EntryWinProbability(
-            entry_id=entry_id, p_win=p.p_win, p_top3=p.p_top3, expected_rank=p.expected_rank
+def _build_view(
+    result: "PoolSimulationResult", *, include_conditionals: bool = False
+) -> tuple[list[EntryWinProbability], list[TeamStageOdds]]:
+    """Project a PoolSimulationResult into API shape.
+
+    `include_conditionals` enriches each entry with its per-entry breakdown
+    (projected points + title worlds + decisive matches) via the engine's
+    pure `build_entry_conditionals`. Only the primary uniform view sets it —
+    the odds-weighted view only feeds the compact Odds% column, so it stays
+    lean and leaves those fields at their defaults.
+    """
+    from app.services.win_probability import build_entry_conditionals
+
+    entries: list[EntryWinProbability] = []
+    for entry_id, p in result.entries.items():
+        projected_points = 0.0
+        title_worlds: list[TitleWorld] = []
+        decisive_matches: list[DecisiveMatch] = []
+        if include_conditionals:
+            b = build_entry_conditionals(result, entry_id)
+            projected_points = b.projected_points
+            title_worlds = [
+                TitleWorld(
+                    team=w.team,
+                    trophy_odds=w.trophy_odds,
+                    p_win_given_champion=w.p_win_given_champion,
+                )
+                for w in b.title_worlds
+            ]
+            decisive_matches = [
+                DecisiveMatch(
+                    match_number=d.match_number,
+                    stage=d.stage,
+                    home_team=d.home_team,
+                    away_team=d.away_team,
+                    p_win_if_home=d.p_win_if_home,
+                    p_win_if_away=d.p_win_if_away,
+                )
+                for d in b.decisive_matches
+            ]
+        entries.append(
+            EntryWinProbability(
+                entry_id=entry_id,
+                p_win=p.p_win,
+                p_top3=p.p_top3,
+                expected_rank=p.expected_rank,
+                projected_points=projected_points,
+                title_worlds=title_worlds,
+                decisive_matches=decisive_matches,
+            )
         )
-        for entry_id, p in result.entries.items()
-    ]
     teams = [TeamStageOdds(team=team, stage_odds=odds) for team, odds in result.team_stage_odds.items()]
     return entries, teams
 
@@ -917,7 +986,7 @@ async def win_probability_endpoint(
         )
 
     uniform = comparison.uniform
-    entries, teams = _build_view(uniform)
+    entries, teams = _build_view(uniform, include_conditionals=True)
 
     odds_weighted = None
     if comparison.odds_weighted is not None:
