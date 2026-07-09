@@ -2704,6 +2704,13 @@
       "type": "improvement",
       "summary": "Added a clear disclaimer to the bracket simulator: its projections are a fun estimate, not an official guarantee.",
       "commit": "0049f6e"
+    },
+    {
+      "version": "2.209.0",
+      "date": "2026-07-09",
+      "type": "internal",
+      "summary": "Added the Round of 16 recap email.",
+      "commit": "pending"
     }
   ]
 }
