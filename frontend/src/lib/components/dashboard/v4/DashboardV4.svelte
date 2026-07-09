@@ -210,7 +210,7 @@
 		</div>
 	{:else}
 		<!-- Header row: greeting left, entry bar right -->
-		<div class="mb-4 flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-start min-[700px]:justify-between">
+		<div class="mb-3 flex flex-col gap-3 min-[700px]:flex-row min-[700px]:items-start min-[700px]:justify-between">
 			<div class="flex flex-wrap items-baseline gap-2">
 				<span class="text-[12px] font-extrabold uppercase tracking-[0.14em] text-primary"
 					>World Cup 2026</span

@@ -88,7 +88,6 @@ export function bucketDashboardFixtures(
 			((f.status === 'scheduled' || f.status === 'finished') &&
 				sameLocalDay(new Date(f.kickoff), now))
 	);
-	const matchdayIds = new Set(matchday.map((f) => f.id));
 
 	// Left flank: the single most recent finished game from BEFORE today
 	// (strictly, to avoid double-showing a finished-today match that's
@@ -106,7 +105,6 @@ export function bucketDashboardFixtures(
 	const nextDayContext = asc
 		.filter((f) => f.status === 'scheduled' && sameLocalDay(new Date(f.kickoff), tomorrowStart))
 		.slice(0, 2);
-	const nextDayIds = new Set(nextDayContext.map((f) => f.id));
 
 	const strip: MatchdayStripItem[] = [
 		...(recentContext ? [{ fixture: recentContext, variant: 'context' as const }] : []),
@@ -114,16 +112,12 @@ export function bucketDashboardFixtures(
 		...nextDayContext.map((f) => ({ fixture: f, variant: 'context' as const }))
 	];
 
-	// Upcoming table excludes anything already promoted into the strip
-	// (today's own fixtures, and the tomorrow flank) to avoid double-listing.
+	// Upcoming table shows every future scheduled fixture, regardless of
+	// whether it's also promoted into the Matchday strip above — the strip
+	// is a "what's happening right now/next" highlight reel, not a filter
+	// on the full schedule.
 	const upcoming = asc
-		.filter(
-			(f) =>
-				f.status === 'scheduled' &&
-				!matchdayIds.has(f.id) &&
-				!nextDayIds.has(f.id) &&
-				new Date(f.kickoff).getTime() > now.getTime()
-		)
+		.filter((f) => f.status === 'scheduled' && new Date(f.kickoff).getTime() > now.getTime())
 		.slice(0, upcomingCap);
 	const recent = asc
 		.filter((f) => f.status === 'finished')

@@ -110,7 +110,7 @@ describe('bucketDashboardFixtures', () => {
 
 		const b = bucketDashboardFixtures([laterThisWeek, done, tonight, live], NOW);
 		expect(b.matchday.map((f) => f.id)).toEqual(['live', 'tonight']);
-		expect(b.upcoming.map((f) => f.id)).toEqual(['later']);
+		expect(b.upcoming.map((f) => f.id)).toEqual(['tonight', 'later']);
 		expect(b.recent.map((f) => f.id)).toEqual(['done']);
 	});
 
@@ -189,7 +189,7 @@ describe('bucketDashboardFixtures', () => {
 		]);
 	});
 
-	it('excludes the next-day strip flank from the Upcoming table (dedupe)', () => {
+	it('includes strip-promoted fixtures in the Upcoming table too (no dedupe)', () => {
 		const tmrw1 = fx({ id: 'tmrw1', kickoff: '2026-06-29T14:00:00+00:00' });
 		const tmrw2 = fx({ id: 'tmrw2', kickoff: '2026-06-29T18:00:00+00:00' });
 		const dayAfter = fx({ id: 'day-after', kickoff: '2026-06-30T18:00:00+00:00' });
@@ -198,8 +198,9 @@ describe('bucketDashboardFixtures', () => {
 			'tmrw1',
 			'tmrw2'
 		]);
-		// tmrw1/tmrw2 are promoted into the strip — Upcoming only has the rest.
-		expect(b.upcoming.map((f) => f.id)).toEqual(['day-after']);
+		// tmrw1/tmrw2 are promoted into the strip AND still appear in Upcoming —
+		// the strip is a highlight, not a filter.
+		expect(b.upcoming.map((f) => f.id)).toEqual(['tmrw1', 'tmrw2', 'day-after']);
 	});
 });
 
