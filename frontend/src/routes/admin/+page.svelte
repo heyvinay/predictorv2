@@ -489,6 +489,20 @@
 			title: 'Round of 32 recap',
 			description:
 				"One-off knockout recap. Same audience as Thank Submitters. Static copy — R32 result highlights, a live-standings snapshot, and the week's new features (headline: the What-if Bracket Simulator). No placeholders; CTA lands on /leaderboard (no UTM)."
+		},
+		// v2.209.0 — Round of 16 knockout recap. Same audience as R32.
+		// Token-driven body (R2/GSF style, not R32's static prose):
+		// standings, R16 hero, biggest climber, and Bottlers pay-out
+		// summary fill in at send time. Deep links inside "New this
+		// week" point at the live-projected leaderboard and the
+		// Bracket Simulator. Prerequisite: the admin should set the
+		// flop question's correct answers in bonus_answers BEFORE
+		// sending, otherwise the Bottlers paragraph renders a
+		// "still being finalised" fallback.
+		group_r16_recap: {
+			title: 'Round of 16 recap',
+			description:
+				'One-off knockout recap ahead of the quarter-finals. Same audience as Thank Submitters. Token-driven — standings, R16 hero, biggest climber, and Bottlers pay-out summary fill in at send time. Set the flop question answers in Bonus Answers before sending. CTA lands on /leaderboard (no UTM).'
 		}
 	};
 
@@ -501,7 +515,8 @@
 		'group_r1_recap',
 		'group_r2_recap',
 		'group_stage_final',
-		'group_r32_recap'
+		'group_r32_recap',
+		'group_r16_recap'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;

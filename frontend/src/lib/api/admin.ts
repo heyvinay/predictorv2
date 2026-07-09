@@ -665,7 +665,8 @@ export interface AdminEntryFiltersV2 extends AdminEntryFilters {
  *  v2.178.0 — added `group_r1_recap` one-off round-recap broadcast.
  *  v2.180.0 — added `group_r2_recap` Round 2 recap.
  *  v2.181.0 — added `group_stage_final` champion announcement.
- *  v2.195.0 — added `group_r32_recap` Round of 32 knockout recap. */
+ *  v2.195.0 — added `group_r32_recap` Round of 32 knockout recap.
+ *  v2.209.0 — added `group_r16_recap` Round of 16 knockout recap. */
 export type BroadcastSegment =
 	| 'submitters'
 	| 'no_entry'
@@ -675,7 +676,8 @@ export type BroadcastSegment =
 	| 'group_r1_recap'
 	| 'group_r2_recap'
 	| 'group_stage_final'
-	| 'group_r32_recap';
+	| 'group_r32_recap'
+	| 'group_r16_recap';
 
 /** Live counts feed the badges on the broadcast card. */
 export interface BroadcastAudienceCounts {
@@ -688,6 +690,7 @@ export interface BroadcastAudienceCounts {
 	group_r2_recap: number;      // NEW v2.180.0
 	group_stage_final: number;   // NEW v2.181.0
 	group_r32_recap: number;     // NEW v2.195.0
+	group_r16_recap: number;     // NEW v2.209.0
 }
 
 /** Result of a single-recipient test send. */

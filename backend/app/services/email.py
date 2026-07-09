@@ -1802,6 +1802,299 @@ def _broadcast_content_for_segment(
             cta_label="See the full table",
         )
 
+    if segment == BroadcastSegment.GROUP_R16_RECAP:
+        # v2.209.0 — Round of 16 knockout recap (one-off). Sent the
+        # morning after the R16 wrapped, ahead of the quarter-finals.
+        #
+        # Unlike R32 this body is TOKEN-DRIVEN: standings + round hero
+        # + biggest-climb + Bottlers-payout tokens fill in at send time
+        # from `_compute_r16_highlights` (see below in this module).
+        # Editorial through-line: three co-hosts eliminated (USA,
+        # Mexico, Canada); a second wave of heavyweights fell (Brazil,
+        # Portugal); Argentina survived a Messi comeback; Norway's run
+        # rolls on.
+        #
+        # Spam-filter rules (same as R2/GSF/R32): the CTA carries NO
+        # utm_* params (see _deep_link_for_segment), and the copy
+        # avoids the "winner+announced" / "prize+awarded" word pairs.
+        # National-flag emoji are deliberately omitted — they degrade
+        # in Outlook/Windows mail; only broadly-supported pictographs
+        # (&#128680; siren, &#128293; fire, &#128302; crystal ball,
+        # &#128202; bar chart, &#127942; trophy) are used.
+        #
+        # ★ f-string double-brace trap: `{{TOKEN}}` inside an
+        # f-string collapses to `{TOKEN}` and `_interpolate` no
+        # longer matches. All token placeholders below live inside
+        # NON-f string literals. The regression test
+        # (test_group_r16_recap_template_tokens_interpolate) catches
+        # any regression.
+        return _BroadcastContent(
+            subject="The Round of 16 is done — the final eight are set",
+            headline="Eight down, four to go — and the table has moved.",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name}, the Round of 16 delivered. Three "
+                "co-hosts eliminated on home soil. A second wave of "
+                "heavyweights sent home. Argentina needed everything "
+                "Messi had left to survive. And Norway lit the "
+                "internet on fire.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "&#128680; <strong>The games everyone was talking "
+                "about</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li><strong>Norway 2&ndash;1 "
+                "Brazil.</strong> The shock of the round. Haaland&rsquo;s "
+                "Norway dump out a heavyweight &mdash; the second "
+                "favourite to fall after Germany went in R32. And the "
+                "drum moment is everywhere: Haaland in front of the "
+                "away end, striking the bass drum on the beat, the "
+                "entire Norwegian section roaring back in unison. "
+                "Goosebumps stuff.</li>\n"
+                "                <li><strong>Morocco 3&ndash;0 "
+                "Canada.</strong> Co-hosts routed. Canada&rsquo;s "
+                "historic tournament run ends in the second knockout "
+                "round.</li>\n"
+                "                <li><strong>Belgium 4&ndash;1 "
+                "USA.</strong> Co-hosts blown away. The scoreline "
+                "flattered nobody.</li>\n"
+                "                <li><strong>England 3&ndash;2 "
+                "Mexico.</strong> A thriller. England edge the third "
+                "and final co-host in a game that swung three "
+                "times.</li>\n"
+                "                <li><strong>France 1&ndash;0 "
+                "Paraguay.</strong> France grind past the side that "
+                "had knocked Germany out. Not pretty. "
+                "Effective.</li>\n"
+                "                <li><strong>Spain 1&ndash;0 "
+                "Portugal.</strong> The Iberian derby to Spain. One "
+                "goal decided a game everyone expected to go the "
+                "distance.</li>\n"
+                "                <li>&#128293; <strong>Argentina "
+                "3&ndash;2 Egypt.</strong> The tie of the round. Down "
+                "2&ndash;0 with 20 minutes left, Messi turned it on "
+                "&mdash; three Argentina goals in fifteen minutes, "
+                "Enzo Fern&aacute;ndez the stoppage-time winner.</li>\n"
+                "                <li><strong>Switzerland 0&ndash;0 "
+                "Colombia</strong> (Switzerland win 4&ndash;3 on "
+                "penalties). 120 goalless minutes. The Swiss keep "
+                "their nerve from the spot.</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Three of the four North American co-hosts, gone. "
+                "Portugal, gone. The bracket has never looked more "
+                "open.</p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "&#128202; <strong>Where you stand</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li>&#127942; <strong>Top of the "
+                "table:</strong> "
+                # Non-f-string literal so `{{TOP_1}}` survives to _interpolate:
+                "{{TOP_1}}</li>\n"
+                "                <li><strong>Hot on their heels:</strong> "
+                "{{TOP_2_WITH_GAP}}</li>\n"
+                "                <li><strong>Three to watch:</strong> "
+                "{{TOP_3_TO_5}}</li>\n"
+                "                <li><strong>Best haul of the "
+                "round:</strong> {{R16_HERO}}</li>\n"
+                "                <li>&#128640; <strong>Biggest "
+                "climb:</strong> {{CLIMBERS}}</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>Bottlers watch:</strong> "
+                "{{BOTTLERS_PAID_OUT}}. {{BOTTLERS_SURPRISE}}</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>See where you stand &rarr;</strong> "
+                '<a href="https://wc26.heyvinay.com/leaderboard" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "wc26.heyvinay.com/leaderboard</a></p>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "<strong>New this week</strong></p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li><strong>The leaderboard now "
+                "moves live during knockout matches.</strong> Standings "
+                "re-sort in real time based on who&rsquo;s currently "
+                "winning on the pitch, then lock to the real numbers "
+                "at full time. Open it during a QF and watch positions "
+                "shuffle as goals go in. &rarr; "
+                '<a href="https://wc26.heyvinay.com/leaderboard" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "Open the leaderboard</a></li>\n"
+                "                <li><strong>Bracket Simulator "
+                "upgrade.</strong> The trivia unlock quiz and the "
+                "one-run-a-day cap are gone &mdash; run as many "
+                "what-if QF/SF/Final scenarios as you like. Projected "
+                "pool standings now correctly include your "
+                "knockout-stage bonus points too. &rarr; "
+                '<a href="https://wc26.heyvinay.com/results?round=bracket" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "Open the Simulator</a></li>\n"
+                "                <li><strong>Tap the &#10022; icon in "
+                "the nav</strong> for a &ldquo;What&rsquo;s New&rdquo; "
+                "panel with everything that&rsquo;s shipped recently "
+                "&mdash; and a one-tap way to rate the app and send a "
+                "quick note. We read every one.</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 8px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "&#128302; <strong>The final eight</strong> "
+                "(all times Malta)</p>\n"
+                f'              <ul style="margin:0 0 14px 18px;padding:0;'
+                f'font-size:15px;line-height:1.7;color:{_BODY_INK};">'
+                "\n                <li><strong>France vs Morocco</strong> "
+                "&mdash; Thu 9 Jul, 22:00. Boston. A 2022 semi-final "
+                "rematch.</li>\n"
+                "                <li><strong>Spain vs Belgium</strong> "
+                "&mdash; Fri 10 Jul, 21:00. Los Angeles.</li>\n"
+                "                <li><strong>Norway vs England</strong> "
+                "&mdash; Sat 11 Jul, 23:00. Miami. Haaland vs "
+                "Kane.</li>\n"
+                "                <li><strong>Argentina vs "
+                "Switzerland</strong> &mdash; Sun 12 Jul, 03:00. "
+                "Kansas City.</li>\n"
+                "              </ul>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Points-per-match doubles from here on. One correct "
+                "QF outcome is worth more than a whole group-stage "
+                "matchday. Every scoreline, every bracket pick, every "
+                "bonus answer starts to matter twice as much. If "
+                "you&rsquo;ve been coasting mid-table, this is where "
+                "the table breaks open.</p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:14px;line-height:1.55;'
+                f'color:{_MUTED_INK};">See you at the top of the '
+                "table.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name}, the Round of 16 delivered. Three "
+                "co-hosts\n"
+                "eliminated on home soil. A second wave of "
+                "heavyweights sent\n"
+                "home. Argentina needed everything Messi had left to "
+                "survive.\n"
+                "And Norway lit the internet on fire.\n"
+                "\n"
+                "The games everyone was talking about\n"
+                "  🚨 Norway 2-1 Brazil — the shock of the round. "
+                "Haaland's\n"
+                "     Norway dump out a heavyweight — the second "
+                "favourite to\n"
+                "     fall after Germany went in R32. And the drum "
+                "moment is\n"
+                "     everywhere: Haaland in front of the away end, "
+                "striking\n"
+                "     the bass drum on the beat, the entire Norwegian "
+                "section\n"
+                "     roaring back in unison. Goosebumps stuff.\n"
+                "  • Morocco 3-0 Canada — co-hosts routed. Canada's "
+                "historic\n"
+                "     tournament run ends in the second knockout "
+                "round.\n"
+                "  • Belgium 4-1 USA — co-hosts blown away. The "
+                "scoreline\n"
+                "     flattered nobody.\n"
+                "  • England 3-2 Mexico — a thriller. England edge "
+                "the third\n"
+                "     and final co-host in a game that swung three "
+                "times.\n"
+                "  • France 1-0 Paraguay — France grind past the side "
+                "that\n"
+                "     had knocked Germany out. Not pretty. Effective.\n"
+                "  • Spain 1-0 Portugal — the Iberian derby to Spain. "
+                "One\n"
+                "     goal decided a game everyone expected to go the "
+                "distance.\n"
+                "  🔥 Argentina 3-2 Egypt — the tie of the round. Down "
+                "2-0\n"
+                "     with 20 minutes left, Messi turned it on — three\n"
+                "     Argentina goals in fifteen minutes, Enzo "
+                "Fernández the\n"
+                "     stoppage-time winner.\n"
+                "  • Switzerland 0-0 Colombia (Switzerland win 4-3 on "
+                "penalties).\n"
+                "     120 goalless minutes. The Swiss keep their "
+                "nerve from\n"
+                "     the spot.\n"
+                "\n"
+                "Three of the four North American co-hosts, gone. "
+                "Portugal,\n"
+                "gone. The bracket has never looked more open.\n"
+                "\n"
+                "Where you stand\n"
+                "  🏆 Top of the table:       {{TOP_1}}\n"
+                "     Hot on their heels:    {{TOP_2_WITH_GAP}}\n"
+                "     Three to watch:        {{TOP_3_TO_5}}\n"
+                "     Best haul of the round: {{R16_HERO}}\n"
+                "  🚀 Biggest climb:          {{CLIMBERS}}\n"
+                "\n"
+                "Bottlers watch: {{BOTTLERS_PAID_OUT}}. "
+                "{{BOTTLERS_SURPRISE}}\n"
+                "\n"
+                "See where you stand\n"
+                "https://wc26.heyvinay.com/leaderboard\n"
+                "\n"
+                "New this week\n"
+                "  • The leaderboard now moves live during knockout "
+                "matches.\n"
+                "    Standings re-sort in real time based on who's "
+                "currently\n"
+                "    winning on the pitch, then lock to the real "
+                "numbers at\n"
+                "    full time.\n"
+                "    → https://wc26.heyvinay.com/leaderboard\n"
+                "  • Bracket Simulator upgrade. The trivia unlock quiz "
+                "and\n"
+                "    the one-run-a-day cap are gone — run as many "
+                "what-if\n"
+                "    QF/SF/Final scenarios as you like. Projected "
+                "pool\n"
+                "    standings now correctly include your "
+                "knockout-stage\n"
+                "    bonus points too.\n"
+                "    → https://wc26.heyvinay.com/results?round=bracket\n"
+                "  • Tap the ✦ icon in the nav for a What's New "
+                "panel with\n"
+                "    everything that's shipped recently — and a "
+                "one-tap way\n"
+                "    to rate the app and send a quick note. We read "
+                "every one.\n"
+                "\n"
+                "The final eight (all times Malta)\n"
+                "  • France vs Morocco     — Thu 9 Jul, 22:00. "
+                "Boston.\n"
+                "                            A 2022 semi-final "
+                "rematch.\n"
+                "  • Spain vs Belgium      — Fri 10 Jul, 21:00. "
+                "Los Angeles.\n"
+                "  • Norway vs England     — Sat 11 Jul, 23:00. "
+                "Miami. Haaland vs Kane.\n"
+                "  • Argentina vs Switzerland — Sun 12 Jul, 03:00. "
+                "Kansas City.\n"
+                "\n"
+                "Points-per-match doubles from here on. One correct "
+                "QF outcome\n"
+                "is worth more than a whole group-stage matchday. "
+                "Every scoreline,\n"
+                "every bracket pick, every bonus answer starts to "
+                "matter twice as\n"
+                "much. If you've been coasting mid-table, this is "
+                "where the table\n"
+                "breaks open.\n"
+                "\n"
+                "See you at the top of the table.\n"
+            ),
+            cta_label="See the full table",
+        )
+
     if segment == BroadcastSegment.LAPSING:
         # v2.176.0 — soft mid-tournament nudge for users who were
         # engaged early but haven't visited in 3-7 days. The copy
@@ -2005,6 +2298,231 @@ async def _compute_r2_highlights(session) -> dict[str, str]:
             round_label="Round 2",
         ),
         "CLIMBERS": await _compute_climbers_str(session),
+    }
+
+
+async def _compute_bottlers_str(session) -> dict[str, str]:
+    """Compose the Bottlers paragraph tokens for the R16 recap.
+
+    Returns two strings:
+
+    - ``BOTTLERS_PAID_OUT`` — a full sentence naming the currently-
+      qualifying Q4 Bottler teams and the pool pick-count per team.
+      Reads ``BonusAnswer`` for ``question_id='flop'`` as the source
+      of truth — the scoring engine (``bonus.calculate_bonus_points``)
+      only pays out points for teams present in that table. If the
+      admin has not yet set the flop answers, a "pending" fallback is
+      returned so the empty state is visibly surfaced in a test-send
+      rather than silently rendering a broken sentence.
+    - ``BOTTLERS_SURPRISE`` — the pool's most-picked flop team that is
+      NOT in the paid-out list (i.e. still in the tournament, or
+      progressed further than the earliest-exit min). Formatted as
+      ``"{team} ({n} picks)"`` or ``"—"`` on empty.
+
+    Pick counts are filtered to eligible entries via the same
+    predicate rarity uses (SUBMITTED + not disabled + not withdrawn),
+    so the counts match what the scorer actually paid.
+
+    Fail-open — any exception returns a ``"—"`` pair. Broadcast-email
+    build MUST NOT crash on a helper failure.
+    """
+    try:
+        from sqlalchemy import text as _sql_text
+
+        # 1) Currently paid-out flop teams (admin-settled answers).
+        paid_rows = (
+            await session.execute(
+                _sql_text(
+                    "SELECT correct_answer FROM bonus_answers "
+                    "WHERE question_id='flop'"
+                )
+            )
+        ).all()
+        paid_teams: list[str] = [r.correct_answer for r in paid_rows]
+
+        # 2) Pool pick counts per flop team, eligible entries only.
+        counts_rows = (
+            await session.execute(
+                _sql_text(
+                    "SELECT bp.answer AS team, COUNT(*) AS n "
+                    "FROM bonus_predictions bp "
+                    "JOIN prediction_entries pe ON pe.id = bp.entry_id "
+                    "JOIN prediction_entry_phases peph "
+                    "  ON peph.entry_id = pe.id "
+                    "WHERE bp.question_id='flop' "
+                    "  AND pe.is_disabled = false "
+                    "  AND pe.withdrawn_at IS NULL "
+                    "  AND peph.status = 'SUBMITTED' "
+                    "GROUP BY bp.answer"
+                )
+            )
+        ).all()
+        counts: dict[str, int] = {r.team: int(r.n) for r in counts_rows}
+
+    except Exception as exc:  # noqa: BLE001 — broadcast must not crash
+        logger.warning("R16 bottlers query failed: %s", exc)
+        return {"BOTTLERS_PAID_OUT": "—", "BOTTLERS_SURPRISE": "—"}
+
+    # Empty-state: admin hasn't finalised the flop answer yet.
+    # Note: BOTTLERS_SURPRISE returns EMPTY STRING (not "—") so the
+    # footnote sentence self-elides in both bodies — the template is
+    # "{{BOTTLERS_PAID_OUT}}. {{BOTTLERS_SURPRISE}}" and an empty
+    # surprise means "no trailing sentence." A "—" here would render
+    # as "— was the pool's most-picked Bottler and hasn't obliged"
+    # which is nonsensical.
+    if not paid_teams:
+        return {
+            "BOTTLERS_PAID_OUT": (
+                "the Q4 payout list is still being finalised"
+            ),
+            "BOTTLERS_SURPRISE": "",
+        }
+
+    # Compose the paid-out sentence. Rendering rule:
+    #   * one team: "Team is the Q4 payout so far — N of you picked
+    #     Team, banking those points."
+    #   * multiple: "Team A and Team B are the two Q4 payouts so
+    #     far — N of you picked A, M picked B, banking those points."
+    #   * zero-pick clauses use "nobody picked X" phrasing (more
+    #     natural than "0 of you picked X") — surfaces the "we all
+    #     missed it" moment editorially.
+    def _pick_clause(team: str) -> str:
+        n = counts.get(team, 0)
+        if n == 0:
+            return f"nobody picked {team}"
+        if n == 1:
+            return f"1 of you picked {team}"
+        return f"{n} of you picked {team}"
+
+    n_teams = len(paid_teams)
+    if n_teams == 1:
+        team = paid_teams[0]
+        paid_line = (
+            f"{team} is the sole Q4 payout on the board so far — "
+            f"{_pick_clause(team)}"
+        )
+    else:
+        # Oxford-serial join for the team list.
+        if n_teams == 2:
+            teams_joined = " and ".join(paid_teams)
+            article = "the two"
+        else:
+            teams_joined = (
+                ", ".join(paid_teams[:-1]) + f", and {paid_teams[-1]}"
+            )
+            article = f"the {n_teams}"
+        clauses = [_pick_clause(t) for t in paid_teams]
+        if len(clauses) == 2:
+            picks_joined = " and ".join(clauses)
+        else:
+            picks_joined = (
+                ", ".join(clauses[:-1]) + f", and {clauses[-1]}"
+            )
+        paid_line = (
+            f"{teams_joined} are {article} Q4 payouts on the board so "
+            f"far — {picks_joined}"
+        )
+
+    # Surprise: top-picked flop team NOT in the paid-out list.
+    paid_set = set(paid_teams)
+    surprise_candidates = sorted(
+        ((t, n) for t, n in counts.items() if t not in paid_set),
+        key=lambda tn: (-tn[1], tn[0]),
+    )
+    if not surprise_candidates:
+        # No non-paying pick to name — omit the footnote entirely
+        # (empty string, so the template's trailing sentence elides).
+        surprise_str = ""
+    else:
+        top_team, top_n = surprise_candidates[0]
+        picks_word = "pick" if top_n == 1 else "picks"
+        # Full sentence, so the template can render
+        # "{{BOTTLERS_PAID_OUT}}. {{BOTTLERS_SURPRISE}}" and self-
+        # elide when there's no surprise. Trailing period included.
+        surprise_str = (
+            f"As a footnote: {top_team} ({top_n} {picks_word}) was the "
+            f"pool's most-picked Bottler and hasn't obliged."
+        )
+
+    return {
+        "BOTTLERS_PAID_OUT": paid_line,
+        "BOTTLERS_SURPRISE": surprise_str,
+    }
+
+
+async def _compute_r16_highlights(session) -> dict[str, str]:
+    """Build the token dict for the GROUP_R16_RECAP broadcast email.
+
+    Mirrors ``_compute_r2_highlights`` shape (top-5 standings + round
+    hero + climber) with the R16 boundary date (2026-07-03 — the day
+    before any R16 fixture kicked off) and merges in the two Bottlers
+    tokens.
+
+    Empty dict means "no eligible data" — placeholders remain literal
+    in the email body, which surfaces the failure to the admin via a
+    test-send rather than silently sending a broken email.
+    """
+    from app.services.leaderboard import calculate_leaderboard
+    try:
+        lb = await calculate_leaderboard(session, phase=None)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("R16 leaderboard fetch failed: %s", exc)
+        return {}
+
+    entries = lb.entries[:5]
+    if not entries:
+        return {}
+
+    # Multi-entry disambiguation — same rule as _compute_r2_highlights.
+    user_counts: dict[str, int] = {}
+    for e in entries:
+        user_counts[e.user_name] = user_counts.get(e.user_name, 0) + 1
+
+    def display_for(e) -> str:
+        if user_counts.get(e.user_name, 0) > 1:
+            return f"{e.user_name} — {e.entry_name}"
+        return e.user_name
+
+    top_1 = entries[0]
+    top_1_str = f"{display_for(top_1)} — {top_1.total_points} pts"
+
+    if len(entries) >= 2:
+        gap = top_1.total_points - entries[1].total_points
+        gap_str = "tied" if gap == 0 else f"{gap} behind"
+        top_2_str = (
+            f"{display_for(entries[1])} — {entries[1].total_points} pts "
+            f"({gap_str})"
+        )
+    else:
+        top_2_str = "—"
+
+    if len(entries) >= 3:
+        top_3_5_str = " · ".join(
+            f"{display_for(e)} ({e.total_points})" for e in entries[2:5]
+        )
+    else:
+        top_3_5_str = "—"
+
+    # R16 boundary: 2026-07-03 is the day BEFORE any R16 fixture
+    # (first R16 KO: 2026-07-04 17:00 UTC = 19:00 Malta). Verified
+    # via `SELECT MIN(kickoff) FROM fixtures WHERE stage='round_of_16'`
+    # against the live DB 2026-07-09. For future round recaps, edit
+    # this date to (first-KO-date − 1).
+    hero_str = await _compute_round_hero_str(
+        session,
+        before_date=date(2026, 7, 3),
+        round_label="the Round of 16",
+    )
+    climbers_str = await _compute_climbers_str(session)
+    bottlers = await _compute_bottlers_str(session)
+
+    return {
+        "TOP_1": top_1_str,
+        "TOP_2_WITH_GAP": top_2_str,
+        "TOP_3_TO_5": top_3_5_str,
+        "R16_HERO": hero_str,
+        "CLIMBERS": climbers_str,
+        **bottlers,
     }
 
 

@@ -115,6 +115,14 @@ class BroadcastSegment(str, Enum):
     # Spam-filter rules match R2/GSF: no UTM on the CTA, no
     # "winner+announced" / "prize+awarded" word pairs.
     GROUP_R32_RECAP = "group_r32_recap"
+    # NEW v2.209.0 — Round of 16 knockout recap (one-off). Same audience
+    # predicate as the other recap segments (every submitter). Body is a
+    # token-driven recap (R2/GSF style, not R32's static prose) — live
+    # standings, R16 hero, biggest climber, and Bottlers pay-out summary
+    # fill in at send time from `_compute_r16_highlights`. Spam-filter
+    # rules match R2/GSF/R32: no UTM on the CTA, no "winner+announced"
+    # / "prize+awarded" word pairs, no national-flag emoji.
+    GROUP_R16_RECAP = "group_r16_recap"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -368,6 +376,12 @@ def _segment_predicate(
         # v2.195.0 — same audience as the other recap segments. Every
         # submitter gets the knockout recap; sharing the predicate keeps
         # the recap family's counts locked together.
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.GROUP_R16_RECAP:
+        # v2.209.0 — same audience as R32 and every other recap. Shared
+        # predicate keeps the four recap-family counts (R1, R2, GSF,
+        # R32, R16) locked to a single "who's an active submitter"
+        # definition.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

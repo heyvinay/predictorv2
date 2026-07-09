@@ -401,6 +401,106 @@ class TestAudienceQueries:
         assert "utm_" not in content.body_html
         assert "utm_" not in content.body_text
 
+    async def test_group_r16_recap_mirrors_submitters_audience(
+        self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
+    ):
+        # v2.209.0 — GROUP_R16_RECAP shares the SUBMITTERS predicate, like
+        # every other recap segment. Guard: if this flips, the R16 recap
+        # silently targets the wrong audience.
+        submitters = {
+            r.email
+            for r in await query_audience(db_session, BroadcastSegment.SUBMITTERS)
+        }
+        recap = {
+            r.email
+            for r in await query_audience(
+                db_session, BroadcastSegment.GROUP_R16_RECAP
+            )
+        }
+        assert recap == submitters
+
+    async def test_group_r16_recap_template_tokens_interpolate(
+        self, db_session: AsyncSession
+    ):
+        # v2.209.0 regression pin — same failure class as the R2 / GSF
+        # double-brace bug. GROUP_R16_RECAP is TOKEN-DRIVEN (7 tokens:
+        # top-5 standings + R16 hero + climbers + two Bottlers strings).
+        # Every advertised token must interpolate; no literal
+        # `{TOKEN}` / `{{TOKEN}}` fragment may leak.
+        from app.services.email import (
+            _broadcast_content_for_segment,
+            _interpolate,
+        )
+
+        content = _broadcast_content_for_segment(
+            BroadcastSegment.GROUP_R16_RECAP,
+            player_name="Test User",
+            deadline_display=None,
+        )
+        tokens = {
+            "TOP_1": "James Vella — 1,401 pts",
+            "TOP_2_WITH_GAP": "Lionel Zammit — 1,395 pts (6 behind)",
+            "TOP_3_TO_5": "Glenn D (1,383) · Jacques E (1,381) · Kurt B (1,378)",
+            "R16_HERO": "Rhoda Maughan — 118 points across the Round of 16",
+            "CLIMBERS": "Vinay — up 12 (From #17 to #5 in 3 days)",
+            "BOTTLERS_PAID_OUT": (
+                "Germany and Netherlands are the two Q4 payouts on the "
+                "board so far — 2 of you picked Germany and nobody picked "
+                "Netherlands"
+            ),
+            "BOTTLERS_SURPRISE": (
+                "As a footnote: Spain (6 picks) was the pool's "
+                "most-picked Bottler and hasn't obliged."
+            ),
+        }
+        rendered = _interpolate(content, tokens)
+        for key, value in tokens.items():
+            assert value in rendered.body_html, (
+                f"value {value!r} for token {key} missing from HTML"
+            )
+            # Long token values may hard-wrap in the plain-text body;
+            # assert against the first ~40 chars if the full value
+            # would cross a line break. For every token here the head
+            # is unique enough to be safe.
+            assert value[:40] in rendered.body_text, (
+                f"value head {value[:40]!r} for token {key} missing "
+                f"from text"
+            )
+        # No unsubstituted brace-placeholder fragments in either body.
+        # Catches the f-string single-brace collapse AND a future
+        # missing-token mistake in one assertion. Also asserts none
+        # of the seven token names leaked as literal braces.
+        for fragment in (
+            "{{", "}}",
+            "{TOP_1}", "{TOP_2_WITH_GAP}", "{TOP_3_TO_5}",
+            "{R16_HERO}", "{CLIMBERS}",
+            "{BOTTLERS_PAID_OUT}", "{BOTTLERS_SURPRISE}",
+        ):
+            assert fragment not in rendered.body_html, (
+                f"unsubstituted placeholder fragment {fragment!r} in HTML"
+            )
+            assert fragment not in rendered.body_text, (
+                f"unsubstituted placeholder fragment {fragment!r} in text"
+            )
+        # Spam-filter contract: no UTM tag on the CTA or in the body.
+        # Deep links inside "New this week" ARE allowed, but none
+        # should carry utm_* params.
+        assert "utm_" not in content.body_html
+        assert "utm_" not in content.body_text
+        # Subject spam-word contract: no "winner+announced" pair.
+        subject_lower = content.subject.lower()
+        assert not ("winner" in subject_lower and "announced" in subject_lower)
+        # Structural sanity: R16 stories + QF matchups all present.
+        for must in [
+            "Norway",
+            "Brazil",
+            "Argentina",
+            "Egypt",
+            "France vs Morocco",
+            "Argentina vs Switzerland",
+        ]:
+            assert must in content.body_html, f"missing in HTML: {must}"
+
     async def test_no_entry_excludes_inactive_and_onboarding_incomplete(
         self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
     ):

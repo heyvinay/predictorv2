@@ -69,6 +69,7 @@ from app.services.completeness import (
 )
 from app.services.email import (
     _compute_group_stage_winner_email_tokens,
+    _compute_r16_highlights,
     _compute_r2_highlights,
     send_broadcast_email,
 )
@@ -1821,6 +1822,13 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
         # standings; the body separately points at the simulator on
         # the Results page.
         return f"{base}/leaderboard"
+    if segment == BroadcastSegment.GROUP_R16_RECAP:
+        # v2.209.0 — UTM-free /leaderboard, matching the R2/GSF/R32
+        # recap convention. The R16 body carries its own deep-links
+        # to /leaderboard (live projection) and /results?round=bracket
+        # (Simulator) inside "New this week"; the main CTA stays on
+        # the standings.
+        return f"{base}/leaderboard"
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"
@@ -1848,6 +1856,7 @@ async def get_broadcast_audience(
         group_r2_recap=counts[BroadcastSegment.GROUP_R2_RECAP],
         group_stage_final=counts[BroadcastSegment.GROUP_STAGE_FINAL],
         group_r32_recap=counts[BroadcastSegment.GROUP_R32_RECAP],
+        group_r16_recap=counts[BroadcastSegment.GROUP_R16_RECAP],
     )
 
 
@@ -1887,6 +1896,8 @@ async def send_broadcast_test(
         tokens = await _compute_r2_highlights(session)
     elif payload.segment == BroadcastSegment.GROUP_STAGE_FINAL:
         tokens = await _compute_group_stage_winner_email_tokens(session)
+    elif payload.segment == BroadcastSegment.GROUP_R16_RECAP:
+        tokens = await _compute_r16_highlights(session)
 
     try:
         await send_broadcast_email(
@@ -1955,6 +1966,8 @@ async def send_broadcast(
         tokens = await _compute_r2_highlights(session)
     elif payload.segment == BroadcastSegment.GROUP_STAGE_FINAL:
         tokens = await _compute_group_stage_winner_email_tokens(session)
+    elif payload.segment == BroadcastSegment.GROUP_R16_RECAP:
+        tokens = await _compute_r16_highlights(session)
 
     sent = 0
     failed = 0
