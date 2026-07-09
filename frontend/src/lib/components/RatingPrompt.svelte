@@ -63,7 +63,7 @@
 		class="fixed z-[65] inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] min-[700px]:bottom-4 min-[700px]:inset-x-auto min-[700px]:right-4 flex justify-center min-[700px]:justify-end px-3 pointer-events-none"
 	>
 		<div
-			class="pointer-events-auto w-full max-w-xs bg-base-200 border border-base-300/60 rounded-2xl shadow-card p-4 text-center relative"
+			class="rating-prompt-in pointer-events-auto w-full max-w-xs bg-base-200 border border-primary/40 rounded-2xl shadow-glow-gold p-4 text-center relative"
 			role="dialog"
 			aria-label="Rate the app"
 		>
@@ -76,7 +76,7 @@
 			</button>
 
 			{#if submitted === 0}
-				<h3 class="font-semibold text-sm">Enjoying the Predictor?</h3>
+				<h3 class="font-semibold text-sm">Enjoying the Predictor App?</h3>
 				<p class="text-xs text-base-content/60 mt-0.5 mb-3">Tap to rate — takes a second.</p>
 				<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 				<div class="flex justify-center gap-1.5" on:mouseleave={() => (hovered = 0)}>
@@ -140,3 +140,24 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.rating-prompt-in {
+		animation: rating-prompt-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	@keyframes rating-prompt-in {
+		from {
+			opacity: 0;
+			transform: translateY(18px) scale(0.97);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rating-prompt-in {
+			animation: none;
+		}
+	}
+</style>

@@ -2711,6 +2711,13 @@
       "type": "internal",
       "summary": "Added the Round of 16 recap email.",
       "commit": "pending"
+    },
+    {
+      "version": "2.209.1",
+      "date": "2026-07-09",
+      "type": "improvement",
+      "summary": "The 'rate the app' card now has a gold accent border and a subtle entrance animation, so it's easier to notice.",
+      "commit": "pending"
     }
   ]
 }
