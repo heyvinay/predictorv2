@@ -2718,6 +2718,13 @@
       "type": "improvement",
       "summary": "The 'rate the app' card now has a gold accent border and a subtle entrance animation, so it's easier to notice.",
       "commit": "pending"
+    },
+    {
+      "version": "2.209.2",
+      "date": "2026-07-09",
+      "type": "improvement",
+      "summary": "Dashboard tweaks: fixture links line up with the schedule pills, upcoming matches shows everything on the board, and the Daily MVP card no longer leaves empty space with fewer entries.",
+      "commit": "pending"
     }
   ]
 }
