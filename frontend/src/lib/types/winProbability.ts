@@ -76,3 +76,16 @@ export interface WinProbabilityResponse {
 	odds_weighted: OddsWeightedView | null;
 	odds_coverage: OddsCoverage;
 }
+
+/** Live Polymarket "to win the tournament" odds for one team. `team` is
+ *  the internal team name (joined server-side), so it matches plain team
+ *  names elsewhere in the app without client canonicalisation. */
+export interface ChampionMarketOdds {
+	team: string;
+	market_odds: number; // 0-1
+}
+
+export interface ChampionMarketOddsResponse {
+	odds: ChampionMarketOdds[];
+	computed_at: string;
+}

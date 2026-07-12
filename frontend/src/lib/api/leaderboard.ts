@@ -24,7 +24,10 @@ import type {
 	RaceStoriesResponse
 } from '$lib/types/leaderboard';
 import type { ScoringRules } from '$lib/types/results';
-import type { WinProbabilityResponse } from '$lib/types/winProbability';
+import type {
+	ChampionMarketOddsResponse,
+	WinProbabilityResponse
+} from '$lib/types/winProbability';
 
 export type PhaseFilter = 'phase_1' | 'phase_2' | null;
 
@@ -64,6 +67,14 @@ export async function getAllTrajectories(days = 30): Promise<AllTrajectoriesResp
  *  to the pool; a 403 means the caller should hide the tab. */
 export async function getWinProbability(): Promise<WinProbabilityResponse> {
 	return api.get<WinProbabilityResponse>('/leaderboard/win-probability');
+}
+
+/** GET /api/leaderboard/champion-market-odds — live Polymarket "to win the
+ *  tournament" odds per team, joined to internal team names. Gated like
+ *  win-probability (admin, or once win_probability_enabled is on); a 403
+ *  means the caller should hide the market-odds column. */
+export async function getChampionMarketOdds(): Promise<ChampionMarketOddsResponse> {
+	return api.get<ChampionMarketOddsResponse>('/leaderboard/champion-market-odds');
 }
 
 /** Bonus reads with settled hit/points/category (v2.164.0 fields). The

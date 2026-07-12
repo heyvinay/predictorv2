@@ -1057,3 +1057,65 @@ async def win_probability_endpoint(
             priceable=comparison.odds_matches_priceable,
         ),
     )
+
+
+class ChampionMarketOdds(BaseModel):
+    team: str  # internal team name (matches TeamPrediction.team / fixtures)
+    market_odds: float  # 0-1, Polymarket P(this team wins the tournament)
+
+
+class ChampionMarketOddsResponse(BaseModel):
+    odds: list[ChampionMarketOdds]
+    computed_at: datetime
+
+
+@router.get("/champion-market-odds", response_model=ChampionMarketOddsResponse)
+async def champion_market_odds(
+    session: DbSession,
+    user: CurrentUser,
+) -> ChampionMarketOddsResponse:
+    """Live Polymarket "to win the tournament" odds per team, joined to the
+    competition's internal team names server-side (so the frontend matches
+    by plain team name, no client canonicalisation).
+
+    Gated identically to /win-probability — admin always, non-admin only
+    once `Competition.win_probability_enabled` is flipped on. Same lever,
+    same staged rollout: this surfaces market-derived odds, which the flag
+    exists to control. Fail-open: any Polymarket hiccup degrades to an
+    empty odds list (the service already serves last-good / empty on
+    error), never a 500."""
+    from app.models.fixture import Fixture
+    from app.services.locking import get_active_competition
+    from app.services.polymarket import get_stage_reach_probabilities
+    from app.services.team_match import canonicalize
+
+    competition = await get_active_competition(session)
+    if not (user.is_admin or (competition and competition.win_probability_enabled)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Championship market odds not yet released",
+        )
+
+    odds: list[ChampionMarketOdds] = []
+    try:
+        poly = await get_stage_reach_probabilities("winner")  # {canonical: P(Yes)}
+        if poly:
+            # Real team names in the competition, joined to Polymarket via the
+            # same canonicalize() the win-probability engine uses.
+            team_rows = (
+                await session.execute(select(Fixture.home_team, Fixture.away_team))
+            ).all()
+            teams: set[str] = set()
+            for home, away in team_rows:
+                for t in (home, away):
+                    if t and t != "TBD" and not t.startswith("slot:"):
+                        teams.add(t)
+            for t in sorted(teams):
+                p = poly.get(canonicalize(t))
+                if p is not None:
+                    odds.append(ChampionMarketOdds(team=t, market_odds=p))
+    except Exception:
+        logger.exception("champion-market-odds computation failed")
+        odds = []
+
+    return ChampionMarketOddsResponse(odds=odds, computed_at=utc_now())
