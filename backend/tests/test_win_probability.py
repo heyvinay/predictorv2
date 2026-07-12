@@ -210,6 +210,76 @@ def test_simulate_pool_four_team_bracket_ranks_entries_by_expected_outcome():
         assert round(result.entries[entry_id].p_win, 6) == 0.25
 
 
+def test_simulate_pool_records_scenarios_when_requested():
+    """record_scenarios=True captures all 2**m completions, each carrying
+    ONLY the unresolved match numbers and a non-empty champion set; weights
+    sum to 1."""
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    entries = {
+        "entry-a": [("A", "winner")],
+        "entry-b": [("B", "winner")],
+        "entry-c": [("C", "winner")],
+        "entry-d": [("D", "winner")],
+    }
+    result = simulate_pool(
+        matches,
+        known_winners={},
+        unresolved=[101, 102, 104],
+        entries=entries,
+        points_by_stage=POINTS_BY_STAGE,
+        base_points={eid: 0 for eid in entries},
+        record_scenarios=True,
+    )
+    assert len(result.scenarios) == 8  # 2**3
+    for s in result.scenarios:
+        assert set(s.outcomes.keys()) == {101, 102, 104}
+        assert s.champion_entry_ids  # non-empty
+    assert round(sum(s.weight for s in result.scenarios), 6) == 1.0
+
+
+def test_simulate_pool_does_not_record_scenarios_by_default():
+    """Default is off — nothing recorded unless a caller asks."""
+    matches = {104: MatchSpec(stage="final", home_ref="A", away_ref="B")}
+    result = simulate_pool(
+        matches,
+        known_winners={},
+        unresolved=[104],
+        entries={"entry-a": [("A", "winner")]},
+        points_by_stage=POINTS_BY_STAGE,
+        base_points={"entry-a": 0},
+    )
+    assert result.scenarios == ()
+
+
+def test_simulate_pool_skips_recording_under_monte_carlo():
+    """Even with record_scenarios=True, a Monte Carlo fallback records
+    nothing — the sampled draws aren't the clean completion set the card
+    wants. Forced via a tiny max_exact_m."""
+    matches = {
+        101: MatchSpec(stage="semi_final", home_ref="A", away_ref="B"),
+        102: MatchSpec(stage="semi_final", home_ref="C", away_ref="D"),
+        104: MatchSpec(stage="final", home_ref=101, away_ref=102),
+    }
+    result = simulate_pool(
+        matches,
+        known_winners={},
+        unresolved=[101, 102, 104],
+        entries={"entry-a": [("A", "winner")]},
+        points_by_stage=POINTS_BY_STAGE,
+        base_points={"entry-a": 0},
+        max_exact_m=1,
+        num_samples=50,
+        rng=random.Random(1),
+        record_scenarios=True,
+    )
+    assert result.mode == "monte_carlo"
+    assert result.scenarios == ()
+
+
 def test_simulate_pool_ties_split_win_credit_evenly():
     """Two entries with identical predictions must split the win credit in
     every scenario where they'd otherwise tie for first — this is the

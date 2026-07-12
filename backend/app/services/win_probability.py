@@ -219,6 +219,14 @@ def enumerate_scenarios(
 EXACT_ENUMERATION_MAX_M = 15
 MONTE_CARLO_SAMPLES = 20_000
 
+# Cap on recording the raw per-scenario outcome list (Path to the Trophy
+# card). Distinct from EXACT_ENUMERATION_MAX_M — that gates whether exact
+# enumeration happens at all; this gates whether the flat scenario list is
+# small enough to be worth rendering (grouped-by-champion stays readable
+# up to a few dozen, not thousands). This tournament is down to 8 and only
+# shrinks, so it's a rendering-fitness ceiling, not a compute constraint.
+MAX_SCENARIOS_TO_RECORD = 64
+
 
 def sample_scenarios(
     matches: dict[int, MatchSpec],
@@ -398,6 +406,21 @@ class EntryProbability:
     win_by_match_winner: dict[int, dict[str, float]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ScenarioOutcome:
+    """One fully-resolved completion of the remaining bracket, and who wins
+    the pool under it. `outcomes` covers only the matches that were
+    unresolved going into this simulation (not the already-decided
+    history), so callers can render 'if X beats Y' without re-deriving
+    which matches were already settled. `champion_entry_ids` has more than
+    one id only on an exact-score tie for the top total."""
+
+    outcomes: dict[int, str]  # match_number -> winning team, unresolved only
+    weight: float
+    champion_entry_ids: tuple[str, ...]
+    champion_points: int
+
+
 @dataclass
 class PoolSimulationResult:
     entries: dict[str, EntryProbability]
@@ -427,6 +450,10 @@ class PoolSimulationResult:
     # log2 reversal works, but under "monte_carlo" scenario_count is
     # just num_samples (e.g. 20,000) and log2(20000) is not m at all.
     unresolved_matches: int = 0
+    # Raw per-scenario outcomes, populated only when the caller passed
+    # record_scenarios=True AND exact enumeration ran (never under Monte
+    # Carlo). Empty otherwise. Powers the Path to the Trophy card.
+    scenarios: tuple[ScenarioOutcome, ...] = field(default_factory=tuple)
 
 
 def simulate_pool(
@@ -442,6 +469,7 @@ def simulate_pool(
     num_samples: int = MONTE_CARLO_SAMPLES,
     rng: random.Random | None = None,
     match_probabilities: dict[int, float] | None = None,
+    record_scenarios: bool = False,
 ) -> PoolSimulationResult:
     """Enumerate every bracket completion and, for each, rank the pool by
     base_points[entry] + entry_ko_points(...) [+ simulate_bonus_points(...)
@@ -510,6 +538,12 @@ def simulate_pool(
         )
         mode = "monte_carlo"
 
+    # Only record the raw scenario list under exact enumeration — a Monte
+    # Carlo run would emit thousands of sampled duplicates, not the clean
+    # 2**m completion set the Path to the Trophy card wants.
+    record_scenarios = record_scenarios and mode == "exact"
+    scenario_outcomes: list[ScenarioOutcome] = []
+
     for winners, weight in scenario_source:
         advancement = build_advancement(matches, winners)
         scenario_count += 1
@@ -535,6 +569,16 @@ def simulate_pool(
         top_score = ranked_scores[0]
         top_entries = [eid for eid, score in scores.items() if score == top_score]
         win_share = weight / len(top_entries)
+
+        if record_scenarios:
+            scenario_outcomes.append(
+                ScenarioOutcome(
+                    outcomes={m: winners[m] for m in unresolved},
+                    weight=weight,
+                    champion_entry_ids=tuple(top_entries),
+                    champion_points=top_score,
+                )
+            )
 
         for eid in entry_ids:
             rank = rank_by_score[scores[eid]]
@@ -578,6 +622,7 @@ def simulate_pool(
         unresolved_matches=len(unresolved),
         match_winner_weight=match_winner_weight,
         match_meta=resolvable_matches,
+        scenarios=tuple(scenario_outcomes),
     )
 
 
@@ -812,6 +857,11 @@ class WinProbabilityComparison:
     odds_weighted: PoolSimulationResult | None
     odds_matches_priced: int = 0
     odds_matches_priceable: int = 0
+    # The per-scenario outcome list for the Path to the Trophy card. The
+    # discrete winner of each scenario is identical between the uniform and
+    # odds-weighted runs (only the weighting differs), so this is stored
+    # once — from whichever run recorded it.
+    scenarios: tuple[ScenarioOutcome, ...] = field(default_factory=tuple)
 
 
 async def load_bracket_state(
@@ -998,6 +1048,11 @@ async def compute_win_probability(session: AsyncSession) -> WinProbabilityCompar
         if bonus_config.unresolved_questions:
             bonus_picks = await load_bonus_picks(session, bonus_config.unresolved_questions)
 
+    # Record the raw scenario list when the completion set is small enough
+    # to render (Path to the Trophy). Passed to both runs so odds_weighted's
+    # scenarios isn't empty when uniform's ran with recording on.
+    record = 2 ** len(unresolved) <= MAX_SCENARIOS_TO_RECORD
+
     uniform = simulate_pool(
         matches,
         known_winners,
@@ -1007,6 +1062,7 @@ async def compute_win_probability(session: AsyncSession) -> WinProbabilityCompar
         base_points,
         entry_bonus_picks=bonus_picks,
         bonus_config=bonus_config,
+        record_scenarios=record,
     )
 
     match_probabilities, priceable_count = await load_ko_match_win_probabilities(
@@ -1023,9 +1079,18 @@ async def compute_win_probability(session: AsyncSession) -> WinProbabilityCompar
             entry_bonus_picks=bonus_picks,
             bonus_config=bonus_config,
             match_probabilities=match_probabilities,
+            record_scenarios=record,
         )
         if match_probabilities
         else None
+    )
+
+    # Discrete per-scenario winners are identical across both runs (only the
+    # weighting differs) — store once, preferring whichever actually ran.
+    scenarios = (
+        odds_weighted.scenarios
+        if odds_weighted is not None and odds_weighted.scenarios
+        else uniform.scenarios
     )
 
     return WinProbabilityComparison(
@@ -1033,6 +1098,7 @@ async def compute_win_probability(session: AsyncSession) -> WinProbabilityCompar
         odds_weighted=odds_weighted,
         odds_matches_priced=len(match_probabilities),
         odds_matches_priceable=priceable_count,
+        scenarios=scenarios,
     )
 
 

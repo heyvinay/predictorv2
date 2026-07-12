@@ -66,6 +66,23 @@ export interface OddsCoverage {
 	priceable: number;
 }
 
+/** One completion of the remaining bracket and who wins the pool under it.
+ *  `outcomes` maps match_number (stringified in JSON) → winning team, for
+ *  the matches that were unresolved. */
+export interface ScenarioOutcome {
+	outcomes: Record<string, string>;
+	weight: number;
+	champion_entry_ids: string[];
+	champion_points: number;
+}
+
+export interface MatchMetaEntry {
+	match_number: number;
+	home_team: string;
+	away_team: string;
+	stage: string;
+}
+
 export interface WinProbabilityResponse {
 	entries: EntryWinProbability[];
 	teams: TeamStageOdds[];
@@ -75,6 +92,11 @@ export interface WinProbabilityResponse {
 	 *  has no line for the next real matchup). */
 	odds_weighted: OddsWeightedView | null;
 	odds_coverage: OddsCoverage;
+	/** Every remaining bracket completion + its pool champion (Path to the
+	 *  Trophy). Empty when too many to enumerate, or on the fail path. */
+	scenarios: ScenarioOutcome[];
+	/** The next real-vs-real matches, for labelling scenarios. */
+	match_meta: MatchMetaEntry[];
 }
 
 /** Live Polymarket "to win the tournament" odds for one team. `team` is

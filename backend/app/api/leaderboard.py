@@ -925,6 +925,20 @@ class OddsCoverage(BaseModel):
     priceable: int
 
 
+class ScenarioOutcomeOut(BaseModel):
+    outcomes: dict[int, str]  # match_number -> winning team (unresolved matches)
+    weight: float
+    champion_entry_ids: list[str]
+    champion_points: int
+
+
+class MatchMetaEntry(BaseModel):
+    match_number: int
+    home_team: str
+    away_team: str
+    stage: str
+
+
 class WinProbabilityResponse(BaseModel):
     entries: list[EntryWinProbability]
     teams: list[TeamStageOdds]
@@ -935,6 +949,14 @@ class WinProbabilityResponse(BaseModel):
     # "second view" that's silently identical to the uniform one.
     odds_weighted: OddsWeightedView | None = None
     odds_coverage: OddsCoverage = OddsCoverage(priced=0, priceable=0)
+    # Every completion of the remaining bracket + who wins the pool under
+    # it (Path to the Trophy card). Empty when the completion set is too
+    # large to enumerate for display, or on the fail-open path.
+    scenarios: list[ScenarioOutcomeOut] = []
+    # The next real-vs-real matches (match_number, teams, stage), for
+    # labelling the scenarios. `match_number` is a plain field (a list of
+    # objects), matching DecisiveMatch — not an int-keyed dict.
+    match_meta: list[MatchMetaEntry] = []
 
 
 def _build_view(
@@ -1042,6 +1064,11 @@ async def win_probability_endpoint(
         odds_entries, odds_teams = _build_view(comparison.odds_weighted, include_conditionals=True)
         odds_weighted = OddsWeightedView(entries=odds_entries, teams=odds_teams)
 
+    # match_meta rides off the effective result (bracket topology is
+    # identical across the two runs); scenarios come pre-picked on the
+    # comparison.
+    effective = comparison.odds_weighted or uniform
+
     return WinProbabilityResponse(
         entries=entries,
         teams=teams,
@@ -1056,6 +1083,19 @@ async def win_probability_endpoint(
             priced=comparison.odds_matches_priced,
             priceable=comparison.odds_matches_priceable,
         ),
+        scenarios=[
+            ScenarioOutcomeOut(
+                outcomes=s.outcomes,
+                weight=s.weight,
+                champion_entry_ids=list(s.champion_entry_ids),
+                champion_points=s.champion_points,
+            )
+            for s in comparison.scenarios
+        ],
+        match_meta=[
+            MatchMetaEntry(match_number=m, home_team=h, away_team=a, stage=st)
+            for m, (h, a, st) in effective.match_meta.items()
+        ],
     )
 
 

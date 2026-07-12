@@ -29,6 +29,7 @@
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
+	import PathToTrophy from './PathToTrophy.svelte';
 	import YouTag from './YouTag.svelte';
 
 	export let rows: LbEntryV4[];
@@ -285,6 +286,9 @@
 </script>
 
 <div class="grid grid-cols-1 gap-4 min-[860px]:grid-cols-2">
+	<!-- 0 · Path to the Trophy (wide; self-hides until <2 scenarios / gated) -->
+	<PathToTrophy {rows} {userId} />
+
 	<!-- 1 · Points DNA (wide) -->
 	<InsightCard
 		title="Points DNA"

@@ -176,6 +176,33 @@ async def test_response_shape_and_probabilities_sum_to_one(session: AsyncSession
     assert body["odds_weighted"] is None
     assert body["odds_coverage"] == {"priced": 0, "priceable": 0}
 
+    # Path to the Trophy fields are always present (lists), even with no
+    # bracket loaded.
+    assert isinstance(body["scenarios"], list)
+    assert isinstance(body["match_meta"], list)
+
+
+@pytest.mark.asyncio
+async def test_fail_open_returns_empty_scenarios(session: AsyncSession, monkeypatch):
+    competition = await _make_competition(session, win_probability_enabled=True)
+    admin = await _make_user(session, email="a@example.com", is_admin=True)
+    await _make_entry(session, competition, admin)
+
+    async def _boom(_session):
+        raise RuntimeError("simulator exploded")
+
+    monkeypatch.setattr(win_probability_service, "get_win_probability", _boom)
+
+    async with _client_as(session, admin) as ac:
+        resp = await ac.get("/api/leaderboard/win-probability")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["mode"] == "unavailable"
+    assert body["scenarios"] == []
+    assert body["match_meta"] == []
+
 
 @pytest.mark.asyncio
 async def test_engine_failure_degrades_to_unavailable_not_500(session: AsyncSession, monkeypatch):
