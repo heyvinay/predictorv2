@@ -274,7 +274,12 @@
 				><span class="h-2.5 w-2.5 rounded bg-[repeating-linear-gradient(135deg,#D4AF37_0_2px,#7C5E1D_2px_4px)]"></span>Rarity</span
 			>
 			<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-base-content/70"
-				><span class="h-2.5 w-2.5 rounded bg-info"></span>Bracket & bonus</span
+				><span
+					class="h-2.5 w-8 rounded bg-[linear-gradient(90deg,#93C5FD,#60A5FA,#3B82F6,#2563EB,#1D4ED8,#1E3A8A)]"
+				></span>Bracket: R32 → Winner</span
+			>
+			<span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-base-content/70"
+				><span class="h-2.5 w-2.5 rounded bg-[#8B5CF6]"></span>Bonus</span
 			>
 		</div>
 		<div class="flex flex-col gap-2">

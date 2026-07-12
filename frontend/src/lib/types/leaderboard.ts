@@ -60,12 +60,20 @@ export interface LbResponseV4 {
 	live_projection_active?: boolean;
 }
 
-/** Points DNA — where an entry's points come from. Sums to breakdown.total. */
+/** Points DNA — where an entry's points come from. Sums to breakdown.total.
+ *  The knockout bracket is broken out per round (R32 → Winner) rather than
+ *  a single lump, so the bar shows how far a score was earned through the
+ *  bracket at a glance. */
 export interface DnaSplit {
 	exact: number;
 	result: number;
 	rarity: number;
-	bracket: number;
+	roundOf32: number;
+	roundOf16: number;
+	quarterFinal: number;
+	semiFinal: number;
+	final: number;
+	winner: number;
 	bonus: number;
 }
 

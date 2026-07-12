@@ -162,14 +162,21 @@ export function chipState(
 
 // ── Points DNA ───────────────────────────────────────────────────────────
 
-/** Where an entry's points come from. exact + result + rarity + bracket +
- *  bonus === breakdown.total (server-computed fields). */
+/** Where an entry's points come from. exact + result + rarity + the six
+ *  per-round bracket fields + bonus === breakdown.total (server fields).
+ *  Bracket is broken out per knockout round (R32 → winner) so the DNA bar
+ *  can shade each round distinctly instead of one undifferentiated block. */
 export function dnaOf(breakdown: PointBreakdown): DnaSplit {
 	return {
 		exact: breakdown.exact_score_points,
 		result: breakdown.match_outcome_points,
 		rarity: breakdown.hybrid_bonus_points,
-		bracket: breakdown.bracket_total,
+		roundOf32: breakdown.round_of_32_points,
+		roundOf16: breakdown.round_of_16_points,
+		quarterFinal: breakdown.quarter_final_points,
+		semiFinal: breakdown.semi_final_points,
+		final: breakdown.final_points,
+		winner: breakdown.winner_points,
 		bonus: breakdown.bonus_question_points
 	};
 }

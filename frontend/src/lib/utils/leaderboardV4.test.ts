@@ -212,19 +212,44 @@ describe('deriveStage', () => {
 });
 
 describe('dnaOf', () => {
-	it('splits points by source and sums to total', () => {
+	it('splits points by source, breaks the bracket out per round, sums to total', () => {
 		const b = mkBreakdown(
 			{
 				match_outcome_points: 40,
 				exact_score_points: 30,
 				hybrid_bonus_points: 12,
-				round_of_32_points: 60
+				round_of_32_points: 60,
+				round_of_16_points: 40,
+				quarter_final_points: 20,
+				semi_final_points: 10
 			},
 			15
 		);
 		const dna = dnaOf(b);
-		expect(dna).toEqual({ exact: 30, result: 40, rarity: 12, bracket: 60, bonus: 15 });
-		expect(dna.exact + dna.result + dna.rarity + dna.bracket + dna.bonus).toBe(b.total);
+		expect(dna).toEqual({
+			exact: 30,
+			result: 40,
+			rarity: 12,
+			roundOf32: 60,
+			roundOf16: 40,
+			quarterFinal: 20,
+			semiFinal: 10,
+			final: 0,
+			winner: 0,
+			bonus: 15
+		});
+		const sum =
+			dna.exact +
+			dna.result +
+			dna.rarity +
+			dna.roundOf32 +
+			dna.roundOf16 +
+			dna.quarterFinal +
+			dna.semiFinal +
+			dna.final +
+			dna.winner +
+			dna.bonus;
+		expect(sum).toBe(b.total);
 	});
 });
 
