@@ -581,6 +581,52 @@ async def champion_survival(
     )
 
 
+class BonusHitRateOut(BaseModel):
+    question_id: str
+    correct_answers: list[str]
+    hit_count: int
+    eligible_count: int
+    hit_rate: float  # 0-1
+
+
+class BonusHitRatesResponse(BaseModel):
+    questions: list[BonusHitRateOut]
+    generated_at: datetime
+
+
+@router.get("/bonus-hit-rates", response_model=BonusHitRatesResponse)
+async def bonus_hit_rates(
+    session: DbSession,
+    user: CurrentUser,
+) -> BonusHitRatesResponse:
+    """Pool-wide % of eligible entries that got each RESOLVED bonus
+    question right. Public: aggregate correctness of answers that are
+    already resolved and publicly visible — no odds, no projection, so no
+    win-probability gate. Unresolved questions are simply absent from the
+    response (nothing computed until an admin records the answer, which
+    only happens post-deadline, so no blind-pool concern)."""
+    from app.services.bonus import compute_bonus_hit_rates
+    from app.services.locking import get_active_competition
+
+    competition = await get_active_competition(session)
+    rates = await compute_bonus_hit_rates(
+        session, competition.id if competition else None
+    )
+    return BonusHitRatesResponse(
+        questions=[
+            BonusHitRateOut(
+                question_id=r.question_id,
+                correct_answers=r.correct_answers,
+                hit_count=r.hit_count,
+                eligible_count=r.eligible_count,
+                hit_rate=r.hit_rate,
+            )
+            for r in rates
+        ],
+        generated_at=utc_now(),
+    )
+
+
 @router.get("/match-markers", response_model=MatchMarkersResponse)
 async def match_markers(
     session: DbSession,

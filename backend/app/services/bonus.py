@@ -62,6 +62,21 @@ class BonusMeta:
     fifa_top_teams: list[str]
 
 
+@dataclass
+class BonusHitRate:
+    """Pool-wide correctness of ONE resolved bonus question: how many
+    eligible entries picked (any of) the correct answer(s), out of the
+    eligible pool. Powers the "% who got it right" stat on the Insights
+    "Bonus Points" card. Only produced for questions that have a recorded
+    answer — an unresolved question has no hit rate yet."""
+
+    question_id: str
+    correct_answers: list[str]
+    hit_count: int
+    eligible_count: int
+    hit_rate: float  # hit_count / eligible_count, 0.0 when eligible_count == 0
+
+
 # ---- Config loading ---------------------------------------------------------
 
 
@@ -199,6 +214,72 @@ async def calculate_bonus_points(
         if answer_in(pred.answer, corrects):
             total += question.points
     return total
+
+
+async def compute_bonus_hit_rates(
+    session: AsyncSession,
+    competition_id: uuid.UUID | None = None,
+) -> list[BonusHitRate]:
+    """Pool-wide hit rate for every RESOLVED bonus question.
+
+    For each question that has a recorded answer, counts how many eligible
+    entries picked (any of) the correct answer(s), over the eligible-entry
+    denominator (SUBMITTED, not disabled, not withdrawn — the same
+    `eligible_entry_ids_select()` predicate rarity and the leaderboard use,
+    so the count is consistent with every other pool stat). Matching goes
+    through `answer_in()` — case/accent-insensitive, identical semantics to
+    the per-entry scorer `calculate_bonus_points`, so the aggregate can
+    never disagree with an individual's own hit/miss. Unresolved questions
+    are omitted entirely (no answer to score against yet)."""
+    from sqlalchemy import func
+
+    from app.services.scoring import eligible_entry_ids_select
+
+    ans_q = select(BonusAnswer)
+    if competition_id is not None:
+        ans_q = ans_q.where(BonusAnswer.competition_id == competition_id)
+    ans_rows = (await session.execute(ans_q)).scalars().all()
+    if not ans_rows:
+        return []
+
+    correct_by_qid: dict[str, list[str]] = {}
+    for a in ans_rows:
+        correct_by_qid.setdefault(a.question_id, []).append(a.correct_answer)
+
+    eligible_select = eligible_entry_ids_select()
+    eligible_count = (
+        await session.execute(
+            select(func.count()).select_from(eligible_select.subquery())
+        )
+    ).scalar_one()
+
+    # Distinct eligible entries whose pick for each question matches. Loaded
+    # once and matched in Python via answer_in (SQL `IN` would miss
+    # case/accent variants the real scorer counts).
+    hit_entries_by_qid: dict[str, set] = {qid: set() for qid in correct_by_qid}
+    if eligible_count:
+        pred_rows = (
+            await session.execute(
+                select(BonusPrediction)
+                .where(BonusPrediction.question_id.in_(list(correct_by_qid.keys())))
+                .where(BonusPrediction.entry_id.in_(eligible_entry_ids_select()))
+            )
+        ).scalars().all()
+        for pred in pred_rows:
+            corrects = correct_by_qid.get(pred.question_id)
+            if corrects and answer_in(pred.answer, corrects):
+                hit_entries_by_qid[pred.question_id].add(pred.entry_id)
+
+    return [
+        BonusHitRate(
+            question_id=qid,
+            correct_answers=sorted(corrects),
+            hit_count=len(hit_entries_by_qid[qid]),
+            eligible_count=eligible_count,
+            hit_rate=(len(hit_entries_by_qid[qid]) / eligible_count) if eligible_count else 0.0,
+        )
+        for qid, corrects in correct_by_qid.items()
+    ]
 
 
 # ---- Auto-computed answers --------------------------------------------------

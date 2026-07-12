@@ -12,6 +12,7 @@ import { api } from './client';
 import type { LeaderboardResponse, PointBreakdown } from '$types';
 import type {
 	AllTrajectoriesResponse,
+	BonusHitRatesResponse,
 	BonusPredictionRead,
 	ChampionSurvivalResponse,
 	DailyMvpsResponse,
@@ -142,6 +143,12 @@ export async function getRaceStories(): Promise<RaceStoriesResponse> {
 
 export async function getChampionSurvival(): Promise<ChampionSurvivalResponse> {
 	return api.get<ChampionSurvivalResponse>('/leaderboard/champion-survival');
+}
+
+/** GET /leaderboard/bonus-hit-rates — pool-wide % who got each resolved
+ *  bonus question right. Public; unresolved questions are omitted. */
+export async function getBonusHitRates(): Promise<BonusHitRatesResponse> {
+	return api.get<BonusHitRatesResponse>('/leaderboard/bonus-hit-rates');
 }
 
 export async function getMatchMarkers(days = 14): Promise<MatchMarkersResponse> {

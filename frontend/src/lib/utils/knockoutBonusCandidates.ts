@@ -74,28 +74,62 @@ export function knockoutBonusCandidates(
 		if (isRealTeam(f.away_team)) allGroupTeams.add(f.away_team);
 	}
 
-	// Q3: outside-top-N teams that progressed. Once the tournament
-	// runs further, this narrows to whoever's still alive deepest.
-	const eliminated = new Set<string>();
-	for (const f of fixtures) {
-		if (
-			f.stage !== 'group' &&
-			f.status === 'finished' &&
-			f.score &&
-			isRealTeam(f.home_team) &&
-			isRealTeam(f.away_team)
-		) {
-			if (f.score.outcome === '1') eliminated.add(f.away_team);
-			else if (f.score.outcome === '2') eliminated.add(f.home_team);
+	// Q3: outside-top-N team(s) that reached the FURTHEST stage — a
+	// high-water mark, NOT "still alive". A dark horse stays the answer
+	// once eliminated (e.g. Norway/Switzerland reached the quarter-finals
+	// then went out, but they're still the outsiders who ran furthest).
+	// This mirrors the backend scorer `compute_dark_horse`, which ranks by
+	// each team's highest reached stage and never drops an eliminated team.
+	// The previous "still alive" filter silently emptied this card the
+	// moment every outside-top-N side had been knocked out — the card then
+	// vanished entirely (InsightsGrid drops zero-candidate superlatives).
+	const FURTHEST_ORDER = [
+		'round_of_32',
+		'round_of_16',
+		'quarter_final',
+		'semi_final',
+		'final',
+		'winner'
+	];
+	// Furthest stage a team reached, read straight off the seeding map
+	// (seeded into a stage-X fixture — or credited to the next stage after
+	// a win — means the team reached X). -1 if never seeded into a KO.
+	const furthestReached = (team: string): number => {
+		let best = -1;
+		for (const [stage, teams] of seeded) {
+			if (teams.has(team)) best = Math.max(best, FURTHEST_ORDER.indexOf(stage));
 		}
+		return best;
+	};
+	const outsideTopNQualified = [...allGroupTeams].filter(
+		(t) => !topN.has(t) && qualified.has(t)
+	);
+	let darkHorseCandidates: string[] = [];
+	let darkHorseReach = -1;
+	if (outsideTopNQualified.length > 0) {
+		darkHorseReach = Math.max(...outsideTopNQualified.map(furthestReached));
+		darkHorseCandidates = outsideTopNQualified
+			.filter((t) => furthestReached(t) === darkHorseReach)
+			.sort((a, b) => a.localeCompare(b));
 	}
-	const darkHorseCandidates = [...allGroupTeams]
-		.filter((t) => !topN.has(t) && qualified.has(t) && !eliminated.has(t))
-		.sort((a, b) => a.localeCompare(b));
+	const STAGE_LABEL: Record<string, string> = {
+		round_of_32: 'round of 32',
+		round_of_16: 'round of 16',
+		quarter_final: 'quarter-finals',
+		semi_final: 'semi-finals',
+		final: 'final',
+		winner: 'title'
+	};
+	const darkHorseStage = darkHorseReach >= 0 ? FURTHEST_ORDER[darkHorseReach] : null;
 	const darkHorse: DarkHorseCandidates = {
 		candidates: darkHorseCandidates,
-		valLabel: darkHorseCandidates.length === 1 ? 'still standing' : 'still in contention',
-		note: 'Bonus Q3 — outsider running furthest',
+		valLabel:
+			darkHorseStage === null
+				? 'TBD'
+				: darkHorseStage === 'winner'
+					? 'won the tournament'
+					: `reached the ${STAGE_LABEL[darkHorseStage]}`,
+		note: 'Bonus Q3 — outsider who ran furthest',
 		topN: bonusMeta.top_n
 	};
 

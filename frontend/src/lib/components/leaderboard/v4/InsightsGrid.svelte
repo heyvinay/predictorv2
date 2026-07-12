@@ -9,9 +9,11 @@
 	 * INSIGHTS_EXTENDED until a backend insights endpoint exists
 	 * (pre-authorized by ACCEPTANCE M4: ship behind a flag, don't block).
 	 */
+	import { onMount } from 'svelte';
 	import type { Fixture } from '$types';
 	import type { BonusMeta } from '$api/bonus';
-	import type { LbEntryV4 } from '$lib/types/leaderboard';
+	import { getBonusHitRates } from '$lib/api/leaderboard';
+	import type { BonusHitRate, LbEntryV4 } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
 	import {
 		ceilingOf,
@@ -39,6 +41,20 @@
 
 	// 5 cards needing all-entries per-fixture data — not yet served.
 	const INSIGHTS_EXTENDED = false;
+
+	// Pool-wide "% who got it right" per bonus question (Bonus Points card).
+	// The only piece of that card not derivable from `rows`, so it's
+	// self-fetched here. Best-effort: a failure hides just the stat, never
+	// the card. Keyed by question_id; unresolved questions are absent.
+	let hitRateByQid: Record<string, BonusHitRate> = {};
+	onMount(async () => {
+		try {
+			const res = await getBonusHitRates();
+			hitRateByQid = Object.fromEntries(res.questions.map((q) => [q.question_id, q]));
+		} catch {
+			hitRateByQid = {};
+		}
+	});
 
 	$: isOwn = (r: LbEntryV4) => r.user_id === userId;
 	// Same display-name rule as the standings table — consistency matters.
@@ -140,6 +156,7 @@
 		return gx.length > 0 && gx.every((f) => f.status === 'finished');
 	})();
 	type Superlative = {
+		qid: string;
 		lbl: string;
 		teams: string[];
 		shown: string[];
@@ -151,6 +168,7 @@
 		const out: Superlative[] = [];
 
 		const push = (
+			qid: string,
 			lbl: string,
 			teams: string[],
 			val: string,
@@ -158,6 +176,7 @@
 		): void => {
 			if (teams.length === 0) return;
 			out.push({
+				qid,
 				lbl,
 				teams,
 				shown: teams.slice(0, SUPERLATIVE_LIMIT),
@@ -170,12 +189,14 @@
 		const { mostScored, mostConceded } = groupGoalsSuperlatives(fixtures);
 		if (mostScored.keys.length > 0) {
 			push(
+				'most_goals_scored_group',
 				'Most goals · group phase',
 				mostScored.keys,
 				`${mostScored.n} scored`,
 				'highest-scoring attack so far'
 			);
 			push(
+				'most_goals_conceded_group',
 				'Most conceded · group phase',
 				mostConceded.keys,
 				`${mostConceded.n} conceded`,
@@ -189,6 +210,7 @@
 		const kb = knockoutBonusCandidates(fixtures, bonusMeta);
 		if (kb.darkHorse) {
 			push(
+				'dark_horse',
 				`Dark horse · outside FIFA top ${kb.darkHorse.topN}`,
 				kb.darkHorse.candidates,
 				kb.darkHorse.valLabel,
@@ -197,6 +219,7 @@
 		}
 		if (kb.bottlers) {
 			push(
+				'flop',
 				`Bottlers · inside FIFA top ${kb.bottlers.topN}`,
 				kb.bottlers.candidates,
 				kb.bottlers.valLabel,
@@ -416,10 +439,10 @@
 		</svelte:fragment>
 	</InsightCard>
 
-	<!-- 5 · Tournament superlatives -->
+	<!-- 5 · Bonus Points -->
 	<InsightCard
-		title="Tournament superlatives"
-		sub="The stories of the tournament — and the bonus-question candidates"
+		title="Bonus Points"
+		sub="The 4 bonus questions — resolved answers and how many of the pool called each one"
 	>
 		<div class="flex flex-col gap-3.5">
 			{#each superlatives as s (s.lbl)}
@@ -430,6 +453,11 @@
 							>{s.lbl}</span
 						>
 						<b class="font-display text-[13px] font-extrabold text-primary">{s.val}</b>
+						{#if hitRateByQid[s.qid]}
+							<span class="text-[11px] font-semibold text-base-content/45">
+								· {Math.round(hitRateByQid[s.qid].hit_rate * 100)}% of the pool called it
+							</span>
+						{/if}
 					</span>
 					{#if s.shown.length > 0}
 						<div class="flex flex-wrap items-center gap-1.5">
@@ -449,7 +477,7 @@
 				</div>
 			{:else}
 				<p class="text-xs text-base-content/40">
-					Superlatives appear once the first matches finish.
+					Bonus-question results appear once the first matches finish.
 				</p>
 			{/each}
 			{#if !groupStageComplete}

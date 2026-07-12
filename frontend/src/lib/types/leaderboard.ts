@@ -181,6 +181,19 @@ export interface ChampionSurvivalResponse {
 	generated_at: string;
 }
 
+export interface BonusHitRate {
+	question_id: string;
+	correct_answers: string[];
+	hit_count: number;
+	eligible_count: number;
+	hit_rate: number; // 0-1
+}
+
+export interface BonusHitRatesResponse {
+	questions: BonusHitRate[];
+	generated_at: string;
+}
+
 export interface MatchMarker {
 	fixture_id: number;
 	kickoff: string;
