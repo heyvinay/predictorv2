@@ -2725,6 +2725,13 @@
       "type": "improvement",
       "summary": "Dashboard tweaks: fixture links line up with the schedule pills, upcoming matches shows everything on the board, and the Daily MVP card no longer leaves empty space with fewer entries.",
       "commit": "pending"
+    },
+    {
+      "version": "2.210.0",
+      "date": "2026-07-12",
+      "type": "feature",
+      "summary": "Two new Insights cards: Path to the Trophy (who wins the pool under every remaining outcome) and Consensus Bracket (how far the pool picked each team to go, versus how they actually did). Fixed a bug that had hidden the Dark Horse bonus card once every outsider was eliminated, renamed it 'Bonus Points' with a new pool-wide accuracy stat, split the Points DNA bracket bar by knockout round, and added live betting-market odds alongside the pool's own champion picks.",
+      "commit": "pending"
     }
   ]
 }
