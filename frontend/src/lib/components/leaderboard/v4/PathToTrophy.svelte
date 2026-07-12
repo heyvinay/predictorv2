@@ -3,16 +3,17 @@
 	 * Path to the Trophy — for every remaining bracket completion, who wins
 	 * the pool. Grouped by champion, each with the match results that must
 	 * happen for them (derived structurally in pathToTrophy.ts, never
-	 * hand-written). Self-fetches the win-probability response (gated: a 403
-	 * or a <2-scenario response simply hides the card) and live-polls so it
-	 * re-derives after each game finishes. `rows` is a prop (like the other
-	 * cards) purely for entry-name resolution — the scenarios themselves
-	 * come from the fetch.
+	 * hand-written). Self-fetches the PUBLIC trophy-scenarios endpoint
+	 * (deliberately not gated like the Win Probability tab — a <2-scenario
+	 * or pre-deadline empty response simply hides the card) and live-polls
+	 * so it re-derives after each game finishes. `rows` is a prop (like the
+	 * other cards) purely for entry-name resolution — the scenarios
+	 * themselves come from the fetch.
 	 *
 	 * These are PROJECTIONS — the disclaimer copy says so.
 	 */
 	import { onDestroy, onMount } from 'svelte';
-	import { getWinProbability } from '$lib/api/leaderboard';
+	import { getTrophyScenarios } from '$lib/api/leaderboard';
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import { startLivePoll } from '$lib/utils/livePoll';
@@ -32,15 +33,15 @@
 
 	async function refresh() {
 		try {
-			const res = await getWinProbability();
-			// Nothing left to decide (or too many scenarios / gated-off): hide.
+			const res = await getTrophyScenarios();
+			// Nothing left to decide (or pre-deadline / too many to enumerate): hide.
 			if (!res.scenarios || res.scenarios.length <= 1) {
 				groups = [];
 			} else {
 				groups = groupScenariosByChampion(res.scenarios, res.match_meta);
 			}
 		} catch {
-			groups = []; // 403 (flag off) or error → hide the card
+			groups = []; // network error → hide the card
 		} finally {
 			loaded = true;
 		}

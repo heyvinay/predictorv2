@@ -66,6 +66,21 @@ export interface OddsCoverage {
 	priceable: number;
 }
 
+export interface WinProbabilityResponse {
+	entries: EntryWinProbability[];
+	teams: TeamStageOdds[];
+	meta: WinProbabilityMeta;
+	/** Null when nothing in the remaining bracket is priced yet (every
+	 *  unresolved match still has at least one TBD side, or the odds API
+	 *  has no line for the next real matchup). */
+	odds_weighted: OddsWeightedView | null;
+	odds_coverage: OddsCoverage;
+	// NOTE: the raw per-scenario outcome list lives on the separate,
+	// PUBLIC GET /leaderboard/trophy-scenarios response (TrophyScenariosResponse
+	// below) — Path to the Trophy is deliberately not gated like this
+	// endpoint's per-entry P(win)/trophy-odds breakdown is.
+}
+
 /** One completion of the remaining bracket and who wins the pool under it.
  *  `outcomes` maps match_number (stringified in JSON) → winning team, for
  *  the matches that were unresolved. */
@@ -83,20 +98,13 @@ export interface MatchMetaEntry {
 	stage: string;
 }
 
-export interface WinProbabilityResponse {
-	entries: EntryWinProbability[];
-	teams: TeamStageOdds[];
-	meta: WinProbabilityMeta;
-	/** Null when nothing in the remaining bracket is priced yet (every
-	 *  unresolved match still has at least one TBD side, or the odds API
-	 *  has no line for the next real matchup). */
-	odds_weighted: OddsWeightedView | null;
-	odds_coverage: OddsCoverage;
-	/** Every remaining bracket completion + its pool champion (Path to the
-	 *  Trophy). Empty when too many to enumerate, or on the fail path. */
+/** GET /leaderboard/trophy-scenarios — PUBLIC, no admin/win_probability_enabled
+ *  gate (blind-pool gated only: empty pre-deadline). Powers Path to the
+ *  Trophy, which is intentionally visible to the whole pool. */
+export interface TrophyScenariosResponse {
 	scenarios: ScenarioOutcome[];
-	/** The next real-vs-real matches, for labelling scenarios. */
 	match_meta: MatchMetaEntry[];
+	generated_at: string;
 }
 
 /** Live Polymarket "to win the tournament" odds for one team. `team` is

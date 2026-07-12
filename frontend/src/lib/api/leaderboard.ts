@@ -26,6 +26,7 @@ import type {
 import type { ScoringRules } from '$lib/types/results';
 import type {
 	ChampionMarketOddsResponse,
+	TrophyScenariosResponse,
 	WinProbabilityResponse
 } from '$lib/types/winProbability';
 
@@ -67,6 +68,14 @@ export async function getAllTrajectories(days = 30): Promise<AllTrajectoriesResp
  *  to the pool; a 403 means the caller should hide the tab. */
 export async function getWinProbability(): Promise<WinProbabilityResponse> {
 	return api.get<WinProbabilityResponse>('/leaderboard/win-probability');
+}
+
+/** GET /api/leaderboard/trophy-scenarios — every remaining bracket
+ *  completion + its pool champion. PUBLIC (no admin/win_probability_enabled
+ *  gate) — Path to the Trophy is visible to the whole pool. Empty
+ *  pre-deadline (blind pool) or if too many scenarios to enumerate. */
+export async function getTrophyScenarios(): Promise<TrophyScenariosResponse> {
+	return api.get<TrophyScenariosResponse>('/leaderboard/trophy-scenarios');
 }
 
 /** GET /api/leaderboard/champion-market-odds — live Polymarket "to win the
