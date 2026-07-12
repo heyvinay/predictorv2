@@ -188,6 +188,21 @@ export interface BonusHitRatesResponse {
 	generated_at: string;
 }
 
+/** One team's row in the Consensus Bracket: cumulative pool pick counts
+ *  per stage + where the team actually ended up. */
+export interface ConsensusTeamRow {
+	team: string;
+	actual_stage: string | null; // null = out in the group stage
+	alive: boolean;
+	picks_by_stage: Record<string, number>;
+}
+
+export interface ConsensusBracketResponse {
+	rows: ConsensusTeamRow[];
+	eligible_count: number;
+	generated_at: string;
+}
+
 export interface MatchMarker {
 	fixture_id: number;
 	kickoff: string;

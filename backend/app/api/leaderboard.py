@@ -1159,3 +1159,86 @@ async def champion_market_odds(
         odds = []
 
     return ChampionMarketOddsResponse(odds=odds, computed_at=utc_now())
+
+
+class ConsensusTeamRow(BaseModel):
+    team: str
+    # Furthest stage the team ACTUALLY reached; None = out in the group
+    # stage (never seeded into a knockout).
+    actual_stage: str | None
+    alive: bool
+    # stage -> number of eligible entries who picked the team to reach it.
+    # Cumulative (a champion pick also counts toward every earlier stage).
+    picks_by_stage: dict[str, int]
+
+
+class ConsensusBracketResponse(BaseModel):
+    rows: list[ConsensusTeamRow]
+    eligible_count: int  # denominator for the % the frontend renders
+    generated_at: datetime
+
+
+@router.get("/consensus-bracket", response_model=ConsensusBracketResponse)
+async def consensus_bracket(
+    session: DbSession,
+    user: CurrentUser,
+) -> ConsensusBracketResponse:
+    """Pool pick distribution per knockout stage: for every team that got
+    any KO pick, how many eligible entries picked it to reach each stage,
+    plus where it ACTUALLY ended up. Public — it's the pool's own picks
+    against public results, no odds/projection — but blind-pool gated (no
+    data before the deadline locks, same as champion-survival)."""
+    from sqlalchemy import func
+
+    from app.models.prediction import PredictionPhase, TeamPrediction
+    from app.services.leaderboard import get_eliminated_teams
+    from app.services.scoring import eligible_entry_ids_select, get_actual_advancement
+
+    if not await is_phase1_locked(session):
+        return ConsensusBracketResponse(rows=[], eligible_count=0, generated_at=utc_now())
+
+    ko_stages = [
+        "round_of_32",
+        "round_of_16",
+        "quarter_final",
+        "semi_final",
+        "final",
+        "winner",
+    ]
+    eligible_select = eligible_entry_ids_select()
+    eligible_count = (
+        await session.execute(select(func.count()).select_from(eligible_select.subquery()))
+    ).scalar_one()
+
+    count_rows = (
+        await session.execute(
+            select(TeamPrediction.team, TeamPrediction.stage, func.count().label("cnt"))
+            .where(TeamPrediction.stage.in_(ko_stages))
+            .where(TeamPrediction.phase == PredictionPhase.PHASE_1)
+            .where(TeamPrediction.entry_id.in_(eligible_entry_ids_select()))
+            .group_by(TeamPrediction.team, TeamPrediction.stage)
+        )
+    ).all()
+
+    picks: dict[str, dict[str, int]] = {}
+    for team, stage, cnt in count_rows:
+        picks.setdefault(team, {})[stage] = cnt
+
+    advancement = await get_actual_advancement(session)  # team -> furthest stage
+    eliminated = await get_eliminated_teams(session)
+
+    rows = [
+        ConsensusTeamRow(
+            team=team,
+            actual_stage=advancement.get(team),
+            alive=team not in eliminated,
+            picks_by_stage=by_stage,
+        )
+        for team, by_stage in picks.items()
+    ]
+    # Default order: most-fancied champion first (frontend may re-sort).
+    rows.sort(key=lambda r: (-r.picks_by_stage.get("winner", 0), r.team))
+
+    return ConsensusBracketResponse(
+        rows=rows, eligible_count=eligible_count, generated_at=utc_now()
+    )

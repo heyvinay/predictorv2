@@ -14,6 +14,7 @@ import type {
 	AllTrajectoriesResponse,
 	BonusHitRatesResponse,
 	BonusPredictionRead,
+	ConsensusBracketResponse,
 	DailyMvpsResponse,
 	GroupStagePodium,
 	LbResponseV4,
@@ -74,6 +75,12 @@ export async function getWinProbability(): Promise<WinProbabilityResponse> {
  *  means the caller should hide the market-odds column. */
 export async function getChampionMarketOdds(): Promise<ChampionMarketOddsResponse> {
 	return api.get<ChampionMarketOddsResponse>('/leaderboard/champion-market-odds');
+}
+
+/** GET /api/leaderboard/consensus-bracket — per-stage pool pick counts +
+ *  actual result per team. Public (blind-pool gated: empty pre-deadline). */
+export async function getConsensusBracket(): Promise<ConsensusBracketResponse> {
+	return api.get<ConsensusBracketResponse>('/leaderboard/consensus-bracket');
 }
 
 /** Bonus reads with settled hit/points/category (v2.164.0 fields). The

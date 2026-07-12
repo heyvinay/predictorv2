@@ -18,7 +18,6 @@
 	import { startLivePoll } from '$lib/utils/livePoll';
 	import {
 		ceilingOf,
-		deriveStage,
 		dnaOf,
 		multiEntryUserIds,
 		remainingMatchPoints,
@@ -26,6 +25,7 @@
 	} from '$lib/utils/leaderboardV4';
 	import { groupGoalsSuperlatives } from '$lib/utils/goalsSuperlatives';
 	import { knockoutBonusCandidates } from '$lib/utils/knockoutBonusCandidates';
+	import ConsensusBracket from './ConsensusBracket.svelte';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
@@ -119,45 +119,10 @@
 	$: champMax = champRows.length ? champRows[0].n : 1;
 	$: aliveChampCount = rows.filter((r) => r.champion_alive && r.champion_pick).length;
 
-	// ── 3 · What-if: each still-alive champion scenario ──
+	// Champion-bonus value, still used by the Ceiling card's foot.
 	$: winnerVal = rules?.advancement?.winner ?? 100;
-	type WhatIfRow = {
-		team: string;
-		topName: string;
-		topIsOwn: boolean;
-		topPts: number;
-		newLeader: boolean;
-		yourBest: string;
-	};
-	$: leaderId = rows[0]?.entry_id;
-	// Lineup-based stage — the what-if card is placeholder-only until
-	// the knockout bracket holds real teams.
-	$: lbStage = deriveStage(fixtures);
-	$: whatIfRows = champRows
-		.filter((c) => c.alive)
-		.slice(0, 6)
-		.map((c): WhatIfRow => {
-			const proj = rows
-				.map((r) => ({
-					r,
-					p:
-						r.total_points +
-						(r.champion_pick === c.team && (r.breakdown?.winner_points ?? 0) === 0
-							? winnerVal
-							: 0)
-				}))
-				.sort((a, b) => b.p - a.p || a.r.position - b.r.position);
-			const top = proj[0];
-			const own = proj.filter((x) => isOwn(x.r)).sort((a, b) => b.p - a.p)[0];
-			return {
-				team: c.team,
-				topName: rowDisplayName(top.r, multiOwners),
-				topIsOwn: isOwn(top.r),
-				topPts: top.p,
-				newLeader: top.r.entry_id !== leaderId,
-				yourBest: own ? `${rowDisplayName(own.r, multiOwners).slice(0, 18)} ${own.p}` : '—'
-			};
-		});
+	// (The old "If they lift the trophy…" what-if card was removed — the
+	// Path to the Trophy card supersedes it with a full, correct projection.)
 
 	// ── 4 · Points still on the table ──
 	$: shared = rules ? remainingMatchPoints(fixtures, rules) : 0;
@@ -387,62 +352,10 @@
 		</svelte:fragment>
 	</InsightCard>
 
-	<!-- 3 · What-if. Group stage: every projection reads "champion pick
-	     + winner bonus = new leader", which is noise — the card stays as
-	     a placeholder until the bracket is real (lineup-based stage
-	     derivation, same rule as the Final column). -->
-	<InsightCard
-		title="If they lift the trophy…"
-		sub="Who tops the pool under each remaining champion · +{winnerVal} for the right pick"
-	>
-		{#if lbStage !== 'knockout'}
-			<div class="flex flex-col items-start gap-1.5 py-2">
-				<span
-					class="rounded-badge bg-base-300/50 px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-[0.12em] text-base-content/60"
-					>Unlocks in the knockouts</span
-				>
-				<p class="text-xs leading-relaxed text-base-content/55">
-					Once the bracket is set, this card shows who'd top the pool under each
-					remaining champion. During the groups every scenario just adds the winner
-					bonus — not much of a story yet.
-				</p>
-			</div>
-		{:else}
-		<div class="flex flex-col gap-2">
-			{#each whatIfRows as w (w.team)}
-				<div
-					class="grid grid-cols-[80px_1fr] items-center gap-2.5 rounded-lg px-1.5 py-1 {w.topIsOwn
-						? YOURS_ROW
-						: ''}"
-				>
-					<FlagCode team={w.team} size="sm" />
-					<span class="flex flex-wrap items-center gap-1.5 text-xs text-base-content/70">
-						<b class="text-base-content">{w.topName}</b>
-						{#if w.topIsOwn}<YouTag />{/if}
-						takes it ·
-						<span class="font-display font-extrabold text-base-content">{w.topPts} pts</span>
-						{#if w.newLeader}
-							<span
-								class="rounded-full bg-primary/20 px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-[0.1em] text-primary"
-								>new leader</span
-							>
-						{/if}
-					</span>
-				</div>
-			{:else}
-				<p class="text-xs text-base-content/40">No live champion scenarios.</p>
-			{/each}
-		</div>
-		{/if}
-		<svelte:fragment slot="foot">
-			{#if lbStage !== 'knockout'}
-				Live from the Round of 32 — when champion scenarios start to mean something.
-			{:else}
-				Simplified projection — champion bonus only; finalist and remaining match points not
-				included.
-			{/if}
-		</svelte:fragment>
-	</InsightCard>
+	<!-- 3 · Consensus Bracket (wide matrix; self-hides pre-deadline). Replaces
+	     the old "If they lift the trophy…" what-if card, which the Path to
+	     the Trophy card above now supersedes with a full projection. -->
+	<ConsensusBracket />
 
 	<!-- 4 · Points still on the table (wide) -->
 	<InsightCard
