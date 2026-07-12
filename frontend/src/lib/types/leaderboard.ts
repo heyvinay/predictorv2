@@ -175,20 +175,6 @@ export interface RaceStoriesResponse {
 	generated_at: string;
 }
 
-export interface ChampionTeamCount {
-	team_code: string;
-	team_name: string;
-	count: number;
-	alive: boolean;
-}
-
-export interface ChampionSurvivalResponse {
-	alive_count: number;
-	total_count: number;
-	teams: ChampionTeamCount[];
-	generated_at: string;
-}
-
 export interface BonusHitRate {
 	question_id: string;
 	correct_answers: string[];

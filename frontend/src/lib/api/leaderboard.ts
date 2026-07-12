@@ -14,7 +14,6 @@ import type {
 	AllTrajectoriesResponse,
 	BonusHitRatesResponse,
 	BonusPredictionRead,
-	ChampionSurvivalResponse,
 	DailyMvpsResponse,
 	GroupStagePodium,
 	LbResponseV4,
@@ -150,10 +149,6 @@ export async function getScoringRules(): Promise<ScoringRules> {
 
 export async function getRaceStories(): Promise<RaceStoriesResponse> {
 	return api.get<RaceStoriesResponse>('/leaderboard/race-stories');
-}
-
-export async function getChampionSurvival(): Promise<ChampionSurvivalResponse> {
-	return api.get<ChampionSurvivalResponse>('/leaderboard/champion-survival');
 }
 
 /** GET /leaderboard/bonus-hit-rates — pool-wide % who got each resolved

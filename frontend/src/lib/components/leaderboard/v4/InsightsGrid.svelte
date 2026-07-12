@@ -9,12 +9,13 @@
 	 * INSIGHTS_EXTENDED until a backend insights endpoint exists
 	 * (pre-authorized by ACCEPTANCE M4: ship behind a flag, don't block).
 	 */
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type { Fixture } from '$types';
 	import type { BonusMeta } from '$api/bonus';
-	import { getBonusHitRates } from '$lib/api/leaderboard';
+	import { getBonusHitRates, getChampionMarketOdds } from '$lib/api/leaderboard';
 	import type { BonusHitRate, LbEntryV4 } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
+	import { startLivePoll } from '$lib/utils/livePoll';
 	import {
 		ceilingOf,
 		deriveStage,
@@ -25,7 +26,6 @@
 	} from '$lib/utils/leaderboardV4';
 	import { groupGoalsSuperlatives } from '$lib/utils/goalsSuperlatives';
 	import { knockoutBonusCandidates } from '$lib/utils/knockoutBonusCandidates';
-	import ChampionSurvival from './ChampionSurvival.svelte';
 	import DnaBar from './DnaBar.svelte';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
@@ -47,6 +47,24 @@
 	// self-fetched here. Best-effort: a failure hides just the stat, never
 	// the card. Keyed by question_id; unresolved questions are absent.
 	let hitRateByQid: Record<string, BonusHitRate> = {};
+
+	// Live Polymarket championship odds for the "Who picked whom" card,
+	// keyed by internal team name (joined server-side). Gated behind
+	// win_probability_enabled — a 403 leaves this empty and the market
+	// column simply doesn't render, while the pool-pick bars (from `rows`,
+	// no gate) always do. Live-polled since market prices move mid-match.
+	let marketOddsByTeam: Record<string, number> = {};
+	let stopOddsPoll: (() => void) | undefined;
+
+	async function refreshMarketOdds() {
+		try {
+			const res = await getChampionMarketOdds();
+			marketOddsByTeam = Object.fromEntries(res.odds.map((o) => [o.team, o.market_odds]));
+		} catch {
+			marketOddsByTeam = {};
+		}
+	}
+
 	onMount(async () => {
 		try {
 			const res = await getBonusHitRates();
@@ -54,12 +72,22 @@
 		} catch {
 			hitRateByQid = {};
 		}
+		// Initial fetch (startLivePoll intentionally doesn't tick on start),
+		// then poll every 60s — matches the leaderboard's own poll against
+		// the same backend cache TTL; visibility-aware (pauses when hidden).
+		await refreshMarketOdds();
+		stopOddsPoll = startLivePoll(refreshMarketOdds, 60_000);
 	});
+
+	onDestroy(() => stopOddsPoll?.());
 
 	$: isOwn = (r: LbEntryV4) => r.user_id === userId;
 	// Same display-name rule as the standings table — consistency matters.
 	$: multiOwners = multiEntryUserIds(rows);
 	$: leaderTotal = rows.length ? Math.max(...rows.map((r) => r.total_points)) : 1;
+	// Market-odds column shows only when the gated endpoint returned data
+	// (flag on / admin) — otherwise the champion card is pool-picks only.
+	$: hasMarketOdds = Object.keys(marketOddsByTeam).length > 0;
 
 	// ── 1 · Points DNA: top 8 + own entries ──
 	$: dnaRows = (() => {
@@ -305,19 +333,20 @@
 		</div>
 	</InsightCard>
 
-	<!-- 1b · Champion Survival (full-width, brings its own card chrome) -->
-	<div class="min-[860px]:col-span-2">
-		<ChampionSurvival />
-	</div>
-
 	<!-- 2 · Champion picks -->
 	<InsightCard
 		title="Who picked whom for champion"
-		sub="{rows.length} entries · greyed teams are already out"
+		sub={hasMarketOdds
+			? `${rows.length} entries · gold bars are the pool's picks, blue is the live Polymarket title market`
+			: `${rows.length} entries · greyed teams are already out`}
 	>
 		<div class="flex flex-col gap-2">
 			{#each champRows as c (c.team)}
-				<div class="grid grid-cols-[minmax(110px,auto)_1fr_30px] items-center gap-2.5">
+				<div
+					class="grid items-center gap-2.5 {hasMarketOdds
+						? 'grid-cols-[minmax(96px,auto)_1fr_30px_auto]'
+						: 'grid-cols-[minmax(110px,auto)_1fr_30px]'}"
+				>
 					<span class="flex items-center gap-1.5 text-xs font-semibold {c.alive ? '' : 'text-base-content/55'}">
 						<FlagCode team={c.team} alive={c.alive} size="sm" />
 						{#if !c.alive}<span class="text-[8.5px] font-extrabold tracking-[0.12em] text-error"
@@ -332,13 +361,25 @@
 						></span>
 					</span>
 					<b class="text-right font-display text-[13px] font-extrabold">{c.n}</b>
+					{#if hasMarketOdds}
+						<span class="justify-self-end whitespace-nowrap font-mono text-[10.5px] font-semibold text-[#3B82F6]">
+							{#if marketOddsByTeam[c.team] != null}
+								{Math.round(marketOddsByTeam[c.team] * 100)}%<span
+									class="ml-0.5 text-[7.5px] font-bold uppercase tracking-wide text-base-content/40">mkt</span
+								>
+							{:else}
+								<span class="text-base-content/25">—</span>
+							{/if}
+						</span>
+					{/if}
 				</div>
 			{:else}
 				<p class="text-xs text-base-content/40">No champion picks recorded.</p>
 			{/each}
 		</div>
 		<svelte:fragment slot="foot">
-			{aliveChampCount} of {rows.length} entries still have a live champion pick.
+			{aliveChampCount} of {rows.length} entries still have a live champion pick.{#if hasMarketOdds}
+				Market odds via Polymarket, refreshed live.{/if}
 		</svelte:fragment>
 	</InsightCard>
 
