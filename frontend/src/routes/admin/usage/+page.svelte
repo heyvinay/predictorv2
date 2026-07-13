@@ -3,13 +3,22 @@
 	import {
 		getUsageReport,
 		getUsageFeatureAdopters,
+		getUsageDayUsers,
+		getUsageHourUsers,
+		getUsageFrequencyUsers,
+		getUsageFunnelUsers,
+		getUsageUserFeatures,
 		type UsageReport,
 		type UsageRange,
 		type UsageGranularity,
 		type UsageSegment,
 		type UsageFeatureAdoption,
 		type UsagePowerUser,
-		type UsageFeatureAdopter
+		type UsageFeatureAdopter,
+		type UsageSeriesPoint,
+		type UsageFrequencyBucket,
+		type UsageDrillUser,
+		type UserFeatureUsage
 	} from '$lib/api/admin';
 
 	// v2.212.0 — Usage & Adoption dashboard. A deliberately separate,
@@ -107,6 +116,27 @@
 		return h < 10 ? `0${h}` : String(h);
 	}
 
+	// PostHog's toStartOfDay/Hour/Week renders bucket labels as raw
+	// strings ("2026-07-07" or "2026-07-07 14:00:00") — too long for the
+	// chart's per-bar label slot, and every bucket used to truncate to
+	// the SAME illegible "2026-0…". Parse and reformat short instead.
+	function formatBucketLabel(bucket: string, granularity: UsageGranularity): string {
+		let iso = bucket.trim();
+		if (iso.includes(' ') && !iso.includes('T')) iso = iso.replace(' ', 'T');
+		if (iso.length === 10) iso += 'T00:00:00';
+		if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(iso)) iso += 'Z';
+		const d = new Date(iso);
+		if (isNaN(d.getTime())) return bucket;
+		if (granularity === 'hour') {
+			return d.toLocaleTimeString(undefined, {
+				hour: '2-digit',
+				minute: '2-digit',
+				hour12: false
+			});
+		}
+		return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	}
+
 	// ── Retention heatmap coloring ────────────────────────────────────
 	// Two-segment diverging blend through DaisyUI's own theme tokens
 	// (error → warning → success) so the ramp is theme-aware without
@@ -183,13 +213,20 @@
 		return new Date(iso).toLocaleDateString();
 	}
 
-	// ── Drawer (feature-adopter drill-down + user summary) ───────────
+	// ── Drawer — six modes, all "who's behind this number?" ──────────
+	type DrawerMode = 'feature' | 'user' | 'day' | 'hour' | 'freq' | 'funnel';
 	let drawerOpen = false;
-	let drawerMode: 'feature' | 'user' | null = null;
+	let drawerMode: DrawerMode | null = null;
 	let drawerFeature: UsageFeatureAdoption | null = null;
 	let drawerAdopters: UsageFeatureAdopter[] = [];
 	let drawerAdoptersLoading = false;
 	let drawerUser: UsagePowerUser | null = null;
+	let drawerUserFeatures: UserFeatureUsage[] = [];
+	let drawerUserFeaturesLoading = false;
+	let drawerDrillUsers: UsageDrillUser[] = [];
+	let drawerDrillLoading = false;
+	let drawerDrillTitle = '';
+	let drawerDrillSub = '';
 
 	async function openFeatureDrawer(f: UsageFeatureAdoption) {
 		drawerMode = 'feature';
@@ -205,11 +242,79 @@
 			drawerAdoptersLoading = false;
 		}
 	}
-	function openUserDrawer(u: UsagePowerUser) {
+
+	async function openUserDrawer(u: UsagePowerUser) {
 		drawerMode = 'user';
 		drawerUser = u;
 		drawerOpen = true;
+		drawerUserFeatures = [];
+		drawerUserFeaturesLoading = true;
+		try {
+			drawerUserFeatures = await getUsageUserFeatures(u.user_id, { range });
+		} catch {
+			drawerUserFeatures = [];
+		} finally {
+			drawerUserFeaturesLoading = false;
+		}
 	}
+
+	async function openDrillDrawer(
+		mode: 'day' | 'hour' | 'freq' | 'funnel',
+		title: string,
+		sub: string,
+		fetcher: () => Promise<UsageDrillUser[]>
+	) {
+		drawerMode = mode;
+		drawerDrillTitle = title;
+		drawerDrillSub = sub;
+		drawerOpen = true;
+		drawerDrillUsers = [];
+		drawerDrillLoading = true;
+		try {
+			drawerDrillUsers = await fetcher();
+		} catch {
+			drawerDrillUsers = [];
+		} finally {
+			drawerDrillLoading = false;
+		}
+	}
+
+	function openDayDrawer(point: UsageSeriesPoint) {
+		if (!report) return;
+		openDrillDrawer(
+			'day',
+			formatBucketLabel(point.bucket, report.granularity),
+			`${point.count} active`,
+			() => getUsageDayUsers(point.bucket, { granularity: report!.granularity, segment })
+		);
+	}
+
+	function openHourDrawer(hour: number, count: number) {
+		openDrillDrawer('hour', `${hourLabel(hour)}:00`, `${count} active`, () =>
+			getUsageHourUsers(hour, { range, segment })
+		);
+	}
+
+	function openFrequencyDrawer(bucket: UsageFrequencyBucket) {
+		openDrillDrawer('freq', bucket.label, `${bucket.count} users`, () =>
+			getUsageFrequencyUsers(bucket.label, { range, segment })
+		);
+	}
+
+	const FUNNEL_LABELS: Record<string, string> = {
+		submitters: 'Submitters',
+		no_entry: 'No entry yet',
+		draft_holders: 'Draft only',
+		lapsing: 'Lapsing (3–7d)',
+		pool_ghost: 'Pool ghost'
+	};
+
+	function openFunnelDrawer(cohort: string, count: number) {
+		openDrillDrawer('funnel', FUNNEL_LABELS[cohort] ?? cohort, `${count} users`, () =>
+			getUsageFunnelUsers(cohort)
+		);
+	}
+
 	function closeDrawer() {
 		drawerOpen = false;
 	}
@@ -260,7 +365,7 @@
 						type="button"
 						class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors {granularity ===
 						opt.key
-							? 'bg-primary-soft text-primary'
+							? 'bg-primary text-primary-content'
 							: 'text-base-content/60'}"
 						on:click={() => pickGranularity(opt.key)}
 					>
@@ -280,7 +385,7 @@
 						type="button"
 						class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors {segment ===
 						opt.key
-							? 'bg-primary-soft text-primary'
+							? 'bg-primary text-primary-content'
 							: 'text-base-content/60'}"
 						on:click={() => pickSegment(opt.key)}
 					>
@@ -317,29 +422,49 @@
 
 		<!-- ============ FUNNEL STRIP ============ -->
 		<div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-			<div class="card bg-base-200/60 border border-base-300/30 p-3.5">
+			<button
+				type="button"
+				class="card bg-base-200/60 border border-base-300/30 p-3.5 text-left hover:border-primary/40 transition-colors"
+				on:click={() => openFunnelDrawer('submitters', report?.funnel.submitters ?? 0)}
+			>
 				<span class="font-display font-bold text-2xl text-success">{report.funnel.submitters}</span
 				>
 				<p class="text-xs text-base-content/55 font-semibold mt-0.5">Submitters</p>
-			</div>
-			<div class="card bg-base-200/60 border border-base-300/30 p-3.5">
+			</button>
+			<button
+				type="button"
+				class="card bg-base-200/60 border border-base-300/30 p-3.5 text-left hover:border-primary/40 transition-colors"
+				on:click={() => openFunnelDrawer('no_entry', report?.funnel.no_entry ?? 0)}
+			>
 				<span class="font-display font-bold text-2xl">{report.funnel.no_entry}</span>
 				<p class="text-xs text-base-content/55 font-semibold mt-0.5">No entry yet</p>
-			</div>
-			<div class="card bg-base-200/60 border border-base-300/30 p-3.5">
+			</button>
+			<button
+				type="button"
+				class="card bg-base-200/60 border border-base-300/30 p-3.5 text-left hover:border-primary/40 transition-colors"
+				on:click={() => openFunnelDrawer('draft_holders', report?.funnel.draft_holders ?? 0)}
+			>
 				<span class="font-display font-bold text-2xl">{report.funnel.draft_holders}</span>
 				<p class="text-xs text-base-content/55 font-semibold mt-0.5">Draft only</p>
-			</div>
-			<div class="card bg-base-200/60 border border-base-300/30 p-3.5">
+			</button>
+			<button
+				type="button"
+				class="card bg-base-200/60 border border-base-300/30 p-3.5 text-left hover:border-primary/40 transition-colors"
+				on:click={() => openFunnelDrawer('lapsing', report?.funnel.lapsing ?? 0)}
+			>
 				<span class="font-display font-bold text-2xl text-warning-text"
 					>{report.funnel.lapsing}</span
 				>
 				<p class="text-xs text-base-content/55 font-semibold mt-0.5">Lapsing (3–7d)</p>
-			</div>
-			<div class="card bg-base-200/60 border border-base-300/30 p-3.5">
+			</button>
+			<button
+				type="button"
+				class="card bg-base-200/60 border border-base-300/30 p-3.5 text-left hover:border-primary/40 transition-colors"
+				on:click={() => openFunnelDrawer('pool_ghost', report?.funnel.pool_ghost ?? 0)}
+			>
 				<span class="font-display font-bold text-2xl text-error">{report.funnel.pool_ghost}</span>
 				<p class="text-xs text-base-content/55 font-semibold mt-0.5">Pool ghost</p>
-			</div>
+			</button>
 		</div>
 
 		<!-- ============ KPI SCORECARD ============ -->
@@ -391,22 +516,29 @@
 					{@const maxCount = Math.max(1, ...report.active_users_series.map((p) => p.count))}
 					<div class="flex items-end gap-1.5 h-32 border-b border-base-300/30 pt-2">
 						{#each report.active_users_series as point}
-							<div class="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-								<span class="text-[10px] text-base-content/55 font-mono">{point.count}</span>
+							<button
+								type="button"
+								class="flex-1 flex flex-col items-center justify-end gap-1 h-full group"
+								on:click={() => openDayDrawer(point)}
+							>
+								<span class="text-[10px] text-base-content/55 font-mono group-hover:text-primary"
+									>{point.count}</span
+								>
 								<div
-									class="w-full max-w-[40px] bg-primary/60 rounded-t-sm min-h-[2px]"
+									class="w-full max-w-[40px] bg-primary/60 group-hover:bg-primary rounded-t-sm min-h-[2px] transition-colors"
 									style="height: {Math.max(8, (point.count / maxCount) * 100)}%"
 								></div>
-							</div>
+							</button>
 						{/each}
 					</div>
 					<div class="flex gap-1.5 mt-1">
 						{#each report.active_users_series as point}
-							<span class="flex-1 max-w-[40px] text-center text-[9px] text-base-content/40 font-mono truncate"
-								>{point.bucket}</span
+							<span class="flex-1 max-w-[52px] text-center text-[9px] text-base-content/40 font-mono"
+								>{formatBucketLabel(point.bucket, report.granularity)}</span
 							>
 						{/each}
 					</div>
+					<p class="text-[10px] text-base-content/40 mt-1">Click a bar → who was active then</p>
 				{/if}
 			</div>
 
@@ -422,15 +554,19 @@
 				{:else}
 					<div class="flex items-end gap-[3px] h-32 border-b border-base-300/30 pt-2">
 						{#each report.time_of_day as v, h}
-							<div class="flex-1 h-full flex items-end">
+							<button
+								type="button"
+								class="flex-1 h-full flex items-end group"
+								on:click={() => openHourDrawer(h, v)}
+							>
 								<div
-									class="w-full rounded-t-sm min-h-[2px] {h === todPeakHour
+									class="w-full rounded-t-sm min-h-[2px] transition-colors {h === todPeakHour
 										? 'bg-primary'
-										: 'bg-primary/40'}"
+										: 'bg-primary/40 group-hover:bg-primary/70'}"
 									style="height: {v === 0 ? 0 : Math.max(4, (v / todMax) * 100)}%"
 									title="{hourLabel(h)}:00 · {v} active"
 								></div>
-							</div>
+							</button>
 						{/each}
 					</div>
 					<div class="flex gap-[3px] mt-1">
@@ -499,17 +635,23 @@
 				{:else}
 					<div class="flex items-end gap-2.5 h-32 border-b border-base-300/30 pt-2">
 						{#each report.frequency_buckets as bucket}
-							<div class="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-								<span class="text-[11px] text-base-content/55 font-mono">{bucket.count}</span>
+							<button
+								type="button"
+								class="flex-1 flex flex-col items-center justify-end gap-1 h-full group"
+								on:click={() => openFrequencyDrawer(bucket)}
+							>
+								<span class="text-[11px] text-base-content/55 font-mono group-hover:text-primary"
+									>{bucket.count}</span
+								>
 								<div
-									class="w-full rounded-t-sm min-h-[2px] {bucket.is_dormant
+									class="w-full rounded-t-sm min-h-[2px] transition-opacity group-hover:opacity-80 {bucket.is_dormant
 										? 'bg-error/55'
 										: bucket.is_power
 											? 'bg-primary'
 											: 'bg-success/55'}"
 									style="height: {Math.max(4, (bucket.count / freqMax) * 100)}%"
 								></div>
-							</div>
+							</button>
 						{/each}
 					</div>
 					<div class="flex gap-2.5 mt-1">
@@ -756,6 +898,15 @@
 					</p>
 					<h3 class="font-display font-bold text-lg mt-1">{drawerUser.name}</h3>
 					<p class="text-xs text-base-content/55 mt-1">Since tournament kickoff</p>
+				{:else if drawerMode === 'day' || drawerMode === 'hour' || drawerMode === 'freq' || drawerMode === 'funnel'}
+					<p class="text-[10px] font-mono uppercase tracking-widest text-primary">
+						{#if drawerMode === 'day'}Day · who was active
+						{:else if drawerMode === 'hour'}Hour of day · who was active
+						{:else if drawerMode === 'freq'}Engagement frequency · who's in this bucket
+						{:else}Funnel cohort · who's in this group{/if}
+					</p>
+					<h3 class="font-display font-bold text-lg mt-1">{drawerDrillTitle}</h3>
+					<p class="text-xs text-base-content/55 mt-1">{drawerDrillSub}</p>
 				{/if}
 			</div>
 			<button
@@ -827,12 +978,69 @@
 				<p class="text-sm text-base-content/60">
 					Last seen {relativeTime(drawerUser.last_seen_at)}.
 				</p>
+				<div>
+					<span class="text-[10px] font-mono uppercase tracking-wide text-base-content/40"
+						>Features this user touches</span
+					>
+					{#if drawerUserFeaturesLoading}
+						<p class="text-sm text-base-content/50 mt-2">Loading…</p>
+					{:else if drawerUserFeatures.length === 0}
+						<p class="text-sm text-base-content/50 mt-2">No feature usage data.</p>
+					{:else}
+						<div class="border border-base-300/30 rounded-btn overflow-hidden mt-2">
+							{#each drawerUserFeatures as f, i}
+								<div
+									class="flex items-center justify-between px-3 py-2 text-sm {i > 0
+										? 'border-t border-base-300/20'
+										: ''}"
+								>
+									<span class="flex flex-col">
+										<span class="font-semibold {f.count === 0 ? 'text-base-content/40' : ''}"
+											>{f.name}</span
+										>
+										{#if f.count > 0}
+											<span class="text-[10px] text-base-content/40"
+												>last used {relativeTime(f.last_used)}</span
+											>
+										{/if}
+									</span>
+									<span
+										class="font-mono text-xs {f.count === 0
+											? 'text-base-content/30'
+											: 'text-base-content/60'}">{f.count}×</span
+									>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
 				<a
 					class="block text-center rounded-btn bg-primary text-primary-content font-bold text-sm py-2.5 hover:brightness-105"
 					href="/admin/users/{drawerUser.user_id}"
 				>
 					Open full profile →
 				</a>
+			{:else if drawerMode === 'day' || drawerMode === 'hour' || drawerMode === 'freq' || drawerMode === 'funnel'}
+				{#if drawerDrillLoading}
+					<p class="text-sm text-base-content/50">Loading…</p>
+				{:else if drawerDrillUsers.length === 0}
+					<p class="text-sm text-base-content/50">No users in this group.</p>
+				{:else}
+					<div class="border border-base-300/30 rounded-btn overflow-hidden">
+						{#each drawerDrillUsers as u, i}
+							<div
+								class="flex items-center justify-between px-3 py-2 text-sm {i > 0
+									? 'border-t border-base-300/20'
+									: ''}"
+							>
+								<span class="font-semibold">{u.name}</span>
+								<span class="font-mono text-xs text-base-content/50"
+									>{u.last_used ? relativeTime(u.last_used) : u.detail ?? ''}</span
+								>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</aside>

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -29,12 +30,19 @@ from app.models.prediction import PredictionPhase
 from app.models.user import AuthProvider, User
 from app.services import usage
 from app.services.usage import (
+    _bucket_bounds,
     _bucket_frequency,
     _delta_pct,
     _delta_points,
     _previous_window,
+    _range_for_bucket_label,
     _resolve_range,
+    get_day_bucket_users,
+    get_frequency_bucket_users,
+    get_funnel_cohort_users,
+    get_hour_bucket_users,
     get_usage_report,
+    get_user_features,
 )
 
 
@@ -179,9 +187,10 @@ async def test_partial_posthog_failure_degrades_gracefully(db_session: AsyncSess
     # DB-sourced funnel still renders (count_all_audiences is DB-only
     # for the base counts; its engagement fallback silently no-ops).
     assert report.funnel.submitters == 1
-    # Every feature still appears (server-defined catalog), just at
-    # zero adoption rather than vanishing.
-    assert len(report.feature_adoption) == 8
+    # Every feature still appears (server-defined catalog — 9 entries,
+    # including the property-filtered "Insights tab"), just at zero
+    # adoption rather than vanishing.
+    assert len(report.feature_adoption) == 9
     assert all(f.users == 0 for f in report.feature_adoption)
     assert all(f.last_used is None for f in report.feature_adoption)
     # PostHog-only tables degrade to empty, not to a misleading
@@ -213,11 +222,21 @@ async def test_feature_adoption_and_uncategorized_wiring(db_session: AsyncSessio
         "$pageview": (9999, now),  # ambient — must stay excluded
     }
 
+    # "Insights tab" (prop_filter=("view", "insights")) shares
+    # leaderboard_view_changed with the plain "leaderboard" feature but
+    # must get its OWN, narrower count — a flat AsyncMock return_value
+    # would give it the same 2/2=100% as "leaderboard" and break the
+    # sort-order assertion below for the wrong reason.
+    async def fake_unique_users_by_event(events, since, until, uids=None, prop_filter=None):
+        if prop_filter:
+            return {"leaderboard_view_changed": 1}  # insights_tab -> 1/2 = 50%
+        return adoption_counts
+
     with patch.object(usage.posthog_read, "is_configured", return_value=True), \
          patch.object(
              usage.posthog_read,
              "get_unique_users_by_event",
-             AsyncMock(return_value=adoption_counts),
+             AsyncMock(side_effect=fake_unique_users_by_event),
          ), \
          patch.object(
              usage.posthog_read,
@@ -266,6 +285,9 @@ async def test_feature_adoption_and_uncategorized_wiring(db_session: AsyncSessio
     assert by_key["smartfill"].pct == 50
     assert by_key["smartfill"].frozen is True
     assert by_key["leaderboard"].frozen is False
+    # Property-filtered feature gets its OWN narrower count (50%), not
+    # the unfiltered "leaderboard" count it shares an event with (100%).
+    assert by_key["insights_tab"].pct == 50
 
     # Sorted descending by adopter count.
     assert report.feature_adoption[0].key == "leaderboard"
@@ -274,3 +296,187 @@ async def test_feature_adoption_and_uncategorized_wiring(db_session: AsyncSessio
     # ones do not.
     uncategorized_names = {u.name for u in report.uncategorized_events}
     assert uncategorized_names == {"a_forgotten_new_feature_event"}
+
+
+# ---------------------------------------------------------------------------
+# Click-through drill-down pure-function unit tests
+# ---------------------------------------------------------------------------
+class TestBucketBounds:
+    def test_day_granularity_date_only_string(self):
+        since, until = _bucket_bounds("2026-07-07", "day")
+        assert since == datetime(2026, 7, 7, tzinfo=timezone.utc)
+        assert until == datetime(2026, 7, 8, tzinfo=timezone.utc)
+
+    def test_hour_granularity_space_separated_string(self):
+        # PostHog's toStartOfHour commonly renders "YYYY-MM-DD HH:MM:SS".
+        since, until = _bucket_bounds("2026-07-07 14:00:00", "hour")
+        assert since == datetime(2026, 7, 7, 14, tzinfo=timezone.utc)
+        assert until == datetime(2026, 7, 7, 15, tzinfo=timezone.utc)
+
+    def test_week_granularity(self):
+        since, until = _bucket_bounds("2026-07-06", "week")
+        assert since == datetime(2026, 7, 6, tzinfo=timezone.utc)
+        assert until == datetime(2026, 7, 13, tzinfo=timezone.utc)
+
+
+class TestRangeForBucketLabel:
+    def test_known_labels(self):
+        assert _range_for_bucket_label("0 days") == (0, 0)
+        assert _range_for_bucket_label("2-3") == (2, 3)
+        assert _range_for_bucket_label("15+") == (15, 10_000)
+
+    def test_unknown_label_returns_none(self):
+        assert _range_for_bucket_label("bogus") is None
+
+
+# ---------------------------------------------------------------------------
+# Click-through drill-down integration tests
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_get_day_bucket_users_maps_ids_to_names(db_session: AsyncSession):
+    alice = await _make_user(db_session, "alice4@test.com", "Alice Four")
+    await db_session.commit()
+
+    with patch.object(
+        usage.posthog_read,
+        "get_users_active_in_bucket",
+        AsyncMock(
+            return_value=[(alice.id, datetime(2026, 7, 7, 9, tzinfo=timezone.utc))]
+        ),
+    ):
+        rows = await get_day_bucket_users(db_session, "2026-07-07", "day", "all")
+
+    assert len(rows) == 1
+    assert rows[0].user_id == alice.id
+    assert rows[0].name == "Alice Four"
+    assert rows[0].last_used == datetime(2026, 7, 7, 9, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_get_day_bucket_users_unparseable_bucket_returns_empty(
+    db_session: AsyncSession,
+):
+    rows = await get_day_bucket_users(db_session, "not-a-date", "day", "all")
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_get_hour_bucket_users_maps_ids_to_names(db_session: AsyncSession):
+    bob = await _make_user(db_session, "bob4@test.com", "Bob Four")
+    await db_session.commit()
+
+    with patch.object(
+        usage.posthog_read,
+        "get_users_active_at_hour",
+        AsyncMock(
+            return_value=[(bob.id, datetime(2026, 7, 10, 14, tzinfo=timezone.utc))]
+        ),
+    ):
+        rows = await get_hour_bucket_users(db_session, 14, "7d", "all")
+
+    assert len(rows) == 1
+    assert rows[0].user_id == bob.id
+    assert rows[0].name == "Bob Four"
+
+
+@pytest.mark.asyncio
+async def test_get_frequency_bucket_users_nonzero_bucket(db_session: AsyncSession):
+    alice = await _make_user(db_session, "alice5@test.com", "Alice Five")
+    await _make_submitted_entry(db_session, alice.id)
+    await db_session.commit()
+
+    with patch.object(
+        usage.posthog_read,
+        "get_users_by_active_days",
+        AsyncMock(return_value=[(alice.id, 3)]),
+    ):
+        rows = await get_frequency_bucket_users(db_session, "2-3", "7d", "all")
+
+    assert len(rows) == 1
+    assert rows[0].user_id == alice.id
+    assert rows[0].detail == "3 active days"
+    assert rows[0].last_used is None
+
+
+@pytest.mark.asyncio
+async def test_get_frequency_bucket_users_dormant_bucket_is_population_minus_active(
+    db_session: AsyncSession,
+):
+    """The "0 days" bucket can't be queried directly from PostHog — it's
+    derived by diffing the full submitter population against whoever
+    PostHog says WAS active."""
+    active_user = await _make_user(db_session, "active@test.com", "Active User")
+    dormant_user = await _make_user(db_session, "dormant@test.com", "Dormant User")
+    await _make_submitted_entry(db_session, active_user.id)
+    await _make_submitted_entry(db_session, dormant_user.id)
+    await db_session.commit()
+
+    with patch.object(
+        usage.posthog_read,
+        "get_users_by_active_days",
+        AsyncMock(return_value=[(active_user.id, 5)]),
+    ):
+        rows = await get_frequency_bucket_users(db_session, "0 days", "7d", "all")
+
+    assert len(rows) == 1
+    assert rows[0].user_id == dormant_user.id
+    assert rows[0].detail == "0 active days"
+
+
+@pytest.mark.asyncio
+async def test_get_frequency_bucket_users_unknown_label_returns_empty(
+    db_session: AsyncSession,
+):
+    rows = await get_frequency_bucket_users(db_session, "not-a-bucket", "7d", "all")
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_get_funnel_cohort_users_wraps_query_audience(db_session: AsyncSession):
+    from app.services.broadcast import AudienceRow
+
+    fake_rows = [AudienceRow(user_id=uuid4(), email="x@test.com", name="X Y")]
+    with patch.object(
+        usage, "query_audience", AsyncMock(return_value=fake_rows)
+    ):
+        rows = await get_funnel_cohort_users(db_session, "submitters")
+
+    assert len(rows) == 1
+    assert rows[0].name == "X Y"
+    assert rows[0].detail == "x@test.com"
+
+
+@pytest.mark.asyncio
+async def test_get_funnel_cohort_users_unknown_cohort_returns_empty(
+    db_session: AsyncSession,
+):
+    rows = await get_funnel_cohort_users(db_session, "not-a-cohort")
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_get_user_features_splits_plain_and_property_filtered(
+    db_session: AsyncSession,
+):
+    """"Insights tab" and "Leaderboard views" share an event
+    (leaderboard_view_changed) but must get independently-correct
+    counts for the SAME user."""
+    uid = uuid4()
+
+    plain_usage = {"leaderboard_view_changed": (10, datetime(2026, 7, 1, tzinfo=timezone.utc))}
+    insights_usage = {"leaderboard_view_changed": (4, datetime(2026, 7, 2, tzinfo=timezone.utc))}
+
+    async def fake_get_user_feature_usage(user_id, events, since, until, prop_filter=None):
+        return insights_usage if prop_filter else plain_usage
+
+    with patch.object(
+        usage.posthog_read,
+        "get_user_feature_usage",
+        AsyncMock(side_effect=fake_get_user_feature_usage),
+    ):
+        rows = await get_user_features(db_session, uid, "all")
+
+    by_key = {r.key: r for r in rows}
+    assert by_key["leaderboard"].count == 10
+    assert by_key["insights_tab"].count == 4
+    assert by_key["insights_tab"].count != by_key["leaderboard"].count

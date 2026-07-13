@@ -1249,6 +1249,30 @@ several reserved-but-never-fired events (`entry_created`,
 `user_signed_in`, etc.), and auto-deriving would surface those as
 phantom 0%-adoption rows instead of correctly-omitted non-events.
 
+**Property-filtered feature rows** (v2.213.0) — a `FEATURE_GROUPS`
+entry can carry `"prop_filter": (prop, value)` to narrow a shared
+event down to one property value, e.g. `insights_tab` reuses
+`leaderboard_view_changed` narrowed to `view == "insights"` alongside
+the unfiltered `leaderboard` row for the same event. Every adoption
+query (`get_unique_users_by_event`, `get_adopters_for_events`,
+`get_user_feature_usage`) takes an optional `prop_filter` for this —
+**never reuse a bulk unfiltered query result for a property-filtered
+feature** (it silently gives the narrower feature the wrong, larger
+number); property-filtered features always get their own query.
+
+**Click-through drill-downs** (v2.213.0) — every chart on
+`/admin/usage` (the trend bars, time-of-day bars, frequency buckets,
+funnel-strip cards) and the Power-users table open a shared drawer via
+`UsageDrillUser` (generic `user_id`/`name` + either `last_used` or
+`detail`, never both) answering "who's behind this number?". The
+funnel-cohort drill-down is DB-only (wraps `broadcast.query_audience`
+— zero new PostHog queries); the rest are PostHog-sourced and degrade
+to an empty "no users" state, never a crash, when PostHog is down.
+`get_users_by_active_days`'s `HAVING` clause and any `properties.X`
+custom-property filter should be spot-checked against live PostHog
+before shipping changes to them — HogQL's dialect quirks don't always
+match assumptions carried over from standard SQL.
+
 ## UI
 
 Two DaisyUI themes registered in `frontend/tailwind.config.js`: **`premium-night`** (dark, default — champagne gold on midnight navy) and **`hybrid`** (light — deeper gold on a dim slate canvas with white cards lifting above it). Themes change colour, not voice — same fonts, same hierarchy. The choice is persisted in `localStorage['predictor:theme']` and applied FOUC-safely by a script in `frontend/src/app.html`; the store lives at `frontend/src/lib/stores/theme.ts`. Legacy `'light'` / `'premium-day'` values migrate to `'hybrid'` on load. Layout + mobile bottom nav are in `frontend/src/routes/+layout.svelte`.

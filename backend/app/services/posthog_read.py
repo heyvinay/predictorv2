@@ -614,6 +614,19 @@ def _uid_filter_clause(user_ids: list[UUID] | None) -> str:
     return f" AND distinct_id IN {_ids_in_clause(user_ids)}"
 
 
+def _prop_filter_clause(prop_filter: tuple[str, str] | None) -> str:
+    """Empty string, or an AND'd ``properties.X = 'Y'`` clause.
+
+    ``prop_filter`` is always our own literal (from ``FEATURE_GROUPS``
+    server-side config), never user input — same safety argument as
+    ``_ids_in_clause``.
+    """
+    if not prop_filter:
+        return ""
+    prop, value = prop_filter
+    return f" AND properties.{prop} = '{value}'"
+
+
 def _uid_cache_fragment(user_ids: list[UUID] | None) -> str:
     if not user_ids:
         return "all"
@@ -1029,20 +1042,24 @@ async def get_unique_users_by_event(
     since: datetime,
     until: datetime,
     user_ids: list[UUID] | None = None,
+    prop_filter: tuple[str, str] | None = None,
 ) -> dict[str, int]:
     """Unique-user adoption count per event name in [since, until).
 
     ``events`` are our own literal event-name strings (from
     ``FEATURE_GROUPS`` server-side), never user input — safe to inline
     into the HogQL ``IN`` clause the same way ``_ids_in_clause`` treats
-    UUIDs. ``{}`` on failure or empty input.
+    UUIDs. ``prop_filter`` narrows to a single ``properties.X = 'Y'``
+    value — e.g. ``leaderboard_view_changed`` filtered to
+    ``view = 'insights'`` for a feature row finer-grained than a whole
+    event name. ``{}`` on failure or empty input.
     """
     if _config() is None or not events:
         return {}
 
     cache_key = (
         f"unique_by_event:{','.join(sorted(events))}:{since.isoformat()}:"
-        f"{until.isoformat()}:{_uid_cache_fragment(user_ids)}"
+        f"{until.isoformat()}:{_uid_cache_fragment(user_ids)}:{prop_filter}"
     )
     cached = _cache_get(cache_key, BATCH_TTL_S)
     if cached is not None:
@@ -1053,6 +1070,7 @@ async def get_unique_users_by_event(
         f"SELECT event, count(DISTINCT distinct_id) AS c FROM events "
         f"WHERE event IN {events_clause} "
         f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_prop_filter_clause(prop_filter)}"
         f"{_uid_filter_clause(user_ids)} GROUP BY event"
     )
     rows = await _hogql(query)
@@ -1121,9 +1139,11 @@ async def get_adopters_for_events(
     until: datetime,
     user_ids: list[UUID] | None = None,
     limit: int = 20,
+    prop_filter: tuple[str, str] | None = None,
 ) -> list[tuple[UUID, datetime]]:
     """Most-recent adopters of any event in ``events``, newest first —
-    powers the Feature Adoption card's click-through drawer.
+    powers the Feature Adoption card's click-through drawer. See
+    :func:`get_unique_users_by_event` for ``prop_filter``.
     ``[(user_id, last_used)]``. ``[]`` on failure or empty input.
     """
     if _config() is None or not events:
@@ -1131,7 +1151,7 @@ async def get_adopters_for_events(
 
     cache_key = (
         f"adopters:{','.join(sorted(events))}:{since.isoformat()}:"
-        f"{until.isoformat()}:{_uid_cache_fragment(user_ids)}:{limit}"
+        f"{until.isoformat()}:{_uid_cache_fragment(user_ids)}:{limit}:{prop_filter}"
     )
     cached = _cache_get(cache_key, SINGLE_TTL_S)
     if cached is not None:
@@ -1142,6 +1162,7 @@ async def get_adopters_for_events(
         f"SELECT distinct_id, max(timestamp) AS last_used FROM events "
         f"WHERE event IN {events_clause} "
         f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_prop_filter_clause(prop_filter)}"
         f"{_uid_filter_clause(user_ids)} "
         f"GROUP BY distinct_id ORDER BY last_used DESC LIMIT {int(limit)}"
     )
@@ -1204,6 +1225,221 @@ async def get_active_days_and_sessions_for_users(
                 sessions=int(row[2] or 0),
             )
         except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Click-through drill-downs for the trend / time-of-day / frequency charts
+# (v2.213.0) — "who's behind this number?"
+# ---------------------------------------------------------------------------
+async def get_users_active_in_bucket(
+    since: datetime,
+    until: datetime,
+    user_ids: list[UUID] | None = None,
+    limit: int = 200,
+) -> list[tuple[UUID, datetime]]:
+    """Distinct users active in [since, until), newest-last-seen first.
+
+    Powers the "Active users over time" trend bar click-through — the
+    caller passes ONE bucket's own [since, until) window (e.g. one
+    day, one week), not the whole chart's range. ``[]`` on failure.
+    """
+    if _config() is None:
+        return []
+
+    cache_key = (
+        f"users_in_bucket:{since.isoformat()}:{until.isoformat()}:"
+        f"{_uid_cache_fragment(user_ids)}:{limit}"
+    )
+    cached = _cache_get(cache_key, SINGLE_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        f"SELECT distinct_id, max(timestamp) AS last_seen FROM events "
+        f"WHERE event = '$pageview' "
+        f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_uid_filter_clause(user_ids)} "
+        f"GROUP BY distinct_id ORDER BY last_seen DESC LIMIT {int(limit)}"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[tuple[UUID, datetime]] = []
+    for row in rows:
+        try:
+            uid = UUID(str(row[0]))
+            ts = _parse_hogql_timestamp(row[1])
+            if ts is not None:
+                out.append((uid, ts))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_users_active_at_hour(
+    hour: int,
+    since: datetime,
+    until: datetime,
+    user_ids: list[UUID] | None = None,
+    limit: int = 200,
+) -> list[tuple[UUID, datetime]]:
+    """Distinct users with >=1 pageview at this UTC hour-of-day,
+    anywhere in [since, until) — powers the "Time of day" bar
+    click-through. Unlike :func:`get_users_active_in_bucket`, this
+    filters by hour-of-day across the WHOLE range, not one contiguous
+    window (an hour bar aggregates every day in range at that hour).
+    ``[]`` on failure.
+    """
+    if _config() is None:
+        return []
+
+    cache_key = (
+        f"users_at_hour:{hour}:{since.isoformat()}:{until.isoformat()}:"
+        f"{_uid_cache_fragment(user_ids)}:{limit}"
+    )
+    cached = _cache_get(cache_key, SINGLE_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        f"SELECT distinct_id, max(timestamp) AS last_seen FROM events "
+        f"WHERE event = '$pageview' AND toHour(timestamp) = {int(hour)} "
+        f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_uid_filter_clause(user_ids)} "
+        f"GROUP BY distinct_id ORDER BY last_seen DESC LIMIT {int(limit)}"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[tuple[UUID, datetime]] = []
+    for row in rows:
+        try:
+            uid = UUID(str(row[0]))
+            ts = _parse_hogql_timestamp(row[1])
+            if ts is not None:
+                out.append((uid, ts))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_users_by_active_days(
+    since: datetime,
+    until: datetime,
+    lo: int,
+    hi: int,
+    user_ids: list[UUID] | None = None,
+    limit: int = 200,
+) -> list[tuple[UUID, int]]:
+    """Users whose active-days-in-[since, until) falls in [lo, hi],
+    most-active first — powers the Engagement Frequency bucket
+    click-through. Cannot represent the "0 days" (dormant) bucket:
+    PostHog only knows about users who fired >=1 event, so a caller
+    asking for the dormant bucket must diff this function's ``lo=1``
+    result against the full segment population from the DB instead
+    (see ``usage.get_frequency_bucket_users``). ``[]`` on failure or
+    when ``lo <= 0``.
+    """
+    if _config() is None or lo <= 0:
+        return []
+
+    cache_key = (
+        f"users_by_active_days:{since.isoformat()}:{until.isoformat()}:"
+        f"{lo}:{hi}:{_uid_cache_fragment(user_ids)}:{limit}"
+    )
+    cached = _cache_get(cache_key, SINGLE_TTL_S)
+    if cached is not None:
+        return cached
+
+    query = (
+        f"SELECT distinct_id, count(DISTINCT toDate(timestamp)) AS ad FROM events "
+        f"WHERE event = '$pageview' "
+        f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_uid_filter_clause(user_ids)} "
+        f"GROUP BY distinct_id HAVING ad >= {int(lo)} AND ad <= {int(hi)} "
+        f"ORDER BY ad DESC LIMIT {int(limit)}"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return []
+
+    out: list[tuple[UUID, int]] = []
+    for row in rows:
+        try:
+            uid = UUID(str(row[0]))
+            out.append((uid, int(row[1] or 0)))
+        except (ValueError, IndexError, TypeError):
+            continue
+
+    _cache_set(cache_key, out)
+    return out
+
+
+async def get_user_feature_usage(
+    user_id: UUID,
+    events: list[str],
+    since: datetime,
+    until: datetime,
+    prop_filter: tuple[str, str] | None = None,
+) -> dict[str, tuple[int, datetime | None]]:
+    """Per-event (occurrence count, last_used) for ONE user, restricted
+    to ``events`` — powers the Power-users drawer's "features this
+    user touches" list. One query covering every feature's events;
+    the caller (``usage.get_user_features``) groups the result by
+    feature. ``prop_filter`` narrows to one property value, for
+    features that share an event with a broader one (e.g. "Insights
+    tab" vs the unfiltered "Leaderboard views" — both count
+    ``leaderboard_view_changed``, one narrowed to ``view='insights'``).
+    ``{}`` on failure or empty input.
+
+    ★ This is an occurrence count (``count()``), not a unique-user
+    count — scoping a ``count(DISTINCT distinct_id)``-style query to a
+    single user would trivially return 0 or 1 and say nothing about
+    how often they used the feature. Don't substitute
+    :func:`get_unique_users_by_event` here even though its shape looks
+    similar; it answers a different question.
+    """
+    if _config() is None or not events:
+        return {}
+
+    cache_key = (
+        f"user_feature_usage:{user_id}:{','.join(sorted(events))}:"
+        f"{since.isoformat()}:{until.isoformat()}:{prop_filter}"
+    )
+    cached = _cache_get(cache_key, SINGLE_TTL_S)
+    if cached is not None:
+        return cached
+
+    events_clause = "(" + ", ".join(f"'{e}'" for e in events) + ")"
+    query = (
+        f"SELECT event, count() AS c, max(timestamp) AS last_used FROM events "
+        f"WHERE distinct_id = '{user_id}' AND event IN {events_clause} "
+        f"AND timestamp >= '{since.isoformat()}' AND timestamp < '{until.isoformat()}'"
+        f"{_prop_filter_clause(prop_filter)} "
+        f"GROUP BY event"
+    )
+    rows = await _hogql(query)
+    if rows is None:
+        return {}
+
+    out: dict[str, tuple[int, datetime | None]] = {}
+    for row in rows:
+        try:
+            name = str(row[0])
+            count = int(row[1] or 0)
+            last_used = _parse_hogql_timestamp(row[2])
+            out[name] = (count, last_used)
+        except (IndexError, TypeError, ValueError):
             continue
 
     _cache_set(cache_key, out)

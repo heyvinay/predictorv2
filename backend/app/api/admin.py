@@ -39,11 +39,13 @@ from app.schemas.admin import (
     EngagementSummary,
     FixtureMini,
     SitePulse,
+    UsageDrillUser,
     UsageFeatureAdopter,
     UsageReport,
     UserAdminPage,
     UserCohort,
     UserDetailRead,
+    UserFeatureUsage,
 )
 from app.services import entries as entries_service
 from app.services import posthog_read
@@ -1799,6 +1801,79 @@ async def get_usage_feature_adopters(
     return await usage_service.get_feature_adopters(
         session, key=key, range_key=range, segment=segment, limit=limit
     )
+
+
+@router.get("/usage/day-users", response_model=list[UsageDrillUser])
+async def get_usage_day_users(
+    session: DbSession,
+    _admin: AdminUser,
+    bucket: str,
+    granularity: str = "day",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Click-through for one bar of the "Active users over time"
+    trend. ``bucket`` is exactly the label the chart rendered.
+    """
+    return await usage_service.get_day_bucket_users(
+        session, bucket=bucket, granularity=granularity, segment=segment
+    )
+
+
+@router.get("/usage/hour-users", response_model=list[UsageDrillUser])
+async def get_usage_hour_users(
+    session: DbSession,
+    _admin: AdminUser,
+    hour: int,
+    range: str = "7d",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Click-through for one bar of the "Time of day" chart."""
+    return await usage_service.get_hour_bucket_users(
+        session, hour=hour, range_key=range, segment=segment
+    )
+
+
+@router.get("/usage/frequency-users", response_model=list[UsageDrillUser])
+async def get_usage_frequency_users(
+    session: DbSession,
+    _admin: AdminUser,
+    bucket: str,
+    range: str = "7d",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Click-through for one bar of the "Engagement frequency"
+    histogram. ``bucket`` is exactly the label the chart rendered
+    (e.g. ``"0 days"``, ``"2-3"``, ``"15+"``).
+    """
+    return await usage_service.get_frequency_bucket_users(
+        session, bucket_label=bucket, range_key=range, segment=segment
+    )
+
+
+@router.get("/usage/funnel-users", response_model=list[UsageDrillUser])
+async def get_usage_funnel_users(
+    session: DbSession,
+    _admin: AdminUser,
+    cohort: str,
+) -> list[UsageDrillUser]:
+    """Click-through for one funnel-strip card (Submitters / No entry /
+    Draft / Lapsing / Pool ghost). ``cohort`` is a ``BroadcastSegment``
+    value.
+    """
+    return await usage_service.get_funnel_cohort_users(session, cohort=cohort)
+
+
+@router.get("/usage/users/{user_id}/features", response_model=list[UserFeatureUsage])
+async def get_usage_user_features(
+    user_id: uuid.UUID,
+    session: DbSession,
+    _admin: AdminUser,
+    range: str = "all",
+) -> list[UserFeatureUsage]:
+    """Per-feature usage breakdown for one user — powers the
+    Power-users drawer's "features this user touches" list.
+    """
+    return await usage_service.get_user_features(session, user_id=user_id, range_key=range)
 
 
 # ============================================================================

@@ -503,6 +503,35 @@ class UsageFeatureAdopter(BaseModel):
     last_used: datetime | None
 
 
+class UsageDrillUser(BaseModel):
+    """One row of a generic click-through drill-down drawer — the
+    day/hour trend bars, an engagement-frequency bucket, or a funnel
+    cohort. Exactly one of ``last_used`` / ``detail`` is normally
+    populated: day/hour drill-downs have a natural "last seen this
+    period" timestamp; frequency-bucket and funnel drill-downs don't
+    (an active-days count or an email isn't a timestamp), so they use
+    ``detail`` instead. The frontend renders whichever is present.
+    """
+
+    user_id: uuid.UUID
+    name: str
+    last_used: datetime | None = None
+    detail: str | None = None
+
+
+class UserFeatureUsage(BaseModel):
+    """One row of the Power-users drawer's "features this user
+    touches" list — the per-user mirror of ``UsageFeatureAdoption``.
+    """
+
+    key: str
+    name: str
+    sub: str
+    count: int
+    last_used: datetime | None
+    frozen: bool = False
+
+
 class UsagePowerUser(BaseModel):
     """One row of the Power-users table, in any of its three modes
     (most active / least active / never engaged)."""

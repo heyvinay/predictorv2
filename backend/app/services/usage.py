@@ -25,7 +25,7 @@ frontend show one unified banner instead of per-widget checks.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,7 @@ from app.config import TOURNAMENT_START
 from app.models._datetime import aware_utc, utc_now
 from app.models.user import Employer, User
 from app.schemas.admin import (
+    UsageDrillUser,
     UsageFeatureAdopter,
     UsageFeatureAdoption,
     UsageFrequencyBucket,
@@ -45,6 +46,7 @@ from app.schemas.admin import (
     UsageRetentionCohort,
     UsageSeriesPoint,
     UsageUncategorizedEvent,
+    UserFeatureUsage,
 )
 from app.services import posthog_read
 from app.services.audit import get_login_counts_since
@@ -52,6 +54,7 @@ from app.services.broadcast import (
     BroadcastSegment,
     _has_submitted_phase_predicate,
     count_all_audiences,
+    query_audience,
 )
 
 # ---------------------------------------------------------------------------
@@ -67,6 +70,19 @@ FEATURE_GROUPS: dict[str, dict[str, object]] = {
         "name": "Leaderboard views",
         "sub": "Standings / Race / Insights",
         "events": ["leaderboard_view_changed"],
+    },
+    "insights_tab": {
+        "name": "Insights tab",
+        "sub": "Standings → Insights view",
+        "events": ["leaderboard_view_changed"],
+        # Same event as "leaderboard" above, narrowed to one view —
+        # `leaderboard_view_changed` fires with `{view, from}` (see
+        # frontend/src/routes/leaderboard/+page.svelte:setView).
+        # `prop_filter` is handled specially in get_usage_report/
+        # get_feature_adopters: it CANNOT share the bulk unfiltered
+        # get_unique_users_by_event() call every other feature uses,
+        # since the filter is per-feature, not global.
+        "prop_filter": ("view", "insights"),
     },
     "smartfill": {
         "name": "Smart Fill",
@@ -132,6 +148,19 @@ AMBIENT_EVENTS: frozenset[str] = frozenset(
 LOW_ADOPTION_THRESHOLD_PCT = 15
 POWER_USER_MIN_ACTIVE_DAYS = 8
 TABLE_ROW_LIMIT = 20
+DRILL_ROW_LIMIT = 200
+
+# (lo, hi, label) — shared by _bucket_frequency (counts per bucket) and
+# _range_for_bucket_label (the reverse lookup the frequency-bucket
+# drill-down uses to turn a clicked label back into a query range).
+FREQUENCY_RANGES: list[tuple[int, int, str]] = [
+    (0, 0, "0 days"),
+    (1, 1, "1 day"),
+    (2, 3, "2-3"),
+    (4, 7, "4-7"),
+    (8, 14, "8-14"),
+    (15, 10_000, "15+"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -191,19 +220,11 @@ def _bucket_frequency(
     """PostHog only returns users with >=1 active day; the "0 days"
     (dormant) bucket is the DB population minus everyone PostHog saw.
     """
-    ranges = [
-        (0, 0, "0 days"),
-        (1, 1, "1 day"),
-        (2, 3, "2-3"),
-        (4, 7, "4-7"),
-        (8, 14, "8-14"),
-        (15, 10_000, "15+"),
-    ]
     nonzero_total = sum(freq_map.values())
     zero_count = max(total_population - nonzero_total, 0)
 
     buckets: list[UsageFrequencyBucket] = []
-    for lo, hi, label in ranges:
+    for lo, hi, label in FREQUENCY_RANGES:
         count = zero_count if (lo, hi) == (0, 0) else sum(
             v for k, v in freq_map.items() if lo <= k <= hi
         )
@@ -216,6 +237,60 @@ def _bucket_frequency(
             )
         )
     return buckets
+
+
+def _range_for_bucket_label(label: str) -> tuple[int, int] | None:
+    """Reverse of the loop in :func:`_bucket_frequency` — turns a
+    clicked bucket label back into its (lo, hi) range. ``None`` for an
+    unrecognised label.
+    """
+    for lo, hi, bucket_label in FREQUENCY_RANGES:
+        if bucket_label == label:
+            return (lo, hi)
+    return None
+
+
+def _bucket_bounds(bucket: str, granularity: str) -> tuple[datetime, datetime]:
+    """Parse one trend-chart bucket label (exactly as PostHog's
+    ``toStartOfX`` returned it, e.g. ``"2026-07-07"`` or
+    ``"2026-07-07 14:00:00"``) into its own [start, start+1unit) window
+    — powers the Active-users-trend bar click-through.
+    """
+    raw = bucket.strip()
+    if " " in raw and "T" not in raw:
+        raw = raw.replace(" ", "T")
+    if len(raw) == 10:  # date-only, e.g. "2026-07-07"
+        raw += "T00:00:00"
+    start = datetime.fromisoformat(raw)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    width = {
+        "hour": timedelta(hours=1),
+        "day": timedelta(days=1),
+        "week": timedelta(weeks=1),
+    }.get(granularity, timedelta(days=1))
+    return start, start + width
+
+
+async def _drill_users_from_rows(
+    session: AsyncSession, rows: list[tuple[UUID, datetime]]
+) -> list[UsageDrillUser]:
+    """Map (user_id, last_used) pairs from a PostHog query into
+    UsageDrillUser rows with real names, via one DB lookup. Shared by
+    every click-through drawer backed by a raw distinct_id/timestamp
+    query (day bucket, hour-of-day).
+    """
+    if not rows:
+        return []
+    uids = [uid for uid, _ in rows]
+    users = list(
+        (await session.execute(select(User).where(User.id.in_(uids)))).scalars().all()
+    )
+    name_by_id = {u.id: (u.name or u.email) for u in users}
+    return [
+        UsageDrillUser(user_id=uid, name=name_by_id.get(uid, "(unknown)"), last_used=ts)
+        for uid, ts in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -340,9 +415,18 @@ async def get_usage_report(
     )
 
     # --- Feature adoption + uncategorized events ---
-    all_feature_events = [
-        e for group in FEATURE_GROUPS.values() for e in group["events"]
-    ]
+    # Property-filtered features (e.g. "Insights tab" = leaderboard_
+    # view_changed narrowed to view='insights') can't share the bulk
+    # unfiltered query below — the filter is per-feature, not global —
+    # so they're split out and given their own small query each.
+    plain_groups = {
+        k: g for k, g in FEATURE_GROUPS.items() if not g.get("prop_filter")
+    }
+    property_groups = {
+        k: g for k, g in FEATURE_GROUPS.items() if g.get("prop_filter")
+    }
+
+    all_feature_events = [e for group in plain_groups.values() for e in group["events"]]
     adoption_counts = await posthog_read.get_unique_users_by_event(
         all_feature_events, since, until, segment_uids
     )
@@ -350,7 +434,7 @@ async def get_usage_report(
 
     feature_adoption: list[UsageFeatureAdoption] = []
     mapped_events: set[str] = set()
-    for key, group in FEATURE_GROUPS.items():
+    for key, group in plain_groups.items():
         events = group["events"]
         mapped_events.update(events)
         # Per-feature adopter count approximates the true union of
@@ -379,6 +463,36 @@ async def get_usage_report(
                 rarely_used=pct < LOW_ADOPTION_THRESHOLD_PCT,
             )
         )
+
+    for key, group in property_groups.items():
+        events = list(group["events"])
+        mapped_events.update(events)
+        prop_filter = group["prop_filter"]
+        prop_counts = await posthog_read.get_unique_users_by_event(
+            events, since, until, segment_uids, prop_filter=prop_filter
+        )
+        users = sum(prop_counts.values())
+        pct = round(users / total_submitters * 100) if total_submitters else 0
+        last_used = None
+        if users:
+            top_adopter = await posthog_read.get_adopters_for_events(
+                events, since, until, segment_uids, limit=1, prop_filter=prop_filter
+            )
+            if top_adopter:
+                last_used = top_adopter[0][1]
+        feature_adoption.append(
+            UsageFeatureAdoption(
+                key=key,
+                name=str(group["name"]),
+                sub=str(group["sub"]),
+                users=users,
+                pct=pct,
+                last_used=last_used,
+                frozen=bool(group.get("frozen", False)),
+                rarely_used=pct < LOW_ADOPTION_THRESHOLD_PCT,
+            )
+        )
+
     feature_adoption.sort(key=lambda f: f.users, reverse=True)
 
     uncategorized_events = [
@@ -461,7 +575,12 @@ async def get_feature_adopters(
     segment_uids = await resolve_segment_user_ids(session, segment)
 
     raw = await posthog_read.get_adopters_for_events(
-        list(group["events"]), since, until, segment_uids, limit
+        list(group["events"]),
+        since,
+        until,
+        segment_uids,
+        limit,
+        prop_filter=group.get("prop_filter"),
     )
     if not raw:
         return []
@@ -478,3 +597,189 @@ async def get_feature_adopters(
         )
         for uid, last_used in raw
     ]
+
+
+# ---------------------------------------------------------------------------
+# Click-through drill-downs (v2.213.0) — "who's behind this number?"
+# ---------------------------------------------------------------------------
+async def get_day_bucket_users(
+    session: AsyncSession,
+    bucket: str,
+    granularity: str = "day",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Users active in ONE bucket of the "Active users over time"
+    trend — click-through on a single bar. ``bucket`` is exactly the
+    label the chart rendered (``UsageSeriesPoint.bucket``); ``[]`` if
+    it doesn't parse or PostHog is unavailable.
+    """
+    try:
+        since, until = _bucket_bounds(bucket, granularity)
+    except (ValueError, TypeError):
+        return []
+    segment_uids = await resolve_segment_user_ids(session, segment)
+    rows = await posthog_read.get_users_active_in_bucket(
+        since, until, segment_uids, DRILL_ROW_LIMIT
+    )
+    return await _drill_users_from_rows(session, rows)
+
+
+async def get_hour_bucket_users(
+    session: AsyncSession,
+    hour: int,
+    range_key: str = "7d",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Users active at this hour-of-day, anywhere in the selected
+    range — click-through on a "Time of day" bar.
+    """
+    now = utc_now()
+    since, until, _ = _resolve_range(range_key, now)
+    segment_uids = await resolve_segment_user_ids(session, segment)
+    rows = await posthog_read.get_users_active_at_hour(
+        hour, since, until, segment_uids, DRILL_ROW_LIMIT
+    )
+    return await _drill_users_from_rows(session, rows)
+
+
+async def get_frequency_bucket_users(
+    session: AsyncSession,
+    bucket_label: str,
+    range_key: str = "7d",
+    segment: str = "all",
+) -> list[UsageDrillUser]:
+    """Users whose active-days-in-range falls in this Engagement
+    Frequency bucket — click-through on a frequency bar. The "0 days"
+    (dormant) bucket is derived by diffing the segment's full submitter
+    population against everyone PostHog saw active — the only way to
+    represent "did nothing" from a system that only records events.
+    """
+    bounds = _range_for_bucket_label(bucket_label)
+    if bounds is None:
+        return []
+    lo, hi = bounds
+
+    now = utc_now()
+    since, until, _ = _resolve_range(range_key, now)
+    segment_uids = await resolve_segment_user_ids(session, segment)
+
+    submitter_stmt = select(User).where(_has_submitted_phase_predicate())
+    if segment_uids is not None:
+        submitter_stmt = submitter_stmt.where(User.id.in_(segment_uids))
+    submitters = list((await session.execute(submitter_stmt)).scalars().all())
+    submitter_by_id = {u.id: u for u in submitters}
+
+    if lo == 0 and hi == 0:
+        active_rows = await posthog_read.get_users_by_active_days(
+            since, until, 1, 10_000, list(submitter_by_id.keys()), DRILL_ROW_LIMIT * 5
+        )
+        active_ids = {uid for uid, _ in active_rows}
+        dormant = [uid for uid in submitter_by_id if uid not in active_ids]
+        return [
+            UsageDrillUser(
+                user_id=uid,
+                name=submitter_by_id[uid].name or submitter_by_id[uid].email,
+                detail="0 active days",
+            )
+            for uid in dormant[:DRILL_ROW_LIMIT]
+        ]
+
+    rows = await posthog_read.get_users_by_active_days(
+        since, until, lo, hi, list(submitter_by_id.keys()), DRILL_ROW_LIMIT
+    )
+    out: list[UsageDrillUser] = []
+    for uid, active_days in rows:
+        u = submitter_by_id.get(uid)
+        name = (u.name or u.email) if u else "(unknown)"
+        out.append(
+            UsageDrillUser(
+                user_id=uid,
+                name=name,
+                detail=f"{active_days} active day{'s' if active_days != 1 else ''}",
+            )
+        )
+    return out
+
+
+async def get_funnel_cohort_users(
+    session: AsyncSession, cohort: str
+) -> list[UsageDrillUser]:
+    """Members of one funnel-strip cohort (Submitters / No entry /
+    Draft / Lapsing / Pool ghost) — DB-only, reuses the existing
+    broadcast-audience query wholesale. ``[]`` for an unrecognised
+    cohort key.
+    """
+    try:
+        seg = BroadcastSegment(cohort)
+    except ValueError:
+        return []
+    rows = await query_audience(session, seg)
+    return [
+        UsageDrillUser(user_id=r.user_id, name=r.name or r.email, detail=r.email)
+        for r in rows[:DRILL_ROW_LIMIT]
+    ]
+
+
+async def get_user_features(
+    session: AsyncSession,
+    user_id: UUID,
+    range_key: str = "all",
+) -> list[UserFeatureUsage]:
+    """Per-feature usage for ONE user — powers the Power-users drawer's
+    "features this user touches" list. One HogQL query covering every
+    feature's events; grouped here by feature. ``[]`` when PostHog is
+    unavailable.
+    """
+    now = utc_now()
+    since, until, _ = _resolve_range(range_key, now)
+
+    # Plain groups can all share one bulk (unfiltered) query. Property-
+    # filtered groups (e.g. "Insights tab" narrows the SAME event
+    # `leaderboard_view_changed` that "Leaderboard views" counts
+    # unfiltered) need their own query each — reusing the bulk result
+    # for both would give "Insights tab" the wrong number: every
+    # leaderboard view switch, not just the insights ones.
+    plain_groups = {k: g for k, g in FEATURE_GROUPS.items() if not g.get("prop_filter")}
+    property_groups = {k: g for k, g in FEATURE_GROUPS.items() if g.get("prop_filter")}
+
+    all_events = [e for group in plain_groups.values() for e in group["events"]]
+    usage_map = await posthog_read.get_user_feature_usage(
+        user_id, all_events, since, until
+    )
+
+    out: list[UserFeatureUsage] = []
+    for key, group in plain_groups.items():
+        rows = [usage_map[e] for e in group["events"] if e in usage_map]
+        count = sum(c for c, _ in rows)
+        last_used = max((ts for _, ts in rows if ts is not None), default=None)
+        out.append(
+            UserFeatureUsage(
+                key=key,
+                name=str(group["name"]),
+                sub=str(group["sub"]),
+                count=count,
+                last_used=last_used,
+                frozen=bool(group.get("frozen", False)),
+            )
+        )
+
+    for key, group in property_groups.items():
+        prop_map = await posthog_read.get_user_feature_usage(
+            user_id, list(group["events"]), since, until, prop_filter=group["prop_filter"]
+        )
+        rows = list(prop_map.values())
+        count = sum(c for c, _ in rows)
+        last_used = max((ts for _, ts in rows if ts is not None), default=None)
+        out.append(
+            UserFeatureUsage(
+                key=key,
+                name=str(group["name"]),
+                sub=str(group["sub"]),
+                count=count,
+                last_used=last_used,
+                frozen=bool(group.get("frozen", False)),
+            )
+        )
+
+    out.sort(key=lambda f: f.count, reverse=True)
+    return out

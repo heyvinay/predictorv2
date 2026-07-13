@@ -308,3 +308,179 @@ class TestGetAdoptersForEvents:
     async def test_empty_events_returns_empty(self, enable_posthog):
         result = await posthog_read.get_adopters_for_events([], SINCE, UNTIL)
         assert result == []
+
+
+class TestPropFilter:
+    """get_unique_users_by_event / get_adopters_for_events with
+    prop_filter — powers property-narrowed features (e.g. "Insights
+    tab" = leaderboard_view_changed WHERE view='insights')."""
+
+    @pytest.mark.asyncio
+    async def test_unique_users_by_event_includes_property_clause(self, enable_posthog):
+        captured = {}
+
+        async def fake_hogql(q):
+            captured["query"] = q
+            return [["leaderboard_view_changed", 3]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_unique_users_by_event(
+                ["leaderboard_view_changed"],
+                SINCE,
+                UNTIL,
+                prop_filter=("view", "insights"),
+            )
+        assert result == {"leaderboard_view_changed": 3}
+        assert "properties.view = 'insights'" in captured["query"]
+
+    @pytest.mark.asyncio
+    async def test_no_prop_filter_omits_property_clause(self, enable_posthog):
+        captured = {}
+
+        async def fake_hogql(q):
+            captured["query"] = q
+            return [["leaderboard_view_changed", 5]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            await posthog_read.get_unique_users_by_event(
+                ["leaderboard_view_changed"], SINCE, UNTIL
+            )
+        assert "properties." not in captured["query"]
+
+    @pytest.mark.asyncio
+    async def test_adopters_for_events_includes_property_clause(self, enable_posthog):
+        captured = {}
+        uid = uuid4()
+
+        async def fake_hogql(q):
+            captured["query"] = q
+            return [[str(uid), "2026-07-10T00:00:00+00:00"]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_adopters_for_events(
+                ["leaderboard_view_changed"],
+                SINCE,
+                UNTIL,
+                prop_filter=("view", "insights"),
+            )
+        assert result[0][0] == uid
+        assert "properties.view = 'insights'" in captured["query"]
+
+
+class TestGetUsersActiveInBucket:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, enable_posthog):
+        uid = uuid4()
+
+        async def fake_hogql(q):
+            return [[str(uid), "2026-06-11T09:30:00+00:00"]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_users_active_in_bucket(SINCE, UNTIL)
+        assert result == [(uid, datetime(2026, 6, 11, 9, 30, tzinfo=timezone.utc))]
+
+    @pytest.mark.asyncio
+    async def test_disabled_returns_empty(self, disable_posthog):
+        assert await posthog_read.get_users_active_in_bucket(SINCE, UNTIL) == []
+
+
+class TestGetUsersActiveAtHour:
+    @pytest.mark.asyncio
+    async def test_happy_path_filters_by_hour(self, enable_posthog):
+        captured = {}
+        uid = uuid4()
+
+        async def fake_hogql(q):
+            captured["query"] = q
+            return [[str(uid), "2026-06-15T14:22:00+00:00"]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_users_active_at_hour(14, SINCE, UNTIL)
+        assert result == [(uid, datetime(2026, 6, 15, 14, 22, tzinfo=timezone.utc))]
+        assert "toHour(timestamp) = 14" in captured["query"]
+
+    @pytest.mark.asyncio
+    async def test_disabled_returns_empty(self, disable_posthog):
+        assert await posthog_read.get_users_active_at_hour(14, SINCE, UNTIL) == []
+
+
+class TestGetUsersByActiveDays:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, enable_posthog):
+        uid = uuid4()
+
+        async def fake_hogql(q):
+            return [[str(uid), 5]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_users_by_active_days(SINCE, UNTIL, 4, 7)
+        assert result == [(uid, 5)]
+
+    @pytest.mark.asyncio
+    async def test_lo_zero_or_negative_returns_empty_no_http(self, enable_posthog):
+        called = {"n": 0}
+
+        async def fake_hogql(q):
+            called["n"] += 1
+            return []
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_users_by_active_days(SINCE, UNTIL, 0, 0)
+        assert result == []
+        assert called["n"] == 0
+
+    @pytest.mark.asyncio
+    async def test_disabled_returns_empty(self, disable_posthog):
+        assert await posthog_read.get_users_by_active_days(SINCE, UNTIL, 1, 3) == []
+
+
+class TestGetUserFeatureUsage:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, enable_posthog):
+        uid = uuid4()
+
+        async def fake_hogql(q):
+            return [["smartfill_opened", 4, "2026-06-15T10:00:00+00:00"]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_user_feature_usage(
+                uid, ["smartfill_opened"], SINCE, UNTIL
+            )
+        count, last_used = result["smartfill_opened"]
+        assert count == 4
+        assert last_used == datetime(2026, 6, 15, 10, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_prop_filter_narrows_query(self, enable_posthog):
+        captured = {}
+
+        async def fake_hogql(q):
+            captured["query"] = q
+            return [["leaderboard_view_changed", 2, "2026-06-15T10:00:00+00:00"]]
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            await posthog_read.get_user_feature_usage(
+                uuid4(),
+                ["leaderboard_view_changed"],
+                SINCE,
+                UNTIL,
+                prop_filter=("view", "insights"),
+            )
+        assert "properties.view = 'insights'" in captured["query"]
+
+    @pytest.mark.asyncio
+    async def test_empty_events_returns_empty_no_http(self, enable_posthog):
+        called = {"n": 0}
+
+        async def fake_hogql(q):
+            called["n"] += 1
+            return []
+
+        with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
+            result = await posthog_read.get_user_feature_usage(uuid4(), [], SINCE, UNTIL)
+        assert result == {}
+        assert called["n"] == 0
+
+    @pytest.mark.asyncio
+    async def test_disabled_returns_empty(self, disable_posthog):
+        assert await posthog_read.get_user_feature_usage(uuid4(), ["x"], SINCE, UNTIL) == {}

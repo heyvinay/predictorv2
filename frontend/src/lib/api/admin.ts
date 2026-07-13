@@ -900,6 +900,73 @@ export async function getUsageFeatureAdopters(
 	);
 }
 
+// --- Usage & Adoption click-through drill-downs (v2.213.0) ---
+// "Who's behind this number?" — a generic row shape shared by the
+// day-bucket, hour-of-day, frequency-bucket, and funnel-cohort
+// drawers. Exactly one of last_used / detail is normally populated.
+
+export interface UsageDrillUser {
+	user_id: string;
+	name: string;
+	last_used: string | null;
+	detail: string | null;
+}
+
+export interface UserFeatureUsage {
+	key: string;
+	name: string;
+	sub: string;
+	count: number;
+	last_used: string | null;
+	frozen: boolean;
+}
+
+export async function getUsageDayUsers(
+	bucket: string,
+	params: { granularity?: UsageGranularity; segment?: UsageSegment } = {}
+): Promise<UsageDrillUser[]> {
+	const qs = new URLSearchParams({ bucket });
+	if (params.granularity) qs.set('granularity', params.granularity);
+	if (params.segment) qs.set('segment', params.segment);
+	return api.get<UsageDrillUser[]>(`/admin/usage/day-users?${qs.toString()}`);
+}
+
+export async function getUsageHourUsers(
+	hour: number,
+	params: { range?: UsageRange; segment?: UsageSegment } = {}
+): Promise<UsageDrillUser[]> {
+	const qs = new URLSearchParams({ hour: String(hour) });
+	if (params.range) qs.set('range', params.range);
+	if (params.segment) qs.set('segment', params.segment);
+	return api.get<UsageDrillUser[]>(`/admin/usage/hour-users?${qs.toString()}`);
+}
+
+export async function getUsageFrequencyUsers(
+	bucket: string,
+	params: { range?: UsageRange; segment?: UsageSegment } = {}
+): Promise<UsageDrillUser[]> {
+	const qs = new URLSearchParams({ bucket });
+	if (params.range) qs.set('range', params.range);
+	if (params.segment) qs.set('segment', params.segment);
+	return api.get<UsageDrillUser[]>(`/admin/usage/frequency-users?${qs.toString()}`);
+}
+
+export async function getUsageFunnelUsers(cohort: string): Promise<UsageDrillUser[]> {
+	const qs = new URLSearchParams({ cohort });
+	return api.get<UsageDrillUser[]>(`/admin/usage/funnel-users?${qs.toString()}`);
+}
+
+export async function getUsageUserFeatures(
+	userId: string,
+	params: { range?: UsageRange } = {}
+): Promise<UserFeatureUsage[]> {
+	const qs = new URLSearchParams();
+	if (params.range) qs.set('range', params.range);
+	return api.get<UserFeatureUsage[]>(
+		`/admin/usage/users/${userId}/features?${qs.toString()}`
+	);
+}
+
 // --- Entry completeness check (E.1, v2.163.0) ---
 
 
