@@ -349,3 +349,33 @@ async def last_activity_for_users(
     # aware_utc() defensively coerces naive datetimes (which aiosqlite
     # returns for TIMESTAMPTZ columns) back to timezone-aware UTC.
     return {uid: aware_utc(ts) for uid, ts in rows if uid is not None}
+
+
+async def get_login_counts_since(
+    session: AsyncSession,
+    since: datetime,
+    user_ids: list[UUID] | None = None,
+) -> dict[UUID, int]:
+    """COUNT(*) WHERE event_type='auth.login_succeeded' AND created_at
+    >= since, grouped by actor_user_id.
+
+    Mirrors :func:`last_login_for_users`'s shape but counts rows
+    instead of taking MAX — powers the "Logins" column on the Usage &
+    Adoption dashboard's Power-users table (v2.212.0). ``user_ids=None``
+    means no segment filter (the whole pool). Users with zero logins
+    in the window are absent from the dict — callers should treat a
+    missing key as 0.
+    """
+    stmt = (
+        select(AuditEvent.actor_user_id, func.count())
+        .where(AuditEvent.event_type == "auth.login_succeeded")
+        .where(AuditEvent.created_at >= since)
+        .group_by(AuditEvent.actor_user_id)
+    )
+    if user_ids is not None:
+        if not user_ids:
+            return {}
+        stmt = stmt.where(AuditEvent.actor_user_id.in_(user_ids))
+
+    rows = (await session.execute(stmt)).all()
+    return {uid: int(count) for uid, count in rows if uid is not None}

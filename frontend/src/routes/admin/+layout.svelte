@@ -71,6 +71,7 @@
 	$: isSync = currentPath === '/admin/sync' || currentPath.startsWith('/admin/sync/');
 	$: isBonus = currentPath === '/admin/bonus' || currentPath.startsWith('/admin/bonus/');
 	$: isAudit = currentPath === '/admin/audit' || currentPath.startsWith('/admin/audit/');
+	$: isUsage = currentPath === '/admin/usage' || currentPath.startsWith('/admin/usage/');
 	$: isReleases = currentPath === '/admin/releases' || currentPath.startsWith('/admin/releases/');
 	$: isAnnouncements =
 		currentPath === '/admin/announcements' || currentPath.startsWith('/admin/announcements/');
@@ -89,6 +90,7 @@
 		{ href: '/admin/sync', label: 'Sync', active: isSync, badge: null },
 		{ href: '/admin/bonus', label: 'Bonus', active: isBonus, badge: null },
 		{ href: '/admin/audit', label: 'Audit', active: isAudit, badge: null },
+		{ href: '/admin/usage', label: 'Usage', active: isUsage, badge: null },
 		{ href: '/admin/announcements', label: 'News', active: isAnnouncements, badge: null },
 		{ href: '/admin/releases', label: 'Notes', active: isReleases, badge: null }
 	];

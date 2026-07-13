@@ -407,3 +407,134 @@ class SitePulse(BaseModel):
     top_pages: list[PageTrend]
     top_events: list[EventTrend]
     recent_logins: list[RecentLogin]
+
+
+# ---------------------------------------------------------------------------
+# Usage & Adoption dashboard (v2.212.0) — GET /admin/usage
+# ---------------------------------------------------------------------------
+# A deliberately separate, more analytical surface from Site Pulse
+# above (which stays narrow/operational per its 2026-06-13 design doc).
+# See docs/superpowers/specs/2026-07-13-usage-adoption-dashboard-design.md.
+class UsageFunnel(BaseModel):
+    """Reuses the existing broadcast-audience counts — no new query."""
+
+    submitters: int
+    no_entry: int
+    draft_holders: int
+    pool_ghost: int
+    lapsing: int
+
+
+class UsageKpi(BaseModel):
+    """One scorecard tile. ``delta_pct`` is None when no previous-period
+    comparison is possible (e.g. compare toggled off, or the metric
+    itself is None for this range — see stickiness on sub-2-day ranges).
+    """
+
+    key: str
+    label: str
+    value: float | int | None
+    suffix: str = ""  # e.g. "%", "" for plain counts
+    delta_pct: float | None = None
+    sparkline: list[int] = []
+
+
+class UsageSeriesPoint(BaseModel):
+    """One bucket of the active-users trend."""
+
+    bucket: str
+    count: int
+
+
+class UsageRetentionCohort(BaseModel):
+    """One row of the weekly retention heatmap. ``pct_by_offset[0]`` is
+    always 100 (the cohort's own founding week); later offsets are
+    ``None`` until that many weeks have actually elapsed.
+    """
+
+    cohort_week: str
+    pct_by_offset: list[int | None]
+
+
+class UsageFrequencyBucket(BaseModel):
+    """One bar of the engagement-frequency (power-user) histogram."""
+
+    label: str
+    count: int
+    is_power: bool = False
+    is_dormant: bool = False
+
+
+class UsageFeatureAdoption(BaseModel):
+    """One row of the Feature Adoption card.
+
+    ``frozen`` marks entry-phase-only features (Smart Fill) whose
+    adoption is historical, not live, once the deadline has passed.
+    ``rarely_used`` flags breadth under the low-adoption threshold.
+    """
+
+    key: str
+    name: str
+    sub: str
+    users: int
+    pct: int
+    last_used: datetime | None
+    frozen: bool = False
+    rarely_used: bool = False
+
+
+class UsageUncategorizedEvent(BaseModel):
+    """One row of the self-surfacing "Uncategorized events" list — any
+    event PostHog has seen that isn't in ``FEATURE_GROUPS`` or the
+    ambient-event exclusion list. See the CLAUDE.md convention this
+    row exists to backstop.
+    """
+
+    name: str
+    count: int
+    last_seen: datetime | None
+
+
+class UsageFeatureAdopter(BaseModel):
+    """One row of a feature's click-through adopter drawer."""
+
+    user_id: uuid.UUID
+    name: str
+    last_used: datetime | None
+
+
+class UsagePowerUser(BaseModel):
+    """One row of the Power-users table, in any of its three modes
+    (most active / least active / never engaged)."""
+
+    user_id: uuid.UUID
+    name: str
+    logins: int
+    active_days: int
+    sessions: int
+    last_seen_at: datetime | None
+
+
+class UsageReport(BaseModel):
+    """Aggregate response for `GET /admin/usage` — every widget on the
+    page in one shot. ``posthog_available`` lets the frontend show one
+    unified "PostHog unavailable" banner instead of repeating the check
+    per widget; DB-sourced fields (funnel, logins, last_seen_at) are
+    always populated regardless.
+    """
+
+    range: str
+    granularity: str
+    segment: str
+    posthog_available: bool
+    funnel: UsageFunnel
+    kpis: list[UsageKpi]
+    active_users_series: list[UsageSeriesPoint]
+    time_of_day: list[int]
+    retention_cohorts: list[UsageRetentionCohort]
+    frequency_buckets: list[UsageFrequencyBucket]
+    feature_adoption: list[UsageFeatureAdoption]
+    uncategorized_events: list[UsageUncategorizedEvent]
+    power_users_most_active: list[UsagePowerUser]
+    power_users_least_active: list[UsagePowerUser]
+    power_users_never_engaged: list[UsagePowerUser]

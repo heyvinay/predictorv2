@@ -783,6 +783,123 @@ export async function getSitePulse(): Promise<SitePulse> {
 	return api.get<SitePulse>('/admin/pulse');
 }
 
+// --- Usage & Adoption dashboard (v2.212.0, /admin/usage) ---
+// A deliberately separate, more analytical surface from Site Pulse
+// above — see docs/superpowers/specs/2026-07-13-usage-adoption-dashboard-design.md.
+
+export type UsageRange = '1h' | '24h' | '7d' | '30d' | 'all';
+export type UsageGranularity = 'hour' | 'day' | 'week';
+export type UsageSegment = 'all' | 'atlas' | 'jmfa' | 'neither';
+
+export interface UsageFunnel {
+	submitters: number;
+	no_entry: number;
+	draft_holders: number;
+	pool_ghost: number;
+	lapsing: number;
+}
+
+export interface UsageKpi {
+	key: string;
+	label: string;
+	value: number | null;
+	suffix: string;
+	delta_pct: number | null;
+	sparkline: number[];
+}
+
+export interface UsageSeriesPoint {
+	bucket: string;
+	count: number;
+}
+
+export interface UsageRetentionCohort {
+	cohort_week: string;
+	pct_by_offset: (number | null)[];
+}
+
+export interface UsageFrequencyBucket {
+	label: string;
+	count: number;
+	is_power: boolean;
+	is_dormant: boolean;
+}
+
+export interface UsageFeatureAdoption {
+	key: string;
+	name: string;
+	sub: string;
+	users: number;
+	pct: number;
+	last_used: string | null; // ISO timestamp
+	frozen: boolean;
+	rarely_used: boolean;
+}
+
+export interface UsageUncategorizedEvent {
+	name: string;
+	count: number;
+	last_seen: string | null;
+}
+
+export interface UsagePowerUser {
+	user_id: string;
+	name: string;
+	logins: number;
+	active_days: number;
+	sessions: number;
+	last_seen_at: string | null;
+}
+
+export interface UsageFeatureAdopter {
+	user_id: string;
+	name: string;
+	last_used: string | null;
+}
+
+/** Aggregate /admin/usage response — every widget on the page in one shot. */
+export interface UsageReport {
+	range: UsageRange;
+	granularity: UsageGranularity;
+	segment: UsageSegment;
+	posthog_available: boolean;
+	funnel: UsageFunnel;
+	kpis: UsageKpi[];
+	active_users_series: UsageSeriesPoint[];
+	time_of_day: number[];
+	retention_cohorts: UsageRetentionCohort[];
+	frequency_buckets: UsageFrequencyBucket[];
+	feature_adoption: UsageFeatureAdoption[];
+	uncategorized_events: UsageUncategorizedEvent[];
+	power_users_most_active: UsagePowerUser[];
+	power_users_least_active: UsagePowerUser[];
+	power_users_never_engaged: UsagePowerUser[];
+}
+
+export async function getUsageReport(params: {
+	range?: UsageRange;
+	granularity?: UsageGranularity;
+	segment?: UsageSegment;
+}): Promise<UsageReport> {
+	const qs = new URLSearchParams();
+	if (params.range) qs.set('range', params.range);
+	if (params.granularity) qs.set('granularity', params.granularity);
+	if (params.segment) qs.set('segment', params.segment);
+	return api.get<UsageReport>(`/admin/usage?${qs.toString()}`);
+}
+
+export async function getUsageFeatureAdopters(
+	key: string,
+	params: { range?: UsageRange; segment?: UsageSegment } = {}
+): Promise<UsageFeatureAdopter[]> {
+	const qs = new URLSearchParams();
+	if (params.range) qs.set('range', params.range);
+	if (params.segment) qs.set('segment', params.segment);
+	return api.get<UsageFeatureAdopter[]>(
+		`/admin/usage/features/${key}/adopters?${qs.toString()}`
+	);
+}
+
 // --- Entry completeness check (E.1, v2.163.0) ---
 
 

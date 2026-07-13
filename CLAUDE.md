@@ -1188,9 +1188,15 @@ Adding a new event: append the name to the `EventName` union in
   backend; safe to expose per PostHog docs since it's write-only)
 - `PUBLIC_POSTHOG_HOST` (frontend, defaults to EU instance)
 - `PUBLIC_CF_WA_TOKEN` (frontend, Cloudflare Web Analytics beacon)
+- `POSTHOG_PERSONAL_API_KEY` / `POSTHOG_PROJECT_ID` (backend only) —
+  **read-side** credentials, separate from the write-only project key
+  above. Required for Site Pulse, the per-user Engagement card, and
+  the Usage & Adoption dashboard (below) to show live data; all three
+  degrade to empty-state placeholders (never an error) when unset.
 
 Project API keys (`phc_*`) are write-only ingestion keys; safe in
 client bundles. Rotate via PostHog → Project Settings → API Keys.
+The personal key (`phx_*`) is read-scoped and must stay server-only.
 
 ### Backend-originated events
 
@@ -1199,6 +1205,49 @@ Some events make more sense fired from the backend (e.g.
 `app.services.analytics.capture(distinct_id=str(user.id), event=...)`
 in the relevant service function — NOT through the `/api/telemetry/event`
 endpoint (that's for frontend-originated events).
+
+### Usage & Adoption dashboard (`/admin/usage`, v2.212.0)
+
+A deliberately separate, more analytical admin page from Site Pulse
+(which stays narrow/operational per its own 2026-06-13 design doc —
+see `docs/superpowers/specs/2026-07-13-usage-adoption-dashboard-design.md`
+for the full scope-in/scope-out). Frequent-visitor ranking, feature
+adoption with recency, weekly retention, engagement frequency, and a
+self-surfacing "Uncategorized events" safety net — built and verified
+against **live production PostHog data**, which caught real gaps a
+purely code-derived model missed (three `simulator_*` events believed
+dead from a static grep actually fire; five legacy/ops events
+PostHog still holds — from the pre-v2.197.0 Tally feedback panel plus
+test/ops noise — aren't in the `EventName` union at all).
+
+**Keeping it current — the one rule that matters:** when you ship a
+new user-facing feature with a new analytics event:
+
+1. Add the event to the `EventName` union in `lib/analytics/index.ts`
+   (existing rule, unchanged).
+2. If it's a *discretionary* feature (something a user chooses to
+   use), add its event(s) to **`FEATURE_GROUPS` in
+   `backend/app/services/usage.py`** — NOT a frontend map; the
+   aggregation runs server-side against PostHog, so the backend dict
+   is the single source of truth. Group multiple events under one
+   feature (e.g. `smartfill_opened` + `smartfill_applied` → "Smart
+   Fill"). Mark `frozen: True` if the feature only works during a
+   time-bound phase (entries lock post-deadline, etc.) — its adoption
+   number should read as historical, not live.
+3. Do NOT map ambient/navigation/landing-funnel/system-initiated
+   events (`page_viewed`, `nav_clicked`, `cta_clicked`, `signin_*`,
+   `countdown_phase`, `dashboard_view`, `feature_nudge_*`) — add them
+   to `AMBIENT_EVENTS` in the same file instead if a new one appears.
+
+Any event that fires in PostHog but isn't in `FEATURE_GROUPS` or
+`AMBIENT_EVENTS` surfaces automatically under the Feature Adoption
+card's **"Uncategorized events"** row — a forgotten mapping is always
+visible, never silent. **Never auto-derive `FEATURE_GROUPS` from the
+`EventName` union** — the same discipline already applied to
+`changelog.json` vs `featureHighlights.json`: the union contains
+several reserved-but-never-fired events (`entry_created`,
+`user_signed_in`, etc.), and auto-deriving would surface those as
+phantom 0%-adoption rows instead of correctly-omitted non-events.
 
 ## UI
 

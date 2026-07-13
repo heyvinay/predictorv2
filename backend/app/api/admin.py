@@ -39,6 +39,8 @@ from app.schemas.admin import (
     EngagementSummary,
     FixtureMini,
     SitePulse,
+    UsageFeatureAdopter,
+    UsageReport,
     UserAdminPage,
     UserCohort,
     UserDetailRead,
@@ -46,6 +48,7 @@ from app.schemas.admin import (
 from app.services import entries as entries_service
 from app.services import posthog_read
 from app.services import pulse as pulse_service
+from app.services import usage as usage_service
 from app.services.audit import query_audit_events, record_audit_event
 from app.services.locking import get_active_competition
 from app.services.standings_verify import run_verification
@@ -1753,6 +1756,49 @@ async def get_pulse(
     at 5-minute TTL, so repeated admin reloads are cheap.
     """
     return await pulse_service.get_site_pulse(session)
+
+
+@router.get("/usage", response_model=UsageReport)
+async def get_usage_report(
+    session: DbSession,
+    _admin: AdminUser,
+    range: str = "7d",
+    granularity: str | None = None,
+    segment: str = "all",
+) -> UsageReport:
+    """Usage & Adoption dashboard — a deliberately separate, more
+    analytical surface from Site Pulse above. ``range`` is one of
+    ``1h|24h|7d|30d|all``; ``granularity`` (``hour|day|week``) defaults
+    per-range when omitted; ``segment`` is ``all|atlas|jmfa|neither``.
+
+    PostHog-backed sections silent-fail to empty (``posthog_available``
+    tells the frontend whether to show one unified "unavailable"
+    banner) — DB-sourced sections (funnel, power-users' login counts
+    and last_seen_at) always render.
+    """
+    return await usage_service.get_usage_report(
+        session, range_key=range, granularity=granularity, segment=segment
+    )
+
+
+@router.get(
+    "/usage/features/{key}/adopters", response_model=list[UsageFeatureAdopter]
+)
+async def get_usage_feature_adopters(
+    key: str,
+    session: DbSession,
+    _admin: AdminUser,
+    range: str = "all",
+    segment: str = "all",
+    limit: int = 20,
+) -> list[UsageFeatureAdopter]:
+    """Click-through drawer for one Feature Adoption row — most-recent
+    adopters of that feature's event(s). ``[]`` for an unknown feature
+    key or when PostHog is unavailable.
+    """
+    return await usage_service.get_feature_adopters(
+        session, key=key, range_key=range, segment=segment, limit=limit
+    )
 
 
 # ============================================================================
