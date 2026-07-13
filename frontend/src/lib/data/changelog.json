@@ -2767,6 +2767,13 @@
       "type": "feature",
       "summary": "New admin Usage & Adoption dashboard — who's using the app, which features are catching on, and who's gone quiet, with a time range and pool-segment filter.",
       "commit": "pending"
+    },
+    {
+      "version": "2.212.1",
+      "date": "2026-07-13",
+      "type": "fix",
+      "summary": "Fixed the new Usage & Adoption dashboard failing to load on some time ranges.",
+      "commit": "pending"
     }
   ]
 }
