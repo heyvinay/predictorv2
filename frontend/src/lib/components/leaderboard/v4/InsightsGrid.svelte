@@ -352,57 +352,9 @@
 		</svelte:fragment>
 	</InsightCard>
 
-	<!-- 3 · Consensus Bracket (wide matrix; self-hides pre-deadline). Replaces
-	     the old "If they lift the trophy…" what-if card, which the Path to
-	     the Trophy card above now supersedes with a full projection. -->
-	<ConsensusBracket />
-
-	<!-- 4 · Points still on the table (wide) -->
-	<InsightCard
-		title="Points still on the table"
-		sub="Current score plus the maximum each entry can still win — the title race isn't over"
-		wide
-	>
-		<div class="flex flex-col gap-2">
-			{#each ceilRows as cr (cr.r.entry_id)}
-				<div
-					class="grid grid-cols-[34px_220px_1fr_90px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(
-						cr.r
-					)
-						? YOURS_ROW
-						: ''}"
-				>
-					<span class="font-display text-[11px] font-extrabold text-base-content/55"
-						>#{cr.r.position}</span
-					>
-					<span class="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold">
-						<span class="max-w-[220px] truncate">{rowDisplayName(cr.r, multiOwners)}</span>
-						{#if isOwn(cr.r)}<YouTag />{/if}
-					</span>
-					<span class="flex h-2.5 overflow-hidden rounded-full bg-base-300/40">
-						<span
-							class="h-full {isOwn(cr.r) ? 'bg-primary' : 'bg-base-content/40'}"
-							style="width:{(cr.r.total_points / ceilMax) * 100}%"
-						></span>
-						<span
-							class="h-full bg-[repeating-linear-gradient(135deg,theme(colors.primary/35%)_0_4px,transparent_4px_8px)]"
-							style="width:{((cr.ceil - cr.r.total_points) / ceilMax) * 100}%"
-						></span>
-					</span>
-					<b class="text-right font-display text-[12.5px] font-extrabold">
-						{cr.r.total_points}
-						<span class="text-[11px] font-bold text-base-content/55">→ {cr.ceil}</span>
-					</b>
-				</div>
-			{/each}
-		</div>
-		<svelte:fragment slot="foot">
-			Solid = banked · striped = still winnable (+{winnerVal} champion · +{finalVal} per live
-			finalist · +{shared} remaining fixtures, equal for all).
-		</svelte:fragment>
-	</InsightCard>
-
-	<!-- 5 · Bonus Points -->
+	<!-- 3 · Bonus Points — sits beside "Who picked whom" above (neither is
+	     `wide`) so the two share a row instead of leaving the second
+	     column empty. -->
 	<InsightCard
 		title="Bonus Points"
 		sub="The 4 bonus questions — resolved answers and how many of the pool called each one"
@@ -453,6 +405,56 @@
 				</p>
 			{/if}
 		</div>
+	</InsightCard>
+
+	<!-- 4 · Consensus Bracket (wide matrix; self-hides pre-deadline). Replaces
+	     the old "If they lift the trophy…" what-if card, which the Path to
+	     the Trophy card above now supersedes with a full projection. -->
+	<ConsensusBracket />
+
+	<!-- 5 · Points still on the table (wide) -->
+	<InsightCard
+		title="Points still on the table"
+		sub="Current score plus the maximum each entry can still win — the title race isn't over"
+		wide
+	>
+		<div class="flex flex-col gap-2">
+			{#each ceilRows as cr (cr.r.entry_id)}
+				<div
+					class="grid grid-cols-[34px_220px_1fr_90px] items-center gap-2.5 rounded-lg px-1.5 py-1 {isOwn(
+						cr.r
+					)
+						? YOURS_ROW
+						: ''}"
+				>
+					<span class="font-display text-[11px] font-extrabold text-base-content/55"
+						>#{cr.r.position}</span
+					>
+					<span class="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold">
+						<span class="max-w-[220px] truncate">{rowDisplayName(cr.r, multiOwners)}</span>
+						{#if isOwn(cr.r)}<YouTag />{/if}
+					</span>
+					<span class="flex h-2.5 overflow-hidden rounded-full bg-base-300/40">
+						<span
+							class="h-full {isOwn(cr.r) ? 'bg-primary' : 'bg-base-content/40'}"
+							style="width:{(cr.r.total_points / ceilMax) * 100}%"
+						></span>
+						<span
+							class="h-full bg-[repeating-linear-gradient(135deg,theme(colors.primary/35%)_0_4px,transparent_4px_8px)]"
+							style="width:{((cr.ceil - cr.r.total_points) / ceilMax) * 100}%"
+						></span>
+					</span>
+					<b class="text-right font-display text-[12.5px] font-extrabold">
+						{cr.r.total_points}
+						<span class="text-[11px] font-bold text-base-content/55">→ {cr.ceil}</span>
+					</b>
+				</div>
+			{/each}
+		</div>
+		<svelte:fragment slot="foot">
+			Solid = banked · striped = still winnable (+{winnerVal} champion · +{finalVal} per live
+			finalist · +{shared} remaining fixtures, equal for all).
+		</svelte:fragment>
 	</InsightCard>
 
 	<!-- 7 · Contrarian index — hidden while the rarity bonus is paused
