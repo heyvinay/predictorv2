@@ -15,8 +15,10 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { getChampionMarketOdds, getConsensusBracket } from '$lib/api/leaderboard';
 	import type { ConsensusTeamRow } from '$lib/types/leaderboard';
+	import { getFlagUrl } from '$lib/utils/flags';
 	import { startLivePoll } from '$lib/utils/livePoll';
-	import FlagCode from './FlagCode.svelte';
+	import { teamCode } from '$lib/utils/teamCodes';
+	import { displayTeamName } from '$lib/utils/teamName';
 	import InsightCard from './InsightCard.svelte';
 
 	const STAGES = [
@@ -72,6 +74,28 @@
 	function actualIdx(row: ConsensusTeamRow): number {
 		return row.actual_stage ? (STAGE_IDX[row.actual_stage] ?? -1) : -1;
 	}
+
+	// Still-in teams first (by live market odds desc, falling back to the
+	// pool's own champion-pick % when the market column is off), then
+	// eliminated teams — most-recently-knocked-out first. `actualIdx` is a
+	// stage-progression proxy for "when": a team eliminated at the
+	// semi-final necessarily went out later than one eliminated at R32, so
+	// sorting eliminated teams by actualIdx descending reads as "last
+	// knocked out at the top" without needing an elimination timestamp.
+	// Group-stage exits (actualIdx -1) naturally sink to the very bottom.
+	$: sortedRows = [...rows].sort((a, b) => {
+		if (a.alive !== b.alive) return a.alive ? -1 : 1;
+		if (a.alive) {
+			const ma = marketByTeam[a.team];
+			const mb = marketByTeam[b.team];
+			if (hasMarket && ma != null && mb != null && ma !== mb) return mb - ma;
+			return pct(b, 'winner') - pct(a, 'winner');
+		}
+		const ia = actualIdx(a);
+		const ib = actualIdx(b);
+		if (ia !== ib) return ib - ia;
+		return pct(b, 'winner') - pct(a, 'winner');
+	});
 </script>
 
 {#if loaded && rows.length > 0}
@@ -87,12 +111,28 @@
 				<table class="w-full min-w-[420px] border-collapse text-center [font-variant-numeric:tabular-nums]">
 					<thead>
 						<tr>
-							<th class="sticky left-0 z-10 bg-base-200 pb-2 pr-3 text-left text-[9.5px] font-extrabold uppercase tracking-[0.06em] text-base-content/40">
+							<th
+								rowspan="2"
+								class="sticky left-0 z-10 bg-base-200 pb-2 pr-3 text-left align-bottom text-[9.5px] font-extrabold uppercase tracking-[0.06em] text-base-content/40"
+							>
 								Team
+								{#if hasMarket}
+									<span class="block normal-case text-[9px] font-semibold tracking-normal text-[#3B82F6]"
+										>(Polymarket odds)</span
+									>
+								{/if}
 							</th>
+							<th
+								colspan={STAGES.length}
+								class="border-b border-base-300/40 pb-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-base-content/35"
+							>
+								Pool picks
+							</th>
+						</tr>
+						<tr>
 							{#each STAGES as s (s.key)}
 								<th
-									class="pb-2 text-[9.5px] font-extrabold uppercase tracking-[0.06em] {s.key ===
+									class="pb-2 pt-1.5 text-[9.5px] font-extrabold uppercase tracking-[0.06em] {s.key ===
 									'winner'
 										? 'text-primary'
 										: 'text-base-content/40'}"
@@ -103,11 +143,30 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each rows as row (row.team)}
+						{#each sortedRows as row (row.team)}
 							<tr>
 								<td class="sticky left-0 z-10 whitespace-nowrap bg-base-200 py-0.5 pr-3 text-left">
 									<span class="inline-flex items-center gap-1.5">
-										<FlagCode team={row.team} alive={row.alive} size="sm" />
+										{#if getFlagUrl(row.team)}
+											<img
+												src={getFlagUrl(row.team)}
+												alt=""
+												class="h-3 w-4 flex-none rounded-sm object-cover ring-1 ring-black/30 {row.alive
+													? ''
+													: 'opacity-45 grayscale'}"
+												loading="lazy"
+											/>
+										{/if}
+										<span
+											class="hidden font-display text-[11.5px] font-extrabold tracking-[0.02em] min-[700px]:inline {row.alive
+												? 'text-base-content'
+												: 'text-base-content/30'}">{displayTeamName(row.team)}</span
+										>
+										<span
+											class="font-display text-[11.5px] font-extrabold tracking-[0.06em] min-[700px]:hidden {row.alive
+												? 'text-base-content'
+												: 'text-base-content/30'}">{teamCode(row.team)}</span
+										>
 										{#if row.actual_stage === null}
 											<span class="text-[8px] font-extrabold uppercase tracking-wide text-error">OUT · Groups</span>
 										{/if}
