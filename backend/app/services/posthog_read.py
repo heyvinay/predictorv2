@@ -190,6 +190,38 @@ def _ids_in_clause(user_ids: list[UUID]) -> str:
     return "(" + ", ".join(f"'{uid}'" for uid in user_ids) + ")"
 
 
+def _parse_hogql_timestamp(value: Any) -> datetime | None:
+    """Parse a HogQL timestamp column into a tz-aware UTC datetime.
+
+    ★ PostHog's ``/api/projects/{id}/query/`` endpoint returns every
+    column as JSON — timestamps come back as ISO 8601 **strings**, not
+    Python ``datetime`` objects (unlike a DB driver row). ``aware_utc()``
+    only normalises tzinfo on an *already-a-datetime* value (its
+    documented job, for the aiosqlite-strips-tzinfo problem) — it does
+    NOT parse strings, and raises ``AttributeError`` if handed one.
+    Every HogQL row-parsing loop that touches a ``max(timestamp)``-style
+    column MUST go through this first, not call ``aware_utc()`` directly
+    on the raw row value.
+
+    Discovered 2026-07-13 when this exact mistake in a new function
+    (``get_all_events_last_seen``) 500'd the Usage & Adoption dashboard
+    in production — a pre-existing instance of the same bug in
+    ``get_last_pageview_for_users_since`` (v2.176.0) had been silently
+    swallowed by that call site's own outer try/except in
+    ``broadcast.py``, so it never surfaced as a visible failure, only
+    as the PostHog fallback signal for Pool Ghost/Lapsing silently
+    never working. ``None`` on any unparseable input — never raises.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return aware_utc(value)
+    try:
+        return aware_utc(datetime.fromisoformat(str(value).replace("Z", "+00:00")))
+    except (ValueError, TypeError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -397,7 +429,7 @@ async def get_last_pageview_for_users_since(
     for row in rows:
         try:
             uid = UUID(str(row[0]))
-            ts = aware_utc(row[1])
+            ts = _parse_hogql_timestamp(row[1])
             if ts is not None:
                 out[uid] = ts
         except (ValueError, IndexError, TypeError) as exc:
@@ -1074,7 +1106,7 @@ async def get_all_events_last_seen(
         try:
             name = str(row[0])
             count = int(row[1] or 0)
-            last_seen = aware_utc(row[2]) if row[2] else None
+            last_seen = _parse_hogql_timestamp(row[2])
             out[name] = (count, last_seen)
         except (IndexError, TypeError, ValueError):
             continue
@@ -1121,7 +1153,7 @@ async def get_adopters_for_events(
     for row in rows:
         try:
             uid = UUID(str(row[0]))
-            ts = aware_utc(row[1])
+            ts = _parse_hogql_timestamp(row[1])
             if ts is not None:
                 out.append((uid, ts))
         except (ValueError, IndexError, TypeError):

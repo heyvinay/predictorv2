@@ -229,14 +229,23 @@ class TestGetUniqueUsersByEvent:
 class TestGetAllEventsLastSeen:
     @pytest.mark.asyncio
     async def test_parses_count_and_last_seen(self, enable_posthog):
-        ts = datetime(2026, 7, 1, tzinfo=timezone.utc)
-
+        # ★ Regression (2026-07-13): PostHog's HogQL JSON API returns
+        # timestamp columns as ISO 8601 STRINGS, never Python datetime
+        # objects — the previous version of this test used a real
+        # `datetime(...)` here, which masked a real bug (a raw string
+        # passed straight to `aware_utc()`, which only normalises
+        # tzinfo on an already-a-datetime value and raises
+        # AttributeError on a string) that 500'd the Usage & Adoption
+        # dashboard in production. Always mock HogQL timestamp columns
+        # as strings, matching the real wire format.
         async def fake_hogql(q):
-            return [["smartfill_opened", 217, ts]]
+            return [["smartfill_opened", 217, "2026-07-01T00:00:00+00:00"]]
 
         with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
             result = await posthog_read.get_all_events_last_seen()
-        assert result["smartfill_opened"] == (217, ts)
+        count, last_seen = result["smartfill_opened"]
+        assert count == 217
+        assert last_seen == datetime(2026, 7, 1, tzinfo=timezone.utc)
 
     @pytest.mark.asyncio
     async def test_disabled_returns_empty(self, disable_posthog):
@@ -277,18 +286,22 @@ class TestGetActiveDaysAndSessionsForUsers:
 class TestGetAdoptersForEvents:
     @pytest.mark.asyncio
     async def test_happy_path_orders_newest_first(self, enable_posthog):
+        # String timestamps, matching PostHog's real HogQL JSON wire
+        # format — see the regression note on TestGetAllEventsLastSeen.
         uid1, uid2 = uuid4(), uuid4()
-        newer = datetime(2026, 7, 10, tzinfo=timezone.utc)
-        older = datetime(2026, 7, 1, tzinfo=timezone.utc)
 
         async def fake_hogql(q):
-            return [[str(uid1), newer], [str(uid2), older]]
+            return [
+                [str(uid1), "2026-07-10T00:00:00+00:00"],
+                [str(uid2), "2026-07-01T00:00:00+00:00"],
+            ]
 
         with patch.object(posthog_read, "_hogql", side_effect=fake_hogql):
             result = await posthog_read.get_adopters_for_events(
                 ["smartfill_opened"], SINCE, UNTIL
             )
         assert result[0][0] == uid1
+        assert result[0][1] == datetime(2026, 7, 10, tzinfo=timezone.utc)
         assert result[1][0] == uid2
 
     @pytest.mark.asyncio
