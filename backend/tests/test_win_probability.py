@@ -240,6 +240,17 @@ def test_simulate_pool_records_scenarios_when_requested():
         assert s.champion_entry_ids  # non-empty
     assert round(sum(s.weight for s in result.scenarios), 6) == 1.0
 
+    # Regression: match 104 (the final) has home_ref/away_ref pointing at
+    # the semis' *winners*, unresolvable at simulation start — the old
+    # `match_meta` (restricted to matches with both sides already known)
+    # silently dropped it, leaving the Path to the Trophy card with no
+    # stage label for the final's clause ("... win their " with nothing
+    # after). `scenario_match_meta` must cover every unresolved match,
+    # including the final, even though its home/away are unknown.
+    assert set(result.scenario_match_meta.keys()) == {101, 102, 104}
+    assert result.scenario_match_meta[104][2] == "final"
+    assert result.scenario_match_meta[101][2] == "semi_final"
+
 
 def test_simulate_pool_does_not_record_scenarios_by_default():
     """Default is off — nothing recorded unless a caller asks."""

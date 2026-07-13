@@ -2739,6 +2739,13 @@
       "type": "improvement",
       "summary": "Path to the Trophy: fixed a rare case where the winning condition got cut off, and gave the card flags, a gold trophy badge for the likeliest outcome, and mini probability bars. Bonus Points now sits beside the champion-picks card instead of leaving empty space. Consensus Bracket: full team names on desktop, teams sorted by how far they're still alive (or when they went out), and clearer column labels.",
       "commit": "pending"
+    },
+    {
+      "version": "2.210.2",
+      "date": "2026-07-13",
+      "type": "fix",
+      "summary": "Fixed the real cause of Path to the Trophy's cut-off winning condition — the final's label was missing whenever the semi-finals hadn't been played yet, not a text-wrapping issue.",
+      "commit": "pending"
     }
   ]
 }

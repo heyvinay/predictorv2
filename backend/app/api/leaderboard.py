@@ -1122,7 +1122,7 @@ async def trophy_scenarios(
         ],
         match_meta=[
             MatchMetaEntry(match_number=m, home_team=h, away_team=a, stage=st)
-            for m, (h, a, st) in effective.match_meta.items()
+            for m, (h, a, st) in effective.scenario_match_meta.items()
         ],
         generated_at=utc_now(),
     )

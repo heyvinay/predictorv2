@@ -454,6 +454,15 @@ class PoolSimulationResult:
     # record_scenarios=True AND exact enumeration ran (never under Monte
     # Carlo). Empty otherwise. Powers the Path to the Trophy card.
     scenarios: tuple[ScenarioOutcome, ...] = field(default_factory=tuple)
+    # match_number -> (home_team, away_team, stage) for EVERY unresolved
+    # match — unlike `match_meta` above, this also covers matches whose
+    # participants aren't known yet (e.g. the final, before the semis are
+    # played): home/away are "" for those, but stage is always populated.
+    # `scenarios[].outcomes` includes every unresolved match number, so the
+    # Path to the Trophy card needs a stage label for all of them, not just
+    # the subset `match_meta` restricts itself to for the decisive-match
+    # conditional-odds view.
+    scenario_match_meta: dict[int, tuple[str, str, str]] = field(default_factory=dict)
 
 
 def simulate_pool(
@@ -512,14 +521,17 @@ def simulate_pool(
         (m for m, spec in matches.items() if spec.stage == "final"), None
     )
     resolvable_matches: dict[int, tuple[str, str, str]] = {}
+    scenario_match_meta: dict[int, tuple[str, str, str]] = {}
     for m in unresolved:
         spec = matches[m]
         try:
             home = resolve_ref(spec.home_ref, known_winners)
             away = resolve_ref(spec.away_ref, known_winners)
         except KeyError:
+            scenario_match_meta[m] = ("", "", spec.stage)
             continue
         resolvable_matches[m] = (home, away, spec.stage)
+        scenario_match_meta[m] = (home, away, spec.stage)
     match_winner_weight: dict[int, dict[str, float]] = {}
 
     if len(unresolved) <= max_exact_m:
@@ -623,6 +635,7 @@ def simulate_pool(
         match_winner_weight=match_winner_weight,
         match_meta=resolvable_matches,
         scenarios=tuple(scenario_outcomes),
+        scenario_match_meta=scenario_match_meta,
     )
 
 
