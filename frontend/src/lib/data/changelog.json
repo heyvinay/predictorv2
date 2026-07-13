@@ -2732,6 +2732,13 @@
       "type": "feature",
       "summary": "Two new Insights cards: Path to the Trophy (who wins the pool under every remaining outcome) and Consensus Bracket (how far the pool picked each team to go, versus how they actually did). Fixed a bug that had hidden the Dark Horse bonus card once every outsider was eliminated, renamed it 'Bonus Points' with a new pool-wide accuracy stat, split the Points DNA bracket bar by knockout round, and added live betting-market odds alongside the pool's own champion picks.",
       "commit": "pending"
+    },
+    {
+      "version": "2.210.1",
+      "date": "2026-07-13",
+      "type": "improvement",
+      "summary": "Path to the Trophy: fixed a rare case where the winning condition got cut off, and gave the card flags, a gold trophy badge for the likeliest outcome, and mini probability bars. Bonus Points now sits beside the champion-picks card instead of leaving empty space. Consensus Bracket: full team names on desktop, teams sorted by how far they're still alive (or when they went out), and clearer column labels.",
+      "commit": "pending"
     }
   ]
 }
