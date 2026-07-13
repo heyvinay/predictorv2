@@ -2774,6 +2774,13 @@
       "type": "fix",
       "summary": "Fixed the new Usage & Adoption dashboard failing to load on some time ranges.",
       "commit": "pending"
+    },
+    {
+      "version": "2.213.0",
+      "date": "2026-07-14",
+      "type": "feature",
+      "summary": "Usage & Adoption dashboard: click any chart bar, bucket, or funnel card to see exactly who's behind the number, plus a per-user feature breakdown and a dedicated Insights-tab adoption row.",
+      "commit": "pending"
     }
   ]
 }
