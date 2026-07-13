@@ -2746,6 +2746,13 @@
       "type": "fix",
       "summary": "Fixed the real cause of Path to the Trophy's cut-off winning condition — the final's label was missing whenever the semi-finals hadn't been played yet, not a text-wrapping issue.",
       "commit": "pending"
+    },
+    {
+      "version": "2.210.3",
+      "date": "2026-07-13",
+      "type": "fix",
+      "summary": "Fixed Path to the Trophy showing two entries with seemingly contradictory winning conditions — the underlying math was always correct, but the displayed condition for one entry could describe a completion that actually belonged to someone else. Conditions now always uniquely identify the entry they're shown under.",
+      "commit": "pending"
     }
   ]
 }

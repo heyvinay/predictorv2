@@ -1,16 +1,23 @@
 /**
  * Path to the Trophy — group the flat scenario list (every remaining
  * bracket completion + its pool champion) by champion, and derive, per
- * champion, the exact match results that are INVARIANT across all of their
- * winning scenarios.
+ * champion, the exact match results that determine their win.
  *
- * The invariant is computed structurally, not written by hand: for each
- * match, the result is "fixed" for a champion only if every one of their
- * winning scenarios agrees on it. A match that varies within the group is
- * dropped — it doesn't determine that champion. This is what prevents the
- * class of error where "champion whenever France wins the final" is
- * asserted when the real invariant was "France wins their semi" (the final
- * varied across the group).
+ * Two properties both have to hold before a condition can be shown as
+ * "champion whenever X":
+ *  - NECESSARY: every one of this entry's winning scenarios agrees on X
+ *    (the match-by-match intersection within the entry's own bucket).
+ *  - SUFFICIENT: every scenario ANYWHERE in the full list that also agrees
+ *    on X has this entry among its champions — not just the scenarios in
+ *    its own bucket.
+ * Checking only the first (as an earlier version of this function did) can
+ * produce a condition that's true of this entry's wins but ALSO true of a
+ * completion where a different entry wins outright — e.g. two entries can
+ * share "France win their semi" as a common invariant while diverging on
+ * what happens after, which then makes both entries' cards look mutually
+ * contradictory. When the necessary set isn't sufficient, matches are added
+ * back (in match-number order) until every scenario matching the condition
+ * unambiguously resolves to this entry (or a tie including it).
  */
 import type { MatchMetaEntry, ScenarioOutcome } from '$lib/types/winProbability';
 
@@ -62,21 +69,39 @@ export function groupScenariosByChampion(
 			.map(Number)
 			.sort((a, b) => a - b);
 
-		const fixedMatches: FixedMatch[] = [];
-		for (const m of matchNumbers) {
+		// Necessary set: matches invariant across this entry's own bucket.
+		const sample = group[0];
+		let fixed = matchNumbers.filter((m) => {
 			const key = String(m);
-			const winner = group[0].outcomes[key];
-			// Fixed only if EVERY scenario in the group has the same winner.
-			if (!group.every((s) => s.outcomes[key] === winner)) continue;
+			const winner = sample.outcomes[key];
+			return group.every((s) => s.outcomes[key] === winner);
+		});
+
+		// Sufficiency check against the FULL scenario list. If some other
+		// scenario agrees with `sample` on every match in `fixed` but this
+		// entry isn't among its champions, `fixed` under-specifies the win —
+		// add matches back (in match-number order) until it doesn't.
+		while (
+			!scenarios.every((s) => {
+				const agrees = fixed.every((m) => s.outcomes[String(m)] === sample.outcomes[String(m)]);
+				return !agrees || s.champion_entry_ids.includes(entryId);
+			})
+		) {
+			const next = matchNumbers.find((m) => !fixed.includes(m));
+			if (next === undefined) break; // the full assignment is always sufficient
+			fixed = [...fixed, next].sort((a, b) => a - b);
+		}
+
+		const fixedMatches: FixedMatch[] = fixed.map((m) => {
 			const meta = metaByMatch.get(m);
-			fixedMatches.push({
+			return {
 				matchNumber: m,
-				winningTeam: winner,
+				winningTeam: sample.outcomes[String(m)],
 				homeTeam: meta?.home_team ?? '',
 				awayTeam: meta?.away_team ?? '',
 				stage: meta?.stage ?? ''
-			});
-		}
+			};
+		});
 
 		groups.push({
 			entryId,

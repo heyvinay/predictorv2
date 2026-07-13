@@ -78,6 +78,44 @@ describe('groupScenariosByChampion', () => {
 		expect(group.winsUnconditionally).toBe(true);
 	});
 
+	it('extends a necessary-but-insufficient condition until it discriminates (the contradiction bug)', () => {
+		// "hedge" wins in 3 of the 4 completions where France wins SF1 — but
+		// in the 4th (England wins SF2 AND the final), "cassar" wins outright
+		// instead. The naive necessary-only algorithm reports hedge's
+		// condition as just "France win SF1" (the only invariant across
+		// hedge's own 3 wins) — which is also true of cassar's completion,
+		// making the two cards read as contradictory: hedge claims to win
+		// "whenever France win SF1" while cassar's card shows a real
+		// counter-example under that same fact.
+		const scenarios = [
+			scn({ 101: 'France', 102: 'England', 104: 'England' }, 0.2, 'hedge'),
+			scn({ 101: 'France', 102: 'Argentina', 104: 'France' }, 0.15, 'hedge'),
+			scn({ 101: 'France', 102: 'Argentina', 104: 'Argentina' }, 0.1, 'hedge'),
+			scn({ 101: 'France', 102: 'England', 104: 'France' }, 0.05, 'cassar'),
+			scn({ 101: 'Spain', 102: 'England', 104: 'Spain' }, 0.3, 'other')
+		];
+		const groups = groupScenariosByChampion(scenarios, META);
+		const hedge = groups.find((g) => g.entryId === 'hedge')!;
+		const cassar = groups.find((g) => g.entryId === 'cassar')!;
+
+		// hedge's condition must be extended beyond the single "France win
+		// SF1" match — that alone also matches cassar's completion.
+		expect(hedge.fixedMatches.length).toBeGreaterThan(1);
+		// Whatever hedge's condition ends up being, it must never match a
+		// scenario that actually belongs to a different champion.
+		for (const g of [hedge, cassar]) {
+			const matchesCondition = (s: ScenarioOutcome) =>
+				g.fixedMatches.every((fm) => s.outcomes[String(fm.matchNumber)] === fm.winningTeam);
+			for (const s of scenarios) {
+				if (matchesCondition(s)) {
+					expect(s.champion_entry_ids).toContain(g.entryId);
+				}
+			}
+		}
+		// cassar's own condition must fully pin down his one winning scenario.
+		expect(cassar.fixedMatches.map((f) => f.matchNumber)).toEqual([101, 102, 104]);
+	});
+
 	it('orders groups by total weight, most-likely first', () => {
 		const scenarios = [
 			scn({ 101: 'France', 102: 'England', 104: 'France' }, 0.5, 'big'),
