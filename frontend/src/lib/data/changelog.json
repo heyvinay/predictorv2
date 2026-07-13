@@ -2760,6 +2760,13 @@
       "type": "improvement",
       "summary": "Path to the Trophy redesigned — instead of a one-line English description per entry, it now shows every remaining outcome as a table, with each entry's name spanning however many rows they win in. Easier to read at a glance and impossible to state incorrectly.",
       "commit": "pending"
+    },
+    {
+      "version": "2.212.0",
+      "date": "2026-07-13",
+      "type": "feature",
+      "summary": "New admin Usage & Adoption dashboard — who's using the app, which features are catching on, and who's gone quiet, with a time range and pool-segment filter.",
+      "commit": "pending"
     }
   ]
 }
