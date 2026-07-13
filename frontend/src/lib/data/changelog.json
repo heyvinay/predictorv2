@@ -2753,6 +2753,13 @@
       "type": "fix",
       "summary": "Fixed Path to the Trophy showing two entries with seemingly contradictory winning conditions — the underlying math was always correct, but the displayed condition for one entry could describe a completion that actually belonged to someone else. Conditions now always uniquely identify the entry they're shown under.",
       "commit": "pending"
+    },
+    {
+      "version": "2.211.0",
+      "date": "2026-07-13",
+      "type": "improvement",
+      "summary": "Path to the Trophy redesigned — instead of a one-line English description per entry, it now shows every remaining outcome as a table, with each entry's name spanning however many rows they win in. Easier to read at a glance and impossible to state incorrectly.",
+      "commit": "pending"
     }
   ]
 }

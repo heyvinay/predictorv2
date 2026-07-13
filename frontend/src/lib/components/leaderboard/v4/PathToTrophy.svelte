@@ -1,14 +1,21 @@
 <script lang="ts">
 	/**
-	 * Path to the Trophy — for every remaining bracket completion, who wins
-	 * the pool. Grouped by champion, each with the match results that must
-	 * happen for them (derived structurally in pathToTrophy.ts, never
-	 * hand-written). Self-fetches the PUBLIC trophy-scenarios endpoint
-	 * (deliberately not gated like the Win Probability tab — a <2-scenario
-	 * or pre-deadline empty response simply hides the card) and live-polls
-	 * so it re-derives after each game finishes. `rows` is a prop (like the
-	 * other cards) purely for entry-name resolution — the scenarios
-	 * themselves come from the fetch.
+	 * Path to the Trophy — every remaining bracket completion, rendered as a
+	 * merged truth-table instead of a per-champion sentence. A sentence has
+	 * to compress a champion's win condition into one clean AND-clause;
+	 * when the real condition isn't that simple (wins on one match's result
+	 * regardless of another, except for one specific combination), a
+	 * sentence generator either overclaims or quietly drops a winning
+	 * branch — both bugs this replaced. The table sidesteps the whole
+	 * class: rows are the raw scenarios, and a champion cell spanning
+	 * multiple rows means exactly what it looks like — that match's result
+	 * doesn't change who wins there. See outcomeGrid.ts for the merge
+	 * logic (pure, unit-tested, no sentence generation at all).
+	 *
+	 * Self-fetches the PUBLIC trophy-scenarios endpoint (deliberately not
+	 * gated like the Win Probability tab) and live-polls so it re-derives
+	 * after each game finishes. `rows` is a prop purely for entry-name
+	 * resolution — the scenarios themselves come from the fetch.
 	 *
 	 * These are PROJECTIONS — the disclaimer copy says so.
 	 */
@@ -17,19 +24,25 @@
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import { multiEntryUserIds, rowDisplayName } from '$lib/utils/leaderboardV4';
 	import { startLivePoll } from '$lib/utils/livePoll';
-	import { groupScenariosByChampion, stageLabel, type PathGroup } from '$lib/utils/pathToTrophy';
+	import { buildOutcomeGrid, type OutcomeGrid } from '$lib/utils/outcomeGrid';
+	import { stageLabel } from '$lib/utils/pathToTrophy';
+	import { teamCode } from '$lib/utils/teamCodes';
 	import FlagCode from './FlagCode.svelte';
 	import InsightCard from './InsightCard.svelte';
 	import YouTag from './YouTag.svelte';
 
-	type ConditionPart = { kind: 'team'; team: string } | { kind: 'text'; text: string };
+	interface Contender {
+		entryId: string;
+		weight: number;
+	}
 
 	export let rows: LbEntryV4[];
 	export let userId: string | null | undefined = null;
 
-	let groups: PathGroup[] = [];
+	let grid: OutcomeGrid = { columns: [], rows: [], totalWeight: 0 };
 	let loaded = false;
 	let stopPoll: (() => void) | undefined;
+	let spotlight: string | null = null;
 
 	$: multiOwners = multiEntryUserIds(rows);
 	$: rowById = new Map(rows.map((r) => [r.entry_id, r]));
@@ -39,12 +52,12 @@
 			const res = await getTrophyScenarios();
 			// Nothing left to decide (or pre-deadline / too many to enumerate): hide.
 			if (!res.scenarios || res.scenarios.length <= 1) {
-				groups = [];
+				grid = { columns: [], rows: [], totalWeight: 0 };
 			} else {
-				groups = groupScenariosByChampion(res.scenarios, res.match_meta);
+				grid = buildOutcomeGrid(res.scenarios, res.match_meta);
 			}
 		} catch {
-			groups = []; // network error → hide the card
+			grid = { columns: [], rows: [], totalWeight: 0 }; // network error → hide the card
 		} finally {
 			loaded = true;
 		}
@@ -60,99 +73,151 @@
 		const row = rowById.get(entryId);
 		return row ? rowDisplayName(row, multiOwners) : entryId;
 	}
-	function isOwn(entryId: string): boolean {
-		return !!userId && rowById.get(entryId)?.user_id === userId;
+	function isOwn(entryIds: string[]): boolean {
+		return !!userId && entryIds.some((id) => rowById.get(id)?.user_id === userId);
 	}
 	function positionFor(entryId: string): number | null {
 		return rowById.get(entryId)?.position ?? null;
 	}
+	function pct(weight: number): number {
+		return grid.totalWeight > 0 ? Math.round((weight / grid.totalWeight) * 100) : 0;
+	}
+	function fixtureLabel(col: OutcomeGrid['columns'][number]): string {
+		return col.homeTeam && col.awayTeam ? `${teamCode(col.homeTeam)} v ${teamCode(col.awayTeam)}` : 'winner';
+	}
+	function varyingText(stages: string[]): string {
+		if (stages.length === 0) return '';
+		if (stages.length === grid.columns.length) return 'regardless of the rest';
+		return `regardless of the ${stages.map(stageLabel).join(' and ')}`;
+	}
 
-	// Structured parts (not a flat string) so the template can interleave
-	// <FlagCode> chips with the surrounding text — flags make the sentence
-	// scannable at a glance instead of a wall of team names, and letting
-	// this wrap across lines (no truncate/nowrap anywhere) is what keeps
-	// a 3-clause condition from ever getting clipped.
-	function conditionParts(g: PathGroup): ConditionPart[] {
-		if (g.winsUnconditionally) {
-			return [{ kind: 'text', text: 'Champion no matter how the rest plays out' }];
+	// Contender strip: aggregate each entry's total share across every
+	// owning champion cell (a tie can put the same entry in more than one
+	// cell), sorted most-likely first.
+	$: contenders = (() => {
+		const totals = new Map<string, number>();
+		for (const r of grid.rows) {
+			if (r.champion.rowSpan === 0) continue;
+			for (const id of r.champion.entryIds) {
+				totals.set(id, (totals.get(id) ?? 0) + r.champion.weight);
+			}
 		}
-		const n = g.fixedMatches.length;
-		const parts: ConditionPart[] = [
-			{ kind: 'text', text: g.scenarioCount === 1 ? 'Champion only if ' : 'Champion whenever ' }
-		];
-		g.fixedMatches.forEach((fm, i) => {
-			if (i > 0) parts.push({ kind: 'text', text: i === n - 1 ? ' and ' : ', ' });
-			parts.push({ kind: 'team', team: fm.winningTeam });
-			parts.push({
-				kind: 'text',
-				text: fm.stage === 'final' ? ' win the final' : ` win their ${stageLabel(fm.stage)}`
-			});
-		});
-		return parts;
+		return [...totals.entries()]
+			.map(([entryId, weight]): Contender => ({ entryId, weight }))
+			.sort((a, b) => b.weight - a.weight);
+	})();
+	$: leaderId = contenders[0]?.entryId ?? null;
+
+	function toggleSpotlight(entryId: string) {
+		spotlight = spotlight === entryId ? null : entryId;
 	}
-	function pct(g: PathGroup): number {
-		return Math.round(g.totalWeight * 100);
-	}
-	$: maxPct = groups.length ? Math.max(...groups.map(pct)) : 1;
 </script>
 
-{#if loaded && groups.length > 0}
+{#if loaded && grid.rows.length > 0}
 	<div class="min-[860px]:col-span-2">
 		<InsightCard
 			title="Path to the Trophy"
-			sub="A projection of who wins the pool under each remaining outcome — computed automatically, may contain errors"
+			sub="Every way the remaining matches can go, and who lifts the pool trophy in each — computed automatically, may contain errors"
 			wide
 		>
-			<div class="flex flex-col gap-1.5">
-				{#each groups as g, i (g.entryId)}
-					<div
-						class="rounded-xl px-2.5 py-2 {i === 0
-							? 'border border-primary/35 bg-primary/[0.06] shadow-[0_0_16px_-4px_theme(colors.primary/40%)]'
-							: 'border border-transparent'} {isOwn(g.entryId) && i !== 0
-							? 'bg-primary/[0.07] shadow-[inset_2px_0_0_theme(colors.primary)]'
-							: ''}"
+			<div class="mb-3 flex flex-wrap gap-1.5">
+				{#each contenders as c (c.entryId)}
+					<button
+						type="button"
+						class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-bold transition-colors {spotlight ===
+						c.entryId
+							? 'border-primary bg-primary/10'
+							: 'border-base-300/60 bg-base-300/30 hover:border-primary/40'}"
+						on:click={() => toggleSpotlight(c.entryId)}
 					>
-						<div class="flex items-center gap-2">
-							{#if i === 0}
-								<span
-									class="grid h-5 w-5 flex-none place-items-center rounded-full bg-primary text-[11px] leading-none text-primary-content"
-									title="Most likely outcome"
-									>&#127942;</span
-								>
-							{:else if positionFor(g.entryId) !== null}
-								<span
-									class="grid h-5 w-5 flex-none place-items-center rounded-full bg-base-300 font-display text-[10px] font-extrabold text-base-content/55"
-									>#{positionFor(g.entryId)}</span
-								>
-							{/if}
-							<span class="min-w-0 flex-1 truncate text-[13px] font-bold">
-								{nameFor(g.entryId)}
-							</span>
-							{#if isOwn(g.entryId)}<YouTag />{/if}
-							<b class="whitespace-nowrap font-mono text-sm font-extrabold {i === 0 ? 'text-primary' : 'text-base-content/80'}"
-								>{pct(g)}%</b
-							>
-						</div>
-						<div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-base-300/50">
+						{#if c.entryId === leaderId}
 							<span
-								class="block h-full rounded-full {i === 0 ? 'bg-primary' : 'bg-primary/40'}"
-								style="width:{(pct(g) / maxPct) * 100}%"
-							></span>
-						</div>
-						<p class="mt-1.5 text-[11.5px] leading-relaxed text-base-content/60">
-							{#each conditionParts(g) as part}
-								{#if part.kind === 'team'}
-									<FlagCode team={part.team} size="sm" />
-								{:else}
-									{part.text}
-								{/if}
-							{/each}
-						</p>
-					</div>
+								class="grid h-4 w-4 flex-none place-items-center rounded-full bg-primary text-[9px] leading-none text-primary-content"
+								>&#127942;</span
+							>
+						{:else if positionFor(c.entryId) !== null}
+							<span
+								class="grid h-4 w-4 flex-none place-items-center rounded-full bg-base-300 font-display text-[8.5px] font-extrabold text-base-content/55"
+								>#{positionFor(c.entryId)}</span
+							>
+						{/if}
+						<span class="max-w-[9rem] truncate">{nameFor(c.entryId)}</span>
+						{#if isOwn([c.entryId])}<YouTag />{/if}
+						<span class="font-mono {c.entryId === leaderId ? 'text-primary' : 'text-base-content/70'}"
+							>{pct(c.weight)}%</span
+						>
+					</button>
 				{/each}
 			</div>
+
+			<div class="overflow-x-auto">
+				<table class="w-full min-w-[480px] border-collapse text-center [font-variant-numeric:tabular-nums]">
+					<thead>
+						<tr>
+							{#each grid.columns as col (col.matchNumber)}
+								<th
+									class="border-b border-base-300/40 pb-2 text-[9.5px] font-extrabold capitalize tracking-[0.06em] text-base-content/40"
+								>
+									{stageLabel(col.stage)}
+									<span class="block normal-case tracking-normal text-base-content/30">{fixtureLabel(col)}</span>
+								</th>
+							{/each}
+							<th
+								class="border-b border-base-300/40 pb-2 pl-3 text-left text-[9.5px] font-extrabold tracking-[0.06em] text-base-content/40"
+							>
+								Pool champion
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each grid.rows as row, i (i)}
+							<tr>
+								{#each row.cells as cell, ci (ci)}
+									{#if cell.rowSpan > 0}
+										<td rowspan={cell.rowSpan} class="border border-base-300/40 p-1.5 align-middle">
+											<FlagCode team={cell.team} size="sm" />
+										</td>
+									{/if}
+								{/each}
+								{#if row.champion.rowSpan > 0}
+									{@const lead = row.champion.entryIds.includes(leaderId ?? '')}
+									{@const own = isOwn(row.champion.entryIds)}
+									{@const dimmed = spotlight !== null && !row.champion.entryIds.includes(spotlight)}
+									{@const spotlit = spotlight !== null && row.champion.entryIds.includes(spotlight)}
+									<td
+										rowspan={row.champion.rowSpan}
+										class="border border-base-300/40 px-3 py-1.5 text-left align-middle transition-opacity {lead
+											? 'bg-primary/[0.06] shadow-[inset_2px_0_0_theme(colors.primary)]'
+											: own
+												? 'bg-primary/[0.05]'
+												: ''} {dimmed ? 'opacity-25' : ''} {spotlit ? 'ring-1 ring-inset ring-primary/50' : ''}"
+									>
+										<div class="flex items-center justify-between gap-2">
+											<span class="min-w-0 truncate text-[12.5px] font-bold {lead ? 'text-primary' : ''}">
+												{row.champion.entryIds.map(nameFor).join(' & ')}
+											</span>
+											<span class="flex-none items-center gap-1 whitespace-nowrap">
+												{#if own}<YouTag />{/if}
+												<b class="font-mono text-[12.5px] font-extrabold {lead ? 'text-primary' : 'text-base-content/70'}"
+													>{pct(row.champion.weight)}%</b
+												>
+											</span>
+										</div>
+										{#if row.champion.varyingStages.length > 0}
+											<span class="mt-0.5 block text-[10px] text-base-content/45"
+												>{varyingText(row.champion.varyingStages)}</span
+											>
+										{/if}
+									</td>
+								{/if}
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 			<svelte:fragment slot="foot">
-				Simulated from current picks and live odds — a fun projection, not a certainty.
+				A name spanning more than one row wins either way — that match's result doesn't change it for them. %
+				reflects live odds. Simulated from current picks — a fun projection, not a certainty.
 			</svelte:fragment>
 		</InsightCard>
 	</div>
