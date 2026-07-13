@@ -851,6 +851,74 @@ leaderboard.
   tier, so multi-entry players' clustered picks stay legible instead
   of overlapping.
 
+### Insights tab — 6-part overhaul + Path to the Trophy (v2.210.0-v2.211.0)
+
+The Standings → Insights tab (`InsightsGrid.svelte`, open to every
+signed-in user — **not** admin-gated) got a six-part rebuild in one
+session: Dark Horse bug fix + "Bonus Points" rename + per-question hit
+rate, Points DNA split into a per-round (R32→Winner) segment ramp, a
+new gated `champion-market-odds` endpoint powering live Polymarket
+title odds inside "Who picked whom for champion" (Champion Survival
+card removed as a pure duplicate of that same data), a new public
+Consensus Bracket teams×stages matrix, removal of the superseded
+"If they lift the trophy…" card, and the **Path to the Trophy** card.
+
+**Path to the Trophy is deliberately ungated, unlike the Win
+Probability tab it reads from.** `GET /leaderboard/trophy-scenarios`
+(`backend/app/api/leaderboard.py`) is public — blind-pool gated only
+(`is_phase1_locked`), fail-open to empty lists on any simulator error.
+It reuses `simulate_pool`'s `record_scenarios=True` path (capped at
+`MAX_SCENARIOS_TO_RECORD = 64`, `win_probability.py`) to expose the
+raw per-completion scenario list the gated Win Probability endpoint
+normally discards. **Never move this card behind the
+`win_probability_enabled` flag** — that was reverted from an earlier
+draft on an explicit instruction ("do not gate the path to the
+trophy"); only the Win Probability tab itself stays admin/flag-gated.
+
+**★ Never render a derived condition as a compressed English
+sentence (mandatory rule, learned the hard way v2.210.1→v2.210.3).**
+An earlier version of this card summarized "which bracket completions
+make entry X champion" as one AND-clause per entry
+(`groupScenariosByChampion`/`fixedMatches`). Real derived conditions
+routinely don't fit that shape — three separate production bugs came
+from trying to force them to: (1) a missing stage label when a match's
+participants weren't resolvable yet (`match_meta` silently dropped the
+final before the semis were played), (2) two entries showing
+seemingly-contradictory conditions because the algorithm proved only
+*necessary*, never *sufficient*, invariance, and (3) a "fix" for (2)
+that silently collapsed a 3-scenario winning condition down to
+describing only 1 of the 3, technically true but misleading by
+omission. **The fix was architectural, not another patch to the
+condition logic.** `frontend/src/lib/utils/outcomeGrid.ts`'s
+`buildOutcomeGrid()` renders the raw scenario list as a merged
+truth-table instead: rows are every remaining bracket completion,
+sorted into bracket order (a column whose participants aren't fixed
+teams yet — e.g. the final before the semis resolve, where
+`match_meta` sends `home_team`/`away_team` as `""` — ranks by which
+EARLIER column produced the matching value in that same row, no
+hardcoded team names needed), and a champion cell spanning multiple
+rows means literally "this match's result doesn't change who wins
+here." Nothing beyond row ordering and run-length merging is derived,
+so there's no condition logic left to get wrong. **If a future change
+wants natural-language prose for this card, derive it FROM the
+already-correct merged grid — never write a fresh
+intersection/sufficiency algorithm over the raw scenarios.** 7 vitest
+cases in `outcomeGrid.test.ts` are pinned against the exact real
+production scenario shape (fetched live, not synthesized) — including
+the specific 3-vs-1 collapse bug. `pathToTrophy.ts` now only holds the
+shared `stageLabel()` prose helper; `groupScenariosByChampion` /
+`PathGroup` / `FixedMatch` were deleted entirely, not deprecated.
+Memory: `feedback_derived_conditions_show_dont_summarize`.
+
+**Dark Horse candidate derivation matches the real backend scorer's
+"locked in once determined" semantics, not a live "still alive"
+filter** (`frontend/src/lib/utils/knockoutBonusCandidates.ts`) — the
+live-alive version silently emptied the card once the resolved
+Dark Horse answer teams were eliminated, since Bottlers never had that
+bug (its candidates are a historical high-water-mark fact, not
+filtered by current elimination status). Mirrors
+`compute_dark_horse` in `backend/app/services/bonus.py`.
+
 ### Datetime rule (system-wide)
 
 **Every datetime is timezone-aware UTC.** Naive datetimes are a bug.
