@@ -259,6 +259,19 @@ def _display_name(user_name: str, entry_name: str, user_entry_count: int) -> str
     return f"{user_name} — {entry}"
 
 
+def group_stage_total(e) -> int:
+    """★ THE group-stage-cash definition. Shared by the GSW podium and the
+    Trionda eligibility check (tournament_champion.py). One resolver —
+    never re-derive this sum elsewhere (read-vs-score-time rule)."""
+    p1 = e.breakdown.phase1
+    return (
+        p1.match_outcome_points
+        + p1.exact_score_points
+        + p1.hybrid_bonus_points
+        + (e.bonus_group_points or 0)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Service — primary entry point
 # ---------------------------------------------------------------------------
@@ -288,14 +301,8 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
     # diverges from group-stage truth (e.g. Brian Agius at #2 on
     # the live board with strong R32 picks, but #5 on the group
     # stage). The card must stay pinned to group-stage truth.
-    def _group_stage_total(e) -> int:
-        p1 = e.breakdown.phase1
-        return (
-            p1.match_outcome_points
-            + p1.exact_score_points
-            + p1.hybrid_bonus_points
-            + (e.bonus_group_points or 0)
-        )
+    # (See module-level ``group_stage_total`` above — THE shared
+    # resolver, also used by the Trionda eligibility check.)
 
     # Re-sort the leaderboard entries by group-stage total (exact-score
     # tiebreaker matches the live leaderboard convention). Once
@@ -304,20 +311,20 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
     # group-stage podium even when the live podium has shifted.
     gs_sorted = sorted(
         lb.entries,
-        key=lambda e: (_group_stage_total(e), e.exact_scores),
+        key=lambda e: (group_stage_total(e), e.exact_scores),
         reverse=True,
     )
     top: list = gs_sorted[:3]
     winner = top[0]
     phase1 = winner.breakdown.phase1
-    winner_gs_total = _group_stage_total(winner)
+    winner_gs_total = group_stage_total(winner)
 
     runner_up_name: str | None = None
     runner_up_gap: int | None = None
     if len(top) >= 2:
         runner_up = top[1]
         runner_up_name = runner_up.user_name
-        runner_up_gap = winner_gs_total - _group_stage_total(runner_up)
+        runner_up_gap = winner_gs_total - group_stage_total(runner_up)
 
     # Days-at-top: COUNT distinct snapshot dates where this entry was
     # at position 1. Captures dominance vs squeaked-in-at-the-end.
@@ -371,7 +378,7 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
             final_rank=gs_sorted.index(e) + 1,
             # Total = group-stage total ONLY (excludes KO bracket payouts
             # and knockout-bonus). Frozen historical statement.
-            total_points=_group_stage_total(e),
+            total_points=group_stage_total(e),
             outcome_points=e.breakdown.phase1.match_outcome_points,
             exact_score_extra=e.breakdown.phase1.exact_score_points,
             rarity_extra=e.breakdown.phase1.hybrid_bonus_points,
