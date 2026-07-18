@@ -103,6 +103,14 @@ export const winProbabilityEnabled = derived(
 			?.win_probability_enabled ?? false
 );
 
+/** Tournament conclusion end-state (wrap-up page + finished-state UI). */
+export const tournamentConcluded = derived(
+	phaseStatus,
+	($phaseStatus) =>
+		($phaseStatus as (PhaseStatus & { tournament_concluded?: boolean }) | null)
+			?.tournament_concluded ?? false
+);
+
 // Derived stores - Phase 2
 export const currentPhase = derived(
 	phaseStatus,

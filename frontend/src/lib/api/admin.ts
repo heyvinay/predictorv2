@@ -153,6 +153,21 @@ export async function setGroupStageWinnerReleased(
 	return api.post('/admin/competition/group-stage-winner/release', { released });
 }
 
+/** Flip the tournament-concluded end-state — exposes the wrap-up page and
+ *  opens the wrap-up data endpoints to anonymous visitors. */
+export async function setTournamentConcluded(
+	concluded: boolean
+): Promise<{ status: string; tournament_concluded: boolean }> {
+	return api.post('/admin/competition/conclusion', { concluded });
+}
+
+/** Save the admin-authored narrative for the Final match (wrap-up page). */
+export async function saveFinalNarrative(
+	narrative: string
+): Promise<{ status: string; final_match_narrative: string | null }> {
+	return api.put('/admin/competition/final-narrative', { narrative });
+}
+
 /** Flip the knockout-scoring gate (v2.181.1). When enabled=true the
  *  scoring engine starts paying out advancement points (group_advance
  *  / group_position bracket credits AND R32→winner credits). The

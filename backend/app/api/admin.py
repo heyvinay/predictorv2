@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -728,6 +728,84 @@ async def set_group_stage_winner_released(
     await session.commit()
 
     return {"status": "ok", "group_stage_winner_released": request.released}
+
+
+# ---------------------------------------------------------------------------
+# Tournament conclusion end-state (Plan A)
+# ---------------------------------------------------------------------------
+class ConclusionToggleRequest(BaseModel):
+    """Flip the tournament-concluded end-state (wrap-up page + public access)."""
+
+    concluded: bool
+
+
+@router.post("/competition/conclusion")
+async def set_tournament_concluded(
+    request: ConclusionToggleRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+
+    previous = competition.tournament_concluded
+    competition.tournament_concluded = request.concluded
+    competition.updated_at = utc_now()
+    if previous != request.concluded:
+        record_audit_event(
+            session,
+            event_type="competition.tournament_concluded_toggled",
+            actor_user_id=admin.id,
+            actor_role=ActorRole.ADMIN,
+            subject_type="competition",
+            subject_id=competition.id,
+            metadata={"from": previous, "to": request.concluded},
+        )
+    await session.commit()
+    return {"status": "ok", "tournament_concluded": request.concluded}
+
+
+class FinalNarrativeRequest(BaseModel):
+    """Admin-authored narrative for the Final match (wrap-up page)."""
+
+    narrative: str = Field(max_length=2000)
+
+
+@router.put("/competition/final-narrative")
+async def set_final_match_narrative(
+    request: FinalNarrativeRequest,
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    result = await session.execute(
+        select(Competition).where(Competition.is_active == True)  # noqa: E712
+    )
+    competition = result.scalar_one_or_none()
+    if not competition:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active competition found",
+        )
+    competition.final_match_narrative = request.narrative.strip() or None
+    competition.updated_at = utc_now()
+    record_audit_event(
+        session,
+        event_type="competition.final_narrative_updated",
+        actor_user_id=admin.id,
+        actor_role=ActorRole.ADMIN,
+        subject_type="competition",
+        subject_id=competition.id,
+        metadata={"length": len(request.narrative)},
+    )
+    await session.commit()
+    return {"status": "ok", "final_match_narrative": competition.final_match_narrative}
 
 
 # ---------------------------------------------------------------------------

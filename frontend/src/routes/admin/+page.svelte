@@ -29,6 +29,7 @@
 		phase1Countdown,
 		phase2Countdown,
 		postDeadlineLive,
+		tournamentConcluded,
 		winProbabilityEnabled
 	} from '$stores/phase';
 	import {
@@ -48,6 +49,8 @@
 		setSimulatorEnabled,
 		setWinProbabilityEnabled,
 		setPostDeadlineLive,
+		setTournamentConcluded,
+		saveFinalNarrative,
 		triggerStandingsDriftCheck,
 		listOpenDriftEvents,
 		dismissDriftEvent,
@@ -121,6 +124,39 @@
 			gswError = e instanceof Error ? e.message : 'Toggle failed';
 		} finally {
 			togglingGsw = false;
+		}
+	}
+
+	// ─── Tournament conclusion end-state (Plan A) ─────────────────────────
+	let togglingConclusion = false;
+	let conclusionError: string | null = null;
+	let finalNarrative = '';
+	let savingNarrative = false;
+
+	async function handleToggleConclusion() {
+		const next = !$tournamentConcluded;
+		const message = next
+			? 'CONCLUDE the tournament? Effects: / becomes the public wrap-up page for everyone, wrap-up data endpoints open to anonymous visitors, the TOURNAMENT_FINAL broadcast tokens unlock, and all live cues retire. Run the final audit first if you have not.'
+			: 'RETRACT the conclusion? The dashboard and gated access come back; nothing is lost.';
+		if (!confirm(message)) return;
+		togglingConclusion = true;
+		conclusionError = null;
+		try {
+			await setTournamentConcluded(next);
+			await fetchPhaseStatus();
+		} catch (e) {
+			conclusionError = e instanceof Error ? e.message : 'Toggle failed';
+		} finally {
+			togglingConclusion = false;
+		}
+	}
+
+	async function handleSaveNarrative() {
+		savingNarrative = true;
+		try {
+			await saveFinalNarrative(finalNarrative);
+		} finally {
+			savingNarrative = false;
 		}
 	}
 
@@ -903,6 +939,65 @@
 					</button>
 				</div>
 				{#if gswError}<div class="alert alert-error text-sm mt-3">{gswError}</div>{/if}
+			</section>
+
+			<!-- Tournament conclusion end-state (Plan A) -->
+			<section
+				class="rounded-xl border bg-base-200 shadow-card p-5 {$tournamentConcluded
+					? 'border-primary/50'
+					: 'border-base-300'}"
+			>
+				<h2 class="text-lg font-display tracking-wide mb-1">
+					Tournament conclusion
+					<span class="text-xs text-base-content/40"> · wrap-up page + final narrative </span>
+				</h2>
+				<p class="text-xs text-base-content/55 mb-3 max-w-prose">
+					Press <b>Conclude tournament</b> once the Final is fully settled. This flips / into the
+					public wrap-up page for everyone, opens the wrap-up data endpoints to anonymous
+					visitors, and unlocks the TOURNAMENT_FINAL broadcast tokens. Retract here if you need
+					to pull it back for a late correction.
+				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<span
+						class="rounded-badge px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] {$tournamentConcluded
+							? 'bg-primary/20 text-primary'
+							: 'bg-base-300 text-base-content/55'}"
+					>
+						{$tournamentConcluded ? 'CONCLUDED — wrap-up page live' : 'not concluded'}
+					</span>
+					<button
+						class="btn btn-sm {$tournamentConcluded ? 'btn-ghost' : 'btn-primary'}"
+						type="button"
+						on:click={handleToggleConclusion}
+						disabled={togglingConclusion}
+					>
+						{togglingConclusion
+							? 'Switching…'
+							: $tournamentConcluded
+								? 'Retract conclusion'
+								: 'Conclude tournament'}
+					</button>
+				</div>
+				{#if conclusionError}<div class="alert alert-error text-sm mt-3">{conclusionError}</div>{/if}
+				<div class="mt-4">
+					<label class="text-sm font-bold" for="final-narrative">Final match narrative</label>
+					<textarea
+						id="final-narrative"
+						class="textarea textarea-bordered w-full mt-1"
+						rows="3"
+						maxlength="2000"
+						bind:value={finalNarrative}
+						placeholder="Write the story of the Final minutes after full time…"
+					></textarea>
+					<button
+						class="btn btn-sm mt-2"
+						type="button"
+						on:click={handleSaveNarrative}
+						disabled={savingNarrative}
+					>
+						{savingNarrative ? 'Saving…' : 'Save narrative'}
+					</button>
+				</div>
 			</section>
 
 			<!-- Knockout scoring gate (v2.181.1) -->
