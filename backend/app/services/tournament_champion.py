@@ -5,16 +5,16 @@ layer (`tournament_concluded OR is_admin`) so the admin can dress-
 rehearse in production before flipping the flag.
 """
 
-import logging
 from dataclasses import dataclass, field
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.group_stage_winner import group_stage_total
+from app.services.group_stage_winner import (
+    days_at_top,
+    group_stage_total,
+    total_snapshot_days,
+)
 from app.services.leaderboard import calculate_leaderboard
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -93,28 +93,10 @@ def _knockout_points(p1) -> int:
 
 
 def _group_points(p1) -> int:
-    return (
-        p1.match_outcome_points
-        + p1.exact_score_points
-        + p1.hybrid_bonus_points
-        + p1.group_advance_points
-        + p1.group_position_points
-    )
-
-
-async def _days_at_top(session: AsyncSession, entry_id) -> int:
-    days_sql = text(
-        """
-        SELECT COUNT(DISTINCT captured_date) AS days
-        FROM leaderboard_snapshots
-        WHERE entry_id = :entry_id AND position = 1
-        """
-    )
-    try:
-        row = (await session.execute(days_sql, {"entry_id": entry_id})).first()
-        return int(row.days) if row and row.days else 0
-    except Exception:  # noqa: BLE001 — stats never break the payload
-        return 0
+    # p1.match_total is a computed field = match_outcome_points +
+    # exact_score_points + hybrid_bonus_points — reuse it instead of
+    # re-summing the same three terms by hand.
+    return p1.match_total + p1.group_advance_points + p1.group_position_points
 
 
 def _compose_story_line(champion, runner_up, gap: int, days_at_top: int) -> str:
@@ -168,7 +150,7 @@ async def get_final_podium(session: AsyncSession):
                 + (r.bonus_knockout_points or 0),
                 "exact_scores": r.exact_scores,
                 "rarity_points": p1.hybrid_bonus_points,
-                "days_at_top": await _days_at_top(session, r.entry_id),
+                "days_at_top": await days_at_top(session, r.entry_id),
                 "champion_pick": r.champion_pick,
                 "champion_hit": bool(
                     actual_champion_team
@@ -178,14 +160,7 @@ async def get_final_podium(session: AsyncSession):
             }
         )
 
-    total_days_sql = text(
-        "SELECT COUNT(DISTINCT captured_date) AS days FROM leaderboard_snapshots"
-    )
-    try:
-        row = (await session.execute(total_days_sql)).first()
-        total_days = int(row.days) if row and row.days else 0
-    except Exception:  # noqa: BLE001
-        total_days = 0
+    total_days = await total_snapshot_days(session)
 
     gap = top[0].total_points - top[1].total_points if len(top) > 1 else 0
     story = _compose_story_line(

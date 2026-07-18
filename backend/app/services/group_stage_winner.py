@@ -272,6 +272,38 @@ def group_stage_total(e) -> int:
     )
 
 
+async def days_at_top(session: AsyncSession, entry_id) -> int:
+    """COUNT of distinct snapshot dates where `entry_id` held position 1.
+    Captures dominance vs squeaked-in-at-the-end. Shared by the GSW
+    podium and the final podium (tournament_champion.py) — one query,
+    never re-derive it elsewhere."""
+    sql = text(
+        """
+        SELECT COUNT(DISTINCT captured_date) AS days
+        FROM leaderboard_snapshots
+        WHERE entry_id = :entry_id
+          AND position = 1
+        """
+    )
+    try:
+        row = (await session.execute(sql, {"entry_id": entry_id})).first()
+        return int(row.days or 0) if row else 0
+    except Exception:  # noqa: BLE001 — story stat must not fail the payload
+        return 0
+
+
+async def total_snapshot_days(session: AsyncSession) -> int:
+    """Total distinct captured_date values across every snapshot — the
+    denominator for `days_at_top`. Shared by the GSW podium and the
+    final podium (tournament_champion.py)."""
+    sql = text("SELECT COUNT(DISTINCT captured_date) AS days FROM leaderboard_snapshots")
+    try:
+        row = (await session.execute(sql)).first()
+        return int(row.days or 0) if row else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # Service — primary entry point
 # ---------------------------------------------------------------------------
@@ -326,36 +358,17 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
         runner_up_name = runner_up.user_name
         runner_up_gap = winner_gs_total - group_stage_total(runner_up)
 
-    # Days-at-top: COUNT distinct snapshot dates where this entry was
-    # at position 1. Captures dominance vs squeaked-in-at-the-end.
-    days_sql = text(
-        """
-        SELECT COUNT(DISTINCT captured_date) AS days
-        FROM leaderboard_snapshots
-        WHERE entry_id = :entry_id
-          AND position = 1
-        """
-    )
-    try:
-        row = (await session.execute(days_sql, {"entry_id": winner.entry_id})).first()
-        days_at_top = int(row.days or 0) if row else 0
-    except Exception:  # noqa: BLE001 — story stat must not fail the payload
-        days_at_top = 0
-
-    total_days_sql = text(
-        "SELECT COUNT(DISTINCT captured_date) AS days FROM leaderboard_snapshots"
-    )
-    try:
-        row = (await session.execute(total_days_sql)).first()
-        total_days = int(row.days or 0) if row else 0
-    except Exception:  # noqa: BLE001
-        total_days = 0
+    # Days-at-top / total_days: shared queries (see module-level
+    # `days_at_top` / `total_snapshot_days` above — also used by the
+    # final podium in tournament_champion.py).
+    winner_days_at_top = await days_at_top(session, winner.entry_id)
+    total_days = await total_snapshot_days(session)
 
     finalist_picks_list = list(winner.finalist_picks or [])
 
     story_line = _compose_story_line(
         name=winner.user_name,
-        days_at_top=days_at_top,
+        days_at_top=winner_days_at_top,
         total_days=total_days,
         runner_up_name=runner_up_name,
         runner_up_gap=runner_up_gap,
@@ -397,7 +410,7 @@ async def get_group_stage_podium(session: AsyncSession) -> GroupStagePodium | No
         champion_alive=winner.champion_alive,
         finalist_picks=finalist_picks_list,
         finalists_alive=winner.finalists_alive,
-        days_at_top=days_at_top,
+        days_at_top=winner_days_at_top,
         total_days=total_days,
         runner_up_gap=runner_up_gap,
         story_line=story_line,
