@@ -93,6 +93,16 @@ class Competition(SQLModel, table=True):
     # dark until an admin opts in from /admin.
     win_probability_enabled: bool = Field(default=False)
 
+    # Tournament conclusion switch (Plan A, 2026-07-18): flipped by the admin
+    # after the Final. One flag drives the wrap-up page, public read access,
+    # the TOURNAMENT_FINAL broadcast tokens and the 🏁 finished-state UI.
+    # Retractable: flipping back fully reverts, nothing destructive.
+    tournament_concluded: bool = Field(default=False)
+
+    # Admin-authored narrative for the Final match, written minutes after
+    # full time from /admin (no deploy). Rendered on the wrap-up page.
+    final_match_narrative: str | None = Field(default=None)
+
     # Configuration reference
     config_file: str | None = None
 
