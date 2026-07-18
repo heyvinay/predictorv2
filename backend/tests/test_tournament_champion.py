@@ -3,7 +3,18 @@
 from dataclasses import dataclass
 
 import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel
 
+import app.models  # noqa: F401 — register all tables
+from app.database import get_session
+from app.dependencies import get_admin_user, get_current_user
+from app.main import app
+from app.models.competition import Competition
+from app.models.user import AuthProvider, User
 from app.services.group_stage_winner import group_stage_total
 from app.services.tournament_champion import pick_trionda_recipient
 
@@ -95,3 +106,94 @@ def test_trionda_shared_champions_shift_runner_up_rank():
     rows = _rows(("c1", 1, 612, 356), ("c2", 1, 612, 340), ("a", 2, 598, 330))
     out = pick_trionda_recipient(rows, gs_total_of=lambda r: r.gs_total)
     assert out.recipient.entry_id == "a"
+
+
+# ---------------------------------------------------------------------------
+# GET /leaderboard/final-podium — access-gate tests (Task A5)
+# ---------------------------------------------------------------------------
+# These fixtures didn't exist in this file yet (A3/A4 only added pure
+# service-level unit tests above) — added here, copied from the
+# client_as_admin pattern in test_tournament_conclusion.py, plus a new
+# client_anonymous fixture per the A5 plan.
+
+
+@pytest_asyncio.fixture
+async def db_session() -> AsyncSession:
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as s:
+        yield s
+
+
+@pytest_asyncio.fixture
+async def competition(db_session: AsyncSession) -> Competition:
+    comp = Competition(name="WC26", is_active=True)
+    db_session.add(comp)
+    await db_session.commit()
+    await db_session.refresh(comp)
+    return comp
+
+
+@pytest_asyncio.fixture
+async def admin_user(db_session: AsyncSession) -> User:
+    u = User(
+        email="admin@example.com",
+        name="Admin",
+        password_hash="x",
+        auth_provider=AuthProvider.EMAIL,
+        is_active=True,
+        is_admin=True,
+    )
+    db_session.add(u)
+    await db_session.commit()
+    await db_session.refresh(u)
+    return u
+
+
+@pytest_asyncio.fixture
+async def client_as_admin(db_session: AsyncSession, admin_user: User):
+    async def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    app.dependency_overrides[get_admin_user] = lambda: admin_user
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def client_anonymous(db_session: AsyncSession):
+    """Same AsyncClient shape as client_as_admin, but ONLY get_session is
+    overridden — no user/admin override — so the real
+    get_current_user_optional dependency runs and yields None for an
+    unauthenticated request (no Authorization header sent)."""
+
+    async def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_final_podium_hidden_pre_conclusion_for_anonymous(
+    client_anonymous, competition
+):
+    resp = await client_anonymous.get("/api/leaderboard/final-podium")
+    assert resp.status_code == 200
+    assert resp.json() is None  # gate: not concluded, not admin → None
+
+
+@pytest.mark.asyncio
+async def test_final_podium_admin_preview_pre_conclusion(client_as_admin, competition):
+    resp = await client_as_admin.get("/api/leaderboard/final-podium")
+    assert resp.status_code == 200
+    # empty DB → service returns None; the point is the gate didn't block

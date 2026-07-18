@@ -864,6 +864,127 @@ async def group_stage_winner_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Final podium / tournament conclusion (Plan A Task A5)
+# ---------------------------------------------------------------------------
+# Gate: visible to EVERYONE once Competition.tournament_concluded is true;
+# admins may preview the payload any time before the flip (dress-rehearsal).
+# Mirrors the group-stage-winner endpoint's admin-preview precedent but adds
+# an anonymous-allowed path for the post-conclusion, fully-public wrap-up
+# page — hence `OptionalUser` rather than `CurrentUser` here.
+
+
+@router.get("/final-podium", response_model=None)
+async def final_podium_endpoint(
+    session: DbSession,
+    user: OptionalUser,
+):
+    """Champion announcement payload. Visible to EVERYONE once
+    tournament_concluded; admins may preview before the flip."""
+    from app.models.competition import Competition
+    from app.models.fixture import Fixture
+    from app.schemas.tournament_champion import (
+        AuditSummaryOut,
+        FinalMatchOut,
+        FinalPodium,
+        FinalPodiumEntry,
+        TriondaOut,
+    )
+    from app.services.final_audit import load_latest_audit_summary
+    from app.services.tournament_champion import get_final_podium
+
+    comp = (
+        await session.execute(
+            select(Competition).where(Competition.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    concluded = bool(comp and comp.tournament_concluded)
+    if not concluded and not (user and user.is_admin):
+        return None
+
+    podium = await get_final_podium(session)
+    if podium is None:
+        return None
+
+    # The Final fixture (stage == 'final'); its real result overrides A4's
+    # leaderboard-leader-pick fallback for champion_hit. Score is a SEPARATE
+    # joined table (see app/models/score.py) — must be eager-loaded via
+    # selectinload, matching the pattern in app/api/fixtures.py.
+    final_fx = (
+        (
+            await session.execute(
+                select(Fixture)
+                .options(selectinload(Fixture.score))
+                .where(Fixture.stage == "final")
+            )
+        )
+        .scalars()
+        .first()
+    )
+
+    final_match = None
+    actual_winner: str | None = None
+    if final_fx is not None:
+        score = final_fx.score
+        home = away = None
+        pens = None
+        et = False
+        if score is not None:
+            # final_home_score/final_away_score are properties on Score
+            # that already fall back to regular time when ET is unset.
+            home = score.final_home_score
+            away = score.final_away_score
+            et = score.home_score_et is not None or score.away_score_et is not None
+            if score.home_penalties is not None and score.away_penalties is not None:
+                pens = f"{score.home_penalties}-{score.away_penalties}"
+            if score.outcome == "1":
+                actual_winner = final_fx.home_team
+            elif score.outcome == "2":
+                actual_winner = final_fx.away_team
+        final_match = FinalMatchOut(
+            home_team=final_fx.home_team,
+            away_team=final_fx.away_team,
+            home_score=home,
+            away_score=away,
+            went_to_extra_time=et,
+            penalties=pens,
+            kickoff=final_fx.kickoff,
+            # Fixture carries no venue fields in this codebase — left None
+            # rather than guessing at a schema that doesn't exist.
+            venue=None,
+            narrative=comp.final_match_narrative if comp else None,
+        )
+
+    entries = []
+    for e in podium["entries"]:
+        e = dict(e)
+        if actual_winner:
+            e["champion_hit"] = e["champion_pick"] == actual_winner
+        entries.append(FinalPodiumEntry(**e))
+
+    t = podium["trionda"]
+    trionda = TriondaOut(
+        recipient_name=t.recipient.user_name if t.recipient else None,
+        recipient_entry_id=str(t.recipient.entry_id) if t.recipient else None,
+        final_rank=t.recipient.position if t.recipient else None,
+        reason=t.reason,
+        requires_draw=t.requires_draw,
+        draw_candidate_names=[c.user_name for c in t.draw_candidates],
+    )
+
+    audit_summary = load_latest_audit_summary()
+    audit = AuditSummaryOut(**audit_summary) if audit_summary else None
+
+    return FinalPodium(
+        entries=entries,
+        trionda=trionda,
+        story_line=podium["story_line"],
+        total_days=podium["total_days"],
+        final_match=final_match,
+        audit=audit,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Knockout win-probability simulator
 # ---------------------------------------------------------------------------
 # Gate mirrors the all-entries CSV export pattern (predictions.py):
