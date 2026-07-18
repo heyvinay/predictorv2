@@ -132,6 +132,8 @@
 	let conclusionError: string | null = null;
 	let finalNarrative = '';
 	let savingNarrative = false;
+	let narrativeError: string | null = null;
+	let narrativeSuccess: string | null = null;
 
 	async function handleToggleConclusion() {
 		const next = !$tournamentConcluded;
@@ -153,8 +155,15 @@
 
 	async function handleSaveNarrative() {
 		savingNarrative = true;
+		narrativeError = null;
+		narrativeSuccess = null;
 		try {
-			await saveFinalNarrative(finalNarrative);
+			const result = await saveFinalNarrative(finalNarrative);
+			finalNarrative = result.final_match_narrative ?? '';
+			narrativeSuccess = 'Narrative saved';
+			setTimeout(() => (narrativeSuccess = null), 3000);
+		} catch (e) {
+			narrativeError = e instanceof Error ? e.message : 'Failed to save narrative';
 		} finally {
 			savingNarrative = false;
 		}
@@ -658,6 +667,14 @@
 	// never run and `loading` stays true forever.
 	onMount(async () => {
 		await loadData();
+		// Hydrate the Final match narrative textarea from the active
+		// competition's currently-saved value — one-time, so a later
+		// loadData() refresh (e.g. after setting the Phase 1 deadline)
+		// doesn't clobber an in-progress edit. Without this, an admin
+		// reloading /admin sees a blank textarea even when a narrative
+		// is already saved, and a stray Save click would overwrite it
+		// with null.
+		finalNarrative = competitions.find((c) => c.is_active)?.final_match_narrative ?? '';
 		await Promise.all([
 			loadEntrySettings(),
 			loadAudienceCounts(),
@@ -997,6 +1014,8 @@
 					>
 						{savingNarrative ? 'Saving…' : 'Save narrative'}
 					</button>
+					{#if narrativeSuccess}<div class="alert alert-success text-sm mt-2">{narrativeSuccess}</div>{/if}
+					{#if narrativeError}<div class="alert alert-error text-sm mt-2">{narrativeError}</div>{/if}
 				</div>
 			</section>
 

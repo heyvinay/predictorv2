@@ -152,6 +152,11 @@ class CompetitionAdminView(BaseModel):
     is_active: bool
     fixture_count: int
     user_count: int
+    # Plan A (2026-07-18) — lets the admin page hydrate its "Final match
+    # narrative" textarea from the currently-saved value on load, instead
+    # of always starting blank (which risked overwriting a saved narrative
+    # with null via a no-op Save click). See set_final_match_narrative.
+    final_match_narrative: str | None = None
 
     class Config:
         """Pydantic config."""
@@ -512,6 +517,7 @@ async def get_all_competitions(
             is_active=comp.is_active,
             fixture_count=fixture_count,
             user_count=user_count,
+            final_match_narrative=comp.final_match_narrative,
         )
         for comp, fixture_count, user_count in rows
     ]
@@ -745,6 +751,16 @@ async def set_tournament_concluded(
     session: DbSession,
     admin: AdminUser,
 ) -> dict:
+    """Flip the tournament-concluded end-state (Plan A).
+
+    `concluded=true` turns `/` into the public wrap-up page for everyone,
+    opens the wrap-up data endpoints to anonymous visitors, and unlocks
+    the TOURNAMENT_FINAL broadcast tokens. `concluded=false` retracts all
+    of that — use it to pull back a premature flip.
+
+    Single audit event per change. Idempotent — flipping to the same
+    value twice records nothing on the second call.
+    """
     result = await session.execute(
         select(Competition).where(Competition.is_active == True)  # noqa: E712
     )
@@ -784,6 +800,13 @@ async def set_final_match_narrative(
     session: DbSession,
     admin: AdminUser,
 ) -> dict:
+    """Save the admin-authored narrative for the Final match (Plan A).
+
+    Rendered on the wrap-up page once the tournament is concluded. Also
+    exposed on `GET /admin/competitions` (`CompetitionAdminView.
+    final_match_narrative`) so the admin page can hydrate its textarea
+    with the currently-saved value instead of showing blank on reload.
+    """
     result = await session.execute(
         select(Competition).where(Competition.is_active == True)  # noqa: E712
     )
@@ -793,7 +816,9 @@ async def set_final_match_narrative(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active competition found",
         )
-    competition.final_match_narrative = request.narrative.strip() or None
+    stripped = request.narrative.strip()
+    # blank input intentionally clears the narrative
+    competition.final_match_narrative = stripped or None
     competition.updated_at = utc_now()
     record_audit_event(
         session,
@@ -802,7 +827,7 @@ async def set_final_match_narrative(
         actor_role=ActorRole.ADMIN,
         subject_type="competition",
         subject_id=competition.id,
-        metadata={"length": len(request.narrative)},
+        metadata={"length": len(stripped)},
     )
     await session.commit()
     return {"status": "ok", "final_match_narrative": competition.final_match_narrative}

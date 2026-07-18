@@ -35,6 +35,9 @@ export interface CompetitionAdminView {
 	is_active: boolean;
 	fixture_count: number;
 	user_count: number;
+	/** Admin-authored Final-match narrative (Plan A) — null until saved.
+	 *  Lets the admin page hydrate its textarea instead of showing blank. */
+	final_match_narrative: string | null;
 }
 
 export interface UserAdminView {

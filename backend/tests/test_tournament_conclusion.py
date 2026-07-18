@@ -112,3 +112,32 @@ async def test_admin_saves_final_narrative(client_as_admin, competition):
     )
     assert resp.status_code == 200
     assert resp.json()["final_match_narrative"].startswith("A cagey")
+
+
+@pytest.mark.asyncio
+async def test_saving_blank_narrative_clears_it(client_as_admin, competition):
+    # Save a real narrative first.
+    resp = await client_as_admin.put(
+        "/api/admin/competition/final-narrative",
+        json={"narrative": "Extra time thriller."},
+    )
+    assert resp.json()["final_match_narrative"] == "Extra time thriller."
+
+    # It round-trips through GET /admin/competitions — the response the
+    # admin page's loadData() already fetches and hydrates its "Final
+    # match narrative" textarea from on mount.
+    resp = await client_as_admin.get("/api/admin/competitions")
+    assert resp.status_code == 200
+    row = next(c for c in resp.json() if c["id"] == str(competition.id))
+    assert row["final_match_narrative"] == "Extra time thriller."
+
+    # Saving blank/whitespace-only input clears it back to None, not "".
+    resp = await client_as_admin.put(
+        "/api/admin/competition/final-narrative", json={"narrative": "   "}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["final_match_narrative"] is None
+
+    resp = await client_as_admin.get("/api/admin/competitions")
+    row = next(c for c in resp.json() if c["id"] == str(competition.id))
+    assert row["final_match_narrative"] is None
