@@ -161,13 +161,38 @@ async def test_phase_status_surfaces_tournament_concluded(
 ):
     from app.api.competition import get_phase_status
 
-    status_out = await get_phase_status(session=db_session, _current_user=None)
+    status_out = await get_phase_status(session=db_session, _user=None)
     assert status_out.tournament_concluded is False
 
     competition.tournament_concluded = True
     await db_session.commit()
-    status_out = await get_phase_status(session=db_session, _current_user=None)
+    status_out = await get_phase_status(session=db_session, _user=None)
     assert status_out.tournament_concluded is True
+
+
+@pytest.mark.asyncio
+async def test_phase_status_reachable_anonymously(
+    client_anonymous, competition: Competition, db_session: AsyncSession
+):
+    """★ Regression pin (2026-07-19): GET /competition/phase-status used to
+    require CurrentUser (hard auth), so an anonymous browser could never
+    learn tournament_concluded — the frontend root layout calls this
+    endpoint unconditionally on every page load (including for guests), so
+    the public wrap-up page was completely unreachable without signing in.
+    Caught by live guest-mode verification, not by the direct-call unit
+    test above (which bypasses FastAPI's dependency injection entirely and
+    would pass regardless of the route's real auth requirement) — this
+    test goes through the actual ASGI/HTTP layer so it can't repeat that
+    blind spot."""
+    resp = await client_anonymous.get("/api/competition/phase-status")
+    assert resp.status_code == 200
+    assert resp.json()["tournament_concluded"] is False
+
+    competition.tournament_concluded = True
+    await db_session.commit()
+    resp = await client_anonymous.get("/api/competition/phase-status")
+    assert resp.status_code == 200
+    assert resp.json()["tournament_concluded"] is True
 
 
 @pytest.mark.asyncio

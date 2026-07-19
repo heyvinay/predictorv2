@@ -78,8 +78,13 @@
 		void track('nav_clicked', { source, target, label });
 	}
 
-	// Fetch phase status when user becomes authenticated
-	$: if ($isAuthenticated && !hasLoadedPhase) {
+	// Fetch phase status for every visitor, signed in or not (Plan C,
+	// 2026-07-19 fix). Previously gated on `$isAuthenticated` from back
+	// when phase-status only mattered for signed-in bracket/deadline
+	// gating — but `tournament_concluded` now has to reach anonymous
+	// visitors too, or the public wrap-up page can never resolve for
+	// guests regardless of the backend allowing anonymous access.
+	$: if (!hasLoadedPhase) {
 		hasLoadedPhase = true;
 		fetchPhaseStatus();
 	}

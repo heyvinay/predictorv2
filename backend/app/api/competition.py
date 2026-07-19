@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import select
 
-from app.dependencies import CurrentUser, DbSession
+from app.dependencies import CurrentUser, DbSession, OptionalUser
 from app.models._datetime import aware_utc, utc_now
 from app.models.competition import Competition
 from app.models.user import User
@@ -127,7 +127,7 @@ class PhaseStatus(BaseModel):
 @router.get("/phase-status", response_model=PhaseStatus)
 async def get_phase_status(
     session: DbSession,
-    _current_user: CurrentUser,
+    _user: OptionalUser,
 ) -> PhaseStatus:
     """Get current phase status for the active competition.
 
@@ -136,6 +136,15 @@ async def get_phase_status(
     - Whether to show the Phase 2 tab
     - Whether the Phase 2 bracket is locked
     - The Phase 2 bracket deadline
+
+    Anonymous access (Plan C, 2026-07-19 fix): every field here is a
+    pool-wide feature flag or deadline, nothing user-specific — but the
+    root layout calls this UNCONDITIONALLY on every page load, including
+    for signed-out visitors. Requiring auth here silently 401'd for guests,
+    which meant `tournament_concluded` could never reach an anonymous
+    browser and the public wrap-up page was unreachable without signing in
+    — the exact audience it exists to serve. Found via live guest-mode
+    verification, not a review pass.
     """
     # Get active competition
     result = await session.execute(
