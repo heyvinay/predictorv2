@@ -187,10 +187,11 @@ async def test_partial_posthog_failure_degrades_gracefully(db_session: AsyncSess
     # DB-sourced funnel still renders (count_all_audiences is DB-only
     # for the base counts; its engagement fallback silently no-ops).
     assert report.funnel.submitters == 1
-    # Every feature still appears (server-defined catalog — 9 entries,
-    # including the property-filtered "Insights tab"), just at zero
-    # adoption rather than vanishing.
-    assert len(report.feature_adoption) == 9
+    # Every feature still appears (server-defined catalog — 11 entries,
+    # including the property-filtered "Insights tab" and the v2.214.x
+    # "wrapup"/"compare" entries registered ahead of their frontend
+    # events existing), just at zero adoption rather than vanishing.
+    assert len(report.feature_adoption) == 11
     assert all(f.users == 0 for f in report.feature_adoption)
     assert all(f.last_used is None for f in report.feature_adoption)
     # PostHog-only tables degrade to empty, not to a misleading

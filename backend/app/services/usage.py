@@ -115,6 +115,25 @@ FEATURE_GROUPS: dict[str, dict[str, object]] = {
         "sub": "star + written note",
         "events": ["app_rating_submitted", "feedback_submitted", "feature_rated"],
     },
+    "wrapup": {
+        "name": "Wrap-up page",
+        "sub": "post-tournament home",
+        "events": [
+            "wrapup_viewed",
+            "wrapup_compare_cta_clicked",
+            "wrapup_podium_row_clicked",
+            "wrapup_verified_link_clicked",
+            "wrapup_matrix_compare_clicked",
+            "wrapup_leaderboard_full_clicked",
+            "wrapup_footer_link_clicked",
+            "wrapup_signin_started",
+        ],
+    },
+    "compare": {
+        "name": "Head-to-head compare",
+        "sub": "/compare",
+        "events": ["compare_opened"],
+    },
     "simulator": {
         "name": "Bracket Simulator",
         "sub": '"what if" knockout runs',
