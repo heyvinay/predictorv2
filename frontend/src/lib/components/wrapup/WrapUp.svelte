@@ -63,6 +63,11 @@
 	});
 
 	$: personal = retro?.personal?.[0] ?? null;
+
+	function scrollToSignIn() {
+		document.getElementById('wrapup-signin')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		track('wrapup_signin_started', {});
+	}
 </script>
 
 <svelte:head>
@@ -80,6 +85,19 @@
 			The wrap-up appears once the tournament concludes.
 		</div>
 	{:else}
+		{#if !$isAuthenticated}
+			<button
+				type="button"
+				class="mb-3 flex w-full items-center justify-between gap-3 rounded-box border border-dashed border-primary/45 bg-primary/5 px-4 py-2.5 text-left transition-colors hover:border-primary/70 hover:bg-primary/10"
+				on:click={scrollToSignIn}
+			>
+				<span class="text-sm">
+					<b class="text-base-content">In the pool?</b>
+					<span class="text-base-content/60"> Sign in to see your personal wrap.</span>
+				</span>
+				<span class="flex-none whitespace-nowrap font-semibold text-primary">Sign in ↓</span>
+			</button>
+		{/if}
 		<div class="grid grid-cols-6 gap-3 [grid-auto-flow:dense] items-stretch">
 			<!-- Row 1: hero (4-wide, 2 rows) + Final + [compare CTA | Atlas for guests] -->
 			<section class="col-span-6 min-w-0 min-[1100px]:col-span-4 min-[1100px]:row-span-2">
