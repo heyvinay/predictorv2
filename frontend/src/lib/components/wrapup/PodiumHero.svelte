@@ -33,33 +33,6 @@
 <div
 	class="stadium-card relative h-full overflow-hidden rounded-box border border-primary/40 p-5 text-center"
 >
-	<!-- stadium backdrop placeholder: swap for the licensed photo asset
-	     (frontend/static/wrapup-stadium.webp) at implementation sign-off -->
-	<svg
-		class="pointer-events-none absolute inset-0 h-full w-full opacity-15"
-		viewBox="0 0 1200 420"
-		preserveAspectRatio="xMidYMax slice"
-		aria-hidden="true"
-	>
-		<polygon points="0,0 190,0 70,320" class="fill-primary" opacity=".5" />
-		<polygon points="1010,0 1200,0 1130,320" class="fill-primary" opacity=".5" />
-		<line x1="0" y1="368" x2="1200" y2="368" class="stroke-primary" stroke-width="2" />
-		<ellipse
-			cx="600"
-			cy="368"
-			rx="250"
-			ry="42"
-			fill="none"
-			class="stroke-primary"
-			stroke-width="1.5"
-		/>
-		<g class="stroke-base-content" stroke-width="3" fill="none">
-			<path d="M760,368 V218 H1080 V368" />
-			<path d="M760,218 L800,190 H1116 L1080,218" />
-			<path d="M1116,190 V340 L1080,368" />
-		</g>
-	</svg>
-
 	<div class="relative">
 		<p class="text-[10px] uppercase tracking-[.24em] text-base-content/55">
 			World Cup 2026 · Final podium
