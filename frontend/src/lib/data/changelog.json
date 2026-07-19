@@ -2830,6 +2830,13 @@
       "type": "fix",
       "summary": "The final leaderboard no longer marks every champion pick as wrong before the Final has actually been decided.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.5",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "Champion picks in the final leaderboard now show eliminated teams as out and Finalists as still alive, updating to the real result once the Final ends.",
+      "commit": "pending"
     }
   ]
 }
