@@ -833,6 +833,39 @@ async def set_final_match_narrative(
     return {"status": "ok", "final_match_narrative": competition.final_match_narrative}
 
 
+@router.post("/audit/run")
+async def run_final_audit_endpoint(
+    session: DbSession,
+    admin: AdminUser,
+) -> dict:
+    """Run the full-rescore final audit inline (Plan A Task A6).
+
+    Re-scores every eligible entry via the live scoring engine and diffs
+    the totals against the currently-banked leaderboard. Completes in
+    well under a second against the current pool size (68 eligible
+    entries → ~0.9s in dev), so it runs synchronously within the
+    request rather than as a background task. Re-runnable at any time —
+    not a one-shot finals-night script. Writes a new
+    ``final-audit-*.json`` artifact to ``backend/snapshots/``.
+    """
+    from app.services.final_audit import run_final_audit
+
+    summary = await run_final_audit(session)
+    return {"status": "ok", "summary": summary}
+
+
+@router.get("/audit/status")
+async def final_audit_status(admin: AdminUser) -> dict:
+    """Current/last full-rescore audit state, for the admin UI's
+    mount-time hydration and post-run polling."""
+    from app.services.final_audit import get_audit_state, load_latest_audit_summary
+
+    state = get_audit_state()
+    if state["summary"] is None:
+        state["summary"] = load_latest_audit_summary()
+    return state
+
+
 # ---------------------------------------------------------------------------
 # Knockout scoring gate (v2.181.1)
 # ---------------------------------------------------------------------------

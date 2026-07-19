@@ -51,6 +51,9 @@
 		setPostDeadlineLive,
 		setTournamentConcluded,
 		saveFinalNarrative,
+		runFinalAudit,
+		getAuditStatus,
+		type FinalAuditSummary,
 		triggerStandingsDriftCheck,
 		listOpenDriftEvents,
 		dismissDriftEvent,
@@ -166,6 +169,24 @@
 			narrativeError = e instanceof Error ? e.message : 'Failed to save narrative';
 		} finally {
 			savingNarrative = false;
+		}
+	}
+
+	// ─── Full-rescore final audit (Plan A Task A6) ────────────────────────
+	let auditRunning = false;
+	let auditSummary: FinalAuditSummary | null = null;
+	let auditError: string | null = null;
+
+	async function handleRunAudit() {
+		auditRunning = true;
+		auditError = null;
+		try {
+			const r = await runFinalAudit();
+			auditSummary = r.summary ?? null;
+		} catch (e) {
+			auditError = e instanceof Error ? e.message : 'Audit run failed';
+		} finally {
+			auditRunning = false;
 		}
 	}
 
@@ -679,9 +700,23 @@
 			loadEntrySettings(),
 			loadAudienceCounts(),
 			loadPoolPreview(),
-			loadSimulatorStatus()
+			loadSimulatorStatus(),
+			loadAuditStatus()
 		]);
 	});
+
+	// Hydrate the last audit run's result (if any) so an admin can see
+	// "last audit ran at X, 0 discrepancies" without re-triggering a
+	// fresh run just to check status. Best-effort — a failure here just
+	// leaves the sub-section blank until the admin presses the button.
+	async function loadAuditStatus() {
+		try {
+			const status = await getAuditStatus();
+			auditSummary = status.summary ?? null;
+		} catch {
+			// Silent — this is a convenience hydration, not a required load.
+		}
+	}
 
 	async function loadData() {
 		loading = true;
@@ -1016,6 +1051,27 @@
 					</button>
 					{#if narrativeSuccess}<div class="alert alert-success text-sm mt-2">{narrativeSuccess}</div>{/if}
 					{#if narrativeError}<div class="alert alert-error text-sm mt-2">{narrativeError}</div>{/if}
+				</div>
+
+				<div class="mt-4 border-t border-base-300/50 pt-3">
+					<h3 class="text-sm font-bold mb-1">Final audit</h3>
+					<p class="text-xs text-base-content/55 mb-2 max-w-prose">
+						Re-scores every eligible entry from scratch and diffs the totals against the live
+						leaderboard. Re-runnable any time — run it once before finals night as a dress
+						rehearsal, then again for real once the Final is settled.
+					</p>
+					<button class="btn btn-sm" type="button" on:click={handleRunAudit} disabled={auditRunning}>
+						{auditRunning ? 'Re-scoring…' : 'Run final audit'}
+					</button>
+					{#if auditSummary}
+						<p class="text-xs text-base-content/60 mt-2">
+							Last run {new Date(auditSummary.run_at).toLocaleString()} ·
+							{auditSummary.entries_verified} entries ·
+							{auditSummary.discrepancies}
+							{auditSummary.discrepancies === 1 ? 'discrepancy' : 'discrepancies'}
+						</p>
+					{/if}
+					{#if auditError}<div class="alert alert-error text-sm mt-2">{auditError}</div>{/if}
 				</div>
 			</section>
 

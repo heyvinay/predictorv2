@@ -171,6 +171,34 @@ export async function saveFinalNarrative(
 	return api.put('/admin/competition/final-narrative', { narrative });
 }
 
+/** Full-rescore final audit summary shape (Plan A Task A6) — mirrors
+ *  `final_audit.run_final_audit()`'s returned/stored summary dict. */
+export interface FinalAuditSummary {
+	run_at: string;
+	entries_verified: number;
+	matches_rescored: number;
+	bonus_questions: number;
+	discrepancies: number;
+	sources: string[];
+}
+
+/** Run the full-rescore final audit inline — re-scores every eligible
+ *  entry via the live scoring engine and diffs against the banked
+ *  leaderboard. Re-runnable at any time. */
+export async function runFinalAudit(): Promise<{ status: string; summary: FinalAuditSummary }> {
+	return api.post('/admin/audit/run', {});
+}
+
+/** Current/last full-rescore audit state — used to hydrate the admin
+ *  page with the LAST run's result without re-triggering a fresh run. */
+export async function getAuditStatus(): Promise<{
+	status: string;
+	summary: FinalAuditSummary | null;
+	error: string | null;
+}> {
+	return api.get('/admin/audit/status');
+}
+
 /** Flip the knockout-scoring gate (v2.181.1). When enabled=true the
  *  scoring engine starts paying out advancement points (group_advance
  *  / group_position bracket credits AND R32→winner credits). The
