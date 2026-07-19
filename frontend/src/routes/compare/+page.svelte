@@ -91,8 +91,18 @@
 			displayName: rowDisplayName(row, multiOwners),
 			finalRank: row.position,
 			totalPoints: row.total_points,
-			groupPoints: groupPtsOf(row, fold.group),
-			knockoutPoints: koPtsOf(row, fold.knockout),
+			// Pure match/bracket points — bonus is its own category below,
+			// not folded in here too. groupPtsOf/koPtsOf fold their bonus
+			// arg into the return value (that's the right call for
+			// EntryDrawer/StandingRow, which show bonus as a "+X bonus"
+			// annotation INSIDE Group/Knockout, not as a separate figure);
+			// passing 0 here keeps the three summary tiles non-overlapping
+			// so group + knockout + bonus actually sums to the total gap,
+			// matching how the wrap-up TitleMatrix's backend fields already
+			// do it (tournament_champion.py's _group_points/_knockout_points
+			// never include bonus either).
+			groupPoints: groupPtsOf(row, 0),
+			knockoutPoints: koPtsOf(row, 0),
 			bonusPoints: fold.group + fold.knockout,
 			matches: m,
 			bracket: br,
