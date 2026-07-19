@@ -112,7 +112,15 @@ export type EventName =
 	| 'feedback_submitted'
 	// Per-feature "Was this useful?" verdict from a What's New card.
 	// Carries feature_id + verdict ('up' | 'down').
-	| 'feature_rated';
+	| 'feature_rated'
+	// /compare head-to-head page. compare_opened carries default_pair
+	// (whether ?a=/?b= were absent, i.e. the page picked defaults);
+	// compare_pair_changed carries via ('picker' | 'swap');
+	// compare_tab_changed carries tab ('matches' | 'bracket' | 'bonus').
+	// All browser-fired; no backend allow-list entry needed.
+	| 'compare_opened'
+	| 'compare_pair_changed'
+	| 'compare_tab_changed';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog
