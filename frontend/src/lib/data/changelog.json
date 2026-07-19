@@ -2823,6 +2823,13 @@
       "type": "fix",
       "summary": "Muted text across light mode reads as dark ink instead of washed-out grey.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.4",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "The final leaderboard no longer marks every champion pick as wrong before the Final has actually been decided.",
+      "commit": "pending"
     }
   ]
 }
