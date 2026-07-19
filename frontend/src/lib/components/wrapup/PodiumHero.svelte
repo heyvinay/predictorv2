@@ -9,6 +9,7 @@
 	import { onMount } from 'svelte';
 	import { track } from '$lib/analytics';
 	import { getGroupStagePodium } from '$api/leaderboard';
+	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import type { FinalPodium } from '$lib/types/wrapup';
 
 	export let podium: FinalPodium;
@@ -62,8 +63,19 @@
 								🏐 Trionda ball
 							</span>
 						{/if}
-						<span class="hidden text-[11px] text-base-content/55 min-[560px]:block">
-							Champion pick: {col.e.champion_pick ?? '—'}
+						<span
+							class="hidden flex-wrap items-center justify-center gap-1 text-[11px] text-base-content/55 min-[560px]:flex"
+						>
+							Champion pick:
+							{#if col.e.champion_pick && hasFlag(col.e.champion_pick)}
+								<img
+									src={getFlagUrl(col.e.champion_pick, 'sm')}
+									alt=""
+									class="h-3 w-4 flex-none rounded-sm object-cover ring-1 ring-black/30"
+									loading="lazy"
+								/>
+							{/if}
+							{col.e.champion_pick ?? '—'}
 							{col.e.champion_hit ? '✓' : '✗'}
 							{col.cls === 'p1' && col.e.days_at_top
 								? ` · led ${col.e.days_at_top} of ${podium.total_days} days`

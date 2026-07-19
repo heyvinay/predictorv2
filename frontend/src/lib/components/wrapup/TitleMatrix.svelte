@@ -18,6 +18,7 @@
 	import { getEntryBonusReads } from '$api/leaderboard';
 	import { getMatchPredictions, getBracketPredictions } from '$api/predictions';
 	import { getBonusQuestions } from '$api/bonus';
+	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
 	import { track } from '$lib/analytics';
 	import {
 		buildSwings,
@@ -217,12 +218,18 @@
 					<td class="py-1.5">Champion pick</td>
 					{#each top3 as e, i}
 						<td
-							class="px-2 py-1.5 text-right text-xs {i === 0 ? 'bg-primary/10' : ''} {e.champion_hit
+							class="px-2 py-1.5 text-xs {i === 0 ? 'bg-primary/10' : ''} {e.champion_hit
 								? 'font-bold text-primary'
 								: 'text-base-content/55'}"
 						>
-							{e.champion_pick ?? '—'}
-							{e.champion_hit ? '✓' : '✗'}
+							<span class="flex items-center justify-end gap-1">
+								{#if e.champion_pick}
+									<FlagCode team={e.champion_pick} size="sm" />
+								{:else}
+									—
+								{/if}
+								{e.champion_hit ? '✓' : '✗'}
+							</span>
 						</td>
 					{/each}
 				</tr>

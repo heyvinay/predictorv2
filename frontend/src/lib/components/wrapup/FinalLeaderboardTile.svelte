@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { track } from '$lib/analytics';
 	import { rowDisplayName, groupPtsOf, koPtsOf, multiEntryUserIds } from '$lib/utils/leaderboardV4';
+	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 
 	export let rows: LbEntryV4[];
@@ -42,11 +43,15 @@
 					>{rowDisplayName(r, multiOwners)}{r.position === 1 ? ' 🏆' : ''}</span
 				>
 				<span
-					class="block text-[10px] {r.champion_pick === championTeam
+					class="flex items-center gap-1 text-[10px] {r.champion_pick === championTeam
 						? 'font-bold text-primary'
 						: 'text-base-content/40'}"
 				>
-					{r.champion_pick ?? '—'}
+					{#if r.champion_pick}
+						<FlagCode team={r.champion_pick} size="sm" />
+					{:else}
+						—
+					{/if}
 					{r.champion_pick === championTeam ? '✓' : '✗'}
 				</span>
 			</span>

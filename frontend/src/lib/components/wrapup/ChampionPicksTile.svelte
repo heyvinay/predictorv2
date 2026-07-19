@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
 	import type { ChampionPickOut } from '$lib/types/wrapup';
 
 	export let picks: ChampionPickOut[];
@@ -12,7 +13,10 @@
 	<p class="mb-2 text-xs text-base-content/50">Where the pool placed its title faith before a ball was kicked.</p>
 	{#each picks as p (p.team)}
 		<div class="mt-1.5 grid grid-cols-[92px_1fr_34px] items-center gap-2 text-[13px]">
-			<span class="truncate {p.is_actual ? 'font-bold text-primary' : ''}">{p.team} {p.is_actual ? '✓' : ''}</span>
+			<span class="flex min-w-0 items-center gap-1 truncate {p.is_actual ? 'font-bold text-primary' : ''}">
+				<FlagCode team={p.team} size="sm" />
+				{p.is_actual ? '✓' : ''}
+			</span>
 			<div class="h-2.5 overflow-hidden rounded-full bg-base-300/60">
 				<div class="h-full rounded-full {p.is_actual ? 'bg-primary' : 'bg-base-content/25'}" style={`width:${(p.count / max) * 100}%`}></div>
 			</div>

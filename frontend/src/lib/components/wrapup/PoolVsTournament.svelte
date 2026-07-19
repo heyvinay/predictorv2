@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
 	import type { KoLadderRowOut, PoolRetrospective } from '$lib/types/wrapup';
 
 	export let retro: PoolRetrospective;
@@ -33,8 +34,14 @@
 		<div class="rounded-box border border-primary/45 bg-primary/5 px-3 py-2">
 			<p class="text-[9px] uppercase tracking-wider text-base-content/40">Final called right</p>
 			<p class="font-display text-xl font-extrabold">{Math.round(retro.final_called_right_pct * 100)}%</p>
-			<p class="text-[10px] text-base-content/40">
-				backed <b class="text-primary">🏆 {retro.final_winner_team ?? '—'}</b> — world champions
+			<p class="flex flex-wrap items-center gap-1 text-[10px] text-base-content/40">
+				backed 🏆
+				{#if retro.final_winner_team}
+					<FlagCode team={retro.final_winner_team} size="sm" />
+				{:else}
+					<b class="text-primary">—</b>
+				{/if}
+				— world champions
 			</p>
 		</div>
 		<div class="rounded-box border border-base-300/60 bg-base-100 px-3 py-2">
@@ -102,9 +109,11 @@
 			<span class="col-start-2 flex flex-wrap gap-1">
 				{#if row.fallen_teams.length}
 					{#each row.fallen_teams.slice(0, 3) as t}
-						<span class="rounded-full border border-error/25 bg-error/[.06] px-2 py-0.5 text-[10px] font-semibold text-error/85"
-							>✕ {t}</span
+						<span
+							class="flex items-center gap-1 rounded-full border border-error/25 bg-error/[.06] px-2 py-0.5 text-[10px] font-semibold text-error/85"
 						>
+							✕ <FlagCode team={t} size="sm" />
+						</span>
 					{/each}
 					{#if row.fallen_teams.length > 3}
 						<span class="rounded-full border border-base-300/60 bg-base-100 px-2 py-0.5 text-[10px] text-base-content/40"
