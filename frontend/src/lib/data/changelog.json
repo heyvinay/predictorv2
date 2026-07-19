@@ -2886,6 +2886,13 @@
       "type": "fix",
       "summary": "Fixed the guest sign-in prompt on the wrap-up page, where the text sat stranded in empty space next to the sign-in card.",
       "commit": "pending"
+    },
+    {
+      "version": "2.218.0",
+      "date": "2026-07-20",
+      "type": "feature",
+      "summary": "Guests visiting the wrap-up page now see a sign-in prompt right at the top that jumps straight to the sign-in card.",
+      "commit": "pending"
     }
   ]
 }
