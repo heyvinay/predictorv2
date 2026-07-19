@@ -8,12 +8,11 @@
 		alt="Atlas Insurance"
 		class="mx-auto h-8 w-auto justify-self-center"
 	/>
-	<p class="font-display text-2xl font-extrabold leading-none text-primary">€500</p>
 	<p class="text-[13px] text-base-content/60">
-		donated to charity by <b class="text-base-content">Atlas Insurance</b>, topping up the pool's
-		own Soup Kitchen donation.
+		A big thank you to <b class="text-base-content">Atlas Insurance</b>, who topped up our Soup
+		Kitchen contribution by €500.
 	</p>
-	<p class="text-[11px] text-base-content/40">
-		…plus the Adidas Trionda match ball (€150), the runner-up side prize.
+	<p class="text-[13px] text-base-content/60">
+		They also provided the Adidas Trionda match ball (€150) as the runner-up side prize.
 	</p>
 </div>
