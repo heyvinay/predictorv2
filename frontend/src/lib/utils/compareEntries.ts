@@ -58,7 +58,10 @@ export function buildSummary(a: CompareEntryInput, b: CompareEntryInput): Compar
 function fixtureLabel(f: Fixture): string {
 	const score = f.score ? `${f.score.home_score}–${f.score.away_score}` : '';
 	const num = f.match_number != null ? `M${f.match_number} · ` : '';
-	return `${num}${f.home_team} ${score} ${f.away_team}`.replace(/\s+/g, ' ').trim();
+	// "Home vs Away 2–0" — fixture first, result after, so a reader
+	// doesn't have to parse the score sitting mid-sentence between the
+	// two team names.
+	return `${num}${f.home_team} vs ${f.away_team} ${score}`.replace(/\s+/g, ' ').trim();
 }
 
 function pickOf(m: MatchPredictionWithPoints | undefined): {

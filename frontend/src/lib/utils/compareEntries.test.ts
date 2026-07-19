@@ -53,7 +53,7 @@ describe('buildMatchRows', () => {
 		const rows = buildMatchRows(a, b, fixtures);
 		expect(rows).toHaveLength(2);
 		const m11 = rows.find((r) => r.fixtureId === 'f1')!;
-		expect(m11.label).toBe('M11 · England 2–0 Iran');
+		expect(m11.label).toBe('M11 · England vs Iran 2–0');
 		expect(m11.aPoints).toBeCloseTo(13.2);
 		expect(m11.bPoints).toBe(5);
 		expect(m11.delta).toBeCloseTo(8.2);
