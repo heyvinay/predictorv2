@@ -4,7 +4,7 @@
 </script>
 
 <div
-	class="grid items-center gap-4 rounded-box border border-dashed border-primary/45 bg-primary/5 p-4 min-[760px]:grid-cols-[1.1fr_1fr]"
+	class="grid items-start gap-4 rounded-box border border-dashed border-primary/45 bg-primary/5 p-4 min-[760px]:grid-cols-[1.1fr_1fr]"
 	on:pointerdown={() => track('wrapup_signin_started', {})}
 >
 	<div class="grid gap-1">
