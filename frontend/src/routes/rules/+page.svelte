@@ -17,12 +17,17 @@
 	import { onMount } from 'svelte';
 	import { getCompetitionInfo, type CompetitionInfo } from '$api/competition';
 	import { getBonusQuestions, type BonusQuestion } from '$api/bonus';
+	import { getFinalPodium } from '$api/leaderboard';
 	import { logarithmicRarityBonus } from '$lib/utils/matchBreakdown';
 	import { pageTitle } from '$stores/pageTitle';
 	import CountdownTimer from '$components/predictions/CountdownTimer.svelte';
+	import type { FinalPodium } from '$lib/types/wrapup';
 
 	let info: CompetitionInfo | null = null;
 	let bonusQuestions: BonusQuestion[] = [];
+	// Null pre-conclusion (public endpoint; admins may preview early) — the
+	// verification block below simply doesn't render until then.
+	let finalPodium: FinalPodium | null = null;
 
 	/** Cap of the rarity bonus — matches `match.rarity_cap` in
 	 *  config/worldcup2026.yml. Hardcoded here because this is the public
@@ -93,6 +98,11 @@
 			// Public endpoints — failure usually means backend is down. Page
 			// still renders with hardcoded defaults below.
 		}
+		// Separate call, same `.catch(() => null)` convention as WrapUp.svelte
+		// — a fetch failure here must never block the info/bonus fetch above,
+		// and the endpoint itself already returns null (not an error)
+		// pre-conclusion for non-admins.
+		finalPodium = await getFinalPodium().catch(() => null);
 	});
 
 	function fmtCurrency(n: number): string {
@@ -369,6 +379,27 @@
 				The "Provisional" pill on the leaderboard always links back here.
 			</p>
 		</div>
+
+		{#if finalPodium?.audit}
+			<div id="verification" class="mt-4 rounded-box border border-success/35 bg-base-100 p-4 scroll-mt-20">
+				<p class="mb-1">
+					<span class="rounded-badge border border-success/40 bg-success/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success"
+						>✓ Verified result</span
+					>
+				</p>
+				<p class="text-sm text-base-content/80">
+					<b>How the final result was verified.</b> After the final whistle, every one of the
+					<b>{finalPodium.audit.matches_rescored} matches</b>, all bracket advancement credits, and
+					the <b>{finalPodium.audit.bonus_questions} bonus questions</b> were re-scored for all
+					<b>{finalPodium.audit.entries_verified} entries</b> by an independent run of the scoring
+					engine — reading only immutable inputs, never the live database. Recomputed totals matched
+					the leaderboard with <b>{finalPodium.audit.discrepancies} discrepancies</b>.
+				</p>
+				<p class="mt-2 text-xs text-base-content/50">
+					Immutable sources: {finalPodium.audit.sources.join(' · ')}. Last audit run: {finalPodium.audit.run_at}.
+				</p>
+			</div>
+		{/if}
 	</section>
 
 	<!-- 07 — Fine print -->
