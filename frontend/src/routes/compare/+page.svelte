@@ -328,19 +328,22 @@
 				{#if tab === 'matches'}
 					<table class="w-full table-fixed text-sm">
 						<colgroup>
-							<col class="w-[34%]" />
 							<col class="w-[27%]" />
-							<col class="w-[27%]" />
+							<col class="w-[9%]" />
+							<col class="w-[26%]" />
+							<col class="w-[26%]" />
 							<col class="w-[12%]" />
 						</colgroup>
 						<thead><tr class="border-b border-base-300/60 text-left text-[10px] uppercase tracking-wider text-base-content/40">
-							<th class="py-2 pr-2 font-semibold">Match</th><th class="py-2 pr-2 font-semibold">{inputA.displayName}</th>
+							<th class="py-2 pr-2 font-semibold">Match</th><th class="py-2 pr-2 font-semibold">Result</th>
+							<th class="py-2 pr-2 font-semibold">{inputA.displayName}</th>
 							<th class="py-2 pr-2 font-semibold">{inputB.displayName}</th><th class="py-2 text-right font-semibold">Δ</th>
 						</tr></thead>
 						<tbody>
 							{#each matchRows as r (r.fixtureId)}
 								<tr class="border-t border-base-300/40 transition-colors hover:bg-base-300/15">
-									<td class="max-w-0 truncate py-2 pr-2">{r.label}</td>
+									<td class="max-w-0 truncate py-2 pr-2">{r.teams}</td>
+									<td class="py-2 pr-2 tabular-nums text-base-content/70">{r.resultScore}</td>
 									<td class="py-2 pr-2">
 										<div class="grid grid-cols-[2.75rem_1fr] items-baseline gap-1">
 											<span class="{pickTone(r.aKind)} tabular-nums">{r.aPick ?? '—'}</span>

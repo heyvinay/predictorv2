@@ -36,7 +36,9 @@ export type PickKind = 'exact' | 'result' | 'miss' | 'none';
 
 export interface MatchRow {
 	fixtureId: string;
-	label: string; // "M11 · England 2–0 Iran"
+	label: string; // "M11 · England vs Iran 2–0" — combined, for Swing/Waterfall labels
+	teams: string; // "M11 · England vs Iran" — no score, for the Match table column
+	resultScore: string; // "2–0" — the actual result, as its own aligned column
 	aPick: string | null; // "2–0"
 	bPick: string | null;
 	aPoints: number;
@@ -55,13 +57,22 @@ export function buildSummary(a: CompareEntryInput, b: CompareEntryInput): Compar
 	};
 }
 
-function fixtureLabel(f: Fixture): string {
-	const score = f.score ? `${f.score.home_score}–${f.score.away_score}` : '';
+function fixtureTeams(f: Fixture): string {
 	const num = f.match_number != null ? `M${f.match_number} · ` : '';
-	// "Home vs Away 2–0" — fixture first, result after, so a reader
-	// doesn't have to parse the score sitting mid-sentence between the
-	// two team names.
-	return `${num}${f.home_team} vs ${f.away_team} ${score}`.replace(/\s+/g, ' ').trim();
+	return `${num}${f.home_team} vs ${f.away_team}`.replace(/\s+/g, ' ').trim();
+}
+
+function fixtureResultScore(f: Fixture): string {
+	return f.score ? `${f.score.home_score}–${f.score.away_score}` : '';
+}
+
+function fixtureLabel(f: Fixture): string {
+	// "Home vs Away 2–0" — fixture first, result after, so a reader doesn't
+	// have to parse the score sitting mid-sentence between the two team
+	// names. Used by Swing/Waterfall labels (single-line, no column
+	// alignment concern); the Matches table renders `teams` and
+	// `resultScore` as separate columns instead so real scores line up.
+	return `${fixtureTeams(f)} ${fixtureResultScore(f)}`.replace(/\s+/g, ' ').trim();
 }
 
 function pickOf(m: MatchPredictionWithPoints | undefined): {
@@ -95,6 +106,8 @@ export function buildMatchRows(
 		rows.push({
 			fixtureId: id,
 			label: fixtureLabel(f),
+			teams: fixtureTeams(f),
+			resultScore: fixtureResultScore(f),
 			aPick: pa.pick,
 			bPick: pb.pick,
 			aPoints: pa.points,
