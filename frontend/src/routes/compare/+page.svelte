@@ -172,15 +172,36 @@
 			<div class="grid grid-cols-1 sm:grid-cols-[1fr_44px_1fr] gap-2 items-stretch mb-4">
 				<div class="relative">
 					<button
-						class="w-full rounded-box border px-3 py-2 text-left bg-base-100 border-base-300/60"
+						class="group flex w-full items-center justify-between gap-2 rounded-box border px-3 py-2.5 text-left transition-colors {pickerOpen ===
+						'a'
+							? 'border-primary/60 bg-primary/5'
+							: 'border-base-300/60 bg-base-100 hover:border-primary/40 hover:bg-primary/5'}"
 						on:click={() => togglePicker('a')}
+						aria-haspopup="listbox"
+						aria-expanded={pickerOpen === 'a'}
 					>
-						<p class="text-[10px] uppercase tracking-wider text-base-content/40">Entry A</p>
-						<p class="font-bold truncate">{inputA.displayName} ▾</p>
-						<p class="text-xs text-base-content/55">{inputA.totalPoints} pts · #{inputA.finalRank}</p>
+						<span class="min-w-0">
+							<span class="block text-[10px] font-bold uppercase tracking-wider text-base-content/40"
+								>Entry A · tap to change</span
+							>
+							<span class="block truncate font-bold">{inputA.displayName}</span>
+							<span class="block text-xs text-base-content/55"
+								>{inputA.totalPoints} pts · #{inputA.finalRank}</span
+							>
+						</span>
+						<span
+							class="grid h-7 w-7 flex-none place-items-center rounded-full text-sm transition-transform {pickerOpen ===
+							'a'
+								? 'rotate-180 bg-primary/15 text-primary'
+								: 'bg-base-300/60 text-base-content/60 group-hover:bg-primary/15 group-hover:text-primary'}"
+							aria-hidden="true">▾</span
+						>
 					</button>
 					{#if pickerOpen === 'a'}
-						<div class="absolute z-30 mt-1 w-full rounded-box border border-base-300 bg-base-200 p-2 shadow-card">
+						<div class="absolute z-30 mt-1 w-full rounded-box border border-primary/40 bg-base-200 p-2 shadow-card">
+							<p class="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+								Choose Entry A
+							</p>
 							<input
 								class="input input-sm input-bordered w-full mb-1"
 								placeholder="Search person or entry name…"
@@ -189,11 +210,17 @@
 							<div class="max-h-64 overflow-y-auto">
 								{#each pickerRows.slice(0, 50) as r (r.entry_id)}
 									<button
-										class="flex w-full items-center justify-between gap-2 rounded-btn px-2 py-1 text-left text-sm hover:bg-base-300/40"
+										class="flex w-full items-center justify-between gap-2 rounded-btn px-2 py-1.5 text-left text-sm hover:bg-primary/10 {r.entry_id ===
+										aId
+											? 'bg-primary/10 font-semibold text-primary'
+											: ''}"
 										on:click={() => choose('a', r.entry_id)}
 									>
 										<span class="truncate">{rowDisplayName(r, multiOwners)}</span>
-										<span class="flex-none text-xs text-base-content/50">#{r.position} · {r.total_points}</span>
+										<span class="flex flex-none items-center gap-1 text-xs text-base-content/50">
+											#{r.position} · {r.total_points}
+											{#if r.entry_id === aId}<span class="text-primary">✓</span>{/if}
+										</span>
 									</button>
 								{/each}
 							</div>
@@ -202,22 +229,44 @@
 				</div>
 
 				<button
-					class="hidden sm:grid place-items-center rounded-box border border-base-300/60 bg-base-100 text-base-content/60"
+					class="hidden place-items-center rounded-box border border-base-300/60 bg-base-100 text-base-content/60 transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary sm:grid"
 					on:click={swap}
 					aria-label="Swap entries"
+					title="Swap Entry A and Entry B"
 				>⇄</button>
 
 				<div class="relative">
 					<button
-						class="w-full rounded-box border px-3 py-2 text-left bg-base-100 border-primary/50"
+						class="group flex w-full items-center justify-between gap-2 rounded-box border px-3 py-2.5 text-left transition-colors {pickerOpen ===
+						'b'
+							? 'border-primary/60 bg-primary/5'
+							: 'border-primary/50 bg-base-100 hover:border-primary/70 hover:bg-primary/5'}"
 						on:click={() => togglePicker('b')}
+						aria-haspopup="listbox"
+						aria-expanded={pickerOpen === 'b'}
 					>
-						<p class="text-[10px] uppercase tracking-wider text-base-content/40">Entry B</p>
-						<p class="font-bold truncate">{inputB.displayName} ▾</p>
-						<p class="text-xs text-base-content/55">{inputB.totalPoints} pts · #{inputB.finalRank}</p>
+						<span class="min-w-0">
+							<span class="block text-[10px] font-bold uppercase tracking-wider text-base-content/40"
+								>Entry B · tap to change</span
+							>
+							<span class="block truncate font-bold">{inputB.displayName}</span>
+							<span class="block text-xs text-base-content/55"
+								>{inputB.totalPoints} pts · #{inputB.finalRank}</span
+							>
+						</span>
+						<span
+							class="grid h-7 w-7 flex-none place-items-center rounded-full text-sm transition-transform {pickerOpen ===
+							'b'
+								? 'rotate-180 bg-primary/15 text-primary'
+								: 'bg-base-300/60 text-base-content/60 group-hover:bg-primary/15 group-hover:text-primary'}"
+							aria-hidden="true">▾</span
+						>
 					</button>
 					{#if pickerOpen === 'b'}
-						<div class="absolute z-30 mt-1 w-full rounded-box border border-base-300 bg-base-200 p-2 shadow-card">
+						<div class="absolute z-30 mt-1 w-full rounded-box border border-primary/40 bg-base-200 p-2 shadow-card">
+							<p class="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-wider text-base-content/40">
+								Choose Entry B
+							</p>
 							<input
 								class="input input-sm input-bordered w-full mb-1"
 								placeholder="Search person or entry name…"
@@ -226,11 +275,17 @@
 							<div class="max-h-64 overflow-y-auto">
 								{#each pickerRows.slice(0, 50) as r (r.entry_id)}
 									<button
-										class="flex w-full items-center justify-between gap-2 rounded-btn px-2 py-1 text-left text-sm hover:bg-base-300/40"
+										class="flex w-full items-center justify-between gap-2 rounded-btn px-2 py-1.5 text-left text-sm hover:bg-primary/10 {r.entry_id ===
+										bId
+											? 'bg-primary/10 font-semibold text-primary'
+											: ''}"
 										on:click={() => choose('b', r.entry_id)}
 									>
 										<span class="truncate">{rowDisplayName(r, multiOwners)}</span>
-										<span class="flex-none text-xs text-base-content/50">#{r.position} · {r.total_points}</span>
+										<span class="flex flex-none items-center gap-1 text-xs text-base-content/50">
+											#{r.position} · {r.total_points}
+											{#if r.entry_id === bId}<span class="text-primary">✓</span>{/if}
+										</span>
 									</button>
 								{/each}
 							</div>
