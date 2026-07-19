@@ -52,7 +52,9 @@
 					{:else}
 						—
 					{/if}
-					{r.champion_pick === championTeam ? '✓' : '✗'}
+					{#if championTeam}
+						{r.champion_pick === championTeam ? '✓' : '✗'}
+					{/if}
 				</span>
 			</span>
 			<span class="text-right text-xs tabular-nums text-base-content/55"
