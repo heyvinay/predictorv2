@@ -748,6 +748,33 @@
 		font-weight: 700;
 		letter-spacing: 0.005em;
 	}
+
+	/* text-base-content/NN muted-text scale, re-floored for hybrid (light).
+	 * base-content is near-black (#0B1329) in both themes, so the SAME
+	 * alpha fraction reads very differently per theme: in premium-night
+	 * (near-white on dark) a low alpha recedes into the dark canvas as
+	 * intended, but in hybrid (near-black on white/light cards) that same
+	 * low alpha renders as washed-out grey rather than ink. These
+	 * higher-specificity overrides raise the effective floor to 65%+ so
+	 * every tier reads as dark text, while keeping the relative ordering
+	 * (lower source value stays lighter than higher) so hierarchy survives.
+	 * One central fix — every text-base-content/NN usage across the app
+	 * (1000+ call sites) picks this up automatically, no per-component edits. */
+	[data-theme="hybrid"] .text-base-content\/20 { color: oklch(var(--bc) / 65%); }
+	[data-theme="hybrid"] .text-base-content\/25 { color: oklch(var(--bc) / 68%); }
+	[data-theme="hybrid"] .text-base-content\/30 { color: oklch(var(--bc) / 70%); }
+	[data-theme="hybrid"] .text-base-content\/35 { color: oklch(var(--bc) / 73%); }
+	[data-theme="hybrid"] .text-base-content\/40 { color: oklch(var(--bc) / 75%); }
+	[data-theme="hybrid"] .text-base-content\/45 { color: oklch(var(--bc) / 78%); }
+	[data-theme="hybrid"] .text-base-content\/50 { color: oklch(var(--bc) / 80%); }
+	[data-theme="hybrid"] .text-base-content\/55 { color: oklch(var(--bc) / 83%); }
+	[data-theme="hybrid"] .text-base-content\/60 { color: oklch(var(--bc) / 85%); }
+	[data-theme="hybrid"] .text-base-content\/65 { color: oklch(var(--bc) / 87%); }
+	[data-theme="hybrid"] .text-base-content\/70 { color: oklch(var(--bc) / 90%); }
+	[data-theme="hybrid"] .text-base-content\/75 { color: oklch(var(--bc) / 92%); }
+	[data-theme="hybrid"] .text-base-content\/80 { color: oklch(var(--bc) / 94%); }
+	[data-theme="hybrid"] .text-base-content\/85 { color: oklch(var(--bc) / 97%); }
+	[data-theme="hybrid"] .text-base-content\/90 { color: oklch(var(--bc)); }
 }
 
 /* Hide number input spinners globally */
