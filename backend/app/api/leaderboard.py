@@ -985,6 +985,43 @@ async def final_podium_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Pool-vs-tournament retrospective (Plan A Task A7)
+# ---------------------------------------------------------------------------
+# Same gate precedent as /final-podium: visible to everyone once
+# tournament_concluded, admins may preview beforehand.
+
+
+@router.get("/pool-retrospective", response_model=None)
+async def pool_retrospective_endpoint(
+    session: DbSession,
+    user: OptionalUser,
+):
+    """Pool-vs-tournament wrap-up payload (or null pre-conclusion for
+    non-admins). Aggregates collective stats (misses/bankers, KO ladder,
+    bonus hit rates, champion distribution) plus a per-member personal
+    wrap when a signed-in user is present."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.competition import Competition
+    from app.schemas.pool_retrospective import PoolRetrospective
+    from app.services.pool_retrospective import compute_pool_retrospective
+
+    comp = (
+        await session.execute(
+            sa_select(Competition).where(Competition.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    concluded = bool(comp and comp.tournament_concluded)
+    if not concluded and not (user and user.is_admin):
+        return None
+
+    data = await compute_pool_retrospective(
+        session, for_user_id=user.id if user else None
+    )
+    return PoolRetrospective(**data)
+
+
+# ---------------------------------------------------------------------------
 # Knockout win-probability simulator
 # ---------------------------------------------------------------------------
 # Gate mirrors the all-entries CSV export pattern (predictions.py):
