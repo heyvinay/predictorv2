@@ -113,7 +113,7 @@
 			<!-- Row 3: personal / sign-in + feedback -->
 			{#if $isAuthenticated && personal}
 				<section class="col-span-6 min-w-0 min-[1100px]:col-span-4">
-					<YourTournament {personal} poolSize={rows.length} />
+					<YourTournament {personal} allPersonal={retro?.personal ?? [personal]} poolSize={rows.length} />
 				</section>
 				<section class="col-span-6 min-w-0 min-[760px]:col-span-3 min-[1100px]:col-span-2">
 					<FeedbackTile />
