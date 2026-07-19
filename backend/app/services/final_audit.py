@@ -4,10 +4,16 @@ Re-scores EVERY eligible entry with a fresh run of the scoring engine
 (the same calls `scripts/audit_top3_v2.py` uses for its step ④
 independent re-score) and compares the result against the live
 leaderboard's banked totals. The artifact JSON lands in
-``backend/snapshots/`` (the same committed audit-trail directory that
-already holds ``predictions-snapshot-*.csv`` files, per
-``backend/snapshots/MANIFEST.md``) as a NEW ``final-audit-*.json``
-pattern — existing snapshot files are never touched.
+``backend/data/`` — the same writable runtime-state mount
+``odds_cache.json`` already uses (``./backend/data:/app/data`` in
+docker-compose, no ``:ro``). It deliberately does NOT land in
+``backend/snapshots/``: that directory is mounted read-only in
+production specifically so nothing at runtime can ever touch the
+frozen ``predictions-snapshot-*.csv`` files there (see the compose
+comment), and this service needs to write-then-immediately-read its
+own artifact on every admin-triggered run — an admin who wants a
+permanent, git-committed record of a given run should copy the
+artifact from ``backend/data/`` into ``backend/snapshots/`` by hand.
 
 Unlike ``audit_top3_v2.py`` (a one-off CLI script that also cross-
 checks Resend emails and a frozen Google Sheet snapshot for a hand-
@@ -30,7 +36,7 @@ from app.models._datetime import utc_now
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "snapshots"
+SNAPSHOT_DIR = Path(__file__).resolve().parents[2] / "data"
 
 SOURCES = [
     "deadline-night predictions snapshot (committed to git)",

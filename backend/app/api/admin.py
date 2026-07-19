@@ -847,7 +847,8 @@ async def run_final_audit_endpoint(
     entries → ~0.9s in dev), so it runs synchronously within the
     request rather than as a background task. Re-runnable at any time —
     not a one-shot finals-night script. Writes a new
-    ``final-audit-*.json`` artifact to ``backend/snapshots/``.
+    ``final-audit-*.json`` artifact to ``backend/data/`` (writable at
+    runtime, unlike the read-only ``backend/snapshots/`` archive).
     """
     from app.services.final_audit import run_final_audit
 

@@ -40,3 +40,14 @@ async def test_latest_summary_roundtrip(db_session, tmp_path, monkeypatch):
     await final_audit.run_final_audit(db_session)
     loaded = final_audit.load_latest_audit_summary()
     assert loaded is not None and loaded["discrepancies"] == 0
+
+
+def test_default_dir_is_not_the_readonly_snapshots_archive():
+    """Regression pin: backend/snapshots/ is mounted `:ro` in production
+    docker-compose (protects the frozen predictions-snapshot-*.csv files)
+    — a real 2026-07-19 prod incident had this service default-pointed
+    there and every "Run final audit" click 500'd with
+    `OSError: [Errno 30] Read-only file system`. The real default must
+    stay on a writable runtime mount (backend/data/, same as
+    odds_cache.json), never backend/snapshots/."""
+    assert final_audit.SNAPSHOT_DIR.name != "snapshots"
