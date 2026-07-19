@@ -134,7 +134,12 @@ export type EventName =
 	// each is actually wired up.
 	| 'wrapup_viewed'
 	| 'wrapup_podium_row_clicked'
-	| 'wrapup_verified_link_clicked';
+	| 'wrapup_verified_link_clicked'
+	| 'wrapup_compare_cta_clicked'
+	| 'wrapup_matrix_compare_clicked'
+	| 'wrapup_leaderboard_full_clicked'
+	| 'wrapup_footer_link_clicked'
+	| 'wrapup_signin_started';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog

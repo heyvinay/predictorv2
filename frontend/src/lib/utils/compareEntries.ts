@@ -111,8 +111,11 @@ export function buildMatchRows(
 
 import type { ScoringRules } from '$lib/types/results';
 
-/** Bridge: BracketPrediction keys (plural QF/SF) ↔ stage keys (singular). */
-const BRACKET_STAGES: { key: keyof BracketPrediction; stage: string; label: string }[] = [
+/** Bridge: BracketPrediction keys (plural QF/SF) ↔ stage keys (singular).
+ *  Exported so multi-entry consumers (elementValues below) can resolve a
+ *  bracket Swing's `key` (a stage string) back to the BracketPrediction
+ *  field without re-deriving the mapping. */
+export const BRACKET_STAGES: { key: keyof BracketPrediction; stage: string; label: string }[] = [
 	{ key: 'round_of_32', stage: 'round_of_32', label: 'Round of 32' },
 	{ key: 'round_of_16', stage: 'round_of_16', label: 'Round of 16' },
 	{ key: 'quarter_finals', stage: 'quarter_final', label: 'Quarter-finals' },
@@ -215,6 +218,12 @@ export interface Swing {
 	label: string;
 	why: string; // "A exact (13.2) · B result (5)"
 	delta: number;
+	/** Identifying key for the underlying element — fixtureId for 'match',
+	 *  stage for 'bracket', questionId for 'bonus'. Additive field (not
+	 *  used by the two-entry /compare page) so N-entry consumers like the
+	 *  wrap-up Title Matrix can look up each entry's own raw value via
+	 *  elementValues() without re-parsing the display label. */
+	key: string;
 }
 
 const KIND_WORD: Record<PickKind, string> = {
@@ -235,7 +244,8 @@ export function buildSwings(
 			kind: 'match',
 			label: r.label,
 			why: `${KIND_WORD[r.aKind]} (${r.aPoints}) · ${KIND_WORD[r.bKind]} (${r.bPoints})`,
-			delta: r.delta
+			delta: r.delta,
+			key: r.fixtureId
 		});
 	}
 	for (const r of buildBracketRows(a, b, actual, rules)) {
@@ -244,7 +254,8 @@ export function buildSwings(
 			kind: 'bracket',
 			label: `Bracket — ${r.label}`,
 			why: `${r.aHits} vs ${r.bHits} correct (+${r.aPoints} / +${r.bPoints})`,
-			delta: r.delta
+			delta: r.delta,
+			key: r.stage
 		});
 	}
 	for (const r of buildBonusRows(a, b)) {
@@ -253,9 +264,56 @@ export function buildSwings(
 			kind: 'bonus',
 			label: `Bonus — ${r.label}`,
 			why: `${r.aAnswer ?? '—'} (+${r.aPoints}) · ${r.bAnswer ?? '—'} (+${r.bPoints})`,
-			delta: r.delta
+			delta: r.delta,
+			key: r.questionId
 		});
 	}
 	swings.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
 	return swings;
+}
+
+/**
+ * elementValues — the N-entry counterpart to buildSwings' pairwise delta.
+ * Given a Swing (identifying one match / bracket stage / bonus question via
+ * its `key`) and a list of entries, returns each entry's own raw point
+ * value for that element, in the same order as `inputs`. Used by the
+ * wrap-up Title Matrix to show top-3 entries side by side rather than a
+ * two-way delta — never re-derives scoring, only reads each entry's own
+ * already-served points (scoring-parity rule).
+ */
+export function elementValues(
+	inputs: CompareEntryInput[],
+	swing: Swing,
+	actual: ActualAdvancement,
+	rules: ScoringRules
+): number[] {
+	if (swing.kind === 'match') {
+		return inputs.map((inp) => {
+			const m = inp.matches.find((mm) => mm.fixture_id === swing.key);
+			return m?.points?.total ?? 0;
+		});
+	}
+	if (swing.kind === 'bracket') {
+		if (swing.key === 'winner') {
+			const per = rules.advancement['winner'] ?? 0;
+			const winners = actual['winner'];
+			return inputs.map((inp) => {
+				const hit = !!inp.bracket?.winner && !!winners?.has(inp.bracket.winner);
+				return hit ? per : 0;
+			});
+		}
+		const stageInfo = BRACKET_STAGES.find((s) => s.stage === swing.key);
+		const reached = actual[swing.key];
+		const per = rules.advancement[swing.key] ?? 0;
+		return inputs.map((inp) => {
+			const teams = (stageInfo ? (inp.bracket?.[stageInfo.key] as string[] | undefined) : undefined) ?? [];
+			const hits = reached ? teams.filter((t) => reached.has(t)).length : 0;
+			return hits * per;
+		});
+	}
+	// bonus
+	return inputs.map((inp) => {
+		const r = inp.bonusReads.find((br) => br.question_id === swing.key);
+		return r?.points ?? 0;
+	});
 }
