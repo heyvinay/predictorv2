@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — Mission Control hero, MULTI-ENTRY in context. Single entry is
+     the clean default; with 2+ entries an "all your entries" strip + switcher
+     appears under the hero. Points never aggregate; hero leads with best entry.
+     premium-night tokens (+ hybrid via theme-hybrid.css). -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control — multi-entry hero (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" /><link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(950px 520px at 78% -12%,rgba(212,175,55,.12),transparent 60%);}
+  main{position:relative;z-index:1;} .wrap{max-width:760px;margin:0 auto;padding:0 16px;} .muted{color:color-mix(in srgb,var(--content) 55%,transparent);} .font-hero{font-family:'Bebas Neue',sans-serif;letter-spacing:.02em;}
+  .topbar{height:58px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .topbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .brand{display:flex;align-items:center;gap:9px;} .brand .lg{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#a87f20);display:grid;place-items:center;color:#0B1329;font-weight:800;font-family:'Manrope';font-size:13px;} .brand .nm{font-family:'Manrope';font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:lowercase;opacity:.85;}
+  .livepill{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;background:rgba(185,28,28,.16);color:#fca5a5;padding:5px 11px;border-radius:999px;} .dot{width:7px;height:7px;border-radius:50%;background:#ef4444;animation:p 1.6s infinite;} @keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .hero{margin-top:18px;padding:24px;border-radius:var(--box);background:linear-gradient(135deg,var(--base-200),color-mix(in srgb,var(--base-300) 55%,var(--base-200)));border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);box-shadow:var(--card-shadow);}
+  .greeting{font-size:13px;font-weight:600;} .htitle{font-family:'Bebas Neue';font-size:clamp(32px,5vw,52px);line-height:.92;margin:8px 0 6px;} .htitle .ac{color:var(--primary);}
+  .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:8px;}
+  .stat{background:color-mix(in srgb,var(--base-100) 45%,transparent);border-radius:var(--btn);padding:12px 13px;border:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);}
+  .stat .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);} .stat .v{font-family:'Manrope';font-weight:800;font-size:24px;margin-top:2px;} .stat .s{font-size:11px;margin-top:2px;}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;} .pill.up{background:rgba(5,150,105,.18);color:#34d399;}
+
+  /* all your entries strip */
+  .entries{margin-top:16px;}
+  .entries .cap{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 50%,transparent);margin-bottom:9px;}
+  .estrip{display:flex;gap:11px;overflow:hidden;}
+  .ecard{flex:0 0 165px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:13px;box-shadow:var(--card-shadow);}
+  .ecard.active{border-color:var(--primary);background:rgba(212,175,55,.08);}
+  .ecard .top{display:flex;align-items:center;justify-content:space-between;}
+  .ecard .nm{font-family:'Manrope';font-weight:800;font-size:14px;} .ecard .badge{font-size:8.5px;font-weight:800;background:rgba(212,175,55,.2);color:var(--primary);padding:2px 6px;border-radius:999px;}
+  .ecard .rk{font-family:'Manrope';font-weight:800;font-size:22px;margin-top:8px;} .ecard .rk .u{font-size:12px;opacity:.5;}
+  .ecard .pts{font-size:12px;color:color-mix(in srgb,var(--content) 60%,transparent);} .ecard .mv{font-size:10.5px;font-weight:700;margin-top:6px;}
+  .ecard .mv.up{color:#34d399;} .ecard .mv.dn{color:#f87171;}
+  .eadd{flex:0 0 56px;border:1px dashed color-mix(in srgb,var(--base-300) 80%,transparent);border-radius:var(--box);display:grid;place-items:center;color:color-mix(in srgb,var(--content) 45%,transparent);font-size:22px;}
+
+  .note{margin-top:12px;font-size:11.5px;color:color-mix(in srgb,var(--content) 55%,transparent);text-align:center;}
+  .note b{color:var(--primary);}
+  /* single-entry callout */
+  .single{margin-top:14px;background:color-mix(in srgb,var(--base-300) 30%,var(--base-200));border:1px dashed color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:var(--box);padding:12px 15px;font-size:12px;color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .single b{color:var(--content);}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:22px 0 26px;}
+  .sect-cap{font-size:11px;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:color-mix(in srgb,var(--content) 45%,transparent);margin:22px 0 9px;}
+</style></head>
+<body><main>
+  <div class="topbar"><div class="wrap inner"><div class="brand"><span class="lg">P</span><span class="nm">the&nbsp;predictor</span></div><span class="livepill"><span class="dot"></span>2 LIVE</span></div></div>
+  <div class="wrap">
+
+    <div class="sect-cap">Multi-entry hero — leads with your best, all entries one tap away</div>
+    <div class="hero">
+      <span class="greeting muted">Good evening, Vinay · your best entry</span>
+      <div class="htitle">SAMBA KINGS<br><span class="ac">3RD OF 31</span></div>
+      <div class="stat-row">
+        <div class="stat"><div class="l">Rank</div><div class="v">3rd</div><div class="s pill up">▲ up 4</div></div>
+        <div class="stat"><div class="l">Points</div><div class="v">218</div><div class="s muted">+34 today</div></div>
+        <div class="stat"><div class="l">Gap to 1st</div><div class="v">11</div><div class="s muted">pts behind</div></div>
+      </div>
+
+      <div class="entries">
+        <div class="cap"><span>All your entries · 3</span><span style="color:var(--primary);">tap to switch</span></div>
+        <div class="estrip">
+          <div class="ecard active"><div class="top"><span class="nm">Samba Kings</span><span class="badge">ACTIVE</span></div><div class="rk">3<span class="u">rd</span></div><div class="pts">218 pts</div><div class="mv up">▲ 4 this matchday</div></div>
+          <div class="ecard"><div class="top"><span class="nm">Dark Horse</span></div><div class="rk">14<span class="u">th</span></div><div class="pts">191 pts</div><div class="mv up">▲ 9 this matchday</div></div>
+          <div class="ecard"><div class="top"><span class="nm">Wildcard</span></div><div class="rk">22<span class="u">nd</span></div><div class="pts">176 pts</div><div class="mv dn">▼ 3 this matchday</div></div>
+          <div class="eadd">+</div>
+        </div>
+        <div class="note">Each entry is its own competitor — <b>points never combine</b>. The hero, results &amp; stats follow whichever entry is active.</div>
+      </div>
+    </div>
+
+    <div class="single">📎 <b>Most users have one entry</b> — in that case this strip and the switcher don't appear at all; the hero just shows your single entry. (Single-entry is the clean default.)</div>
+
+    <p class="footer-note">Mockup · Mission Control multi-entry hero · premium-night theme.</p>
+  </div>
+</main></body></html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<!--
+  Sample / mockup ONLY — not wired into the app.
+  Faithful static preview of the proposed member "Mission Control" homepage.
+  Uses the exact premium-night / hybrid theme tokens + font stack from CLAUDE.md.
+  Toggle theme with <body class="hybrid"> (default is premium-night / dark).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Predictor — Mission Control (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" />
+<style>
+  :root {
+    --primary:#D4AF37; --success:#059669; --warning:#D97706; --error:#B91C1C;
+    --base-100:#0B1329; --base-200:#1C2541; --base-300:#2A3552; --content:#E2E8F0;
+    --box:0.875rem; --btn:0.625rem; --badge:0.5rem;
+    --card-shadow:0 18px 40px -20px rgba(0,0,0,.6);
+    --glow-gold:0 0 0 1px rgba(212,175,55,.25), 0 10px 40px -12px rgba(212,175,55,.35);
+  }
+  body.hybrid {
+    --primary:#B8941F; --warning:#B45309;
+    --base-100:#E2E7F0; --base-200:#FFFFFF; --base-300:#D3DBE7; --content:#0B1329;
+    --card-shadow:0 12px 30px -18px rgba(15,25,50,.25);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--base-100); color:var(--content);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+  }
+  .font-display{font-family:'Manrope',sans-serif;font-weight:800;letter-spacing:-.01em;}
+  .font-hero{font-family:'Bebas Neue',sans-serif;letter-spacing:.02em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 24px;}
+
+  /* pitch / noise atmosphere on the canvas */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(212,175,55,.10), transparent 60%),
+      radial-gradient(700px 500px at -10% 10%, rgba(5,150,105,.07), transparent 55%);
+  }
+  body.hybrid::before{
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(184,148,31,.10), transparent 60%);
+  }
+  main{position:relative;z-index:1;}
+
+  /* ---------- top app bar (mirrors +layout.svelte chrome) ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:30;
+    background:rgba(11,19,41,.82);backdrop-filter:blur(12px);
+    border-bottom:1px solid color-mix(in srgb, var(--base-300) 60%, transparent);
+  }
+  body.hybrid .topbar{background:rgba(11,19,41,.95);}
+  .topbar-inner{display:flex;align-items:center;gap:18px;height:60px;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-logo{width:30px;height:30px;border-radius:50%;
+    background:linear-gradient(135deg,var(--primary),#a87f20);
+    display:grid;place-items:center;color:#0B1329;font-weight:800;font-family:'Manrope';font-size:14px;}
+  .brand-name{font-family:'Manrope';font-weight:700;letter-spacing:.04em;font-size:13px;text-transform:lowercase;opacity:.85;color:#E2E8F0;}
+  .topbar .brand-name{color:#E2E8F0;}
+  .nav{display:flex;gap:4px;margin-left:8px;}
+  .nav a{padding:8px 12px;border-radius:var(--btn);font-size:13px;font-weight:600;color:#E2E8F0;opacity:.6;text-decoration:none;}
+  .nav a.active{opacity:1;background:rgba(212,175,55,.14);color:var(--primary);}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px;}
+  .live-pill{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;
+    background:rgba(185,28,28,.16);color:#fca5a5;padding:6px 11px;border-radius:999px;}
+  .dot-live{width:7px;height:7px;border-radius:50%;background:#ef4444;animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--base-300);
+    display:grid;place-items:center;font-weight:700;font-size:13px;color:#E2E8F0;}
+
+  /* ---------- generic card ---------- */
+  .card{
+    background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%, transparent);
+    border-radius:var(--box);box-shadow:var(--card-shadow);
+  }
+  .card-pad{padding:20px;}
+  .section-eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);}
+  .muted{color:color-mix(in srgb,var(--content) 55%, transparent);}
+  .muted-2{color:color-mix(in srgb,var(--content) 70%, transparent);}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:999px;letter-spacing:.04em;}
+  .pill-up{background:rgba(5,150,105,.18);color:#34d399;}
+  .pill-down{background:rgba(185,28,28,.18);color:#f87171;}
+  .pill-gold{background:rgba(212,175,55,.16);color:var(--primary);}
+
+  /* ---------- HERO status strip ---------- */
+  .hero{padding:28px 0 8px;}
+  .hero-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;}
+  .hero-head{display:flex;flex-direction:column;justify-content:center;gap:14px;}
+  .greeting{font-size:13px;font-weight:600;}
+  .hero-title{font-family:'Bebas Neue';font-size:clamp(34px,5vw,60px);line-height:.92;}
+  .hero-title .accent{color:var(--primary);}
+  .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px;}
+  .stat{background:color-mix(in srgb,var(--base-300) 45%, transparent);border-radius:var(--btn);padding:13px 14px;border:1px solid color-mix(in srgb,var(--base-300) 60%, transparent);}
+  .stat .label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 55%, transparent);font-weight:700;}
+  .stat .value{font-family:'Manrope';font-weight:800;font-size:26px;line-height:1.1;margin-top:3px;}
+  .stat .sub{font-size:11px;margin-top:2px;}
+
+  /* tournament pulse mini card */
+  .pulse{display:flex;flex-direction:column;gap:10px;}
+  .pulse-row{display:flex;align-items:center;gap:10px;font-size:13px;}
+  .pulse-ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:13px;}
+
+  /* ---------- match rail ---------- */
+  .rail{display:flex;gap:14px;overflow:hidden;padding-bottom:4px;}
+  .match{flex:0 0 232px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%, transparent);
+    border-radius:var(--box);padding:14px;box-shadow:var(--card-shadow);position:relative;overflow:hidden;}
+  .match.live{border-color:rgba(185,28,28,.5);box-shadow:0 0 0 1px rgba(185,28,28,.3),var(--card-shadow);}
+  .match-top{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 55%, transparent);margin-bottom:11px;}
+  .badge-live{color:#f87171;display:flex;align-items:center;gap:5px;}
+  .badge-final{color:color-mix(in srgb,var(--content) 55%, transparent);}
+  .badge-soon{color:var(--primary);}
+  .team{display:flex;align-items:center;gap:9px;padding:4px 0;}
+  .team .fi{width:22px;height:16px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.25);flex:none;}
+  .team .nm{font-size:14px;font-weight:600;flex:1;}
+  .team .sc{font-family:'Manrope';font-weight:800;font-size:18px;}
+  .team.win .nm{color:var(--content);}
+  .team.lose .nm,.team.lose .sc{opacity:.5;}
+  .match-foot{margin-top:11px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--base-300) 60%, transparent);font-size:11px;display:flex;justify-content:space-between;align-items:center;}
+  .your-pick{color:color-mix(in srgb,var(--content) 55%, transparent);}
+  .pts-chip{font-family:'JetBrains Mono';font-weight:700;font-size:11px;padding:2px 7px;border-radius:6px;}
+  .pts-good{background:rgba(5,150,105,.2);color:#34d399;}
+  .pts-mid{background:rgba(217,119,6,.2);color:#fbbf24;}
+  .pts-zero{background:color-mix(in srgb,var(--base-300) 60%, transparent);color:color-mix(in srgb,var(--content) 55%, transparent);}
+
+  /* ---------- layout grid for body ---------- */
+  .body-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;margin-top:6px;}
+  .col{display:flex;flex-direction:column;gap:18px;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;}
+  .section-head h2{font-family:'Manrope';font-weight:800;font-size:18px;}
+  .see-all{font-size:12px;font-weight:600;color:var(--primary);text-decoration:none;}
+
+  /* leaderboard mini */
+  .lb-row{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:11px 12px;border-radius:var(--btn);}
+  .lb-row+ .lb-row{margin-top:4px;}
+  .lb-row.you{background:rgba(212,175,55,.1);border:1px solid rgba(212,175,55,.35);}
+  .lb-rank{font-family:'Manrope';font-weight:800;font-size:16px;text-align:center;}
+  .lb-rank.top{color:var(--primary);}
+  .lb-name{font-size:14px;font-weight:600;}
+  .lb-sub{font-size:11px;}
+  .lb-pts{font-family:'Manrope';font-weight:800;font-size:16px;text-align:right;}
+  .lb-mv{font-size:10px;font-weight:700;}
+  .spark{display:block;}
+  .gap-note{margin-top:12px;padding:11px 13px;border-radius:var(--btn);background:color-mix(in srgb,var(--base-300) 40%, transparent);font-size:12.5px;}
+  .gap-note b{color:var(--primary);}
+
+  /* points activity feed */
+  .feed-item{display:flex;gap:12px;padding:12px 0;border-top:1px solid color-mix(in srgb,var(--base-300) 55%, transparent);}
+  .feed-item:first-child{border-top:0;}
+  .feed-ic{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;font-family:'Manrope';font-weight:800;font-size:12px;}
+  .feed-body{flex:1;font-size:13px;}
+  .feed-body .ttl{font-weight:600;}
+  .feed-body .meta{font-size:11.5px;margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;}
+  .tag{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--base-300) 60%, transparent);color:color-mix(in srgb,var(--content) 70%, transparent);}
+  .tag.exact{background:rgba(5,150,105,.18);color:#34d399;}
+  .tag.rarity{background:rgba(212,175,55,.16);color:var(--primary);}
+  .feed-pts{font-family:'Manrope';font-weight:800;font-size:17px;align-self:center;}
+  .feed-pts.pos{color:#34d399;}
+
+  /* AI storylines */
+  .ai-head{display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+  .ai-badge{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    background:linear-gradient(135deg,rgba(212,175,55,.25),rgba(5,150,105,.18));
+    color:var(--primary);padding:3px 8px;border-radius:999px;border:1px solid rgba(212,175,55,.3);}
+  .story{padding:16px;border-radius:var(--box);background:
+      linear-gradient(180deg,color-mix(in srgb,var(--base-300) 35%, transparent),transparent);
+    border:1px solid color-mix(in srgb,var(--base-300) 60%, transparent);}
+  .story+.story{margin-top:12px;}
+  .story .kicker{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--primary);}
+  .story h3{font-family:'Manrope';font-weight:800;font-size:16px;margin:5px 0 6px;line-height:1.25;}
+  .story p{font-size:13px;color:color-mix(in srgb,var(--content) 78%, transparent);}
+  .story .byline{font-size:11px;margin-top:9px;color:color-mix(in srgb,var(--content) 50%, transparent);display:flex;align-items:center;gap:6px;}
+
+  /* news */
+  .news-item{display:flex;gap:11px;padding:11px 0;border-top:1px solid color-mix(in srgb,var(--base-300) 55%, transparent);}
+  .news-item:first-child{border-top:0;}
+  .news-src{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);}
+  .news-ttl{font-size:13px;font-weight:600;margin-top:2px;}
+  .news-time{font-size:11px;}
+
+  /* engagement widgets row */
+  .widgets{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px;}
+  .wdg{padding:16px;border-radius:var(--box);background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%, transparent);box-shadow:var(--card-shadow);}
+  .wdg .ic{font-size:18px;}
+  .wdg .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 55%, transparent);margin-top:8px;}
+  .wdg .big{font-family:'Manrope';font-weight:800;font-size:22px;margin-top:3px;}
+  .wdg .note{font-size:11.5px;margin-top:3px;color:color-mix(in srgb,var(--content) 70%, transparent);}
+
+  .footer-note{margin:34px 0 26px;text-align:center;font-size:12px;color:color-mix(in srgb,var(--content) 45%, transparent);}
+  .divider{height:1px;background:color-mix(in srgb,var(--base-300) 55%, transparent);margin:30px 0 0;}
+
+  @media (max-width:880px){
+    .hero-grid,.body-grid{grid-template-columns:1fr;}
+    .widgets{grid-template-columns:repeat(2,1fr);}
+    .nav{display:none;}
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- ===== TOP BAR ===== -->
+  <div class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <div class="brand-logo">P</div>
+        <span class="brand-name">the&nbsp;predictor</span>
+      </div>
+      <nav class="nav">
+        <a class="active" href="#">Home</a>
+        <a href="#">Entries</a>
+        <a href="#">Results</a>
+        <a href="#">Standings</a>
+        <a href="#">Rules</a>
+      </nav>
+      <div class="topbar-right">
+        <span class="live-pill"><span class="dot-live"></span>2 LIVE NOW</span>
+        <span class="avatar">VS</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- ===== HERO STATUS ===== -->
+    <section class="hero">
+      <div class="hero-grid">
+        <div class="card card-pad hero-head">
+          <span class="greeting muted-2">Good evening, Vinay — Matchday 9 of the group stage</span>
+          <div class="hero-title">YOUR BEST ENTRY IS<br><span class="accent">SITTING 3RD</span> OF 31</div>
+          <div class="stat-row">
+            <div class="stat">
+              <div class="label">Rank</div>
+              <div class="value">3<span style="font-size:14px;opacity:.5">rd</span></div>
+              <div class="sub pill pill-up">▲ up 4</div>
+            </div>
+            <div class="stat">
+              <div class="label">Total points</div>
+              <div class="value">218</div>
+              <div class="sub muted">+34 this matchday</div>
+            </div>
+            <div class="stat">
+              <div class="label">Gap to 1st</div>
+              <div class="value">11</div>
+              <div class="sub muted">pts behind leader</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-pad">
+          <span class="section-eyebrow">Tournament pulse</span>
+          <div class="pulse" style="margin-top:13px;">
+            <div class="pulse-row">
+              <span class="pulse-ic" style="background:rgba(185,28,28,.18);color:#f87171;">⚽</span>
+              <span><b>Brazil 1–1 Germany</b> <span class="muted">— 67' live, your pick was 2-1 BRA</span></span>
+            </div>
+            <div class="pulse-row">
+              <span class="pulse-ic" style="background:rgba(5,150,105,.18);color:#34d399;">✓</span>
+              <span><b>You nailed Argentina 3–0</b> <span class="muted">— +12 incl. rarity</span></span>
+            </div>
+            <div class="pulse-row">
+              <span class="pulse-ic" style="background:rgba(212,175,55,.16);color:var(--primary);">★</span>
+              <span><b>"Samba Kings" overtook "Dave's XI"</b> <span class="muted">for 3rd</span></span>
+            </div>
+            <div class="pulse-row">
+              <span class="pulse-ic" style="background:color-mix(in srgb,var(--base-300) 60%, transparent);">⏱</span>
+              <span><span class="muted">Next big one:</span> <b>France v Spain</b> <span class="muted">in 2h 14m</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MATCH RAIL: past / live / upcoming ===== -->
+    <section style="margin-top:26px;">
+      <div class="section-head">
+        <h2>Matches</h2>
+        <a class="see-all" href="#">Full results →</a>
+      </div>
+      <div class="rail">
+        <!-- LIVE -->
+        <div class="match live">
+          <div class="match-top"><span class="badge-live"><span class="dot-live"></span>LIVE 67'</span><span>Group F</span></div>
+          <div class="team win"><span class="fi fi-br"></span><span class="nm">Brazil</span><span class="sc">1</span></div>
+          <div class="team"><span class="fi fi-de"></span><span class="nm">Germany</span><span class="sc">1</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 2–1</span><span class="pts-chip pts-mid">+5 so far</span></div>
+        </div>
+        <!-- LIVE 2 -->
+        <div class="match live">
+          <div class="match-top"><span class="badge-live"><span class="dot-live"></span>LIVE 23'</span><span>Group F</span></div>
+          <div class="team"><span class="fi fi-jp"></span><span class="nm">Japan</span><span class="sc">0</span></div>
+          <div class="team"><span class="fi fi-ma"></span><span class="nm">Morocco</span><span class="sc">0</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 1–1</span><span class="pts-chip pts-zero">pending</span></div>
+        </div>
+        <!-- RECENT FINAL -->
+        <div class="match">
+          <div class="match-top"><span class="badge-final">FULL TIME</span><span>Group C</span></div>
+          <div class="team win"><span class="fi fi-ar"></span><span class="nm">Argentina</span><span class="sc">3</span></div>
+          <div class="team lose"><span class="fi fi-ng"></span><span class="nm">Nigeria</span><span class="sc">0</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 3–0 ✓</span><span class="pts-chip pts-good">+12</span></div>
+        </div>
+        <!-- RECENT FINAL 2 -->
+        <div class="match">
+          <div class="match-top"><span class="badge-final">FULL TIME</span><span>Group C</span></div>
+          <div class="team win"><span class="fi fi-hr"></span><span class="nm">Croatia</span><span class="sc">2</span></div>
+          <div class="team lose"><span class="fi fi-sa"></span><span class="nm">Saudi Arabia</span><span class="sc">1</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 1–0</span><span class="pts-chip pts-mid">+5</span></div>
+        </div>
+        <!-- UPCOMING -->
+        <div class="match">
+          <div class="match-top"><span class="badge-soon">IN 2H 14M</span><span>Group D</span></div>
+          <div class="team"><span class="fi fi-fr"></span><span class="nm">France</span><span class="sc muted">–</span></div>
+          <div class="team"><span class="fi fi-es"></span><span class="nm">Spain</span><span class="sc muted">–</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 2–2</span><span class="pts-chip pts-zero">locks 19:30</span></div>
+        </div>
+        <!-- UPCOMING 2 -->
+        <div class="match">
+          <div class="match-top"><span class="badge-soon">TOMORROW</span><span>Group E</span></div>
+          <div class="team"><span class="fi fi-pt"></span><span class="nm">Portugal</span><span class="sc muted">–</span></div>
+          <div class="team"><span class="fi fi-us"></span><span class="nm">USA</span><span class="sc muted">–</span></div>
+          <div class="match-foot"><span class="your-pick">Your pick: 2–1</span><span class="pts-chip pts-zero">15:00</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MAIN BODY GRID ===== -->
+    <div class="body-grid">
+      <!-- LEFT COLUMN -->
+      <div class="col">
+        <!-- Points activity feed -->
+        <section class="card card-pad">
+          <div class="section-head">
+            <h2>How your last points were scored</h2>
+            <a class="see-all" href="#">Breakdown →</a>
+          </div>
+          <div class="feed">
+            <div class="feed-item">
+              <span class="feed-ic" style="background:rgba(5,150,105,.18);color:#34d399;">EX</span>
+              <div class="feed-body">
+                <div class="ttl">Argentina 3–0 Nigeria — you predicted the exact score</div>
+                <div class="meta">
+                  <span class="tag">Outcome +5</span><span class="tag exact">Exact +5</span><span class="tag rarity">Rarity ×1.4 +2</span>
+                  <span class="muted">only 3 of 31 called it</span>
+                </div>
+              </div>
+              <span class="feed-pts pos">+12</span>
+            </div>
+            <div class="feed-item">
+              <span class="feed-ic" style="background:rgba(217,119,6,.18);color:#fbbf24;">W</span>
+              <div class="feed-body">
+                <div class="ttl">Croatia 2–1 Saudi Arabia — right winner, wrong scoreline</div>
+                <div class="meta"><span class="tag">Outcome +5</span><span class="muted">11 others also took Croatia</span></div>
+              </div>
+              <span class="feed-pts pos">+5</span>
+            </div>
+            <div class="feed-item">
+              <span class="feed-ic" style="background:rgba(212,175,55,.16);color:var(--primary);">★</span>
+              <div class="feed-body">
+                <div class="ttl">Bonus — Top scorer so far: Mbappé</div>
+                <div class="meta"><span class="tag rarity">Bonus +8</span><span class="muted">locked at the deadline</span></div>
+              </div>
+              <span class="feed-pts pos">+8</span>
+            </div>
+            <div class="feed-item">
+              <span class="feed-ic" style="background:color-mix(in srgb,var(--base-300) 60%, transparent);">0</span>
+              <div class="feed-body">
+                <div class="ttl">England 0–2 Netherlands — outcome missed</div>
+                <div class="meta"><span class="tag">No points</span><span class="muted">you had England to win</span></div>
+              </div>
+              <span class="feed-pts muted">+0</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI Storylines -->
+        <section class="card card-pad">
+          <div class="ai-head">
+            <h2 style="font-family:'Manrope';font-weight:800;font-size:18px;">The Newsroom</h2>
+            <span class="ai-badge">✦ AI generated</span>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin-bottom:14px;">Fresh storylines written from the live standings — refreshed after every matchday.</p>
+
+          <div class="story">
+            <div class="kicker">The chase</div>
+            <h3>Samba Kings storm into the podium — and the leader can feel the breath on their neck</h3>
+            <p>Your entry "Samba Kings" has climbed four places this matchday on the back of that ice-cold Argentina 3–0 call that only two rivals saw coming. The 11-point gap to first-placed "Group of Death Dave" is now the smallest it's been since the opener — and France v Spain tonight could flip the whole top three.</p>
+            <div class="byline">✦ Written by The Predictor AI · from live leaderboard data</div>
+          </div>
+
+          <div class="story">
+            <div class="kicker">Rivalry watch</div>
+            <h3>The office derby: you vs. Priya is down to a single point</h3>
+            <p>After six matchdays trading blows, "Samba Kings" and Priya's "Tiki-Taka Dreams" are separated by one solitary point. You both backed France tonight — but she's gone 1–0 to your 2–2. Whoever's closer walks into Monday's standup with bragging rights.</p>
+            <div class="byline">✦ Written by The Predictor AI · head-to-head feed</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="col">
+        <!-- Mini leaderboard: you vs field -->
+        <section class="card card-pad">
+          <div class="section-head">
+            <h2>You vs. the field</h2>
+            <a class="see-all" href="#">Standings →</a>
+          </div>
+          <div class="lb">
+            <div class="lb-row">
+              <div class="lb-rank top">1</div>
+              <div><div class="lb-name">Group of Death Dave</div><div class="lb-sub muted">Dave R.</div></div>
+              <div style="text-align:right;"><div class="lb-pts">229</div><div class="lb-mv pill-up">▲1</div></div>
+            </div>
+            <div class="lb-row">
+              <div class="lb-rank">2</div>
+              <div><div class="lb-name">Tiki-Taka Dreams</div><div class="lb-sub muted">Priya M.</div></div>
+              <div style="text-align:right;"><div class="lb-pts">219</div><div class="lb-mv pill-down">▼1</div></div>
+            </div>
+            <div class="lb-row you">
+              <div class="lb-rank top">3</div>
+              <div><div class="lb-name">Samba Kings <span class="pill pill-gold" style="margin-left:4px;">YOU</span></div><div class="lb-sub muted">Vinay S.</div></div>
+              <div style="text-align:right;"><div class="lb-pts">218</div><div class="lb-mv pill-up">▲4</div></div>
+            </div>
+            <div class="lb-row">
+              <div class="lb-rank">4</div>
+              <div><div class="lb-name">Penalty Box Heroes</div><div class="lb-sub muted">Tom B.</div></div>
+              <div style="text-align:right;"><div class="lb-pts">205</div><div class="lb-mv pill-down">▼2</div></div>
+            </div>
+            <div class="lb-row">
+              <div class="lb-rank">5</div>
+              <div><div class="lb-name">The Bottlers</div><div class="lb-sub muted">Sara K.</div></div>
+              <div style="text-align:right;"><div class="lb-pts">198</div><div class="lb-mv">–</div></div>
+            </div>
+          </div>
+          <div class="gap-note">You're <b>1 point</b> off 2nd and <b>11</b> off the top. Your second entry "Dark Horse" sits <b>14th</b>.</div>
+        </section>
+
+        <!-- engagement widgets -->
+        <section>
+          <div class="section-head"><h2 style="font-size:16px;">Your tournament</h2></div>
+          <div class="widgets" style="grid-template-columns:repeat(2,1fr);margin-top:0;">
+            <div class="wdg">
+              <div class="ic">🔥</div><div class="lbl">Streak</div>
+              <div class="big">3</div><div class="note">exact scores in a row</div>
+            </div>
+            <div class="wdg">
+              <div class="ic">🏆</div><div class="lbl">Bracket alive</div>
+              <div class="big">12<span style="font-size:13px;opacity:.5">/16</span></div><div class="note">R16 picks still in it</div>
+            </div>
+            <div class="wdg">
+              <div class="ic">🎯</div><div class="lbl">Hit rate</div>
+              <div class="big">61%</div><div class="note">correct outcomes</div>
+            </div>
+            <div class="wdg">
+              <div class="ic">🦄</div><div class="lbl">Underdog hits</div>
+              <div class="big">2</div><div class="note">upsets you called</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- news -->
+        <section class="card card-pad">
+          <div class="section-head">
+            <h2>From the touchline</h2>
+            <a class="see-all" href="#">All news →</a>
+          </div>
+          <div class="news">
+            <div class="news-item">
+              <div class="feed-ic" style="background:color-mix(in srgb,var(--base-300) 55%, transparent);font-size:15px;">📰</div>
+              <div style="flex:1;">
+                <div class="news-src">BBC Sport</div>
+                <div class="news-ttl">Mbappé hat-trick fires France into last 16 with a game to spare</div>
+                <div class="news-time muted">38 min ago</div>
+              </div>
+            </div>
+            <div class="news-item">
+              <div class="feed-ic" style="background:color-mix(in srgb,var(--base-300) 55%, transparent);font-size:15px;">📰</div>
+              <div style="flex:1;">
+                <div class="news-src">The Guardian</div>
+                <div class="news-ttl">Morocco's defensive masterclass has the pundits eating their words</div>
+                <div class="news-time muted">1 hr ago</div>
+              </div>
+            </div>
+            <div class="news-item">
+              <div class="feed-ic" style="background:color-mix(in srgb,var(--base-300) 55%, transparent);font-size:15px;">📰</div>
+              <div style="flex:1;">
+                <div class="news-src">BBC Sport</div>
+                <div class="news-ttl">Group of Death lives up to the name as three teams can still qualify</div>
+                <div class="news-time muted">2 hr ago</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="footer-note">Mockup · The Predictor "Mission Control" homepage · premium-night theme · built for fun and one trophy.</p>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,49 @@
+/* Offline CSS flag set for the mockups (CDN flag services are unreachable
+   from the build sandbox). Gradient approximations — accurate for the
+   simple tricolors used in heroes (IT/AR/FR/ES), reasonable at list size
+   for the rest. Class names mirror flag-icons (.fi .fi-xx) so markup is
+   a drop-in. NOT used by the real app — purely for these static previews. */
+.fi{display:inline-block;background-size:cover;background-position:center;background-repeat:no-repeat;}
+
+/* vertical tricolors */
+.fi-fr{background:linear-gradient(90deg,#0055A4 0 33.33%,#fff 33.33% 66.66%,#EF4135 66.66%);}
+.fi-it{background:linear-gradient(90deg,#009246 0 33.33%,#fff 33.33% 66.66%,#CE2B37 66.66%);}
+.fi-ie{background:linear-gradient(90deg,#169B62 0 33.33%,#fff 33.33% 66.66%,#FF883E 66.66%);}
+.fi-ng{background:linear-gradient(90deg,#008751 0 33.33%,#fff 33.33% 66.66%,#008751 66.66%);}
+.fi-mx{background:linear-gradient(90deg,#006847 0 33.33%,#fff 33.33% 66.66%,#CE1126 66.66%);}
+.fi-ca{background:linear-gradient(90deg,#FF0000 0 28%,#fff 28% 72%,#FF0000 72%);}
+.fi-pt{background:linear-gradient(90deg,#006600 0 42%,#FF0000 42%);}
+
+/* horizontal tricolors */
+.fi-es{background:linear-gradient(0deg,#AA151B 0 25%,#F1BF00 25% 75%,#AA151B 75%);}
+.fi-de{background:linear-gradient(180deg,#000 0 33.33%,#DD0000 33.33% 66.66%,#FFCE00 66.66%);}
+.fi-nl{background:linear-gradient(180deg,#AE1C28 0 33.33%,#fff 33.33% 66.66%,#21468B 66.66%);}
+.fi-ar{background:linear-gradient(180deg,#74ACDF 0 33.33%,#fff 33.33% 66.66%,#74ACDF 66.66%);}
+.fi-hr{background:linear-gradient(180deg,#FF0000 0 33.33%,#fff 33.33% 66.66%,#171796 66.66%);}
+.fi-cr{background:linear-gradient(180deg,#002B7F 0 20%,#fff 20% 40%,#CE1126 40% 60%,#fff 60% 80%,#002B7F 80%);}
+
+/* solid-field (emblem omitted) */
+.fi-vn{background:#DA251D;}
+.fi-cn{background:#DE2910;}
+.fi-sa{background:#006C35;}
+.fi-ma{background:#C1272D;}
+.fi-zm{background:#198A00;}
+.fi-au{background:#00247D;}
+.fi-nz{background:#00247D;}
+
+/* Japan — white field, red disc */
+.fi-jp{background:#fff;background-image:radial-gradient(circle at 50% 50%,#BC002D 0 30%,transparent 31%);}
+
+/* Nordic crosses */
+.fi-dk{background-color:#C8102E;background-image:linear-gradient(90deg,transparent 34%,#fff 34% 50%,transparent 50%),linear-gradient(0deg,transparent 38%,#fff 38% 58%,transparent 58%);}
+.fi-se{background-color:#006AA7;background-image:linear-gradient(90deg,transparent 34%,#FECC00 34% 48%,transparent 48%),linear-gradient(0deg,transparent 40%,#FECC00 40% 58%,transparent 58%);}
+.fi-no{background-color:#BA0C2F;background-image:linear-gradient(90deg,transparent 32%,#00205B 32% 52%,transparent 52%),linear-gradient(0deg,transparent 36%,#00205B 36% 62%,transparent 62%),linear-gradient(90deg,transparent 36%,#fff 36% 48%,transparent 48%),linear-gradient(0deg,transparent 42%,#fff 42% 56%,transparent 56%);}
+
+/* South Africa — simplified horizontal bands */
+.fi-za{background:linear-gradient(180deg,#E03C31 0 33%,#007749 33% 66%,#001489 66%);}
+
+/* USA — blue canton + red/white stripes */
+.fi-us{background-color:#fff;background-image:linear-gradient(#3C3B6E,#3C3B6E),repeating-linear-gradient(180deg,#B22234 0 7.7%,#fff 7.7% 15.4%);background-size:42% 54%,100% 100%;background-position:top left,0 0;}
+
+/* Jamaica — gold saltire over green/black */
+.fi-jm{background:#FED100;background-image:linear-gradient(45deg,#009B3A 0 28%,transparent 28% 72%,#009B3A 72%),linear-gradient(-45deg,#1A1A1A 0 28%,transparent 28% 72%,#1A1A1A 72%);}

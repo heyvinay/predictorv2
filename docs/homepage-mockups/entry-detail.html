@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — Entry detail ("open an entry"). The shared destination
+     reached from the leaderboard, the dashboard's "you vs field", or a match
+     pool list. Shows: header w/ follow button, head-to-head vs your entry,
+     form, recent points assigned, and their upcoming (locked) picks. Each
+     match links to the match detail. premium-night tokens + house fonts. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Entry detail (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" />
+<link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 480px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  main{position:relative;z-index:1;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .muted{color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  .appbar{height:54px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .appbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .appbar .back{font-size:14px;font-weight:600;opacity:.8;} .appbar .ttl{font-family:'Manrope';font-weight:800;font-size:15px;} .appbar .ic{width:30px;height:30px;border-radius:50%;background:var(--base-300);display:grid;place-items:center;font-size:13px;}
+
+  /* header */
+  .head{margin-top:16px;background:linear-gradient(135deg,var(--base-200),color-mix(in srgb,var(--base-300) 50%,var(--base-200)));border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:var(--box);padding:18px;box-shadow:var(--card-shadow);}
+  .head-top{display:flex;align-items:center;gap:14px;}
+  .head .av{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);display:grid;place-items:center;font-family:'Manrope';font-weight:800;font-size:18px;color:color-mix(in srgb,var(--content) 75%,transparent);flex:none;position:relative;}
+  .head .av .crown{position:absolute;top:-9px;right:-6px;font-size:16px;}
+  .head .en{font-family:'Manrope';font-weight:800;font-size:20px;line-height:1.1;}
+  .head .ow{font-size:12.5px;color:color-mix(in srgb,var(--content) 55%,transparent);}
+  .follow{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;padding:9px 14px;border-radius:999px;background:rgba(212,175,55,.16);color:var(--primary);border:1px solid rgba(212,175,55,.4);}
+  .head-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px;}
+  .hs{background:color-mix(in srgb,var(--base-100) 40%,transparent);border:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);border-radius:var(--btn);padding:11px 12px;text-align:center;}
+  .hs .v{font-family:'Manrope';font-weight:800;font-size:22px;} .hs .v .u{font-size:12px;opacity:.5;}
+  .hs .l{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin-top:3px;}
+  .hs.gold .v{color:var(--primary);}
+
+  /* head-to-head vs you */
+  .h2h{margin-top:11px;background:rgba(185,28,28,.08);border:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);border-radius:var(--box);padding:12px 15px;display:flex;align-items:center;gap:11px;font-size:12.5px;}
+  .h2h .ic{font-size:16px;}
+  .h2h b{color:var(--primary);}
+
+  .sect-h{font-family:'Manrope';font-weight:800;font-size:16px;margin:20px 0 11px;display:flex;align-items:center;justify-content:space-between;}
+  .sect-h .sub{font-size:11px;font-weight:500;}
+
+  /* form sparkline */
+  .form{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:14px 16px;}
+  .form .cap{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 50%,transparent);}
+
+  /* feed rows (recent points / upcoming) */
+  .mrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:11px;align-items:center;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:10px 12px;margin-bottom:6px;}
+  .mrow .fx{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;}
+  .mrow .fi{width:19px;height:14px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3);}
+  .mrow .res{font-family:'Manrope';font-weight:800;font-size:13px;}
+  .mrow .pk{font-family:'JetBrains Mono';font-weight:700;font-size:12.5px;color:color-mix(in srgb,var(--content) 70%,transparent);text-align:right;}
+  .mini-pill{font-size:10px;font-weight:800;border-radius:999px;padding:3px 8px;min-width:66px;text-align:center;}
+  .mini-pill.exact{background:rgba(5,150,105,.2);color:#34d399;} .mini-pill.out{background:rgba(217,119,6,.2);color:#fbbf24;} .mini-pill.miss{background:rgba(185,28,28,.16);color:#f87171;}
+  .cmp{font-size:9.5px;font-weight:700;border-radius:999px;padding:3px 8px;min-width:66px;text-align:center;}
+  .cmp.same{background:rgba(5,150,105,.14);color:#34d399;} .cmp.diff{background:rgba(217,119,6,.14);color:#fbbf24;}
+  .lock{font-size:9px;color:color-mix(in srgb,var(--content) 40%,transparent);}
+  .linknote{font-size:10.5px;color:color-mix(in srgb,var(--content) 42%,transparent);text-align:center;margin:3px 0 0;}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:20px 0 26px;}
+</style></head>
+<body><main>
+  <div class="appbar"><div class="wrap inner"><span class="back">‹ Leaderboard</span><span class="ttl">Entry</span><span class="ic">⤴</span></div></div>
+  <div class="wrap">
+
+    <!-- header -->
+    <div class="head">
+      <div class="head-top">
+        <div class="av">DR<span class="crown">👑</span></div>
+        <div><div class="en">Group of Death Dave</div><div class="ow">Dave R. · joined World Cup 2026</div></div>
+        <div class="follow">★ Following</div>
+      </div>
+      <div class="head-stats">
+        <div class="hs gold"><div class="v">1<span class="u">st</span></div><div class="l">Rank</div></div>
+        <div class="hs"><div class="v">229</div><div class="l">Points</div></div>
+        <div class="hs"><div class="v" style="color:#34d399;">▲1</div><div class="l">This MD</div></div>
+      </div>
+    </div>
+
+    <!-- head to head -->
+    <div class="h2h"><span class="ic">⚔️</span><span>Head-to-head with <b>your "Samba Kings"</b>: you trail by <b>11 pts</b> and sit 2 places back. You've out-scored them on 3 of the last 5 matchdays.</span></div>
+
+    <!-- form -->
+    <div class="sect-h">Form <span class="sub muted">rank · last 8 matchdays</span></div>
+    <div class="form">
+      <div class="cap"><span>Led since MD6</span><span style="color:#34d399;">peak 1st</span></div>
+      <svg viewBox="0 0 320 50" width="100%" height="50" style="margin-top:8px;display:block;">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D4AF37" stop-opacity=".3"/><stop offset="1" stop-color="#D4AF37" stop-opacity="0"/></linearGradient></defs>
+        <polyline points="6,30 50,24 94,26 138,16 182,12 226,7 270,5 314,4" fill="none" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polygon points="6,30 50,24 94,26 138,16 182,12 226,7 270,5 314,4 314,50 6,50" fill="url(#g)"/>
+        <circle cx="314" cy="4" r="3.6" fill="#D4AF37"/>
+      </svg>
+    </div>
+
+    <!-- recent points -->
+    <div class="sect-h">Recent points <span class="sub muted">how their last calls scored</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-it"></span>ITA <span class="res">1–0</span> <span class="fi fi-ar"></span>ARG</div><div></div><div class="pk">3–1</div><span class="mini-pill miss">MISS 0</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-es"></span>ESP <span class="res">3–0</span> <span class="fi fi-cr"></span>CRC</div><div></div><div class="pk">2–0</div><span class="mini-pill out">OUT +6</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-us"></span>USA <span class="res">3–0</span> <span class="fi fi-vn"></span>VIE</div><div></div><div class="pk">3–0</div><span class="mini-pill exact">EXACT +18</span></div>
+
+    <!-- upcoming picks -->
+    <div class="sect-h">Upcoming picks <span class="sub muted">locked · vs your pick</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-fr"></span>FRA <span class="res muted" style="font-weight:700;">vs</span> <span class="fi fi-es"></span>ESP</div><div class="lock">🔒 19:30</div><div class="pk">2–1</div><span class="cmp diff">you differ</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-pt"></span>POR <span class="res muted" style="font-weight:700;">vs</span> <span class="fi fi-us"></span>USA</div><div class="lock">🔒 tmrw</div><div class="pk">2–1</div><span class="cmp same">you match</span></div>
+    <div class="mrow"><div class="fx"><span class="fi fi-de"></span>GER <span class="res muted" style="font-weight:700;">vs</span> <span class="fi fi-jp"></span>JPN</div><div class="lock">🔒 tmrw</div><div class="pk">2–0</div><span class="cmp diff">you differ</span></div>
+    <p class="linknote">Tap any match → full pool split &amp; result detail.</p>
+
+    <p class="footer-note">Mockup · entry detail · premium-night theme.</p>
+  </div>
+</main></body></html>

@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+import { fileURLToPath } from 'url'; import path from 'path';
+const dir = path.dirname(fileURLToPath(import.meta.url));
+const browser = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const page = await browser.newPage({ viewport:{width:390,height:900}, deviceScaleFactor:2 });
+await page.goto('file://'+path.join(dir,'match-upcoming.html'),{waitUntil:'networkidle'});
+await page.evaluate(async()=>{ await document.fonts.ready; await Promise.all([...document.images].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r;}))); });
+await page.waitForTimeout(2000);
+await page.screenshot({ path:path.join(dir,'match-upcoming-mobile.png'), fullPage:true });
+console.log('done'); await browser.close();

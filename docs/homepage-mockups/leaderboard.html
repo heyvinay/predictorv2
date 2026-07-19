@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — Leaderboard: all entries ranked by points, with search,
+     sort, filter chips, and follow/favourite stars. Each row opens an entry.
+     Your entries highlighted (loud for active, subtle for others); followed
+     entries starred. premium-night tokens + house fonts. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Leaderboard (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 480px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  main{position:relative;z-index:1;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .muted{color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  .appbar{height:54px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .appbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .appbar .back{font-size:14px;font-weight:600;opacity:.8;} .appbar .ttl{font-family:'Manrope';font-weight:800;font-size:15px;} .appbar .ic{width:30px;height:30px;border-radius:50%;background:var(--base-300);display:grid;place-items:center;font-size:13px;}
+
+  /* search + sort */
+  .search{margin-top:14px;display:flex;align-items:center;gap:10px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);border-radius:999px;padding:11px 16px;}
+  .search .mag{opacity:.5;font-size:14px;} .search input{flex:1;background:transparent;border:0;outline:0;color:var(--content);font-size:14px;}
+  .search input::placeholder{color:color-mix(in srgb,var(--content) 40%,transparent);}
+  .controls{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap;}
+  .chip{font-size:12px;font-weight:700;padding:7px 13px;border-radius:999px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);color:color-mix(in srgb,var(--content) 62%,transparent);display:flex;align-items:center;gap:6px;}
+  .chip.on{background:rgba(212,175,55,.16);color:var(--primary);border-color:rgba(212,175,55,.35);}
+  .chip .st{color:var(--primary);}
+  .sort{margin-left:auto;font-size:12px;font-weight:700;padding:7px 13px;border-radius:999px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);color:color-mix(in srgb,var(--content) 70%,transparent);display:flex;align-items:center;gap:7px;}
+  .sort b{color:var(--content);}
+
+  .listcap{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 45%,transparent);margin:16px 2px 9px;display:flex;justify-content:space-between;}
+
+  /* row */
+  .lrow{display:grid;grid-template-columns:30px 22px 34px 1fr 64px auto 24px;gap:9px;align-items:center;
+    background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 50%,transparent);border-radius:var(--btn);padding:10px 11px;margin-bottom:7px;position:relative;}
+  .lrow.you{background:rgba(212,175,55,.1);border-color:rgba(212,175,55,.42);}
+  .lrow.mine{border-left:2px solid rgba(212,175,55,.55);}
+  .rank{font-family:'Manrope';font-weight:800;font-size:15px;text-align:center;color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .rank.medal{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;margin:0 auto;color:#0b1329;font-size:13px;}
+  .rank.g{background:linear-gradient(135deg,#f0d678,#D4AF37);} .rank.s{background:linear-gradient(135deg,#e7ebf2,#aeb6c4);} .rank.b{background:linear-gradient(135deg,#e6b07a,#c98a4b);}
+  .mv{font-size:10.5px;font-weight:800;text-align:center;}
+  .mv.up{color:#34d399;} .mv.dn{color:#f87171;} .mv.fl{color:color-mix(in srgb,var(--content) 35%,transparent);}
+  .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);display:grid;place-items:center;font-size:12px;font-weight:700;color:color-mix(in srgb,var(--content) 70%,transparent);}
+  .av.you{border:1.5px solid var(--primary);color:var(--primary);}
+  .meta .en{font-family:'Manrope';font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;line-height:1.15;}
+  .meta .ow{font-size:11px;color:color-mix(in srgb,var(--content) 50%,transparent);}
+  .badge-you{font-size:8.5px;font-weight:800;background:rgba(212,175,55,.2);color:var(--primary);padding:2px 6px;border-radius:999px;}
+  .tag-mine{font-size:9px;font-weight:700;color:var(--primary);opacity:.8;}
+  .spark{width:60px;height:26px;}
+  .pts{font-family:'Manrope';font-weight:800;font-size:16px;text-align:right;}
+  .star{font-size:16px;text-align:center;color:color-mix(in srgb,var(--content) 28%,transparent);}
+  .star.on{color:var(--primary);}
+
+  .openhint{position:absolute;right:11px;bottom:-1px;}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:18px 0 26px;}
+  .tap-hint{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 45%,transparent);margin:4px 0 20px;}
+  /* bottom nav */
+  .botnav{position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,19,41,.92);backdrop-filter:blur(10px);border-top:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);padding:8px 0 10px;z-index:20;}
+  .botnav a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--content) 50%,transparent);text-decoration:none;}
+  .botnav a.active{color:var(--primary);} .botnav .b{width:20px;height:20px;border-radius:6px;background:currentColor;opacity:.85;}
+</style></head>
+<body><main>
+  <div class="appbar"><div class="wrap inner"><span class="back">‹ Home</span><span class="ttl">Leaderboard</span><span class="ic">⚙</span></div></div>
+  <div class="wrap">
+
+    <div class="search"><span class="mag">⌕</span><input placeholder="Search entries or players…" /></div>
+
+    <div class="controls">
+      <span class="chip on">All</span>
+      <span class="chip"><span class="st">★</span> Following</span>
+      <span class="chip">My entries</span>
+      <span class="chip">▲ Movers</span>
+      <span class="sort">Sort <b>Points</b> ▾</span>
+    </div>
+
+    <div class="listcap"><span>31 entries · Matchday 9</span><span>Pts</span></div>
+
+    <!-- rows -->
+    <div class="lrow">
+      <div class="rank medal g">1</div><div class="mv up">▲1</div><div class="av">DR</div>
+      <div class="meta"><div class="en">Group of Death Dave</div><div class="ow">Dave R.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,18 12,14 22,16 32,9 42,7 50,4 58,3" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">229</div><div class="star on">★</div>
+    </div>
+    <div class="lrow">
+      <div class="rank medal s">2</div><div class="mv dn">▼1</div><div class="av">PM</div>
+      <div class="meta"><div class="en">Tiki-Taka Dreams</div><div class="ow">Priya M.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,6 12,4 22,7 32,5 42,9 50,8 58,11" fill="none" stroke="#f0c14b" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">219</div><div class="star on">★</div>
+    </div>
+    <div class="lrow you">
+      <div class="rank medal b">3</div><div class="mv up">▲4</div><div class="av you">VS</div>
+      <div class="meta"><div class="en">Samba Kings <span class="badge-you">YOU</span></div><div class="ow">Vinay S.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,22 12,19 22,20 32,14 42,12 50,7 58,4" fill="none" stroke="#D4AF37" stroke-width="2.3" stroke-linecap="round"/></svg>
+      <div class="pts">218</div><div class="star">☆</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">4</div><div class="mv dn">▼2</div><div class="av">TB</div>
+      <div class="meta"><div class="en">Penalty Box Heroes</div><div class="ow">Tom B.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,5 12,7 22,6 32,10 42,9 50,13 58,15" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">205</div><div class="star">☆</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">5</div><div class="mv fl">–</div><div class="av">SK</div>
+      <div class="meta"><div class="en">The Bottlers</div><div class="ow">Sara K.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,12 12,11 22,13 32,12 42,11 50,12 58,12" fill="none" stroke="#8b93a7" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">198</div><div class="star">☆</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">6</div><div class="mv up">▲3</div><div class="av">co</div>
+      <div class="meta"><div class="en">connor</div><div class="ow">Connor B.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,18 12,16 22,13 32,12 42,8 50,7 58,5" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">192</div><div class="star">☆</div>
+    </div>
+    <div class="lrow mine">
+      <div class="rank">7</div><div class="mv up">▲9</div><div class="av you">VS</div>
+      <div class="meta"><div class="en">Dark Horse <span class="tag-mine">· also yours</span></div><div class="ow">Vinay S.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,24 12,22 22,17 32,15 42,9 50,8 58,6" fill="none" stroke="#D4AF37" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">191</div><div class="star">☆</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">8</div><div class="mv dn">▼1</div><div class="av">St</div>
+      <div class="meta"><div class="en">Steve</div><div class="ow">Steve P.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,8 12,9 22,8 32,11 42,10 50,12 58,13" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">188</div><div class="star">☆</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">9</div><div class="mv up">▲2</div><div class="av">MH</div>
+      <div class="meta"><div class="en">The General</div><div class="ow">Mike H.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,15 12,14 22,12 32,12 42,10 50,9 58,8" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">184</div><div class="star on">★</div>
+    </div>
+    <div class="lrow">
+      <div class="rank">10</div><div class="mv dn">▼3</div><div class="av">AL</div>
+      <div class="meta"><div class="en">Hot Streak</div><div class="ow">Amy L.</div></div>
+      <svg class="spark" viewBox="0 0 60 26"><polyline points="2,4 12,6 22,8 32,9 42,12 50,14 58,16" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round"/></svg>
+      <div class="pts">180</div><div class="star">☆</div>
+    </div>
+
+    <p class="tap-hint">Tap any entry to open it → points, form &amp; their upcoming picks. Tap ★ to follow.</p>
+  </div>
+  <nav class="botnav">
+    <a><span class="b"></span>Home</a><a><span class="b"></span>Matches</a>
+    <a class="active"><span class="b"></span>Leaderboard</a><a><span class="b"></span>Profile</a>
+  </nav>
+</main></body></html>

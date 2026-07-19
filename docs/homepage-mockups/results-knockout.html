@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — Knockout / bracket results. SEPARATE, simpler points system
+     than the group stage: flat points per correctly-advanced team, NO exact
+     score and NO rarity. Source: config/worldcup2026.yml advancement
+     (group-advance +10, position +5, R32 +20, R16 +30, QF +40, SF +50,
+     Final +75, Winner +100). premium-night tokens + house fonts. -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Knockout results (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" />
+<link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 480px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  main{position:relative;z-index:1;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .muted{color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  .appbar{height:54px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .appbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .appbar .back{font-size:14px;font-weight:600;opacity:.8;} .appbar .ttl{font-family:'Manrope';font-weight:800;font-size:15px;} .appbar .ic{width:30px;height:30px;border-radius:50%;background:var(--base-300);display:grid;place-items:center;font-size:13px;}
+
+  /* group/knockout toggle + entry switcher */
+  .toprow{display:flex;align-items:center;gap:10px;margin-top:14px;}
+  .seg{display:flex;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);border-radius:999px;padding:3px;}
+  .seg span{font-size:12.5px;font-weight:700;padding:7px 16px;border-radius:999px;color:color-mix(in srgb,var(--content) 55%,transparent);}
+  .seg span.on{background:rgba(212,175,55,.18);color:var(--primary);}
+  .eswitch{margin-left:auto;display:flex;align-items:center;gap:8px;background:rgba(212,175,55,.1);border:1px solid var(--primary);border-radius:999px;padding:6px 8px 6px 13px;font-size:13px;font-weight:700;}
+  .eswitch .rk{color:var(--primary);font-size:11px;} .eswitch .sw{width:22px;height:22px;border-radius:50%;background:rgba(212,175,55,.2);display:grid;place-items:center;color:var(--primary);font-size:12px;}
+
+  /* explainer */
+  .explain{margin-top:13px;background:linear-gradient(180deg,color-mix(in srgb,var(--base-300) 30%,var(--base-200)),var(--base-200));border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:13px 15px;font-size:12.5px;color:color-mix(in srgb,var(--content) 78%,transparent);}
+  .explain b{color:var(--primary);}
+
+  /* summary */
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:11px;}
+  .sm{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);border-radius:var(--box);padding:13px 10px;text-align:center;box-shadow:var(--card-shadow);}
+  .sm .v{font-family:'Manrope';font-weight:800;font-size:22px;} .sm.gold .v{color:var(--primary);} .sm.alive .v{color:#34d399;}
+  .sm .l{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);margin-top:4px;}
+
+  /* champion banner */
+  .champ{margin-top:11px;background:linear-gradient(135deg,rgba(212,175,55,.18),rgba(212,175,55,.04));border:1px solid rgba(212,175,55,.4);border-radius:var(--box);padding:14px 16px;display:flex;align-items:center;gap:13px;}
+  .champ .fi{width:34px;height:25px;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.3);}
+  .champ .lab{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--primary);}
+  .champ .nm{font-family:'Manrope';font-weight:800;font-size:17px;}
+  .champ .pot{margin-left:auto;text-align:right;font-size:11.5px;} .champ .pot b{color:var(--primary);font-family:'Manrope';font-size:15px;}
+
+  /* round card */
+  .sect-h{font-family:'Manrope';font-weight:800;font-size:15px;margin:18px 0 10px;}
+  .round{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);border-radius:var(--box);padding:13px 14px;margin-bottom:9px;}
+  .round.live{border-color:rgba(212,175,55,.4);}
+  .rhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .rhead .rn{font-family:'Manrope';font-weight:800;font-size:14px;}
+  .rhead .val{font-size:10.5px;font-weight:700;color:var(--primary);background:rgba(212,175,55,.12);padding:2px 8px;border-radius:999px;margin-left:7px;}
+  .rhead .tally{font-size:12px;font-weight:700;}
+  .rhead .tally .pt{font-family:'Manrope';font-weight:800;font-size:15px;color:#34d399;margin-left:6px;}
+  .rhead .tally .pend{color:var(--primary);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:4px 9px 4px 6px;border-radius:999px;border:1px solid transparent;}
+  .chip .fi{width:17px;height:12px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3);}
+  .chip.ok{background:rgba(5,150,105,.16);color:#34d399;border-color:rgba(5,150,105,.3);}
+  .chip.no{background:rgba(185,28,28,.14);color:#f87171;border-color:rgba(185,28,28,.28);text-decoration:line-through;opacity:.75;}
+  .chip.alive{background:rgba(212,175,55,.12);color:var(--primary);border-color:rgba(212,175,55,.3);}
+  .chip .s{font-size:10px;opacity:.8;}
+
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:20px 0 26px;}
+</style></head>
+<body><main>
+  <div class="appbar"><div class="wrap inner"><span class="back">‹ Home</span><span class="ttl">Results</span><span class="ic">⤴</span></div></div>
+  <div class="wrap">
+    <div class="toprow">
+      <div class="seg"><span>Group</span><span class="on">Knockout</span></div>
+      <div class="eswitch">Samba Kings <span class="rk">3rd</span><span class="sw">▾</span></div>
+    </div>
+
+    <div class="explain">Knockout points work differently to the group stage: a flat bonus for every team you correctly send through each round — <b>no exact scores, no rarity</b>. The deeper a team you picked goes, the more it pays.</div>
+
+    <div class="summary">
+      <div class="sm gold"><div class="v">+610</div><div class="l">KO banked</div></div>
+      <div class="sm alive"><div class="v">7</div><div class="l">Picks alive</div></div>
+      <div class="sm"><div class="v">+345</div><div class="l">Still on table</div></div>
+    </div>
+
+    <div class="champ">
+      <span class="fi fi-br"></span>
+      <div><div class="lab">Your champion pick</div><div class="nm">Brazil — into the semis</div></div>
+      <div class="pot">if they lift it<br><b>+100</b></div>
+    </div>
+
+    <div class="sect-h">By round <span class="muted" style="font-size:11px;font-weight:500;">· quarter-finals stage</span></div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Group qualifiers</span><span class="val">+10 ea · +5 position</span></div><div class="tally muted">13/16 <span class="pt">+155</span></div></div>
+      <div class="chips">
+        <span class="chip ok"><span class="fi fi-br"></span>BRA <span class="s">✓+15</span></span>
+        <span class="chip ok"><span class="fi fi-fr"></span>FRA <span class="s">✓+15</span></span>
+        <span class="chip ok"><span class="fi fi-es"></span>ESP <span class="s">✓+10</span></span>
+        <span class="chip ok"><span class="fi fi-ar"></span>ARG <span class="s">✓+10</span></span>
+        <span class="chip no"><span class="fi fi-de"></span>GER</span>
+        <span class="chip ok"><span class="fi fi-pt"></span>POR <span class="s">✓+15</span></span>
+        <span class="chip no"><span class="fi fi-us"></span>USA</span>
+        <span class="muted" style="font-size:11px;align-self:center;">+8 more</span>
+      </div>
+    </div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Round of 32</span><span class="val">+20 per team</span></div><div class="tally muted">11/16 <span class="pt">+220</span></div></div>
+      <div class="chips">
+        <span class="chip ok"><span class="fi fi-br"></span>BRA <span class="s">✓+20</span></span>
+        <span class="chip ok"><span class="fi fi-fr"></span>FRA <span class="s">✓+20</span></span>
+        <span class="chip ok"><span class="fi fi-nl"></span>NED <span class="s">✓+20</span></span>
+        <span class="chip no"><span class="fi fi-hr"></span>CRO</span>
+        <span class="chip ok"><span class="fi fi-pt"></span>POR <span class="s">✓+20</span></span>
+        <span class="muted" style="font-size:11px;align-self:center;">+7 more · 4 wrong</span>
+      </div>
+    </div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Round of 16</span><span class="val">+30 per team</span></div><div class="tally muted">6/8 <span class="pt">+180</span></div></div>
+      <div class="chips">
+        <span class="chip ok"><span class="fi fi-br"></span>BRA <span class="s">✓+30</span></span>
+        <span class="chip ok"><span class="fi fi-fr"></span>FRA <span class="s">✓+30</span></span>
+        <span class="chip ok"><span class="fi fi-ar"></span>ARG <span class="s">✓+30</span></span>
+        <span class="chip no"><span class="fi fi-pt"></span>POR</span>
+        <span class="chip ok"><span class="fi fi-es"></span>ESP <span class="s">✓+30</span></span>
+        <span class="muted" style="font-size:11px;align-self:center;">+2 more · 2 wrong</span>
+      </div>
+    </div>
+
+    <div class="round live">
+      <div class="rhead"><div><span class="rn">Quarter-finals</span><span class="val">+40 per team</span></div><div class="tally"><span class="pt" style="color:#34d399;">+80</span> <span class="pend">· +80 live</span></div></div>
+      <div class="chips">
+        <span class="chip ok"><span class="fi fi-br"></span>BRA <span class="s">✓+40</span></span>
+        <span class="chip ok"><span class="fi fi-fr"></span>FRA <span class="s">✓+40</span></span>
+        <span class="chip alive"><span class="fi fi-ar"></span>ARG <span class="s">⏳ playing</span></span>
+        <span class="chip alive"><span class="fi fi-es"></span>ESP <span class="s">⏳ tonight</span></span>
+      </div>
+    </div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Semi-finals</span><span class="val">+50 per team</span></div><div class="tally muted">pending <span class="pend" style="font-weight:700;">+100?</span></div></div>
+      <div class="chips">
+        <span class="chip alive"><span class="fi fi-br"></span>BRA <span class="s">⏳ +50</span></span>
+        <span class="chip alive"><span class="fi fi-fr"></span>FRA <span class="s">⏳ +50</span></span>
+      </div>
+    </div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Final</span><span class="val">+75</span></div><div class="tally muted">pending <span class="pend" style="font-weight:700;">+75?</span></div></div>
+      <div class="chips"><span class="chip alive"><span class="fi fi-br"></span>BRA <span class="s">⏳ +75</span></span></div>
+    </div>
+
+    <div class="round">
+      <div class="rhead"><div><span class="rn">Winner</span><span class="val">+100</span></div><div class="tally muted">pending <span class="pend" style="font-weight:700;">+100?</span></div></div>
+      <div class="chips"><span class="chip alive"><span class="fi fi-br"></span>BRA <span class="s">⏳ champion pick</span></span></div>
+    </div>
+
+    <p class="footer-note">Mockup · knockout / bracket results (flat advancement scoring) · premium-night theme.</p>
+  </div>
+</main></body></html>

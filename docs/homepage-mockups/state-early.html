@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — EARLY / thin-data state (Matchday 1). Mission Control before
+     much has been scored: everyone level, leaderboard not yet meaningful, but
+     the page still feels alive. premium-night (+ hybrid via theme-hybrid.css). -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Early state — Matchday 1 (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" /><link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(950px 520px at 78% -12%,rgba(212,175,55,.12),transparent 60%);}
+  main{position:relative;z-index:1;} .wrap{max-width:760px;margin:0 auto;padding:0 16px;} .muted{color:color-mix(in srgb,var(--content) 55%,transparent);} .font-hero{font-family:'Bebas Neue',sans-serif;letter-spacing:.02em;}
+  .topbar{height:58px;display:flex;align-items:center;border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .topbar .inner{display:flex;align-items:center;justify-content:space-between;width:100%;}
+  .brand{display:flex;align-items:center;gap:9px;} .brand .lg{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#a87f20);display:grid;place-items:center;color:#0B1329;font-weight:800;font-family:'Manrope';font-size:13px;} .brand .nm{font-family:'Manrope';font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:lowercase;opacity:.85;}
+  .livepill{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;background:rgba(212,175,55,.16);color:var(--primary);padding:5px 11px;border-radius:999px;}
+
+  .hero{margin-top:18px;padding:24px;border-radius:var(--box);background:linear-gradient(135deg,var(--base-200),color-mix(in srgb,var(--base-300) 55%,var(--base-200)));border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);box-shadow:var(--card-shadow);text-align:center;}
+  .hero .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);}
+  .hero .htitle{font-family:'Bebas Neue';font-size:clamp(34px,6vw,56px);line-height:.92;margin:9px 0 8px;} .hero .htitle .ac{color:var(--primary);}
+  .hero .sub{font-size:13.5px;color:color-mix(in srgb,var(--content) 75%,transparent);max-width:44ch;margin:0 auto;}
+  .hero .cta{display:inline-flex;margin-top:15px;font-weight:800;font-size:14px;padding:11px 20px;border-radius:var(--btn);background:var(--primary);color:#0b1329;}
+
+  .sect-h{font-family:'Manrope';font-weight:800;font-size:16px;margin:22px 0 11px;display:flex;align-items:center;justify-content:space-between;} .sect-h .sub{font-size:11px;font-weight:500;}
+  .rail{display:flex;gap:12px;overflow:hidden;}
+  .match{flex:0 0 200px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);border-radius:var(--box);padding:13px;box-shadow:var(--card-shadow);}
+  .match.live{border-color:rgba(185,28,28,.5);}
+  .mtop{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb,var(--content) 50%,transparent);margin-bottom:9px;} .mtop.lv{color:#f87171;}
+  .team{display:flex;align-items:center;gap:8px;padding:3px 0;} .team .fi{width:20px;height:15px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3);} .team .nm{flex:1;font-size:13px;font-weight:600;} .team .sc{font-family:'Manrope';font-weight:800;}
+  .mfoot{margin-top:9px;padding-top:8px;border-top:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);font-size:11px;color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  .card{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:16px;box-shadow:var(--card-shadow);}
+  /* empty leaderboard */
+  .empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 16px;text-align:center;}
+  .empty .ic{font-size:26px;opacity:.7;} .empty .t{font-family:'Manrope';font-weight:800;font-size:15px;} .empty .d{font-size:12.5px;color:color-mix(in srgb,var(--content) 60%,transparent);max-width:38ch;}
+
+  .widgets{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:6px;}
+  .wdg{padding:15px;border-radius:var(--box);background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 65%,transparent);box-shadow:var(--card-shadow);}
+  .wdg .ic{font-size:17px;} .wdg .l{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);margin-top:7px;} .wdg .v{font-family:'Manrope';font-weight:800;font-size:21px;margin-top:2px;} .wdg .n{font-size:11px;color:color-mix(in srgb,var(--content) 60%,transparent);margin-top:2px;}
+
+  .story{background:linear-gradient(180deg,color-mix(in srgb,var(--base-300) 35%,transparent),transparent);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);border-radius:var(--box);padding:15px;}
+  .story .kick{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--primary);} .story h3{font-family:'Manrope';font-weight:800;font-size:16px;margin:6px 0 6px;} .story p{font-size:13px;color:color-mix(in srgb,var(--content) 78%,transparent);} .story .by{font-size:11px;margin-top:9px;color:color-mix(in srgb,var(--content) 48%,transparent);}
+  .ai-badge{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:linear-gradient(135deg,rgba(212,175,55,.25),rgba(5,150,105,.18));color:var(--primary);padding:3px 8px;border-radius:999px;border:1px solid rgba(212,175,55,.3);}
+  .footer-note{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 42%,transparent);margin:22px 0 26px;}
+</style></head>
+<body><main>
+  <div class="topbar"><div class="wrap inner"><div class="brand"><span class="lg">P</span><span class="nm">the&nbsp;predictor</span></div><span class="livepill">⚽ MATCHDAY 1</span></div></div>
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">World Cup 2026 · kickoff day</div>
+      <div class="htitle">IT'S ALL TO<br><span class="ac">PLAY FOR</span></div>
+      <div class="sub">Every entry starts level on 0. Your picks are locked — now watch the first whistle and see where you land.</div>
+      <a class="cta">Review your picks →</a>
+    </div>
+
+    <div class="sect-h">First matches <span class="sub muted">your picks are locked in</span></div>
+    <div class="rail">
+      <div class="match live"><div class="mtop lv">● LIVE 12'</div><div class="team"><span class="fi fi-mx"></span><span class="nm">Mexico</span><span class="sc">0</span></div><div class="team"><span class="fi fi-za"></span><span class="nm">S. Africa</span><span class="sc">0</span></div><div class="mfoot">Your pick: 2–1</div></div>
+      <div class="match"><div class="mtop">15:00</div><div class="team"><span class="fi fi-fr"></span><span class="nm">France</span><span class="sc muted">–</span></div><div class="team"><span class="fi fi-au"></span><span class="nm">Australia</span><span class="sc muted">–</span></div><div class="mfoot">Your pick: 3–0</div></div>
+      <div class="match"><div class="mtop">18:00</div><div class="team"><span class="fi fi-ar"></span><span class="nm">Argentina</span><span class="sc muted">–</span></div><div class="team"><span class="fi fi-ng"></span><span class="nm">Nigeria</span><span class="sc muted">–</span></div><div class="mfoot">Your pick: 2–0</div></div>
+    </div>
+
+    <div class="sect-h">You vs. the field</div>
+    <div class="card">
+      <div class="empty"><span class="ic">🏁</span><div class="t">Everyone's on 0 — for now</div><div class="d">The leaderboard comes alive after the first results land tonight. Check back at full time.</div></div>
+    </div>
+
+    <div class="sect-h">Your tournament</div>
+    <div class="widgets">
+      <div class="wdg"><div class="ic">🏆</div><div class="l">Bracket alive</div><div class="v">16<span style="font-size:12px;opacity:.5">/16</span></div><div class="n">all picks still in</div></div>
+      <div class="wdg"><div class="ic">🎯</div><div class="l">Hit rate</div><div class="v">—</div><div class="n">no results yet</div></div>
+      <div class="wdg"><div class="ic">🔥</div><div class="l">Streak</div><div class="v">0</div><div class="n">build one tonight</div></div>
+      <div class="wdg"><div class="ic">⏱</div><div class="l">Matches played</div><div class="v">0<span style="font-size:12px;opacity:.5">/64</span></div><div class="n">group stage</div></div>
+    </div>
+
+    <div class="sect-h">The Newsroom <span class="ai-badge">✦ AI generated</span></div>
+    <div class="story">
+      <div class="kick">Kickoff</div>
+      <h3>31 hopefuls, one trophy — and not a single point on the board yet</h3>
+      <p>The bracket's locked, the bold calls are in, and "Dark Horse" has the most contrarian sheet in the pool. By tonight we'll have our first leader. May the best prediction win.</p>
+      <div class="by">✦ Written by The Predictor AI · pre-tournament</div>
+    </div>
+
+    <p class="footer-note">Mockup · early / thin-data state (Matchday 1) · premium-night theme.</p>
+  </div>
+</main></body></html>

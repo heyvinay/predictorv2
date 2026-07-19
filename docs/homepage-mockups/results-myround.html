@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<!-- Mockup ONLY — Results: "My Round" view. premium-night tokens + house fonts.
+     Embellished take on the Superbru round-results pattern, using the
+     Predictor's real scoring: Miss / Outcome(+rarity) / Exact(+rarity). -->
+<html lang="en"><head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Results — My Round (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="flags.css" />
+<link rel="stylesheet" href="theme-hybrid.css" />
+<style>
+  :root{--primary:#D4AF37;--success:#059669;--warning:#D97706;--error:#B91C1C;
+    --base-100:#0B1329;--base-200:#1C2541;--base-300:#2A3552;--content:#E2E8F0;
+    --box:0.875rem;--btn:0.625rem;--card-shadow:0 18px 40px -20px rgba(0,0,0,.6);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--base-100);color:var(--content);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(900px 480px at 80% -10%,rgba(212,175,55,.10),transparent 60%);}
+  main{position:relative;z-index:1;}
+  .font-display{font-family:'Manrope',sans-serif;font-weight:800;letter-spacing:-.01em;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+  .muted{color:color-mix(in srgb,var(--content) 55%,transparent);}
+
+  /* header bar */
+  .appbar{height:54px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);background:rgba(11,19,41,.85);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20;}
+  .appbar .back{font-size:14px;font-weight:600;color:var(--content);opacity:.8;display:flex;align-items:center;gap:5px;}
+  .appbar .ttl{font-family:'Manrope';font-weight:800;font-size:15px;}
+  .appbar .ic{width:30px;height:30px;border-radius:50%;background:var(--base-300);display:grid;place-items:center;font-size:13px;}
+
+  /* identity row */
+  .who{display:flex;align-items:center;gap:13px;padding:18px 0 6px;}
+  .who .ph{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#2a3552,#1c2541);border:2px solid var(--primary);display:grid;place-items:center;font-family:'Manrope';font-weight:800;color:var(--primary);font-size:18px;flex:none;}
+  .who .nm{font-family:'Manrope';font-weight:800;font-size:20px;}
+  .who .sub{font-size:12.5px;}
+  .round-sel{margin-left:auto;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .round-sel .chev{opacity:.5;}
+
+  /* summary stat strip */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:14px;}
+  .stat{background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 70%,transparent);border-radius:var(--box);padding:13px 10px;text-align:center;box-shadow:var(--card-shadow);position:relative;overflow:hidden;}
+  .stat .v{font-family:'Manrope';font-weight:800;font-size:23px;line-height:1;}
+  .stat .l{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 55%,transparent);margin-top:6px;}
+  .stat.exact .v{color:#34d399;} .stat.out .v{color:#fbbf24;} .stat.miss .v{color:#f87171;}
+  .stat .edge{position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .stat.exact .edge{background:var(--success);} .stat.out .edge{background:var(--warning);} .stat.miss .edge{background:var(--error);}
+
+  .total-band{margin-top:11px;display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(135deg,rgba(212,175,55,.16),rgba(212,175,55,.05));border:1px solid rgba(212,175,55,.3);
+    border-radius:var(--box);padding:13px 16px;}
+  .total-band .lab{font-size:12px;font-weight:600;}
+  .total-band .pts{font-family:'Manrope';font-weight:800;font-size:24px;color:var(--primary);}
+  .total-band .rk{font-size:11.5px;}
+
+  /* filter/sort bar */
+  .filterbar{display:flex;align-items:center;gap:7px;margin-top:14px;flex-wrap:wrap;}
+  .fchip{font-size:12px;font-weight:700;padding:6px 13px;border-radius:999px;background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);color:color-mix(in srgb,var(--content) 60%,transparent);}
+  .fchip.on{background:rgba(212,175,55,.16);color:var(--primary);border-color:rgba(212,175,55,.35);}
+  .sortby{margin-left:auto;font-size:12px;font-weight:600;color:color-mix(in srgb,var(--content) 65%,transparent);} .sortby b{color:var(--content);}
+  /* list header */
+  .list-head{display:grid;grid-template-columns:1fr 78px 92px;gap:10px;padding:18px 14px 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:color-mix(in srgb,var(--content) 50%,transparent);}
+  .list-head .r{text-align:right;}
+
+  /* match row */
+  .row{display:grid;grid-template-columns:1fr 78px 92px;gap:10px;align-items:center;
+    background:var(--base-200);border:1px solid color-mix(in srgb,var(--base-300) 55%,transparent);
+    border-left-width:3px;border-radius:var(--btn);padding:11px 12px 11px 13px;margin-bottom:7px;position:relative;}
+  .row.exact{border-left-color:var(--success);}
+  .row.out{border-left-color:var(--warning);}
+  .row.miss{border-left-color:var(--error);opacity:.92;}
+  .fixture{display:flex;align-items:center;gap:7px;font-size:13.5px;}
+  .fixture .fi{width:21px;height:15px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3);flex:none;}
+  .fixture .cd{font-weight:700;width:34px;}
+  .fixture .sc{font-family:'Manrope';font-weight:800;font-size:15px;padding:0 4px;}
+  .fixture .grp{font-size:10px;color:color-mix(in srgb,var(--content) 45%,transparent);margin-left:2px;}
+  .pick{font-size:13px;text-align:center;}
+  .pick .pk{font-family:'Manrope';font-weight:700;}
+  .pick .pl{font-size:10px;color:color-mix(in srgb,var(--content) 50%,transparent);}
+  .verdict{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+  .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px 4px 7px;font-size:11px;font-weight:800;letter-spacing:.03em;}
+  .pill .n{font-family:'Manrope';font-weight:800;font-size:13px;min-width:20px;text-align:center;}
+  .pill.exact{background:rgba(5,150,105,.2);color:#34d399;}
+  .pill.out{background:rgba(217,119,6,.2);color:#fbbf24;}
+  .pill.miss{background:rgba(185,28,28,.18);color:#f87171;}
+  .rarity{font-size:9.5px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:3px;}
+
+  .tap-hint{text-align:center;font-size:11.5px;color:color-mix(in srgb,var(--content) 45%,transparent);margin:6px 0 22px;}
+
+  /* bottom nav */
+  .botnav{position:sticky;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,19,41,.92);backdrop-filter:blur(10px);border-top:1px solid color-mix(in srgb,var(--base-300) 60%,transparent);padding:8px 0 10px;z-index:20;}
+  .botnav a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--content) 50%,transparent);text-decoration:none;}
+  .botnav a.active{color:var(--primary);}
+  .botnav .b{width:20px;height:20px;border-radius:6px;background:currentColor;opacity:.85;-webkit-mask-size:contain;}
+</style></head>
+<body><main>
+  <div class="appbar"><div class="wrap" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+    <span class="back">‹ Standings</span><span class="ttl">Results</span><span class="ic">≡</span></div></div>
+
+  <div class="wrap">
+    <!-- identity -->
+    <div class="who">
+      <div class="ph">VS</div>
+      <div><div class="nm">Samba Kings</div><div class="sub muted">Vinay · World Cup 2026</div></div>
+      <div class="round-sel">Group Stage · MD 1 <span class="chev">▾</span></div>
+    </div>
+
+    <!-- summary -->
+    <div class="stats">
+      <div class="stat"><span class="edge" style="background:color-mix(in srgb,var(--content) 30%,transparent);"></span><div class="v">12<span style="font-size:14px;opacity:.5">/12</span></div><div class="l">Played</div></div>
+      <div class="stat exact"><span class="edge"></span><div class="v">3</div><div class="l">Exact</div></div>
+      <div class="stat out"><span class="edge"></span><div class="v">6</div><div class="l">Outcome</div></div>
+      <div class="stat miss"><span class="edge"></span><div class="v">3</div><div class="l">Missed</div></div>
+    </div>
+    <div class="total-band">
+      <div><div class="lab">Round 1 total</div><div class="rk muted">2nd of 31 this round · ▲ climbed 11</div></div>
+      <div class="pts">+128</div>
+    </div>
+
+    <!-- filters / sort (revision) -->
+    <div class="filterbar">
+      <span class="fchip on">All</span><span class="fchip">Exact</span><span class="fchip">Outcome</span><span class="fchip">Missed</span>
+      <span class="sortby">Sort <b>Points</b> ▾</span>
+    </div>
+
+    <!-- list -->
+    <div class="list-head"><span>Result</span><span style="text-align:center;">Your pick</span><span class="r">Points</span></div>
+
+    <!-- EXACT rows -->
+    <div class="row exact">
+      <div class="fixture"><span class="fi fi-it"></span><span class="cd">ITA</span><span class="sc">1–0</span><span class="fi fi-ar"></span><span class="cd">ARG</span><span class="grp">C</span></div>
+      <div class="pick"><div class="pk">1–0</div><div class="pl">exact ✓</div></div>
+      <div class="verdict"><span class="pill exact"><span class="n">+21</span>EXACT</span><span class="rarity">★ rarity +6 · 3 backed it</span></div>
+    </div>
+    <div class="row exact">
+      <div class="fixture"><span class="fi fi-nl"></span><span class="cd">NED</span><span class="sc">1–0</span><span class="fi fi-pt"></span><span class="cd">POR</span><span class="grp">E</span></div>
+      <div class="pick"><div class="pk">1–0</div><div class="pl">exact ✓</div></div>
+      <div class="verdict"><span class="pill exact"><span class="n">+20</span>EXACT</span><span class="rarity">★ rarity +5 · 4/31</span></div>
+    </div>
+    <div class="row exact">
+      <div class="fixture"><span class="fi fi-us"></span><span class="cd">USA</span><span class="sc">3–0</span><span class="fi fi-vn"></span><span class="cd">VIE</span><span class="grp">A</span></div>
+      <div class="pick"><div class="pk">3–0</div><div class="pl">exact ✓</div></div>
+      <div class="verdict"><span class="pill exact"><span class="n">+18</span>EXACT</span><span class="rarity">★ rarity +3 · 6/31</span></div>
+    </div>
+
+    <!-- OUTCOME rows -->
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-se"></span><span class="cd">SWE</span><span class="sc">2–1</span><span class="fi fi-za"></span><span class="cd">RSA</span><span class="grp">G</span></div>
+      <div class="pick"><div class="pk">2–0</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+7</span>OUTCOME</span><span class="rarity">★ rarity +2</span></div>
+    </div>
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-es"></span><span class="cd">ESP</span><span class="sc">3–0</span><span class="fi fi-cr"></span><span class="cd">CRC</span><span class="grp">F</span></div>
+      <div class="pick"><div class="pk">1–0</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+6</span>OUTCOME</span><span class="rarity">★ rarity +1</span></div>
+    </div>
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-dk"></span><span class="cd">DEN</span><span class="sc">1–0</span><span class="fi fi-cn"></span><span class="cd">CHN</span><span class="grp">D</span></div>
+      <div class="pick"><div class="pk">2–1</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+5</span>OUTCOME</span></div>
+    </div>
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-au"></span><span class="cd">AUS</span><span class="sc">1–0</span><span class="fi fi-ie"></span><span class="cd">IRL</span><span class="grp">B</span></div>
+      <div class="pick"><div class="pk">2–0</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+5</span>OUTCOME</span></div>
+    </div>
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-de"></span><span class="cd">GER</span><span class="sc">6–0</span><span class="fi fi-ma"></span><span class="cd">MAR</span><span class="grp">F</span></div>
+      <div class="pick"><div class="pk">2–0</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+5</span>OUTCOME</span></div>
+    </div>
+    <div class="row out">
+      <div class="fixture"><span class="fi fi-jp"></span><span class="cd">JPN</span><span class="sc">5–0</span><span class="fi fi-zm"></span><span class="cd">ZAM</span><span class="grp">H</span></div>
+      <div class="pick"><div class="pk">2–0</div><div class="pl">right winner</div></div>
+      <div class="verdict"><span class="pill out"><span class="n">+5</span>OUTCOME</span></div>
+    </div>
+
+    <!-- MISS rows -->
+    <div class="row miss">
+      <div class="fixture"><span class="fi fi-nz"></span><span class="cd">NZL</span><span class="sc">1–0</span><span class="fi fi-no"></span><span class="cd">NOR</span><span class="grp">A</span></div>
+      <div class="pick"><div class="pk">0–2</div><div class="pl">wrong winner</div></div>
+      <div class="verdict"><span class="pill miss"><span class="n">0</span>MISS</span></div>
+    </div>
+    <div class="row miss">
+      <div class="fixture"><span class="fi fi-fr"></span><span class="cd">FRA</span><span class="sc">0–0</span><span class="fi fi-jm"></span><span class="cd">JAM</span><span class="grp">D</span></div>
+      <div class="pick"><div class="pk">2–0</div><div class="pl">wrong — was a draw</div></div>
+      <div class="verdict"><span class="pill miss"><span class="n">0</span>MISS</span></div>
+    </div>
+    <div class="row miss">
+      <div class="fixture"><span class="fi fi-ng"></span><span class="cd">NGA</span><span class="sc">0–0</span><span class="fi fi-ca"></span><span class="cd">CAN</span><span class="grp">B</span></div>
+      <div class="pick"><div class="pk">0–1</div><div class="pl">wrong — was a draw</div></div>
+      <div class="verdict"><span class="pill miss"><span class="n">0</span>MISS</span></div>
+    </div>
+
+    <p class="tap-hint">Tap any match to see how the whole pool called it →</p>
+  </div>
+
+  <nav class="botnav">
+    <a><span class="b"></span>Home</a>
+    <a><span class="b"></span>Matches</a>
+    <a class="active"><span class="b"></span>Results</a>
+    <a><span class="b"></span>Profile</a>
+  </nav>
+</main></body></html>
