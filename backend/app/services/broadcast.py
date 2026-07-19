@@ -123,6 +123,11 @@ class BroadcastSegment(str, Enum):
     # rules match R2/GSF/R32: no UTM on the CTA, no "winner+announced"
     # / "prize+awarded" word pairs, no national-flag emoji.
     GROUP_R16_RECAP = "group_r16_recap"
+    # NEW v2.214.x — conclusion announcement. Same audience as the
+    # recaps (every submitter). Body is a short champion announcement
+    # + homepage CTA + feedback ask, sent once the admin flips
+    # Competition.tournament_concluded and confirms the final podium.
+    TOURNAMENT_FINAL = "tournament_final"
 
 
 # Segments that need the engagement-signal fetch (PostHog + column).
@@ -382,6 +387,10 @@ def _segment_predicate(
         # predicate keeps the four recap-family counts (R1, R2, GSF,
         # R32, R16) locked to a single "who's an active submitter"
         # definition.
+        return _has_submitted_phase_predicate()
+    if segment == BroadcastSegment.TOURNAMENT_FINAL:
+        # v2.214.x — same audience as the recap family. The conclusion
+        # announcement goes to everyone who took part, win or lose.
         return _has_submitted_phase_predicate()
     if segment == BroadcastSegment.NO_ENTRY:
         return _no_entries_predicate()

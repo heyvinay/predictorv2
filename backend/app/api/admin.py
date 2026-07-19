@@ -76,6 +76,7 @@ from app.services.email import (
     _compute_group_stage_winner_email_tokens,
     _compute_r16_highlights,
     _compute_r2_highlights,
+    _compute_tournament_final_email_tokens,
     send_broadcast_email,
 )
 from app.services.pool_close import PoolCloseError, close_pool, preview_pool_close
@@ -2086,6 +2087,10 @@ def _deep_link_for_segment(frontend_url: str, segment: BroadcastSegment) -> str:
         # (Simulator) inside "New this week"; the main CTA stays on
         # the standings.
         return f"{base}/leaderboard"
+    if segment == BroadcastSegment.TOURNAMENT_FINAL:
+        # v2.214.x — the conclusion announcement's "See the final
+        # story" CTA. UTM-free, matching the recap-family convention.
+        return f"{base}/leaderboard"
     if segment in (BroadcastSegment.POOL_GHOST, BroadcastSegment.LAPSING):
         return f"{base}/results"
     return f"{base}/entries"
@@ -2114,6 +2119,7 @@ async def get_broadcast_audience(
         group_stage_final=counts[BroadcastSegment.GROUP_STAGE_FINAL],
         group_r32_recap=counts[BroadcastSegment.GROUP_R32_RECAP],
         group_r16_recap=counts[BroadcastSegment.GROUP_R16_RECAP],
+        tournament_final=counts[BroadcastSegment.TOURNAMENT_FINAL],
     )
 
 
@@ -2155,6 +2161,8 @@ async def send_broadcast_test(
         tokens = await _compute_group_stage_winner_email_tokens(session)
     elif payload.segment == BroadcastSegment.GROUP_R16_RECAP:
         tokens = await _compute_r16_highlights(session)
+    elif payload.segment == BroadcastSegment.TOURNAMENT_FINAL:
+        tokens = await _compute_tournament_final_email_tokens(session)
 
     try:
         await send_broadcast_email(
@@ -2225,6 +2233,8 @@ async def send_broadcast(
         tokens = await _compute_group_stage_winner_email_tokens(session)
     elif payload.segment == BroadcastSegment.GROUP_R16_RECAP:
         tokens = await _compute_r16_highlights(session)
+    elif payload.segment == BroadcastSegment.TOURNAMENT_FINAL:
+        tokens = await _compute_tournament_final_email_tokens(session)
 
     sent = 0
     failed = 0

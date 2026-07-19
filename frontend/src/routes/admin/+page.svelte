@@ -569,6 +569,15 @@
 			title: 'Round of 16 recap',
 			description:
 				'One-off knockout recap ahead of the quarter-finals. Same audience as Thank Submitters. Token-driven — standings, R16 hero, biggest climber, and Bottlers pay-out summary fill in at send time. Set the flop question answers in Bonus Answers before sending. CTA lands on /leaderboard (no UTM).'
+		},
+		// v2.214.x — conclusion announcement. Same audience as the recap
+		// family. Short champion announcement + homepage CTA + feedback
+		// ask. Send AFTER flipping the conclusion switch — test-send
+		// before that shows literal {{TOKENS}} placeholders.
+		tournament_final: {
+			title: "Tournament final — that's a wrap",
+			description:
+				"Champion announcement + homepage CTA + feedback ask. Send AFTER flipping the conclusion switch (test-send before shows literal {{TOKENS}})."
 		}
 	};
 
@@ -582,7 +591,8 @@
 		'group_r2_recap',
 		'group_stage_final',
 		'group_r32_recap',
-		'group_r16_recap'
+		'group_r16_recap',
+		'tournament_final'
 	];
 
 	let audienceCounts: BroadcastAudienceCounts | null = null;

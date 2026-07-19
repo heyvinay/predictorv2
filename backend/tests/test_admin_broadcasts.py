@@ -501,6 +501,37 @@ class TestAudienceQueries:
         ]:
             assert must in content.body_html, f"missing in HTML: {must}"
 
+    async def test_tournament_final_template_tokens_interpolate(
+        self, db_session: AsyncSession
+    ):
+        # v2.214.x — conclusion announcement. Same regression class as
+        # GSF/R16: every advertised token must interpolate, no literal
+        # {{TOKEN}} / {TOKEN} fragment may leak.
+        from app.services.email import _broadcast_content_for_segment, _interpolate
+
+        content = _broadcast_content_for_segment(
+            BroadcastSegment.TOURNAMENT_FINAL,
+            player_name="Test User",
+            deadline_display=None,
+        )
+        tokens = {"CHAMPION_NAME": "James Vella", "CHAMPION_TOTAL": "612"}
+        rendered = _interpolate(content, tokens)
+        for value in tokens.values():
+            assert value in rendered.body_html
+            assert value in rendered.body_text
+        for fragment in ("{{", "}}", "{CHAMPION_NAME}", "{CHAMPION_TOTAL}"):
+            assert fragment not in rendered.body_html
+            assert fragment not in rendered.body_text
+        # deliverability constraints: short + no UTM
+        assert "utm_" not in rendered.body_html
+        assert len(rendered.body_text) < 1200
+
+    async def test_tournament_final_audience_is_submitters(self, db_session):
+        from app.services.broadcast import _segment_predicate
+
+        pred = _segment_predicate(BroadcastSegment.TOURNAMENT_FINAL)
+        assert pred is not None  # same predicate family as recaps
+
     async def test_no_entry_excludes_inactive_and_onboarding_incomplete(
         self, db_session: AsyncSession, four_segment_archetypes: dict[str, User]
     ):

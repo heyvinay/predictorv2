@@ -2129,6 +2129,61 @@ def _broadcast_content_for_segment(
             cta_label="See the latest results",
         )
 
+    if segment == BroadcastSegment.TOURNAMENT_FINAL:
+        # v2.214.x — conclusion announcement. Same audience as the
+        # recap family (every submitter). Deliberately SHORT — this is
+        # a wrap-up note, not another recap — and carries no UTM tag
+        # (same deliverability lesson as R2/GSF/R32/R16: no campaign
+        # params, no "winner+announced" word pair). Tokens
+        # ({{CHAMPION_NAME}}, {{CHAMPION_TOTAL}}) are filled at send
+        # time by ``_compute_tournament_final_email_tokens`` from the
+        # same final-podium service backing the wrap-up page, so the
+        # email and the app agree on the numbers.
+        return _BroadcastContent(
+            subject="WC26 — that's a wrap",
+            headline="We have a champion",
+            body_html=(
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                f"Hi {safe_name},</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The tournament is done — <strong>{{CHAMPION_NAME}}</strong> "
+                "is our champion with <strong>{{CHAMPION_TOTAL}}</strong> "
+                "points.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The full story is on the app: the final podium, how the "
+                "title was won, the side-prize winner, and a head-to-head "
+                "view to see exactly how your entry stacked up.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "One last thing — we built this for you, and we'd love to "
+                "know how it went. There's a quick rating and feedback box "
+                "on the homepage. It takes 30 seconds and shapes the next "
+                "one.</p>\n"
+                f'              <p style="margin:0 0 0 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Thanks for playing.</p>\n"
+            ),
+            body_text=(
+                f"Hi {safe_name},\n"
+                "\n"
+                "The tournament is done — {{CHAMPION_NAME}} is our champion "
+                "with {{CHAMPION_TOTAL}} points.\n"
+                "\n"
+                "The full story is on the app: the final podium, how the "
+                "title was won, the side-prize winner, and a head-to-head "
+                "view of your own entry.\n"
+                "\n"
+                "One last thing — rate the app and tell us what to build "
+                "next. The box is on the homepage; it takes 30 seconds.\n"
+                "\n"
+                "Thanks for playing.\n"
+            ),
+            cta_label="See the final story",
+        )
+
     raise ValueError(f"Unknown segment: {segment!r}")
 
 
@@ -2594,6 +2649,46 @@ async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
         "RARITY_EXTRA": str(w.rarity_extra),
         "BONUS_PTS": str(w.bonus_question_points),
         "STORY_LINE": podium.story_line,
+    }
+
+
+async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
+    """Build the token dict for the TOURNAMENT_FINAL broadcast email.
+
+    Mirrors :func:`_compute_group_stage_winner_email_tokens`'s
+    gate-then-fetch shape. Returns an empty dict (→ literal
+    ``{{CHAMPION_NAME}}`` placeholders survive) if the tournament isn't
+    marked concluded yet or the podium can't be computed — the visible
+    signal that "you tested too early", same as the GSW pattern.
+    """
+    from sqlalchemy import select
+    from app.models.competition import Competition
+    from app.services.tournament_champion import get_final_podium
+
+    try:
+        comp = (
+            await session.execute(
+                select(Competition).where(Competition.is_active.is_(True))
+            )
+        ).scalar_one_or_none()
+        if comp is None or not comp.tournament_concluded:
+            return {}  # literal {{TOKENS}} = "sent before conclusion" signal
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("TOURNAMENT_FINAL release-flag check failed: %s", exc)
+        return {}
+
+    try:
+        podium = await get_final_podium(session)
+    except Exception as exc:  # noqa: BLE001 — broadcast must not crash
+        logger.warning("TOURNAMENT_FINAL token compute failed: %s", exc)
+        return {}
+    if not podium or not podium["entries"]:
+        return {}
+
+    champ = podium["entries"][0]
+    return {
+        "CHAMPION_NAME": champ["user_name"],
+        "CHAMPION_TOTAL": str(champ["total_points"]),
     }
 
 
