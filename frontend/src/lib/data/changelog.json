@@ -2844,6 +2844,13 @@
       "type": "fix",
       "summary": "Bonus question names and answer teams in the wrap-up no longer get cut off — the full text now wraps instead of truncating.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.7",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "The Atlas Insurance card now shows the real Atlas logo instead of a text placeholder, in the right color for light or dark mode.",
+      "commit": "pending"
     }
   ]
 }
