@@ -2851,6 +2851,13 @@
       "type": "fix",
       "summary": "The Atlas Insurance card now shows the real Atlas logo instead of a text placeholder, in the right color for light or dark mode.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.8",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "Cleaned up the Atlas Insurance thank-you wording and gave both lines the same text size.",
+      "commit": "pending"
     }
   ]
 }
