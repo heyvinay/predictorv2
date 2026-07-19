@@ -178,9 +178,12 @@ export function buildBracketRows(
 	return rows;
 }
 
+export type BonusCategory = BonusPredictionRead['category'];
+
 export interface BonusRow {
 	questionId: string;
 	label: string;
+	category: BonusCategory;
 	aAnswer: string | null;
 	bAnswer: string | null;
 	aPoints: number;
@@ -204,6 +207,7 @@ export function buildBonusRows(a: CompareEntryInput, b: CompareEntryInput): Bonu
 		rows.push({
 			questionId: id,
 			label: a.questionLabels.get(id) ?? b.questionLabels.get(id) ?? 'Bonus question',
+			category: ra?.category ?? rb?.category ?? null,
 			aAnswer: ra?.answer ?? null,
 			bAnswer: rb?.answer ?? null,
 			aPoints: ra?.points ?? 0,
@@ -227,6 +231,9 @@ export interface Swing {
 	 *  wrap-up Title Matrix can look up each entry's own raw value via
 	 *  elementValues() without re-parsing the display label. */
 	key: string;
+	/** Only set for kind 'bonus' — carried through so buildWaterfall can bucket
+	 *  group-stage vs knockout-stage bonus questions without re-deriving it. */
+	category?: BonusCategory;
 }
 
 const KIND_WORD: Record<PickKind, string> = {
@@ -268,11 +275,86 @@ export function buildSwings(
 			label: `Bonus — ${r.label}`,
 			why: `${r.aAnswer ?? '—'} (+${r.aPoints}) · ${r.bAnswer ?? '—'} (+${r.bPoints})`,
 			delta: r.delta,
-			key: r.questionId
+			key: r.questionId,
+			category: r.category
 		});
 	}
 	swings.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
 	return swings;
+}
+
+export type WaterfallPhase = 'group' | 'bonus' | 'knockout';
+
+export const WATERFALL_PHASE_LABEL: Record<WaterfallPhase, string> = {
+	group: 'Group stage',
+	bonus: 'Bonus',
+	knockout: 'Knockout rounds'
+};
+
+export interface WaterfallStep {
+	swing: Swing;
+	phase: WaterfallPhase;
+	/** Cumulative A-minus-B total through this step, in chronological order. */
+	cumulative: number;
+}
+
+function stageKickoffs(fixtureById: Map<string, Fixture>, stage: string): number[] {
+	const times: number[] = [];
+	for (const f of fixtureById.values()) {
+		if (f.stage === stage) times.push(new Date(f.kickoff).getTime());
+	}
+	return times;
+}
+
+/**
+ * buildWaterfall — reorders buildSwings' output into the sequence events
+ * actually happened in, for a chronological "how the gap was made" chart.
+ * buildSwings itself stays magnitude-sorted (TitleMatrix's "biggest movers"
+ * view depends on that order) — this is a separate consumer, not a
+ * replacement.
+ *
+ * Anchoring: match swings use their fixture's own kickoff. Bracket-stage
+ * swings anchor to that stage's earliest kickoff (advancement credit fires
+ * once teams are seeded, which happens right before the stage's own
+ * matches begin — see the lineup-based advancement invariant). 'winner'
+ * and knockout-category bonus swings anchor just after the Final. Group
+ * stage bonus swings anchor just after the last group fixture. No fixture
+ * data for a stage yet (e.g. a fully unresolved future round) falls back to
+ * 0 and sorts first — this only matters for a stage with zero fixtures at
+ * all, which can't happen once its bracket swing exists (a settled stage
+ * always has at least a placeholder fixture with a real kickoff).
+ */
+export function buildWaterfall(swings: Swing[], fixtureById: Map<string, Fixture>): WaterfallStep[] {
+	const groupEnd = Math.max(0, ...stageKickoffs(fixtureById, 'group'));
+	const finalEnd = Math.max(0, ...stageKickoffs(fixtureById, 'final'));
+
+	const withOrder = swings.map((swing) => {
+		if (swing.kind === 'match') {
+			const f = fixtureById.get(swing.key);
+			const order = f ? new Date(f.kickoff).getTime() : 0;
+			const phase: WaterfallPhase = f?.stage === 'group' ? 'group' : 'knockout';
+			return { swing, phase, order };
+		}
+		if (swing.kind === 'bracket') {
+			const order = swing.key === 'winner' ? finalEnd + 1 : Math.min(...stageKickoffs(fixtureById, swing.key));
+			return { swing, phase: 'knockout' as WaterfallPhase, order: Number.isFinite(order) ? order : 0 };
+		}
+		// bonus
+		const isGroupBonus = swing.category === 'group_stage';
+		return {
+			swing,
+			phase: (isGroupBonus ? 'bonus' : 'knockout') as WaterfallPhase,
+			order: isGroupBonus ? groupEnd + 1 : finalEnd + 2
+		};
+	});
+
+	withOrder.sort((x, y) => x.order - y.order);
+
+	let running = 0;
+	return withOrder.map(({ swing, phase }) => {
+		running += swing.delta;
+		return { swing, phase, cumulative: running };
+	});
 }
 
 /**

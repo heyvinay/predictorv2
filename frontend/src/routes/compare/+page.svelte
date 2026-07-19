@@ -29,7 +29,7 @@
 		type ActualAdvancement, type CompareEntryInput
 	} from '$lib/utils/compareEntries';
 	import CompareSummaryStrip from '$lib/components/compare/CompareSummaryStrip.svelte';
-	import SwingList from '$lib/components/compare/SwingList.svelte';
+	import Waterfall from '$lib/components/compare/Waterfall.svelte';
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
 
@@ -310,7 +310,7 @@
 
 			<div class="stadium-card no-glow p-4 mb-4">
 				<h2 class="font-display font-extrabold mb-2">Where the gap was made</h2>
-				<SwingList {swings} limit={5} />
+				<Waterfall {swings} fixtureById={$fixtureById} aName={inputA.displayName} bName={inputB.displayName} />
 			</div>
 
 			<!-- tabs -->

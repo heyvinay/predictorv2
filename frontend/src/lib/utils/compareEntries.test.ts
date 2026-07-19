@@ -70,7 +70,7 @@ describe('buildMatchRows', () => {
 });
 
 import type { ScoringRules } from '$lib/types/results';
-import { buildBonusRows, buildBracketRows, buildSwings, elementValues } from './compareEntries';
+import { buildBonusRows, buildBracketRows, buildSwings, buildWaterfall, elementValues } from './compareEntries';
 
 const RULES: ScoringRules = {
 	mode: 'logarithmic',
@@ -179,5 +179,71 @@ describe('elementValues', () => {
 		};
 		// a has 3 hits (Argentina, France, Spain) × 16 = 48; b has 2 (Argentina, Spain) × 16 = 32
 		expect(elementValues([a, b], sfSwing, actual, RULES)).toEqual([48, 32]);
+	});
+});
+
+describe('buildWaterfall', () => {
+	const g1 = FX('g1', 1, 'Ivory Coast', 'Ecuador', 1, 0, 'group');
+	const r32 = { ...FX('r32', 73, 'Argentina', 'Brazil', 0, 0, 'round_of_32'), kickoff: '2026-06-25T15:00:00Z' } as import('$types').Fixture;
+	const fin = { ...FX('fin', 104, 'Argentina', 'France', 0, 0, 'final'), kickoff: '2026-07-19T16:00:00Z' } as import('$types').Fixture;
+	const fxById = new Map([
+		['g1', g1],
+		['r32', r32],
+		['fin', fin]
+	]);
+
+	it('orders swings by when they actually happened, not by |delta|', () => {
+		const labels = new Map([
+			['qg', 'Dark Horse'],
+			['qk', 'Knockout Top / Flop']
+		]);
+		const a = input({
+			matches: [PICK('g1', 1, 0, 18, 'exact'), PICK('fin', 1, 0, 10, 'result')],
+			bonusReads: [
+				{ question_id: 'qg', answer: 'Norway', category: 'group_stage', points: 12, hit: true },
+				{ question_id: 'qk', answer: 'Türkiye', category: 'top_flop', points: 10, hit: true }
+			],
+			questionLabels: labels,
+			bracket: bracket({ round_of_32: ['Argentina'], winner: 'Argentina' })
+		});
+		const b = input({
+			matches: [PICK('g1', 0, 0, 0, 'miss'), PICK('fin', 1, 1, 15, 'exact')],
+			bonusReads: [
+				{ question_id: 'qg', answer: 'Miss', category: 'group_stage', points: 0, hit: false },
+				{ question_id: 'qk', answer: 'Belgium', category: 'top_flop', points: 0, hit: false }
+			],
+			questionLabels: labels,
+			bracket: bracket({ round_of_32: ['Brazil'], winner: 'France' })
+		});
+		const actual = { round_of_32: new Set(['Argentina']), winner: new Set(['Argentina']) };
+		// deliberately unsorted vs. chronological order — buildSwings itself
+		// is magnitude-sorted (winner=64 first); buildWaterfall must re-derive
+		// its own order rather than trusting the input order.
+		const swings = buildSwings(a, b, fxById, actual, RULES);
+		expect(swings[0].delta).toBe(64); // sanity: magnitude order still leads with 'winner'
+
+		const steps = buildWaterfall(swings, fxById);
+		expect(steps.map((s) => s.swing.kind + ':' + s.swing.key)).toEqual([
+			'match:g1',
+			'bonus:qg',
+			'bracket:round_of_32',
+			'match:fin',
+			'bracket:winner',
+			'bonus:qk'
+		]);
+		expect(steps.map((s) => s.phase)).toEqual([
+			'group',
+			'bonus',
+			'knockout',
+			'knockout',
+			'knockout',
+			'knockout'
+		]);
+		const last = steps[steps.length - 1];
+		expect(last.cumulative).toBe(swings.reduce((s, x) => s + x.delta, 0));
+	});
+
+	it('is empty when nothing differs', () => {
+		expect(buildWaterfall([], fxById)).toEqual([]);
 	});
 });
