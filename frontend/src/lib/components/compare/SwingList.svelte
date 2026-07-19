@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Swing } from '$lib/utils/compareEntries';
+	import { track } from '$lib/analytics';
 
 	export let swings: Swing[];
 	export let limit = 5;
@@ -7,6 +8,17 @@
 
 	let expanded = false;
 	$: visible = expanded ? swings : swings.slice(0, limit);
+
+	// Only the expand action is the signal worth tracking — collapsing
+	// back isn't, matching the one-directional signals elsewhere on the
+	// /compare page (compare_pair_changed, compare_tab_changed).
+	function toggleExpanded() {
+		const wasExpanded = expanded;
+		expanded = !expanded;
+		if (!wasExpanded && expanded) {
+			track('compare_swings_expanded', { total_swings: swings.length });
+		}
+	}
 
 	const fmt = (n: number) => (n > 0 ? `+${Math.round(n * 10) / 10}` : `${Math.round(n * 10) / 10}`);
 </script>
@@ -25,7 +37,7 @@
 		</div>
 	{/each}
 	{#if expandable && swings.length > limit}
-		<button class="btn btn-ghost btn-xs text-primary" on:click={() => (expanded = !expanded)}>
+		<button class="btn btn-ghost btn-xs text-primary" on:click={toggleExpanded}>
 			{expanded ? 'Show top 5' : `Show all ${swings.length}`}
 		</button>
 	{/if}
