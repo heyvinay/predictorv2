@@ -126,7 +126,13 @@
 	</p>
 
 	<div class="overflow-x-auto">
-		<table class="w-full text-sm">
+		<table class="w-full table-fixed text-sm">
+			<colgroup>
+				<col class="w-[38%]" />
+				<col class="w-[20.67%]" />
+				<col class="w-[20.67%]" />
+				<col class="w-[20.66%]" />
+			</colgroup>
 			<thead>
 				<tr class="text-right text-[10px] uppercase tracking-wider text-base-content/40">
 					<th class="text-left"></th>
@@ -143,7 +149,7 @@
 					{@const vals = top3.map(row.get)}
 					{@const best = Math.max(...vals)}
 					<tr class="border-t border-base-300/40">
-						<td class="max-w-[110px] truncate py-1.5">{row.label}</td>
+						<td class="truncate py-1.5">{row.label}</td>
 						{#each vals as v, i}
 							<td
 								class="px-2 py-1.5 text-right {i === 0 ? 'bg-primary/10' : ''} {v === best
@@ -171,7 +177,7 @@
 					</tr>
 					{#each moments as m}
 						<tr class="border-t border-base-300/40">
-							<td class="max-w-[130px] py-1.5">
+							<td class="py-1.5">
 								<span class="block truncate">{m.label}</span>
 								<span class="block truncate text-[10px] text-base-content/40">{m.why}</span>
 							</td>
