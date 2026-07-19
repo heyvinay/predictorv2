@@ -8,6 +8,7 @@
 		alt="Atlas Insurance"
 		class="mx-auto h-8 w-auto justify-self-center"
 	/>
+	<p class="font-display text-2xl font-extrabold leading-none text-primary">Thank You!</p>
 	<p class="text-[13px] text-base-content/60">
 		A big thank you to <b class="text-base-content">Atlas Insurance</b>, who topped up our Soup
 		Kitchen contribution by €500.
