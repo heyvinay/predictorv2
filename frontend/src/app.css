@@ -363,9 +363,9 @@
 	   the btn-outline Google button remain readable. */
 	[data-theme="hybrid"] .auth-bg {
 		background:
-			radial-gradient(ellipse at 30% 20%, hsl(var(--p) / 0.08) 0%, transparent 50%),
-			radial-gradient(ellipse at 70% 80%, hsl(var(--b3) / 0.35) 0%, transparent 50%),
-			linear-gradient(180deg, hsl(var(--b1)) 0%, hsl(var(--b2)) 100%);
+			radial-gradient(ellipse at 30% 20%, oklch(var(--p) / 0.08) 0%, transparent 50%),
+			radial-gradient(ellipse at 70% 80%, oklch(var(--b3) / 0.35) 0%, transparent 50%),
+			linear-gradient(180deg, oklch(var(--b1)) 0%, oklch(var(--b2)) 100%);
 	}
 
 	/* Staggered animation delays */
@@ -677,7 +677,7 @@
 
 	/* ============ Hybrid light-body polish ============
 	 * Card topology and editorial typography for the `hybrid` theme.
-	 * Uses DaisyUI base tokens via hsl(var(--bN)) — chrome flips to
+	 * Uses DaisyUI base tokens via oklch(var(--bN)) — chrome flips to
 	 * premium-night via nested data-theme in +layout.svelte, so the
 	 * body palette here drives only the canvas / cards / inputs. */
 	[data-theme="hybrid"] .stadium-card,
@@ -685,25 +685,33 @@
 	[data-theme="hybrid"] .match-card-v2,
 	[data-theme="hybrid"] .group-selector {
 		border-radius: 12px;
-		border-color: hsl(var(--b3) / 0.6);
-		background-color: hsl(var(--b2));
+		border-color: oklch(var(--b3) / 0.6);
+		background-color: oklch(var(--b2));
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 		transition: border-color 280ms ease, box-shadow 280ms ease, transform 280ms ease;
 	}
 
+	/* The gold stadium-glow (.stadium-card::before, used by cards that skip
+	   .no-glow) is a radial highlight tuned to glow against dark navy —
+	   on a white hybrid card it just reads as a faint yellow stain, not a
+	   glow. Suppress it in hybrid only; dark mode keeps the effect. */
+	[data-theme="hybrid"] .stadium-card::before {
+		display: none;
+	}
+
 	[data-theme="hybrid"] .match-card-v2:hover:not(.is-locked),
 	[data-theme="hybrid"] .stadium-card:hover {
-		border-color: hsl(var(--bc) / 0.15);
+		border-color: oklch(var(--bc) / 0.15);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.05),
-			0 6px 18px -10px hsl(var(--bc) / 0.25);
+			0 6px 18px -10px oklch(var(--bc) / 0.25);
 	}
 
 	[data-theme="hybrid"] .match-card-v2.is-editing {
-		border-color: hsl(var(--p) / 0.65);
+		border-color: oklch(var(--p) / 0.65);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.05),
-			0 0 0 3px hsl(var(--p) / 0.18);
+			0 0 0 3px oklch(var(--p) / 0.18);
 	}
 
 	/* Entries wizard — accordion panel + fixture cards in hybrid theme.
@@ -711,7 +719,7 @@
 	   inside read as lifted surfaces against it. */
 	[data-theme="hybrid"] .group-accordion {
 		background-color: #c6cfdd;
-		border-color: hsl(var(--b3) / 0.7);
+		border-color: oklch(var(--b3) / 0.7);
 	}
 	[data-theme="hybrid"] .fixture-card {
 		background-color: #ffffff;
@@ -720,16 +728,16 @@
 
 	/* Score box outline — gold focus ring derives from --p. */
 	[data-theme="hybrid"] .score-box {
-		background-color: hsl(var(--b2));
-		border-color: hsl(var(--bc) / 0.12);
+		background-color: oklch(var(--b2));
+		border-color: oklch(var(--bc) / 0.12);
 		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
-		color: hsl(var(--bc));
+		color: oklch(var(--bc));
 	}
 	[data-theme="hybrid"] .score-box:focus {
-		border-color: hsl(var(--p) / 0.80);
+		border-color: oklch(var(--p) / 0.80);
 		box-shadow:
 			inset 0 1px 2px rgba(0, 0, 0, 0.04),
-			0 0 0 3px hsl(var(--p) / 0.25);
+			0 0 0 3px oklch(var(--p) / 0.25);
 	}
 
 	/* "Bold and prominent" team titles (spec §6) — Manrope 700 for
