@@ -12,11 +12,12 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated } from '$stores/auth';
 	import { supportOpen } from '$stores/supportPanel';
+	import { tournamentConcluded } from '$stores/phase';
 
 	const SITE_NOTICE_ENABLED = true;
-	// Bumped 2026-06-12 (v2.175.0): rarity bonus came back online; everyone
-	// who'd dismissed the previous launch-week notice sees this one fresh.
-	const NOTICE_ID = '2026-06-12-rarity-on';
+	// Bumped 2026-07-19: tournament wrap-up — everyone who'd dismissed the
+	// rarity-bonus notice sees this one fresh, gated on conclusion instead.
+	const NOTICE_ID = '2026-07-19-wrapup';
 	const KEY = `predictor:notice:${NOTICE_ID}:dismissed`;
 
 	// Hidden until onMount so a dismissed device never sees a flash;
@@ -33,9 +34,11 @@
 
 	$: show =
 		SITE_NOTICE_ENABLED &&
+		$tournamentConcluded &&
 		$isAuthenticated &&
 		!dismissed &&
-		!$page.url.pathname.startsWith('/admin');
+		!$page.url.pathname.startsWith('/admin') &&
+		$page.url.pathname !== '/';
 </script>
 
 {#if show}
@@ -44,15 +47,13 @@
 		role="status"
 	>
 		<p class="max-w-4xl text-center text-[12.5px] leading-snug text-base-content/85">
-			<span class="font-bold text-success">Rarity bonus is now in operation.</span>
-			With the entry pool confirmed, the rarity bonus is live and has been applied
-			retroactively to every finished match — totals on the leaderboard have updated.
-			See the <a
-				href="/rules"
+			<span class="font-bold text-success">🏆 That's a wrap on WC26 — congratulations to our champion.</span>
+			<a
+				href="/"
 				class="font-semibold text-success underline decoration-success/50 underline-offset-2"
-				>rules page</a
+				>See the final story &amp; tell us what you thought →</a
 			>
-			for the bands. Spot anything that looks off? Drop us a note via
+			Spot anything that looks off? Drop us a note via
 			<button
 				class="font-semibold text-success underline decoration-success/50 underline-offset-2"
 				on:click={() => supportOpen.set(true)}

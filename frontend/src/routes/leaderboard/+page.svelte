@@ -13,7 +13,7 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
-	import { phase1Deadline, postDeadlineLive, winProbabilityEnabled } from '$stores/phase';
+	import { phase1Deadline, postDeadlineLive, winProbabilityEnabled, tournamentConcluded } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import {
 		getAllTrajectories,
@@ -228,17 +228,24 @@
 		void load();
 		// Refresh standings every 60s while the page is open and visible
 		// (backend cache TTL is 30s, so this stays cheap; the poll pauses
-		// while the tab is hidden and catches up on return).
-		stopPoll = startLivePoll(() => {
-			getLeaderboardV4()
-				.then((b) => {
-					board = b;
-					pollFailed = false;
-				})
-				.catch(() => {
-					pollFailed = true;
-				});
-		});
+		// while the tab is hidden and catches up on return). Once the
+		// tournament has concluded the board is a frozen final result —
+		// no live re-scoring is happening, so skip the poll entirely.
+		// (Reactive `$: if (...) {...}` blocks compile as top-level module
+		// code, not inside a function — an early `return` here is a
+		// SyntaxError, hence the nested `if` instead.)
+		if (!$tournamentConcluded) {
+			stopPoll = startLivePoll(() => {
+				getLeaderboardV4()
+					.then((b) => {
+						board = b;
+						pollFailed = false;
+					})
+					.catch(() => {
+						pollFailed = true;
+					});
+			});
+		}
 	}
 	onDestroy(() => stopPoll?.());
 
@@ -487,7 +494,14 @@
 						refresh failed
 					</span>
 				{/if}
-				<span class="ml-1"><ProvisionalPill /></span>
+				{#if $tournamentConcluded}
+					<span
+						class="ml-1 rounded-badge border border-primary/40 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary"
+						>🏁 Final</span
+					>
+				{:else}
+					<span class="ml-1"><ProvisionalPill /></span>
+				{/if}
 			</p>
 		{/if}
 

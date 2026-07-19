@@ -19,6 +19,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { user } from '$stores/auth';
 	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
+	import { tournamentConcluded } from '$stores/phase';
 	import {
 		bracketPrediction,
 		fetchBracketPredictions,
@@ -140,30 +141,36 @@
 	}
 
 	// ── 60s refresh: live scores + movement (visibility-aware — pauses
-	// while the tab is hidden, catches up immediately on return) ──
-	const stopPoll = startLivePoll(() => {
-		now = new Date();
-		void fetchAllFixtures();
-		void getLeaderboardV4()
-			.then((lb) => {
-				liveProjectionActive = lb.live_projection_active === true;
-				lbRows = liveProjectionActive
-					? [...lb.entries].sort(
-							(a, b) => (a.projected_position ?? a.position) - (b.projected_position ?? b.position)
-						)
-					: lb.entries;
-				totalEntries = lb.entries.length;
-			})
-			.catch(() => undefined);
-		// Re-poll the GSW endpoint so an admin's mid-session toggle
-		// flip surfaces within ~60s (no hard refresh needed).
-		void getGroupStagePodium()
-			.then((gsp) => {
-				groupStagePodium = gsp;
-			})
-			.catch(() => undefined);
-	});
-	onDestroy(stopPoll);
+	// while the tab is hidden, catches up immediately on return). Skipped
+	// once the tournament has concluded — the dashboard is unmounted
+	// post-conclusion via the home dispatcher (resolveHomeView → 'wrapup'),
+	// but this guard is belt-and-braces in case it's ever reachable directly
+	// (e.g. an admin's phase-preview override). ──
+	const stopPoll = $tournamentConcluded
+		? null
+		: startLivePoll(() => {
+				now = new Date();
+				void fetchAllFixtures();
+				void getLeaderboardV4()
+					.then((lb) => {
+						liveProjectionActive = lb.live_projection_active === true;
+						lbRows = liveProjectionActive
+							? [...lb.entries].sort(
+									(a, b) => (a.projected_position ?? a.position) - (b.projected_position ?? b.position)
+								)
+							: lb.entries;
+						totalEntries = lb.entries.length;
+					})
+					.catch(() => undefined);
+				// Re-poll the GSW endpoint so an admin's mid-session toggle
+				// flip surfaces within ~60s (no hard refresh needed).
+				void getGroupStagePodium()
+					.then((gsp) => {
+						groupStagePodium = gsp;
+					})
+					.catch(() => undefined);
+			});
+	onDestroy(() => stopPoll?.());
 
 	onMount(() => {
 		track('dashboard_view', {});
