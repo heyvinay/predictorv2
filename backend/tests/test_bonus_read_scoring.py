@@ -108,7 +108,10 @@ class TestBonusReadScoring:
         (row,) = r.json()
         assert row["question_id"] == "most_goals_scored_group"
         assert row["category"] == "group_stage"
-        assert row["points"] == 15  # real YAML value: group_stage = 15
+        # Unresolved (no correct answer recorded yet) — points is what
+        # THIS entry earned, which can't be known until settlement, so
+        # it stays None rather than leaking the question's max value.
+        assert row["points"] is None
         assert row["hit"] is None
 
     async def test_settled_hit_and_miss(self, db_session, alice, alice_entry):
@@ -158,4 +161,11 @@ class TestBonusReadScoring:
         horse = by_qid["dark_horse"]
         assert horse["hit"] is False
         assert horse["category"] == "top_flop"
-        assert horse["points"] == 20  # real YAML value: top_flop = 20
+        # ★ Regression pin: a miss earns 0, never the question's max
+        # value (20) — this endpoint used to return question.points
+        # unconditionally regardless of hit/miss, which made every
+        # entry's bonus points look identical and broke /compare's
+        # bonus delta silently (buildBonusRows read this field
+        # directly; only leaderboardV4.ts's foldBonus() happened to
+        # dodge it by gating on `hit` itself).
+        assert horse["points"] == 0

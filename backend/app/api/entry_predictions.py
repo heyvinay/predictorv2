@@ -450,13 +450,24 @@ async def get_bonus_predictions(
     for r in rows:
         question = questions.get(r.question_id)
         corrects = correct_by_qid.get(r.question_id)
+        # `points` is what THIS ENTRY earned, not what the question is
+        # worth — None while unresolved (no correct answer recorded
+        # yet), 0 on a miss, question.points only on an actual hit.
+        # Previously this returned question.points unconditionally,
+        # which made every entry's bonus points look identical
+        # regardless of hit/miss (silently broke /compare's bonus
+        # delta — foldBonus() in leaderboardV4.ts already worked around
+        # this independently by gating on `hit` itself, which is what
+        # hid the bug from the leaderboard drawer's totals).
+        hit = answer_in(r.answer, corrects) if corrects else None
+        points = (question.points if hit else 0) if question and corrects else None
         out.append(
             BonusPredictionResponse(
                 question_id=r.question_id,
                 answer=r.answer,
                 category=question.category if question else None,
-                points=question.points if question else None,
-                hit=answer_in(r.answer, corrects) if corrects else None,
+                points=points,
+                hit=hit,
             )
         )
     return out
