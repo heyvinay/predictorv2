@@ -123,7 +123,18 @@ export type EventName =
 	| 'compare_opened'
 	| 'compare_pair_changed'
 	| 'compare_tab_changed'
-	| 'compare_swings_expanded';
+	| 'compare_swings_expanded'
+	// Post-tournament wrap-up page (Plan C). wrapup_viewed fires once on
+	// mount (auth_state); wrapup_podium_row_clicked carries rank (1-3);
+	// wrapup_verified_link_clicked has no props. Registered under the
+	// "wrapup" feature group in backend/app/services/usage.py, which also
+	// lists wrapup_compare_cta_clicked / wrapup_matrix_compare_clicked /
+	// wrapup_leaderboard_full_clicked / wrapup_footer_link_clicked /
+	// wrapup_signin_started for later wrap-up tasks — add those here as
+	// each is actually wired up.
+	| 'wrapup_viewed'
+	| 'wrapup_podium_row_clicked'
+	| 'wrapup_verified_link_clicked';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog

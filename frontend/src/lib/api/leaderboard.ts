@@ -203,3 +203,23 @@ export async function getGroupStagePodium(): Promise<GroupStagePodium | null> {
 
 /** @deprecated use getGroupStagePodium */
 export const getGroupStageWinner = getGroupStagePodium;
+
+// ---- Wrap-up page (Plan C) -----------------------------------------------
+// Both endpoints return null pre-conclusion for non-admins (OptionalUser —
+// anonymous callers allowed); admins may preview the real payload any time
+// before Competition.tournament_concluded flips. Types live outside the
+// barrel per the V4 convention (WIP lockout on types/index.ts).
+
+/** GET /leaderboard/final-podium — champion announcement payload. Null
+ *  until concluded (admins preview). */
+export async function getFinalPodium(): Promise<import('$lib/types/wrapup').FinalPodium | null> {
+	return api.get('/leaderboard/final-podium');
+}
+
+/** GET /leaderboard/pool-retrospective — pool-vs-tournament aggregate +
+ *  per-viewer personal wrap. Null until concluded (admins preview). */
+export async function getPoolRetrospective(): Promise<
+	import('$lib/types/wrapup').PoolRetrospective | null
+> {
+	return api.get('/leaderboard/pool-retrospective');
+}

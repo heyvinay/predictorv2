@@ -31,12 +31,14 @@
 	import { onMount } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
 	import { loadEntries } from '$stores/entries';
-	import { phase1Deadline, postDeadlineLive } from '$stores/phase';
+	import { phase1Deadline, postDeadlineLive, tournamentConcluded } from '$stores/phase';
 	import { pageTitle } from '$stores/pageTitle';
 	import { track } from '$lib/analytics';
+	import { resolveHomeView, type HomeView, type PhaseOverride } from '$lib/utils/wrapupView';
 
 	import DashboardV4 from '$lib/components/dashboard/v4/DashboardV4.svelte';
 	import LockedInHero from '$lib/components/dashboard/v4/LockedInHero.svelte';
+	import WrapUp from '$lib/components/wrapup/WrapUp.svelte';
 
 	import StickyTopBar from '$lib/components/landing/StickyTopBar.svelte';
 	import LandingHero from '$lib/components/landing/LandingHero.svelte';
@@ -55,9 +57,12 @@
 
 	export let data: PageData;
 
-	// ── Home-page view model (v2.166.0) ──
+	// ── Home-page view model (v2.166.0, extended v2.21x.0 with a fourth
+	// 'wrapup' state) ──
 	//
-	// Three variants:
+	// Four variants (resolved by the pure `resolveHomeView` dispatcher in
+	// $lib/utils/wrapupView.ts — unit-tested there):
+	//   'wrapup'  — post-tournament wrap-up page (public once concluded)
 	//   'dash'    — V4 Dashboard (signed-in, released by the admin)
 	//   'holding' — post-deadline, pre-release: "you're locked in" card
 	//   'landing' — the marketing page (guests + pre-deadline users)
@@ -74,33 +79,48 @@
 	// marketing page while /competition/phase-status resolves.
 	const V4_DASHBOARD_ENABLED = true;
 	const ADMIN_VIEW_KEY = 'predictor:admin:view';
+	const ADMIN_PHASE_OVERRIDE_KEY = 'predictor:admin:phase-override';
+	// Svelte template expressions are plain JS, not TS (CLAUDE.md gotcha) —
+	// an inline `as PhaseOverride[]` literal inside {#each} would fail to
+	// compile, so the option list is a typed script const instead.
+	const PHASE_OPTIONS: PhaseOverride[] = ['auto', 'pre', 'during', 'post'];
 	let adminPreviewPool = false;
+	let phaseOverride: PhaseOverride = 'auto';
 	onMount(() => {
 		adminPreviewPool = localStorage.getItem(ADMIN_VIEW_KEY) === 'pool';
+		const stored = localStorage.getItem(ADMIN_PHASE_OVERRIDE_KEY);
+		if (stored === 'pre' || stored === 'during' || stored === 'post') {
+			phaseOverride = stored;
+		}
 	});
-	function toggleAdminView() {
-		adminPreviewPool = !adminPreviewPool;
-		localStorage.setItem(ADMIN_VIEW_KEY, adminPreviewPool ? 'pool' : 'admin');
+	function setAdminPreviewPool(next: boolean) {
+		adminPreviewPool = next;
+		localStorage.setItem(ADMIN_VIEW_KEY, next ? 'pool' : 'admin');
+	}
+	function setPhaseOverride(next: PhaseOverride) {
+		phaseOverride = next;
+		localStorage.setItem(ADMIN_PHASE_OVERRIDE_KEY, next);
 	}
 
-	type HomeView = 'landing' | 'holding' | 'dash';
 	$: effectiveDeadline = $phase1Deadline ?? data.phase1Deadline;
 	$: deadlinePassed =
 		!!effectiveDeadline && new Date(effectiveDeadline).getTime() < Date.now();
-	// What a non-admin sees right now.
-	let poolView: HomeView = 'landing';
-	$: poolView = !$isAuthenticated
-		? 'landing'
-		: V4_DASHBOARD_ENABLED && $postDeadlineLive
-		? 'dash'
-		: deadlinePassed
-		? 'holding'
-		: 'landing';
+	// V4_DASHBOARD_ENABLED is the master kill switch for the whole V4
+	// home-view system (dashboard + admin phase-preview cluster) — folded
+	// into both inputs below so flipping it false reproduces the old
+	// unconditional "everyone sees landing/holding" rollback behavior,
+	// including for admins (who'd otherwise still hit the isAdmin-dash
+	// branch inside resolveHomeView's 'auto' path).
 	let view: HomeView = 'landing';
-	$: view =
-		$isAuthenticated && $user?.is_admin === true && V4_DASHBOARD_ENABLED && !adminPreviewPool
-			? 'dash'
-			: poolView;
+	$: view = resolveHomeView({
+		isAuthenticated: $isAuthenticated,
+		isAdmin: $user?.is_admin === true && V4_DASHBOARD_ENABLED,
+		adminPreviewPool,
+		phaseOverride,
+		deadlinePassed,
+		postDeadlineLive: V4_DASHBOARD_ENABLED && $postDeadlineLive,
+		tournamentConcluded: $tournamentConcluded
+	});
 
 	onMount(() => {
 		// Empty so the logo alone carries the brand and doesn't collide with the countdown pill on narrow viewports.
@@ -138,7 +158,12 @@
 	stack two top bars and surface two toggles. Keep the components pure
 	(no auth coupling inside them) — the page composer owns the gate.
 -->
-{#if view === 'dash'}
+{#if view === 'wrapup'}
+	<!-- Post-tournament wrap-up page (Plan C) — public once the admin
+	     flips Competition.tournament_concluded, or previewable any time
+	     via the admin phase-override cluster below. -->
+	<WrapUp />
+{:else if view === 'dash'}
 	<!-- Signed-in landing: the V4 Dashboard (v2.165.0). The Touchline
 	     news band rides along below it — same server-loaded RSS feed
 	     (and the same section_viewed analytics) as the marketing page. -->
@@ -212,16 +237,45 @@
 {/if}
 
 {#if $isAuthenticated && $user?.is_admin === true && V4_DASHBOARD_ENABLED}
-	<!-- Admin-only: flip between the admin view (dashboard) and exactly
-	     what the pool currently sees (landing / holding / dashboard,
-	     depending on deadline + go-live state). Sits above the mobile
-	     bottom nav; bordered chrome per the sticky-bar clipping rule. -->
-	<button
-		type="button"
-		class="fixed bottom-20 right-4 z-40 flex items-center gap-1.5 rounded-btn border border-base-300/70 bg-base-200 px-3 py-1.5 text-[11px] font-bold text-base-content/80 shadow-card transition-colors hover:border-primary/50 min-[700px]:bottom-6"
-		on:click={toggleAdminView}
+	<!-- Admin-only preview cluster: Audience toggle (admin view vs. exactly
+	     what the pool currently sees) + Phase override (force-preview the
+	     pre/during/post-tournament state regardless of the real deadline/
+	     conclusion flags). Sits above the mobile bottom nav; bordered
+	     chrome per the sticky-bar clipping rule. -->
+	<div
+		class="fixed bottom-20 right-4 z-40 rounded-box border border-base-300/70 bg-base-200 p-2.5 text-[11px] shadow-card min-[700px]:bottom-6"
 	>
-		<span aria-hidden="true">👁</span>
-		{adminPreviewPool ? 'Viewing as pool — back to admin view' : 'View as pool'}
-	</button>
+		<p class="mb-1 text-[9px] font-bold uppercase tracking-wider text-base-content/50">
+			👁 Preview
+		</p>
+		<div class="mb-1 flex items-center gap-1">
+			<span class="w-14 text-base-content/50">Audience</span>
+			{#each [{ v: false, l: 'Admin' }, { v: true, l: 'Pool' }] as o}
+				<button
+					type="button"
+					class="rounded-badge px-2 py-0.5 font-bold {adminPreviewPool === o.v
+						? 'bg-primary/15 text-primary'
+						: 'text-base-content/60'}"
+					on:click={() => setAdminPreviewPool(o.v)}
+				>{o.l}</button>
+			{/each}
+		</div>
+		<div class="flex items-center gap-1">
+			<span class="w-14 text-base-content/50">Phase</span>
+			{#each PHASE_OPTIONS as p}
+				<button
+					type="button"
+					class="rounded-badge px-2 py-0.5 font-bold capitalize {phaseOverride === p
+						? 'bg-primary/15 text-primary'
+						: 'text-base-content/60'}"
+					on:click={() => setPhaseOverride(p)}
+				>{p}</button>
+			{/each}
+		</div>
+		{#if phaseOverride !== 'auto'}
+			<p class="mt-1 text-[10px] text-primary">
+				previewing: {phaseOverride} · tap Auto to reset
+			</p>
+		{/if}
+	</div>
 {/if}
