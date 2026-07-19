@@ -2872,6 +2872,13 @@
       "type": "fix",
       "summary": "Fixed a server error when running the final audit from admin — it was trying to write into a folder that's locked read-only in production.",
       "commit": "pending"
+    },
+    {
+      "version": "2.217.0",
+      "date": "2026-07-20",
+      "type": "feature",
+      "summary": "The navbar now counts down to UEFA Euro 2028 once the tournament wraps up.",
+      "commit": "pending"
     }
   ]
 }
