@@ -3,6 +3,10 @@
 
 	export let finalMatch: FinalMatchOut | null;
 
+	// Per-side seeded check (never binary) — a slot placeholder means that
+	// side's lineup hasn't resolved yet, independent of the other side.
+	const teamLabel = (team: string) => (team.startsWith('slot:') ? 'TBD' : team);
+
 	const d = (iso: string | null) =>
 		iso
 			? new Intl.DateTimeFormat('en-GB', {
@@ -26,11 +30,11 @@
 			{/if}
 		</div>
 		<div class="my-2.5 flex flex-wrap items-center justify-center gap-3">
-			<span class="font-display font-extrabold">{finalMatch.home_team}</span>
+			<span class="font-display font-extrabold">{teamLabel(finalMatch.home_team)}</span>
 			<span class="whitespace-nowrap font-display text-2xl font-extrabold text-primary">
 				{finalMatch.home_score ?? '–'} – {finalMatch.away_score ?? '–'}
 			</span>
-			<span class="font-display font-extrabold">{finalMatch.away_team}</span>
+			<span class="font-display font-extrabold">{teamLabel(finalMatch.away_team)}</span>
 		</div>
 		{#if finalMatch.went_to_extra_time || finalMatch.penalties}
 			<p class="text-center text-[11px] text-base-content/40">
