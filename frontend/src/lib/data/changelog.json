@@ -2893,6 +2893,13 @@
       "type": "feature",
       "summary": "Guests visiting the wrap-up page now see a sign-in prompt right at the top that jumps straight to the sign-in card.",
       "commit": "pending"
+    },
+    {
+      "version": "2.218.1",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "Moved the guest sign-in card to the very end of the wrap-up page, after the whole story.",
+      "commit": "pending"
     }
   ]
 }
