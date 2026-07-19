@@ -2788,6 +2788,13 @@
       "type": "feature",
       "summary": "The tournament finale: a public wrap-up page with the champion's story, your personal highlights, and a head-to-head compare view.",
       "commit": "pending"
+    },
+    {
+      "version": "2.215.0",
+      "date": "2026-07-19",
+      "type": "feature",
+      "summary": "Wrap-up and compare polish: country flags everywhere a team is shown, a fixed bonus-points bug, a light-mode card fix, and a cleaner head-to-head layout.",
+      "commit": "pending"
     }
   ]
 }
