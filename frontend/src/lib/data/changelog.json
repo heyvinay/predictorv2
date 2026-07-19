@@ -2795,6 +2795,13 @@
       "type": "feature",
       "summary": "Wrap-up and compare polish: country flags everywhere a team is shown, a fixed bonus-points bug, a light-mode card fix, and a cleaner head-to-head layout.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.0",
+      "date": "2026-07-19",
+      "type": "feature",
+      "summary": "Head-to-head compare now shows a waterfall chart of where the points gap actually opened up, in the order matches and picks happened.",
+      "commit": "pending"
     }
   ]
 }
