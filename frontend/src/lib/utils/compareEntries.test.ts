@@ -68,3 +68,66 @@ describe('buildMatchRows', () => {
 		expect(buildMatchRows(a, input({}), unf)).toHaveLength(0);
 	});
 });
+
+import type { ScoringRules } from '$lib/types/results';
+import { buildBonusRows, buildBracketRows, buildSwings } from './compareEntries';
+
+const RULES: ScoringRules = {
+	mode: 'logarithmic',
+	match: { correct_outcome: 5, exact_score: 10, rarity_cap: 5 },
+	advancement: { round_of_32: 2, round_of_16: 4, quarter_final: 8, semi_final: 16, final: 32, winner: 64 }
+};
+
+const bracket = (over: Partial<import('$types').BracketPrediction>) => ({
+	group_winners: {}, round_of_32: [], round_of_16: [],
+	quarter_finals: [], semi_finals: [], final: [], winner: '',
+	...over
+});
+
+describe('buildBracketRows', () => {
+	it('per-stage hits vs actual advancement, points from rules', () => {
+		const a = input({ bracket: bracket({ semi_finals: ['Argentina', 'France', 'Spain', 'England'], winner: 'Argentina' }) });
+		const b = input({ bracket: bracket({ semi_finals: ['Argentina', 'Brazil', 'Spain', 'Portugal'], winner: 'France' }) });
+		const actual = { semi_final: new Set(['Argentina', 'France', 'Spain', 'Morocco']), winner: new Set(['Argentina']) };
+		const rows = buildBracketRows(a, b, actual, RULES);
+		const sf = rows.find((r) => r.stage === 'semi_final')!;
+		expect(sf.aHits).toBe(3);
+		expect(sf.bHits).toBe(2);
+		expect(sf.aPoints).toBe(48); // 3 × 16
+		expect(sf.delta).toBe(16);
+		const w = rows.find((r) => r.stage === 'winner')!;
+		expect(w.aHits).toBe(1);
+		expect(w.bHits).toBe(0);
+		expect(w.delta).toBe(64);
+	});
+});
+
+describe('buildBonusRows + buildSwings', () => {
+	it('bonus rows join labels; swings rank every differing element by |delta|', () => {
+		const labels = new Map([['q1', 'Knockout Top / Flop']]);
+		const a = input({
+			matches: [PICK('f1', 2, 0, 13.2, 'exact')],
+			bonusReads: [{ question_id: 'q1', answer: 'Türkiye', category: 'top_flop', points: 10, hit: true }],
+			questionLabels: labels,
+			bracket: bracket({ winner: 'Argentina' })
+		});
+		const b = input({
+			matches: [PICK('f1', 1, 0, 5, 'result')],
+			bonusReads: [{ question_id: 'q1', answer: 'Belgium', category: 'top_flop', points: 0, hit: false }],
+			questionLabels: labels,
+			bracket: bracket({ winner: 'France' })
+		});
+		const actual = { winner: new Set(['Argentina']) };
+		const bonusRows = buildBonusRows(a, b);
+		expect(bonusRows[0].label).toBe('Knockout Top / Flop');
+		expect(bonusRows[0].delta).toBe(10);
+
+		const swings = buildSwings(a, b, fixtures, actual, RULES);
+		// winner stage (64) > bonus (10) > match (8.2)
+		expect(swings.map((s) => s.kind)).toEqual(['bracket', 'bonus', 'match']);
+		expect(swings[0].delta).toBe(64);
+		expect(swings[2].delta).toBeCloseTo(8.2);
+		// equal elements are excluded
+		expect(swings.every((s) => s.delta !== 0)).toBe(true);
+	});
+});

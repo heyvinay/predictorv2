@@ -108,3 +108,154 @@ export function buildMatchRows(
 	});
 	return rows;
 }
+
+import type { ScoringRules } from '$lib/types/results';
+
+/** Bridge: BracketPrediction keys (plural QF/SF) ↔ stage keys (singular). */
+const BRACKET_STAGES: { key: keyof BracketPrediction; stage: string; label: string }[] = [
+	{ key: 'round_of_32', stage: 'round_of_32', label: 'Round of 32' },
+	{ key: 'round_of_16', stage: 'round_of_16', label: 'Round of 16' },
+	{ key: 'quarter_finals', stage: 'quarter_final', label: 'Quarter-finals' },
+	{ key: 'semi_finals', stage: 'semi_final', label: 'Semi-finals' },
+	{ key: 'final', stage: 'final', label: 'Final' }
+];
+
+export type ActualAdvancement = Partial<Record<string, Set<string>>>;
+
+export interface BracketRow {
+	stage: string;
+	label: string;
+	aTeams: string[];
+	bTeams: string[];
+	aHits: number;
+	bHits: number;
+	aPoints: number;
+	bPoints: number;
+	delta: number;
+}
+
+export function buildBracketRows(
+	a: CompareEntryInput,
+	b: CompareEntryInput,
+	actual: ActualAdvancement,
+	rules: ScoringRules
+): BracketRow[] {
+	const rows: BracketRow[] = [];
+	for (const { key, stage, label } of BRACKET_STAGES) {
+		const reached = actual[stage];
+		if (!reached || reached.size === 0) continue; // stage not settled yet
+		const aTeams = (a.bracket?.[key] as string[] | undefined) ?? [];
+		const bTeams = (b.bracket?.[key] as string[] | undefined) ?? [];
+		const per = rules.advancement[stage] ?? 0;
+		const aHits = aTeams.filter((t) => reached.has(t)).length;
+		const bHits = bTeams.filter((t) => reached.has(t)).length;
+		rows.push({
+			stage, label, aTeams, bTeams, aHits, bHits,
+			aPoints: aHits * per, bPoints: bHits * per,
+			delta: (aHits - bHits) * per
+		});
+	}
+	const winners = actual['winner'];
+	if (winners && winners.size > 0) {
+		const per = rules.advancement['winner'] ?? 0;
+		const aHit = a.bracket?.winner && winners.has(a.bracket.winner) ? 1 : 0;
+		const bHit = b.bracket?.winner && winners.has(b.bracket.winner) ? 1 : 0;
+		rows.push({
+			stage: 'winner', label: 'Winner',
+			aTeams: a.bracket?.winner ? [a.bracket.winner] : [],
+			bTeams: b.bracket?.winner ? [b.bracket.winner] : [],
+			aHits: aHit, bHits: bHit,
+			aPoints: aHit * per, bPoints: bHit * per,
+			delta: (aHit - bHit) * per
+		});
+	}
+	return rows;
+}
+
+export interface BonusRow {
+	questionId: string;
+	label: string;
+	aAnswer: string | null;
+	bAnswer: string | null;
+	aPoints: number;
+	bPoints: number;
+	aHit: boolean | null;
+	bHit: boolean | null;
+	delta: number;
+}
+
+export function buildBonusRows(a: CompareEntryInput, b: CompareEntryInput): BonusRow[] {
+	const ids = new Set([
+		...a.bonusReads.map((r) => r.question_id),
+		...b.bonusReads.map((r) => r.question_id)
+	]);
+	const byIdA = new Map(a.bonusReads.map((r) => [r.question_id, r]));
+	const byIdB = new Map(b.bonusReads.map((r) => [r.question_id, r]));
+	const rows: BonusRow[] = [];
+	for (const id of ids) {
+		const ra = byIdA.get(id);
+		const rb = byIdB.get(id);
+		rows.push({
+			questionId: id,
+			label: a.questionLabels.get(id) ?? b.questionLabels.get(id) ?? 'Bonus question',
+			aAnswer: ra?.answer ?? null,
+			bAnswer: rb?.answer ?? null,
+			aPoints: ra?.points ?? 0,
+			bPoints: rb?.points ?? 0,
+			aHit: ra?.hit ?? null,
+			bHit: rb?.hit ?? null,
+			delta: (ra?.points ?? 0) - (rb?.points ?? 0)
+		});
+	}
+	return rows;
+}
+
+export interface Swing {
+	kind: 'match' | 'bracket' | 'bonus';
+	label: string;
+	why: string; // "A exact (13.2) · B result (5)"
+	delta: number;
+}
+
+const KIND_WORD: Record<PickKind, string> = {
+	exact: 'exact', result: 'result', miss: 'miss', none: 'no pick'
+};
+
+export function buildSwings(
+	a: CompareEntryInput,
+	b: CompareEntryInput,
+	fixtureById: Map<string, Fixture>,
+	actual: ActualAdvancement,
+	rules: ScoringRules
+): Swing[] {
+	const swings: Swing[] = [];
+	for (const r of buildMatchRows(a, b, fixtureById)) {
+		if (r.delta === 0) continue;
+		swings.push({
+			kind: 'match',
+			label: r.label,
+			why: `${KIND_WORD[r.aKind]} (${r.aPoints}) · ${KIND_WORD[r.bKind]} (${r.bPoints})`,
+			delta: r.delta
+		});
+	}
+	for (const r of buildBracketRows(a, b, actual, rules)) {
+		if (r.delta === 0) continue;
+		swings.push({
+			kind: 'bracket',
+			label: `Bracket — ${r.label}`,
+			why: `${r.aHits} vs ${r.bHits} correct (+${r.aPoints} / +${r.bPoints})`,
+			delta: r.delta
+		});
+	}
+	for (const r of buildBonusRows(a, b)) {
+		if (r.delta === 0) continue;
+		swings.push({
+			kind: 'bonus',
+			label: `Bonus — ${r.label}`,
+			why: `${r.aAnswer ?? '—'} (+${r.aPoints}) · ${r.bAnswer ?? '—'} (+${r.bPoints})`,
+			delta: r.delta
+		});
+	}
+	swings.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+	return swings;
+}
