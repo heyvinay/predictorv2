@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 import app.models  # noqa: F401 — register all tables
 from app.database import get_session
-from app.dependencies import get_admin_user, get_current_user
+from app.dependencies import get_admin_user, get_current_user, get_current_user_optional
 from app.main import app
 from app.models.competition import Competition
 from app.models._datetime import utc_now
@@ -67,6 +67,86 @@ async def client_as_admin(db_session: AsyncSession, admin_user: User):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def regular_user(db_session: AsyncSession) -> User:
+    u = User(
+        email="user@example.com",
+        name="Regular",
+        password_hash="x",
+        auth_provider=AuthProvider.EMAIL,
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(u)
+    await db_session.commit()
+    await db_session.refresh(u)
+    return u
+
+
+@pytest_asyncio.fixture
+async def client_as_user(db_session: AsyncSession, regular_user: User):
+    """Authenticated but NON-admin. Overrides get_current_user_optional
+    directly (not just get_current_user) so OptionalUser-typed routes
+    (e.g. GET /leaderboard/) genuinely see a real, non-admin User through
+    the actual dependency — same reasoning as test_tournament_champion.py's
+    client_as_user fixture.
+    """
+
+    async def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    app.dependency_overrides[get_current_user] = lambda: regular_user
+    app.dependency_overrides[get_current_user_optional] = lambda: regular_user
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def client_anonymous(db_session: AsyncSession):
+    """Same AsyncClient shape as client_as_admin, but ONLY get_session is
+    overridden — no user/admin override — so the real
+    get_current_user_optional dependency runs and yields None for an
+    unauthenticated request (no Authorization header sent)."""
+
+    async def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_feedback_accepts_features(client_as_user, monkeypatch):
+    sent = {}
+
+    async def fake_send(**kwargs):
+        sent.update(kwargs)
+
+    from app.services import email as email_service
+    monkeypatch.setattr(email_service, "send_feedback_email", fake_send)
+
+    resp = await client_as_user.post(
+        "/api/feedback/",
+        json={"rating": 5, "message": "loved it", "features": ["leaderboard", "compare"]},
+    )
+    assert resp.status_code == 204
+    assert "leaderboard" in sent.get("features_line", "")
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_public_when_concluded(client_anonymous, competition, db_session):
+    competition.tournament_concluded = True
+    await db_session.commit()
+    resp = await client_anonymous.get("/api/leaderboard/")
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio

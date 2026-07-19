@@ -82,6 +82,7 @@ async def send_feedback_email(
     message: str,
     reply_to: str,
     user_name: str,
+    features_line: str = "",
 ) -> None:
     """Email a user's in-app rating + written feedback to the pool owner.
 
@@ -93,6 +94,10 @@ async def send_feedback_email(
 
     ``reply_to`` is the submitter's email, set as the message Reply-To so a
     reply straight from the inbox reaches them.
+
+    ``features_line`` (v2.214.x) is an optional comma-separated list of
+    feature chips the submitter flagged as favourites — appended to the
+    body when non-empty, omitted entirely otherwise.
     """
     settings = get_settings()
 
@@ -103,6 +108,8 @@ async def send_feedback_email(
         print("[feedback] RESEND_API_KEY not set — dev mode, printing instead of sending:", flush=True)
         print(f"[feedback] {stars} ({rating}/5) from {user_name} <{reply_to}>", flush=True)
         print(f"[feedback] {message}", flush=True)
+        if features_line:
+            print(f"[feedback] Favourite features: {features_line}", flush=True)
         return
 
     subject = f"New feedback — {stars} from {user_name}"
@@ -113,8 +120,11 @@ async def send_feedback_email(
         safe_name=html.escape(user_name or "A pool member"),
         safe_reply=html.escape(reply_to),
         safe_message=html.escape(message),
+        safe_features_line=html.escape(features_line) if features_line else "",
     )
     text_body = f"{stars} ({rating}/5) from {user_name} <{reply_to}>\n\n{message}\n"
+    if features_line:
+        text_body += f"\nFavourite features: {features_line}\n"
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -146,9 +156,16 @@ def _build_feedback_html(
     safe_name: str,
     safe_reply: str,
     safe_message: str,
+    safe_features_line: str = "",
 ) -> str:
     """Render the feedback email body (inline CSS, brand palette). All
     interpolated user strings must already be HTML-escaped by the caller."""
+    features_html = (
+        f'<div style="font-size:12px;color:{_MUTED_INK};margin-top:10px;">'
+        f'Favourite features: {safe_features_line}</div>'
+        if safe_features_line
+        else ""
+    )
     return (
         '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8" />'
         '<meta name="viewport" content="width=device-width,initial-scale=1.0" /></head>'
@@ -169,6 +186,7 @@ def _build_feedback_html(
         f'{rating} / 5 · from {safe_name} &lt;{safe_reply}&gt;</div>'
         f'<div style="font-size:15px;line-height:1.6;white-space:pre-wrap;'
         f'border-left:3px solid {_GOLD};padding:4px 0 4px 14px;">{safe_message}</div>'
+        f'{features_html}'
         f'<div style="font-size:12px;color:{_MUTED_INK};margin-top:20px;">'
         f'Reply to this email to respond to {safe_name} directly.</div>'
         '</td></tr></table></td></tr></table></body></html>'

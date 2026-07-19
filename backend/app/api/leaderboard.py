@@ -159,16 +159,30 @@ async def get_leaderboard(
     except Exception as e:  # noqa: BLE001 — overlay is best-effort, don't fail the endpoint
         logger.warning("live projection overlay failed: %s", e)
 
+    # Post-conclusion the board is public (wrap-up page, staff audience) —
+    # an anonymous caller sees the full standings once the tournament is
+    # marked concluded, same gate as /leaderboard/final-podium. Anonymous
+    # behavior BEFORE conclusion is UNCHANGED below.
+    from app.models.competition import Competition
+
+    comp = (
+        await session.execute(
+            select(Competition).where(Competition.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    concluded = bool(comp and comp.tournament_concluded)
+
     # Pre-lock blind-pool filter. Post-lock returns full standings.
-    if user is None or not user.is_admin:
+    if user is None and not concluded:
         locked = await is_phase1_locked(session)
         if not locked:
-            if user is None:
-                response.entries = []
-            else:
-                response.entries = [
-                    e for e in response.entries if e.user_id == user.id
-                ]
+            response.entries = []
+    elif user is not None and not user.is_admin:
+        locked = await is_phase1_locked(session)
+        if not locked:
+            response.entries = [
+                e for e in response.entries if e.user_id == user.id
+            ]
 
     return response
 
