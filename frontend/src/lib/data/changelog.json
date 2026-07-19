@@ -2802,6 +2802,13 @@
       "type": "feature",
       "summary": "Head-to-head compare now shows a waterfall chart of where the points gap actually opened up, in the order matches and picks happened.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.1",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "Compare's Matches table now shows the actual result in its own column, so scores line up instead of trailing at different points in each row.",
+      "commit": "pending"
     }
   ]
 }
