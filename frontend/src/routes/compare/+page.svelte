@@ -345,15 +345,15 @@
 									<td class="max-w-0 truncate py-2 pr-2">{r.teams}</td>
 									<td class="py-2 pr-2 tabular-nums text-base-content/70">{r.resultScore}</td>
 									<td class="py-2 pr-2">
-										<div class="grid grid-cols-[2.75rem_1fr] items-baseline gap-1">
+										<div class="flex items-baseline gap-1.5">
 											<span class="{pickTone(r.aKind)} tabular-nums">{r.aPick ?? '—'}</span>
-											<span class="text-right text-xs tabular-nums text-base-content/50">{fmtPts(r.aPoints)}</span>
+											<span class="text-xs tabular-nums text-base-content/50">{fmtPts(r.aPoints)}</span>
 										</div>
 									</td>
 									<td class="py-2 pr-2">
-										<div class="grid grid-cols-[2.75rem_1fr] items-baseline gap-1">
+										<div class="flex items-baseline gap-1.5">
 											<span class="{pickTone(r.bKind)} tabular-nums">{r.bPick ?? '—'}</span>
-											<span class="text-right text-xs tabular-nums text-base-content/50">{fmtPts(r.bPoints)}</span>
+											<span class="text-xs tabular-nums text-base-content/50">{fmtPts(r.bPoints)}</span>
 										</div>
 									</td>
 									<td class="py-2 text-right tabular-nums font-bold {deltaTone(r.delta)}">{r.delta > 0 ? '+' : ''}{fmtPts(r.delta)}</td>
