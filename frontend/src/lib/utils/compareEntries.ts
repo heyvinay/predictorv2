@@ -252,7 +252,7 @@ export function buildSwings(
 		if (r.delta === 0) continue;
 		swings.push({
 			kind: 'bracket',
-			label: `Bracket — ${r.label}`,
+			label: `Knockout — ${r.label}`,
 			why: `${r.aHits} vs ${r.bHits} correct (+${r.aPoints} / +${r.bPoints})`,
 			delta: r.delta,
 			key: r.stage

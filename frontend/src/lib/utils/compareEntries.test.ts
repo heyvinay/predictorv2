@@ -172,7 +172,7 @@ describe('elementValues', () => {
 		const actual = { semi_final: new Set(['Argentina', 'France', 'Spain', 'Morocco']) };
 		const sfSwing = {
 			kind: 'bracket' as const,
-			label: 'Bracket — Semi-finals',
+			label: 'Knockout — Semi-finals',
 			why: '',
 			delta: 16,
 			key: 'semi_final'

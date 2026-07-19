@@ -153,7 +153,7 @@
 		tab = t;
 		track('compare_tab_changed', { tab: t });
 	}
-	const tabLabel = (t: CompareTab) => (t === 'matches' ? 'Matches' : t === 'bracket' ? 'Bracket' : 'Bonus');
+	const tabLabel = (t: CompareTab) => (t === 'matches' ? 'Matches' : t === 'bracket' ? 'Knockout' : 'Bonus');
 
 	const fmtPts = (n: number) => Math.round(n * 10) / 10;
 	const pickTone = (kind: string) =>
