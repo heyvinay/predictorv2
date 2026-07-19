@@ -26,9 +26,9 @@
 <div class="space-y-1.5">
 	{#each visible as s (s.kind + s.label)}
 		<div class="flex items-center justify-between gap-3 rounded-btn border border-base-300/60 bg-base-100 px-3 py-1.5">
-			<div class="min-w-0">
-				<p class="text-sm truncate">{s.label}</p>
-				<p class="text-xs text-base-content/55 truncate">{s.why}</p>
+			<div class="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-3">
+				<p class="truncate text-sm sm:flex-1">{s.label}</p>
+				<p class="truncate text-xs text-base-content/55 sm:flex-1">{s.why}</p>
 			</div>
 			<span
 				class="flex-none rounded-badge px-2 py-0.5 font-display text-sm font-extrabold

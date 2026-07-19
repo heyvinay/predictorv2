@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { track } from '$lib/analytics';
 	import type { PersonalWrapOut } from '$lib/types/wrapup';
 
 	/** First (or only) personal wrap — kept as its own prop so callers with
@@ -16,6 +17,11 @@
 	// bounds rather than pointing at a stale/missing entry.
 	$: if (selectedIdx >= allPersonal.length) selectedIdx = 0;
 	$: current = allPersonal[selectedIdx] ?? personal;
+
+	function selectEntry(i: number) {
+		selectedIdx = i;
+		track('wrapup_entry_switched', { index: i });
+	}
 
 	function ordinal(n: number): string {
 		const mod100 = n % 100;
@@ -36,7 +42,7 @@
 						{i === selectedIdx
 						? 'border-primary/50 bg-primary/15 text-primary'
 						: 'border-base-300/60 text-base-content/55'}"
-					on:click={() => (selectedIdx = i)}
+					on:click={() => selectEntry(i)}
 				>{p.entry_name}</button>
 			{/each}
 		</div>

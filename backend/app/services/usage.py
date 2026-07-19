@@ -127,6 +127,7 @@ FEATURE_GROUPS: dict[str, dict[str, object]] = {
             "wrapup_leaderboard_full_clicked",
             "wrapup_footer_link_clicked",
             "wrapup_signin_started",
+            "wrapup_entry_switched",
         ],
     },
     "compare": {

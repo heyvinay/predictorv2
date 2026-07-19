@@ -139,7 +139,10 @@ export type EventName =
 	| 'wrapup_matrix_compare_clicked'
 	| 'wrapup_leaderboard_full_clicked'
 	| 'wrapup_footer_link_clicked'
-	| 'wrapup_signin_started';
+	| 'wrapup_signin_started'
+	// wrapup_entry_switched fires when a multi-entry owner taps a chip in
+	// YourTournament's entry switcher (carries which index was chosen).
+	| 'wrapup_entry_switched';
 
 /** Event property payload. Flat primitives only — PostHog stores these
  *  as searchable filterable fields. Avoid nested objects (PostHog

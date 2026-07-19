@@ -316,20 +316,33 @@
 
 			<div class="stadium-card no-glow p-4 overflow-x-auto">
 				{#if tab === 'matches'}
-					<table class="w-full text-sm">
+					<table class="w-full table-fixed text-sm">
+						<colgroup>
+							<col class="w-[34%]" />
+							<col class="w-[27%]" />
+							<col class="w-[27%]" />
+							<col class="w-[12%]" />
+						</colgroup>
 						<thead><tr class="text-left text-[10px] uppercase tracking-wider text-base-content/40">
 							<th class="py-1 pr-2">Match</th><th class="py-1 pr-2">{inputA.displayName}</th>
-							<th class="py-1 pr-2 text-right">Pts</th><th class="py-1 pr-2">{inputB.displayName}</th>
-							<th class="py-1 pr-2 text-right">Pts</th><th class="py-1 text-right">Δ</th>
+							<th class="py-1 pr-2">{inputB.displayName}</th><th class="py-1 text-right">Δ</th>
 						</tr></thead>
 						<tbody>
 							{#each matchRows as r (r.fixtureId)}
 								<tr class="border-t border-base-300/40">
-									<td class="py-1.5 pr-2 whitespace-nowrap max-w-[180px] truncate">{r.label}</td>
-									<td class="py-1.5 pr-2 {pickTone(r.aKind)}">{r.aPick ?? '—'}</td>
-									<td class="py-1.5 pr-2 text-right tabular-nums">{fmtPts(r.aPoints)}</td>
-									<td class="py-1.5 pr-2 {pickTone(r.bKind)}">{r.bPick ?? '—'}</td>
-									<td class="py-1.5 pr-2 text-right tabular-nums">{fmtPts(r.bPoints)}</td>
+									<td class="max-w-0 truncate py-1.5 pr-2">{r.label}</td>
+									<td class="py-1.5 pr-2">
+										<span class="flex items-baseline gap-1.5">
+											<span class="{pickTone(r.aKind)} truncate">{r.aPick ?? '—'}</span>
+											<span class="flex-none text-xs tabular-nums text-base-content/50">{fmtPts(r.aPoints)}</span>
+										</span>
+									</td>
+									<td class="py-1.5 pr-2">
+										<span class="flex items-baseline gap-1.5">
+											<span class="{pickTone(r.bKind)} truncate">{r.bPick ?? '—'}</span>
+											<span class="flex-none text-xs tabular-nums text-base-content/50">{fmtPts(r.bPoints)}</span>
+										</span>
+									</td>
 									<td class="py-1.5 text-right tabular-nums font-bold {deltaTone(r.delta)}">{r.delta > 0 ? '+' : ''}{fmtPts(r.delta)}</td>
 								</tr>
 							{/each}
