@@ -2837,6 +2837,13 @@
       "type": "fix",
       "summary": "Champion picks in the final leaderboard now show eliminated teams as out and Finalists as still alive, updating to the real result once the Final ends.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.6",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "Bonus question names and answer teams in the wrap-up no longer get cut off — the full text now wraps instead of truncating.",
+      "commit": "pending"
     }
   ]
 }
