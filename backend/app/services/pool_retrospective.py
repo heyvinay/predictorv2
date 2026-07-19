@@ -30,8 +30,6 @@ from app.models.score import Score
 
 logger = logging.getLogger(__name__)
 
-_cache: dict = {"key": None, "value": None}
-
 
 def outcome_of(home: int, away: int) -> str:
     if home > away:
