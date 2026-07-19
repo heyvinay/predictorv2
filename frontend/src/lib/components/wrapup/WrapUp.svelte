@@ -132,17 +132,14 @@
 				/>
 			</section>
 
-			<!-- Row 3: personal / sign-in + feedback -->
+			<!-- Row 3: personal + feedback (members only — guest sign-in card
+			     lives at the very bottom of the page now, see Row 7) -->
 			{#if $isAuthenticated && personal}
 				<section class="col-span-6 min-w-0 min-[1100px]:col-span-4">
 					<YourTournament {personal} allPersonal={retro?.personal ?? [personal]} poolSize={rows.length} />
 				</section>
 				<section class="col-span-6 min-w-0 min-[760px]:col-span-3 min-[1100px]:col-span-2">
 					<FeedbackTile />
-				</section>
-			{:else if !$isAuthenticated}
-				<section class="col-span-6 min-w-0">
-					<GuestSignInStrip />
 				</section>
 			{/if}
 
@@ -173,6 +170,15 @@
 			<section class="col-span-6 min-w-0 min-[760px]:col-span-4">
 				<CharityStrip isMember={$isAuthenticated} />
 			</section>
+
+			<!-- Row 7: guest sign-in card — the very last thing on the page,
+			     so a guest reads the whole story first; the top CTA jumps
+			     straight here for anyone who doesn't want to scroll. -->
+			{#if !$isAuthenticated}
+				<section class="col-span-6 min-w-0">
+					<GuestSignInStrip />
+				</section>
+			{/if}
 		</div>
 	{/if}
 </div>
