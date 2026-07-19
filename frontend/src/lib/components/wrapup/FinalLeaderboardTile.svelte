@@ -7,6 +7,14 @@
 	export let rows: LbEntryV4[];
 	export let championTeam: string | null;
 	export let myUserId: string | null;
+	/** Teams eliminated so far (canonical resolver — see eliminatedTeams()).
+	 *  A champion pick not in this set is still alive: either it's one of the
+	 *  two Final finalists (undecided) or, once the Final itself resolves, the
+	 *  actual champion (the only team that never loses). The Final's loser
+	 *  lands in this set the moment that match finishes, so the same set
+	 *  naturally flips the runner-up's pick to "eliminated" post-Final with
+	 *  no separate branch needed. */
+	export let eliminated: Set<string> = new Set();
 
 	$: multiOwners = multiEntryUserIds(rows);
 	$: top10 = rows.slice(0, 10);
@@ -48,12 +56,14 @@
 						: 'text-base-content/40'}"
 				>
 					{#if r.champion_pick}
-						<FlagCode team={r.champion_pick} size="sm" />
+						<FlagCode
+							team={r.champion_pick}
+							size="sm"
+							alive={!eliminated.has(r.champion_pick)}
+							dot={true}
+						/>
 					{:else}
 						—
-					{/if}
-					{#if championTeam}
-						{r.champion_pick === championTeam ? '✓' : '✗'}
 					{/if}
 				</span>
 			</span>

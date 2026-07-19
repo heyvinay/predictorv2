@@ -7,7 +7,7 @@
 	 *  prop contracts. */
 	import { onMount } from 'svelte';
 	import { isAuthenticated, user } from '$stores/auth';
-	import { fetchAllFixtures } from '$stores/fixtures';
+	import { fetchAllFixtures, fixtures } from '$stores/fixtures';
 	import {
 		getFinalPodium,
 		getPoolRetrospective,
@@ -15,6 +15,7 @@
 		getScoringRules
 	} from '$api/leaderboard';
 	import { track } from '$lib/analytics';
+	import { eliminatedTeams } from '$lib/utils/leaderboardV4';
 	import type { FinalPodium, PoolRetrospective } from '$lib/types/wrapup';
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { ScoringRules } from '$lib/types/results';
@@ -38,6 +39,8 @@
 	let rows: LbEntryV4[] = [];
 	let rules: ScoringRules | null = null;
 	let loading = true;
+
+	$: eliminated = eliminatedTeams($fixtures);
 
 	async function load() {
 		const [p, r, lb, sr] = await Promise.all([
@@ -107,6 +110,7 @@
 					{rows}
 					championTeam={retro?.final_winner_team ?? null}
 					myUserId={$user?.id ?? null}
+					{eliminated}
 				/>
 			</section>
 
