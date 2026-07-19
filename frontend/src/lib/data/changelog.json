@@ -2865,6 +2865,13 @@
       "type": "fix",
       "summary": "The Atlas Insurance card heading now reads \"Thank You!\" instead of the donation amount.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.10",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "Fixed a server error when running the final audit from admin — it was trying to write into a folder that's locked read-only in production.",
+      "commit": "pending"
     }
   ]
 }
