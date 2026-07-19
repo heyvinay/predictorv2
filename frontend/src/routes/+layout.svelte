@@ -5,7 +5,13 @@
 	import { page } from '$app/stores';
 	import { isAuthenticated, user, logout, initAuth } from '$stores/auth';
 	import { initAnalytics, identify, track } from '$lib/analytics';
-	import { fetchPhaseStatus, phase1Deadline, currentTime, simulatorEnabled } from '$stores/phase';
+	import {
+		fetchPhaseStatus,
+		phase1Deadline,
+		currentTime,
+		simulatorEnabled,
+		tournamentConcluded
+	} from '$stores/phase';
 	import { simulatorSeen } from '$stores/uiPreferences';
 	import { theme, chromeThemeFor } from '$stores/theme';
 	import { activeEntry, editableEntries } from '$stores/entries';
@@ -144,6 +150,11 @@
 	// Live deadline visibility — keeps lock pressure visible site-wide.
 	$: hasLiveDeadline =
 		!!$phase1Deadline && new Date($phase1Deadline).getTime() > $currentTime.getTime();
+
+	// Next-tournament countdown — fills the same navbar slot the deadline
+	// pill occupied once it locks (hasLiveDeadline goes false for good at
+	// that point), rather than leaving an empty gap post-tournament.
+	const EURO_2028_KICKOFF = '2028-06-09T21:00:00+02:00';
 
 	// Chrome wrappers (rail / topbars / bottom-nav) carry data-theme={chromeTheme}.
 	// Under `hybrid` (the light body) this is 'premium-night' so the chrome
@@ -348,6 +359,11 @@
 			<div class="flex items-center gap-3">
 				{#if hasLiveDeadline}
 					<CountdownTimer deadline={$phase1Deadline} />
+				{:else if $tournamentConcluded}
+					<span class="hidden lg:inline text-sm text-base-content/60 whitespace-nowrap">
+						We'll be back for UEFA Euro 2028!
+					</span>
+					<CountdownTimer deadline={EURO_2028_KICKOFF} label="Euro 2028" />
 				{/if}
 				<div
 					class="tooltip tooltip-bottom"
@@ -457,6 +473,8 @@
 			<div class="navbar-end gap-1">
 				{#if hasLiveDeadline}
 					<CountdownTimer deadline={$phase1Deadline} compact />
+				{:else if $tournamentConcluded}
+					<CountdownTimer deadline={EURO_2028_KICKOFF} label="Euro 2028" compact />
 				{/if}
 				<div
 					class="tooltip tooltip-bottom"
