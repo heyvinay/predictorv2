@@ -2781,6 +2781,13 @@
       "type": "feature",
       "summary": "Usage & Adoption dashboard: click any chart bar, bucket, or funnel card to see exactly who's behind the number, plus a per-user feature breakdown and a dedicated Insights-tab adoption row.",
       "commit": "pending"
+    },
+    {
+      "version": "2.214.0",
+      "date": "2026-07-19",
+      "type": "feature",
+      "summary": "The tournament finale: a public wrap-up page with the champion's story, your personal highlights, and a head-to-head compare view.",
+      "commit": "pending"
     }
   ]
 }
