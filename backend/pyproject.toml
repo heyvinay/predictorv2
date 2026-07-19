@@ -1,6 +1,6 @@
 [project]
 name = "predictor-backend"
-version = "2.216.8"
+version = "2.216.9"
 description = "Football prediction competition backend"
 requires-python = ">=3.11"
 dependencies = [
