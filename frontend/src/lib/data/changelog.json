@@ -2816,6 +2816,13 @@
       "type": "fix",
       "summary": "Compare's Matches table now keeps each entry's points right next to their own pick instead of drifting toward the next column.",
       "commit": "pending"
+    },
+    {
+      "version": "2.216.3",
+      "date": "2026-07-19",
+      "type": "fix",
+      "summary": "Muted text across light mode reads as dark ink instead of washed-out grey.",
+      "commit": "pending"
     }
   ]
 }
