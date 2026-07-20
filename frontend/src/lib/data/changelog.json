@@ -2900,6 +2900,13 @@
       "type": "fix",
       "summary": "Moved the guest sign-in card to the very end of the wrap-up page, after the whole story.",
       "commit": "pending"
+    },
+    {
+      "version": "2.218.2",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "Rewrote the tournament wrap-up email: leads with the actual Final result, adds a link to compare your entry, and thanks Atlas Insurance for the Soup Kitchen top-up and match ball.",
+      "commit": "pending"
     }
   ]
 }
