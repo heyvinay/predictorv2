@@ -2921,6 +2921,13 @@
       "type": "fix",
       "summary": "Fixed the Bottlers bonus question showing the wrong team as earliest eliminated, and updated the Q3/Q4 card wording now that the tournament has concluded.",
       "commit": "pending"
+    },
+    {
+      "version": "2.219.2",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "The tournament wrap-up email now opens by thanking players for taking part, includes a couple of tournament highlights, asks for feedback, and signs off with a nod to Euro 2028.",
+      "commit": "pending"
     }
   ]
 }
