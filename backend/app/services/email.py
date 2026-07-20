@@ -2148,20 +2148,26 @@ def _broadcast_content_for_segment(
         )
 
     if segment == BroadcastSegment.TOURNAMENT_FINAL:
-        # v2.214.x — conclusion announcement. Rewritten 2026-07-20 to lead
-        # with the actual match result, add a dedicated compare-entry
-        # link, and thank Atlas Insurance for the Soup Kitchen top-up +
-        # Trionda ball. Same audience as the recap family (every
-        # submitter). Deliberately SHORT — no UTM tag (same
-        # deliverability lesson as R2/GSF/R32/R16: no campaign params, no
-        # "winner+announced" word pair). Tokens ({{CHAMPION_NAME}},
-        # {{CHAMPION_TOTAL}}, {{FINAL_RESULT}}) are filled at send time by
-        # ``_compute_tournament_final_email_tokens`` from the same
+        # v2.214.x — conclusion announcement. Rewritten 2026-07-20 (twice)
+        # to: open by thanking the recipient for taking part, lead with
+        # the actual match result, fold in the tournament story/highlights
+        # via {{STORY_LINE}} (the same narrative the wrap-up page's
+        # TitleMatrix shows — one resolver, not a re-derived summary), add
+        # a dedicated compare-entry link, thank Atlas Insurance for the
+        # Soup Kitchen top-up + Trionda ball, ask for feedback, and close
+        # with a callback to Euro 2028. Same audience as the recap family
+        # (every submitter). Deliberately SHORT for a "last email of the
+        # season" — no UTM tag (same deliverability lesson as
+        # R2/GSF/R32/R16: no campaign params, no "winner+announced" word
+        # pair). {{FINAL_RESULT}} and {{STORY_LINE}} are filled at send
+        # time by ``_compute_tournament_final_email_tokens`` from the same
         # final-podium service (+ the Final fixture's score) backing the
-        # wrap-up page, so the email and the app agree on the numbers.
-        # The compare link is a hardcoded absolute URL, matching every
-        # other inline (non-CTA-button) link in this file — not a token,
-        # since the destination never varies per recipient.
+        # wrap-up page, so the email and the app agree on the numbers —
+        # deliberately NOT a separate {{CHAMPION_NAME}}/{{CHAMPION_TOTAL}}
+        # pair, since STORY_LINE already names the champion and margin in
+        # prose. The compare link is a hardcoded absolute URL, matching
+        # every other inline (non-CTA-button) link in this file — not a
+        # token, since the destination never varies per recipient.
         return _BroadcastContent(
             subject="WC26 — that's a wrap",
             headline="We have a champion",
@@ -2171,12 +2177,18 @@ def _broadcast_content_for_segment(
                 f"Hi {safe_name},</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
+                "Thank you for being part of this year&rsquo;s pool "
+                "&mdash; five weeks of picks, bragging rights, and more "
+                "than a few nerve-wracking finishes.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
                 "{{FINAL_RESULT}}</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "<strong>{{CHAMPION_NAME}}</strong> takes the title with "
-                "<strong>{{CHAMPION_TOTAL}}</strong> points. The full "
-                "final standings are up now.</p>\n"
+                "{{STORY_LINE}}</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "The full final standings are up now.</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "&#129300; Not the result you wanted? "
@@ -2184,30 +2196,50 @@ def _broadcast_content_for_segment(
                 f'style="color:{_GOLD};text-decoration:underline;">'
                 "Compare your entry against the champion&rsquo;s, pick by "
                 "pick</a>.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "A big thank you to <strong>Atlas Insurance</strong>, who "
+                "topped up our Soup Kitchen contribution by &euro;500 and "
+                "provided the Adidas Trionda match ball (&euro;150) as "
+                "our runner-up prize.</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "Got 30 seconds? We&rsquo;d love to know what you "
+                "thought &mdash; there&rsquo;s a quick feedback link in "
+                "the app&rsquo;s footer. It shapes the next one.</p>\n"
                 f'              <p style="margin:0 0 0 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "Thank you for playing this year &mdash; and a big thank "
-                "you to <strong>Atlas Insurance</strong>, who topped up "
-                "our Soup Kitchen contribution by &euro;500 and provided "
-                "the Adidas Trionda match ball (&euro;150) as our "
-                "runner-up prize.</p>\n"
+                "See you in June 2028 for Euro 2028 &mdash; thanks for "
+                "playing.</p>\n"
             ),
             body_text=(
                 f"Hi {safe_name},\n"
                 "\n"
+                "Thank you for being part of this year's pool — five "
+                "weeks of picks, bragging rights, and more than a few "
+                "nerve-wracking finishes.\n"
+                "\n"
                 "{{FINAL_RESULT}}\n"
                 "\n"
-                "{{CHAMPION_NAME}} takes the title with {{CHAMPION_TOTAL}} "
-                "points. The full final standings are up now.\n"
+                "{{STORY_LINE}}\n"
+                "\n"
+                "The full final standings are up now.\n"
                 "\n"
                 "Not the result you wanted? Compare your entry against "
                 "the champion's, pick by pick:\n"
                 "https://wc26.heyvinay.com/compare\n"
                 "\n"
-                "Thank you for playing this year — and a big thank you "
-                "to Atlas Insurance, who topped up our Soup Kitchen "
-                "contribution by €500 and provided the Adidas Trionda "
-                "match ball (€150) as our runner-up prize.\n"
+                "A big thank you to Atlas Insurance, who topped up our "
+                "Soup Kitchen contribution by €500 and provided the "
+                "Adidas Trionda match ball (€150) as our runner-up "
+                "prize.\n"
+                "\n"
+                "Got 30 seconds? We'd love to know what you thought — "
+                "there's a quick feedback link in the app's footer. It "
+                "shapes the next one.\n"
+                "\n"
+                "See you in June 2028 for Euro 2028 — thanks for "
+                "playing.\n"
             ),
             cta_label="See the final standings",
         )
@@ -2721,9 +2753,10 @@ async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
 
     Mirrors :func:`_compute_group_stage_winner_email_tokens`'s
     gate-then-fetch shape. Returns an empty dict (→ literal
-    ``{{CHAMPION_NAME}}`` placeholders survive) if the tournament isn't
-    marked concluded yet or the podium can't be computed — the visible
-    signal that "you tested too early", same as the GSW pattern.
+    ``{{FINAL_RESULT}}``/``{{STORY_LINE}}`` placeholders survive) if the
+    tournament isn't marked concluded yet or the podium can't be
+    computed — the visible signal that "you tested too early", same as
+    the GSW pattern.
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -2768,11 +2801,14 @@ async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
         logger.warning("TOURNAMENT_FINAL result compute failed: %s", exc)
         final_result = "The Final has been played."
 
-    champ = podium["entries"][0]
     return {
-        "CHAMPION_NAME": champ["user_name"],
-        "CHAMPION_TOTAL": str(champ["total_points"]),
         "FINAL_RESULT": final_result,
+        # Same story_line the wrap-up page's TitleMatrix renders (e.g.
+        # "Matthew Ellul takes the title by 10 points — 8 exact scores
+        # and a bracket that held..."). Already names the champion,
+        # margin and a highlight stat in one line — no separate
+        # CHAMPION_NAME/CHAMPION_TOTAL token needed.
+        "STORY_LINE": podium["story_line"],
     }
 
 

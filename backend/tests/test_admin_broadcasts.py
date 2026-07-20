@@ -515,28 +515,31 @@ class TestAudienceQueries:
             deadline_display=None,
         )
         tokens = {
-            "CHAMPION_NAME": "James Vella",
-            "CHAMPION_TOTAL": "612",
             "FINAL_RESULT": "Spain beat Argentina 1–0 after extra time.",
+            "STORY_LINE": (
+                "James Vella takes the title by 12 points — 6 exact scores "
+                "and a bracket that held, having led for 20 matchdays."
+            ),
         }
         rendered = _interpolate(content, tokens)
         for value in tokens.values():
             assert value in rendered.body_html
             assert value in rendered.body_text
-        for fragment in (
-            "{{",
-            "}}",
-            "{CHAMPION_NAME}",
-            "{CHAMPION_TOTAL}",
-            "{FINAL_RESULT}",
-        ):
+        for fragment in ("{{", "}}", "{FINAL_RESULT}", "{STORY_LINE}"):
             assert fragment not in rendered.body_html
             assert fragment not in rendered.body_text
-        # new copy (2026-07-20): compare link + Atlas Insurance thank-you
+        # new copy (2026-07-20): warm open, compare link, Atlas Insurance
+        # thank-you, feedback ask, Euro 2028 sign-off
+        assert "Thank you for being part" in rendered.body_html
+        assert "Thank you for being part" in rendered.body_text
         assert "wc26.heyvinay.com/compare" in rendered.body_html
         assert "wc26.heyvinay.com/compare" in rendered.body_text
         assert "Atlas Insurance" in rendered.body_html
         assert "Atlas Insurance" in rendered.body_text
+        assert "feedback" in rendered.body_html
+        assert "feedback" in rendered.body_text
+        assert "Euro 2028" in rendered.body_html
+        assert "Euro 2028" in rendered.body_text
         # deliverability constraints: short + no UTM
         assert "utm_" not in rendered.body_html
         assert len(rendered.body_text) < 1200
