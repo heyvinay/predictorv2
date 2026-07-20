@@ -2907,6 +2907,13 @@
       "type": "fix",
       "summary": "Rewrote the tournament wrap-up email: leads with the actual Final result, adds a link to compare your entry, and thanks Atlas Insurance for the Soup Kitchen top-up and match ball.",
       "commit": "pending"
+    },
+    {
+      "version": "2.219.0",
+      "date": "2026-07-20",
+      "type": "feature",
+      "summary": "Head-to-head compare is now open to everyone in the pool, not just admins.",
+      "commit": "pending"
     }
   ]
 }
