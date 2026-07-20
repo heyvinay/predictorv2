@@ -2928,6 +2928,13 @@
       "type": "fix",
       "summary": "The tournament wrap-up email now opens by thanking players for taking part, includes a couple of tournament highlights, asks for feedback, and signs off with a nod to Euro 2028.",
       "commit": "pending"
+    },
+    {
+      "version": "2.219.3",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "The wrap-up email's tournament highlights now cover real World Cup 2026 drama, not the prediction pool's own stats.",
+      "commit": "pending"
     }
   ]
 }
