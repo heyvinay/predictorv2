@@ -103,3 +103,31 @@ describe('knockoutBonusCandidates — Dark Horse (Q3)', () => {
 		expect(kb.darkHorse!.valLabel).toBe('reached the round of 16');
 	});
 });
+
+describe('knockoutBonusCandidates — Bottlers (Q4)', () => {
+	it('excludes the unscored third_place playoff from the earliest-exit search (regression)', () => {
+		// Argentina (top-N) loses at R32 — the true earliest KO exit among
+		// top-N sides. France (also top-N) goes much deeper — reaches the
+		// semis, loses there, then loses the third-place playoff. Before
+		// the fix, 'third_place' wasn't in STAGE_ORDER so indexOf()
+		// returned -1, which incorrectly won the "earliest" comparison
+		// and picked France (a deep semi-finalist) over Argentina (the
+		// real earliest exit). Confirmed against real WC26 prod data:
+		// France reached the semis and lost the third-place match, and
+		// this bug surfaced it as "top FIFA side out at third place."
+		const fixtures: Fixture[] = [
+			grp('France', 'Iceland'),
+			grp('Spain', 'Wales'),
+			grp('Argentina', 'Panama'),
+			ko('round_of_32', 'Argentina', 'Panama', 'away'), // Argentina out at R32
+			ko('semi_final', 'France', 'Spain', 'away'), // France loses the semis
+			ko('third_place', 'France', 'England', 'away') // ...then loses bronze too
+		];
+
+		const kb = knockoutBonusCandidates(fixtures, META);
+
+		expect(kb.bottlers).not.toBeNull();
+		expect(kb.bottlers!.candidates).toEqual(['Argentina']);
+		expect(kb.bottlers!.note).toBe('Bonus Q4 — top FIFA side out at round of 32');
+	});
+});

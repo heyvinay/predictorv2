@@ -16,6 +16,7 @@
 	import { displayTeamName } from '$lib/utils/teamName';
 	import { getFlagUrl, hasFlag } from '$lib/utils/flags';
 	import { knockoutBonusCandidates } from '$lib/utils/knockoutBonusCandidates';
+	import { tournamentConcluded } from '$stores/phase';
 	import FlagCode from '$lib/components/leaderboard/v4/FlagCode.svelte';
 
 	const CANDIDATE_LIMIT = 5;
@@ -89,6 +90,17 @@
 		alive: 'Alive',
 		fading: 'Fading',
 		leading: 'Leading',
+		pending: 'Pending',
+		dead: 'Dead'
+	};
+	// Once the tournament has actually concluded, "Alive"/"Leading"/"Fading"
+	// read as if things could still change — swap to settled-fact wording.
+	// "Dead"/"Pending" already read fine as final states, so they're
+	// untouched.
+	const CONCLUDED_STATUS_LABEL: Record<BonusStatus, string> = {
+		alive: 'Correct',
+		fading: 'Incorrect',
+		leading: 'Correct',
 		pending: 'Pending',
 		dead: 'Dead'
 	};
@@ -191,7 +203,9 @@
 				Bonus questions · <span class="text-primary">Q3 &amp; Q4</span>
 			</h2>
 			<p class="mt-1 text-xs text-base-content/55">
-				Two more picks that settle as the knockouts progress.
+				{$tournamentConcluded
+					? 'Two more picks, now settled.'
+					: 'Two more picks that settle as the knockouts progress.'}
 			</p>
 		</header>
 		<div class="grid gap-4 sm:grid-cols-2">
@@ -202,7 +216,7 @@
 							🐴 Q3 · Dark horse
 						</span>
 						<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {STATUS_CLASS[darkHorseStatus]}">
-							{STATUS_LABEL[darkHorseStatus]}
+							{$tournamentConcluded ? CONCLUDED_STATUS_LABEL[darkHorseStatus] : STATUS_LABEL[darkHorseStatus]}
 						</span>
 					</div>
 					<h3 class="font-display text-sm font-semibold">{darkHorseQuestion.label}</h3>
@@ -219,7 +233,7 @@
 					{#if darkHorseField && darkHorseField.shown.length > 0}
 						<div class="flex flex-col gap-1">
 							<span class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/45">
-								Live candidates
+								{$tournamentConcluded ? 'Final answer' : 'Live candidates'}
 							</span>
 							<div class="flex flex-wrap items-center gap-1.5">
 								{#each darkHorseField.shown as team (team)}
@@ -249,7 +263,7 @@
 							💥 Q4 · Bottlers
 						</span>
 						<span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {STATUS_CLASS[bottlersStatus]}">
-							{STATUS_LABEL[bottlersStatus]}
+							{$tournamentConcluded ? CONCLUDED_STATUS_LABEL[bottlersStatus] : STATUS_LABEL[bottlersStatus]}
 						</span>
 					</div>
 					<h3 class="font-display text-sm font-semibold">{bottlersQuestion.label}</h3>
@@ -266,7 +280,7 @@
 					{#if bottlersField && bottlersField.shown.length > 0}
 						<div class="flex flex-col gap-1">
 							<span class="text-[9.5px] font-extrabold uppercase tracking-[0.1em] text-base-content/45">
-								Currently earliest out
+								{$tournamentConcluded ? 'Confirmed earliest out' : 'Currently earliest out'}
 							</span>
 							<div class="flex flex-wrap items-center gap-1.5">
 								{#each bottlersField.shown as team (team)}

@@ -153,6 +153,14 @@ export function knockoutBonusCandidates(
 		for (const f of fixtures) {
 			if (
 				f.stage === 'group' ||
+				// ★ third_place is an unscored, out-of-band playoff (semi-final
+				// losers, played the day before the Final) — it isn't in
+				// STAGE_ORDER, so indexOf() returns -1 for it, which would
+				// incorrectly win the "smallest index = earliest" comparison
+				// below against every real elimination stage. A team that
+				// reaches the semis and loses the third-place match made a
+				// deep run, not an early exit.
+				f.stage === 'third_place' ||
 				f.status !== 'finished' ||
 				!f.score ||
 				!isRealTeam(f.home_team) ||
