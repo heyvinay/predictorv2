@@ -536,6 +536,10 @@ class TestAudienceQueries:
         assert "wc26.heyvinay.com/compare" in rendered.body_text
         assert "Atlas Insurance" in rendered.body_html
         assert "Atlas Insurance" in rendered.body_text
+        # real (hardcoded, non-token) FIFA World Cup tournament highlights —
+        # distinct from STORY_LINE, which is about the pool's own game
+        assert "Cape Verde" in rendered.body_html
+        assert "Cape Verde" in rendered.body_text
         assert "feedback" in rendered.body_html
         assert "feedback" in rendered.body_text
         assert "Euro 2028" in rendered.body_html

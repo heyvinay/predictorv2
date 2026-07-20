@@ -2148,10 +2148,13 @@ def _broadcast_content_for_segment(
         )
 
     if segment == BroadcastSegment.TOURNAMENT_FINAL:
-        # v2.214.x — conclusion announcement. Rewritten 2026-07-20 (twice)
-        # to: open by thanking the recipient for taking part, lead with
-        # the actual match result, fold in the tournament story/highlights
-        # via {{STORY_LINE}} (the same narrative the wrap-up page's
+        # v2.214.x — conclusion announcement. Rewritten 2026-07-20 (three
+        # passes) to: open by thanking the recipient for taking part, lead
+        # with the actual match result, note a couple of REAL FIFA World
+        # Cup highlights (hardcoded prose — historical fact about the
+        # tournament itself, not the pool; same for every recipient, no
+        # token needed), fold in the pool's own story/highlights via
+        # {{STORY_LINE}} (the same narrative the wrap-up page's
         # TitleMatrix shows — one resolver, not a re-derived summary), add
         # a dedicated compare-entry link, thank Atlas Insurance for the
         # Soup Kitchen top-up + Trionda ball, ask for feedback, and close
@@ -2183,6 +2186,12 @@ def _broadcast_content_for_segment(
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "{{FINAL_RESULT}}</p>\n"
+                f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
+                f'color:{_BODY_INK};">'
+                "It was a wild ride to get there &mdash; Cape Verde held "
+                "Spain to a scoreless draw, and Paraguay and Morocco both "
+                "knocked out major favourites (Germany and the "
+                "Netherlands) on penalties in the Round of 32.</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
                 "{{STORY_LINE}}</p>\n"
@@ -2220,6 +2229,11 @@ def _broadcast_content_for_segment(
                 "nerve-wracking finishes.\n"
                 "\n"
                 "{{FINAL_RESULT}}\n"
+                "\n"
+                "It was a wild ride to get there — Cape Verde held Spain "
+                "to a scoreless draw, and Paraguay and Morocco both "
+                "knocked out major favourites (Germany and the "
+                "Netherlands) on penalties in the Round of 32.\n"
                 "\n"
                 "{{STORY_LINE}}\n"
                 "\n"
