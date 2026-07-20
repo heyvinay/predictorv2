@@ -2914,6 +2914,13 @@
       "type": "feature",
       "summary": "Head-to-head compare is now open to everyone in the pool, not just admins.",
       "commit": "pending"
+    },
+    {
+      "version": "2.219.1",
+      "date": "2026-07-20",
+      "type": "fix",
+      "summary": "Fixed the Bottlers bonus question showing the wrong team as earliest eliminated, and updated the Q3/Q4 card wording now that the tournament has concluded.",
+      "commit": "pending"
     }
   ]
 }
