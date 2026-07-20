@@ -2,11 +2,10 @@
 	/**
 	 * /compare — head-to-head entry comparison (v2.214.0 draft).
 	 *
-	 * Admin-only staged rollout (same recipe as V4 Results/Leaderboard at
-	 * their initial ship): V4_COMPARE_ENABLED kill switch + $user?.is_admin
-	 * gate. Opening it to the whole pool is a future release task — do NOT
-	 * add a postDeadlineLive-style OR clause here without an explicit
-	 * instruction to ship it.
+	 * Released to the whole pool 2026-07-20 (tournament concluded,
+	 * broadcast email links here for everyone). V4_COMPARE_ENABLED stays
+	 * as a kill switch — flip to false + redeploy for a fast rollback if
+	 * needed. The admin-only staged-rollout clause has been removed.
 	 *
 	 * Powered entirely by the shared compareEntries engine
 	 * ($lib/utils/compareEntries) — this page only fetches data and wires
@@ -33,10 +32,9 @@
 	import type { LbEntryV4 } from '$lib/types/leaderboard';
 	import type { MatchPredictionWithPoints, ScoringRules } from '$lib/types/results';
 
-	// ── Gate: admin-only staged rollout. Release = delete the is_admin
-	// clause + redeploy (future task, not this one). ──
+	// ── Gate: kill switch only. Flip to false + redeploy to roll back. ──
 	const V4_COMPARE_ENABLED = true;
-	$: compareOpen = V4_COMPARE_ENABLED && $user?.is_admin === true;
+	$: compareOpen = V4_COMPARE_ENABLED;
 	$: if (!$isAuthenticated) goto('/login');
 
 	onMount(() => pageTitle.set('Compare'));
