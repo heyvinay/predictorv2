@@ -514,17 +514,93 @@ class TestAudienceQueries:
             player_name="Test User",
             deadline_display=None,
         )
-        tokens = {"CHAMPION_NAME": "James Vella", "CHAMPION_TOTAL": "612"}
+        tokens = {
+            "CHAMPION_NAME": "James Vella",
+            "CHAMPION_TOTAL": "612",
+            "FINAL_RESULT": "Spain beat Argentina 1–0 after extra time.",
+        }
         rendered = _interpolate(content, tokens)
         for value in tokens.values():
             assert value in rendered.body_html
             assert value in rendered.body_text
-        for fragment in ("{{", "}}", "{CHAMPION_NAME}", "{CHAMPION_TOTAL}"):
+        for fragment in (
+            "{{",
+            "}}",
+            "{CHAMPION_NAME}",
+            "{CHAMPION_TOTAL}",
+            "{FINAL_RESULT}",
+        ):
             assert fragment not in rendered.body_html
             assert fragment not in rendered.body_text
+        # new copy (2026-07-20): compare link + Atlas Insurance thank-you
+        assert "wc26.heyvinay.com/compare" in rendered.body_html
+        assert "wc26.heyvinay.com/compare" in rendered.body_text
+        assert "Atlas Insurance" in rendered.body_html
+        assert "Atlas Insurance" in rendered.body_text
         # deliverability constraints: short + no UTM
         assert "utm_" not in rendered.body_html
         assert len(rendered.body_text) < 1200
+
+    def test_format_final_result_regulation(self):
+        from types import SimpleNamespace
+        from app.services.email import _format_final_result
+
+        fixture = SimpleNamespace(home_team="Spain", away_team="Argentina")
+        score = SimpleNamespace(
+            outcome="1",
+            final_home_score=2,
+            final_away_score=1,
+            home_score_et=None,
+            away_score_et=None,
+            home_penalties=None,
+            away_penalties=None,
+        )
+        assert _format_final_result(fixture, score) == "Spain beat Argentina 2–1."
+
+    def test_format_final_result_extra_time(self):
+        from types import SimpleNamespace
+        from app.services.email import _format_final_result
+
+        fixture = SimpleNamespace(home_team="Spain", away_team="Argentina")
+        score = SimpleNamespace(
+            outcome="1",
+            final_home_score=1,
+            final_away_score=0,
+            home_score_et=1,
+            away_score_et=0,
+            home_penalties=None,
+            away_penalties=None,
+        )
+        assert (
+            _format_final_result(fixture, score)
+            == "Spain beat Argentina 1–0 after extra time."
+        )
+
+    def test_format_final_result_penalties(self):
+        from types import SimpleNamespace
+        from app.services.email import _format_final_result
+
+        fixture = SimpleNamespace(home_team="Spain", away_team="Argentina")
+        score = SimpleNamespace(
+            outcome="2",
+            final_home_score=1,
+            final_away_score=1,
+            home_score_et=1,
+            away_score_et=1,
+            home_penalties=2,
+            away_penalties=4,
+        )
+        assert (
+            _format_final_result(fixture, score)
+            == "Argentina beat Spain 1–1, 4–2 on penalties."
+        )
+
+    def test_format_final_result_no_score(self):
+        from types import SimpleNamespace
+        from app.services.email import _format_final_result
+
+        fixture = SimpleNamespace(home_team="Spain", away_team="Argentina")
+        assert _format_final_result(fixture, None) == "The Final has been played."
 
     async def test_tournament_final_audience_is_submitters(self, db_session):
         from app.services.broadcast import _segment_predicate

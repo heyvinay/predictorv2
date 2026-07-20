@@ -2148,15 +2148,20 @@ def _broadcast_content_for_segment(
         )
 
     if segment == BroadcastSegment.TOURNAMENT_FINAL:
-        # v2.214.x — conclusion announcement. Same audience as the
-        # recap family (every submitter). Deliberately SHORT — this is
-        # a wrap-up note, not another recap — and carries no UTM tag
-        # (same deliverability lesson as R2/GSF/R32/R16: no campaign
-        # params, no "winner+announced" word pair). Tokens
-        # ({{CHAMPION_NAME}}, {{CHAMPION_TOTAL}}) are filled at send
-        # time by ``_compute_tournament_final_email_tokens`` from the
-        # same final-podium service backing the wrap-up page, so the
-        # email and the app agree on the numbers.
+        # v2.214.x — conclusion announcement. Rewritten 2026-07-20 to lead
+        # with the actual match result, add a dedicated compare-entry
+        # link, and thank Atlas Insurance for the Soup Kitchen top-up +
+        # Trionda ball. Same audience as the recap family (every
+        # submitter). Deliberately SHORT — no UTM tag (same
+        # deliverability lesson as R2/GSF/R32/R16: no campaign params, no
+        # "winner+announced" word pair). Tokens ({{CHAMPION_NAME}},
+        # {{CHAMPION_TOTAL}}, {{FINAL_RESULT}}) are filled at send time by
+        # ``_compute_tournament_final_email_tokens`` from the same
+        # final-podium service (+ the Final fixture's score) backing the
+        # wrap-up page, so the email and the app agree on the numbers.
+        # The compare link is a hardcoded absolute URL, matching every
+        # other inline (non-CTA-button) link in this file — not a token,
+        # since the destination never varies per recipient.
         return _BroadcastContent(
             subject="WC26 — that's a wrap",
             headline="We have a champion",
@@ -2166,40 +2171,45 @@ def _broadcast_content_for_segment(
                 f"Hi {safe_name},</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "The tournament is done — <strong>{{CHAMPION_NAME}}</strong> "
-                "is our champion with <strong>{{CHAMPION_TOTAL}}</strong> "
-                "points.</p>\n"
+                "{{FINAL_RESULT}}</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "The full story is on the app: the final podium, how the "
-                "title was won, the side-prize winner, and a head-to-head "
-                "view to see exactly how your entry stacked up.</p>\n"
+                "<strong>{{CHAMPION_NAME}}</strong> takes the title with "
+                "<strong>{{CHAMPION_TOTAL}}</strong> points. The full "
+                "final standings are up now.</p>\n"
                 f'              <p style="margin:0 0 14px 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "One last thing — we built this for you, and we'd love to "
-                "know how it went. There's a quick rating and feedback box "
-                "on the homepage. It takes 30 seconds and shapes the next "
-                "one.</p>\n"
+                "&#129300; Not the result you wanted? "
+                '<a href="https://wc26.heyvinay.com/compare" '
+                f'style="color:{_GOLD};text-decoration:underline;">'
+                "Compare your entry against the champion&rsquo;s, pick by "
+                "pick</a>.</p>\n"
                 f'              <p style="margin:0 0 0 0;font-size:15px;line-height:1.55;'
                 f'color:{_BODY_INK};">'
-                "Thanks for playing.</p>\n"
+                "Thank you for playing this year &mdash; and a big thank "
+                "you to <strong>Atlas Insurance</strong>, who topped up "
+                "our Soup Kitchen contribution by &euro;500 and provided "
+                "the Adidas Trionda match ball (&euro;150) as our "
+                "runner-up prize.</p>\n"
             ),
             body_text=(
                 f"Hi {safe_name},\n"
                 "\n"
-                "The tournament is done — {{CHAMPION_NAME}} is our champion "
-                "with {{CHAMPION_TOTAL}} points.\n"
+                "{{FINAL_RESULT}}\n"
                 "\n"
-                "The full story is on the app: the final podium, how the "
-                "title was won, the side-prize winner, and a head-to-head "
-                "view of your own entry.\n"
+                "{{CHAMPION_NAME}} takes the title with {{CHAMPION_TOTAL}} "
+                "points. The full final standings are up now.\n"
                 "\n"
-                "One last thing — rate the app and tell us what to build "
-                "next. The box is on the homepage; it takes 30 seconds.\n"
+                "Not the result you wanted? Compare your entry against "
+                "the champion's, pick by pick:\n"
+                "https://wc26.heyvinay.com/compare\n"
                 "\n"
-                "Thanks for playing.\n"
+                "Thank you for playing this year — and a big thank you "
+                "to Atlas Insurance, who topped up our Soup Kitchen "
+                "contribution by €500 and provided the Adidas Trionda "
+                "match ball (€150) as our runner-up prize.\n"
             ),
-            cta_label="See the final story",
+            cta_label="See the final standings",
         )
 
     raise ValueError(f"Unknown segment: {segment!r}")
@@ -2670,6 +2680,42 @@ async def _compute_group_stage_winner_email_tokens(session) -> dict[str, str]:
     }
 
 
+def _format_final_result(fixture, score) -> str:
+    """One-liner match result for the TOURNAMENT_FINAL email.
+
+    Derived directly from the Final fixture's Score (outcome +
+    final_home_score/final_away_score, which already fall back to
+    regulation when extra time wasn't played — same properties
+    ``api/leaderboard.py``'s champion endpoint uses), not the
+    admin-editable ``Competition.final_match_narrative`` — so this line
+    is always present and factually pinned the moment the match is
+    FINISHED, with no dependency on whether a narrative was saved.
+    """
+    if score is None:
+        return "The Final has been played."
+    went_to_et = score.home_score_et is not None or score.away_score_et is not None
+    home_score = score.final_home_score
+    away_score = score.final_away_score
+
+    if score.outcome == "1":
+        winner, loser = fixture.home_team, fixture.away_team
+        w_score, l_score = home_score, away_score
+        w_pens, l_pens = score.home_penalties, score.away_penalties
+    elif score.outcome == "2":
+        winner, loser = fixture.away_team, fixture.home_team
+        w_score, l_score = away_score, home_score
+        w_pens, l_pens = score.away_penalties, score.home_penalties
+    else:
+        # Defensive — a truly FINISHED final always resolves a winner.
+        return f"{fixture.home_team} {home_score}–{away_score} {fixture.away_team} in the Final."
+
+    if w_pens is not None and l_pens is not None:
+        return f"{winner} beat {loser} {w_score}–{l_score}, {w_pens}–{l_pens} on penalties."
+    if went_to_et:
+        return f"{winner} beat {loser} {w_score}–{l_score} after extra time."
+    return f"{winner} beat {loser} {w_score}–{l_score}."
+
+
 async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
     """Build the token dict for the TOURNAMENT_FINAL broadcast email.
 
@@ -2680,7 +2726,9 @@ async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
     signal that "you tested too early", same as the GSW pattern.
     """
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
     from app.models.competition import Competition
+    from app.models.fixture import Fixture
     from app.services.tournament_champion import get_final_podium
 
     try:
@@ -2703,10 +2751,28 @@ async def _compute_tournament_final_email_tokens(session) -> dict[str, str]:
     if not podium or not podium["entries"]:
         return {}
 
+    try:
+        final_fx = (
+            (
+                await session.execute(
+                    select(Fixture)
+                    .options(selectinload(Fixture.score))
+                    .where(Fixture.stage == "final")
+                )
+            )
+            .scalars()
+            .first()
+        )
+        final_result = _format_final_result(final_fx, final_fx.score if final_fx else None)
+    except Exception as exc:  # noqa: BLE001 — broadcast must not crash
+        logger.warning("TOURNAMENT_FINAL result compute failed: %s", exc)
+        final_result = "The Final has been played."
+
     champ = podium["entries"][0]
     return {
         "CHAMPION_NAME": champ["user_name"],
         "CHAMPION_TOTAL": str(champ["total_points"]),
+        "FINAL_RESULT": final_result,
     }
 
 
